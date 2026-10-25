@@ -3,6 +3,8 @@ BIN ?= dist/multiversectl
 PREFIX ?= $(HOME)/.local/bin
 SCHEMA = schema/workspace.v1alpha1.yaml
 TYPES = internal/adapters/manifest/v1alpha1/types.go
+CATALOG_SCHEMA = schema/catalog.v1alpha1.yaml
+CATALOG_TYPES = internal/adapters/catalog/v1alpha1/types.go
 
 .PHONY: help build install test lint schema schema-check docs docs-check tidy clean
 .DEFAULT_GOAL := help
@@ -25,9 +27,10 @@ lint: ## gofmt and go vet
 	@test -z "$$(gofmt -l . | tee /dev/stderr)" || { echo "gofmt needed"; exit 1; }
 	$(GO) vet ./...
 
-schema: ## Generate $(SCHEMA) from the Go types
+schema: ## Generate $(SCHEMA) and $(CATALOG_SCHEMA) from the Go types
 	$(GO) run ./internal/tools/schemagen $(TYPES) > $(SCHEMA)
-	@echo "wrote $(SCHEMA)"
+	$(GO) run ./internal/tools/schemagen -kind Catalog $(CATALOG_TYPES) > $(CATALOG_SCHEMA)
+	@echo "wrote $(SCHEMA) $(CATALOG_SCHEMA)"
 
 docs: ## Render docs/ from docsrc/
 	$(GO) run ./internal/tools/docgen docsrc docs
@@ -37,8 +40,8 @@ docs-check: docs ## Fail if the committed docs are stale
 		|| { echo "docs/ is stale — commit the regenerated pages"; exit 1; }
 
 schema-check: schema ## Fail if the committed schema is stale
-	@git diff --exit-code -- $(SCHEMA) \
-		|| { echo "$(SCHEMA) is stale — commit the regenerated file"; exit 1; }
+	@git diff --exit-code -- $(SCHEMA) $(CATALOG_SCHEMA) \
+		|| { echo "schema/ is stale — commit the regenerated files"; exit 1; }
 
 tidy: ## Tidy go.mod
 	$(GO) mod tidy

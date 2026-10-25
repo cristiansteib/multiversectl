@@ -22,9 +22,12 @@ type Catalog struct {
 }
 
 type TypeMeta struct {
+	// The only version this build understands.
+	// +enum=multiverse/v1alpha1
 	// +required
 	APIVersion string `yaml:"apiVersion"`
 
+	// +enum=Catalog
 	// +required
 	Kind string `yaml:"kind"`
 }
