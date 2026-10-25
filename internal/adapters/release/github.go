@@ -29,8 +29,12 @@ func New() *GitHub {
 	return &GitHub{client: &http.Client{Timeout: 5 * time.Minute}, base: apiBase}
 }
 
+// Latest is the newest published release that already carries its binaries.
+// A release is created before GoReleaser attaches them, so for a short while
+// the newest one is empty and naming it would fail every update; checksums.txt
+// is the last thing the pipeline needs, so its presence marks a finished one.
 func (g *GitHub) Latest(ctx context.Context) (app.Release, error) {
-	url := fmt.Sprintf("%s/repos/%s/releases/latest", g.base, repository)
+	url := fmt.Sprintf("%s/repos/%s/releases?per_page=10", g.base, repository)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return app.Release{}, fmt.Errorf("build release request: %w", err)
@@ -50,9 +54,11 @@ func (g *GitHub) Latest(ctx context.Context) (app.Release, error) {
 		return app.Release{}, fmt.Errorf("fetch latest release: %s", resp.Status)
 	}
 
-	var body struct {
-		TagName string `json:"tag_name"`
-		Assets  []struct {
+	var body []struct {
+		TagName    string `json:"tag_name"`
+		Draft      bool   `json:"draft"`
+		Prerelease bool   `json:"prerelease"`
+		Assets     []struct {
 			Name string `json:"name"`
 			URL  string `json:"browser_download_url"`
 		} `json:"assets"`
@@ -60,11 +66,19 @@ func (g *GitHub) Latest(ctx context.Context) (app.Release, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		return app.Release{}, fmt.Errorf("decode latest release: %w", err)
 	}
-	rel := app.Release{Version: body.TagName, Assets: map[string]string{}}
-	for _, a := range body.Assets {
-		rel.Assets[a.Name] = a.URL
+	for _, r := range body {
+		if r.Draft || r.Prerelease {
+			continue
+		}
+		rel := app.Release{Version: r.TagName, Assets: map[string]string{}}
+		for _, a := range r.Assets {
+			rel.Assets[a.Name] = a.URL
+		}
+		if _, done := rel.Assets["checksums.txt"]; done {
+			return rel, nil
+		}
 	}
-	return rel, nil
+	return app.Release{}, fmt.Errorf("fetch latest release: none of the newest %d has its binaries yet", len(body))
 }
 
 // Download writes to a temp file beside dest and renames it, so a partial
