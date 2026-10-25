@@ -77,6 +77,19 @@ func unreadable(n domain.Node) []domain.Node {
 	return out
 }
 
+// WorkspacePath is the directory a catalog path installs into. A segment that
+// repeats the one before it is dropped, so a project called fichero whose
+// workspace is also called fichero lands in fichero/, not fichero/fichero/.
+func WorkspacePath(path string) string {
+	var out []string
+	for _, seg := range strings.Split(path, "/") {
+		if len(out) == 0 || out[len(out)-1] != seg {
+			out = append(out, seg)
+		}
+	}
+	return strings.Join(out, "/")
+}
+
 // WorkspaceSlug turns a catalog path into the name a workspace is recorded
 // under: acme/backend/payments becomes acme-backend-payments.
-func WorkspaceSlug(path string) string { return strings.ReplaceAll(path, "/", "-") }
+func WorkspaceSlug(path string) string { return strings.ReplaceAll(WorkspacePath(path), "/", "-") }

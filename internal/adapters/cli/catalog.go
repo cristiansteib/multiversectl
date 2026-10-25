@@ -189,7 +189,8 @@ func (r runner) catalogAddWorkspaceCmd() *cobra.Command {
 			return err
 		}
 		in.Repo, in.AtGiven = args[0], cmd.Flags().Changed("at")
-		return r.declined(c.AddWorkspace(cmd.Context(), in))
+		_, err = c.AddWorkspace(cmd.Context(), in)
+		return r.declined(err)
 	}
 	return cmd
 }
@@ -214,7 +215,8 @@ func (r runner) catalogAddCatalogCmd() *cobra.Command {
 			return err
 		}
 		in.Repo, in.AtGiven = args[0], cmd.Flags().Changed("at")
-		return r.declined(c.AddCatalog(cmd.Context(), in))
+		_, err = c.AddCatalog(cmd.Context(), in)
+		return r.declined(err)
 	}
 	return cmd
 }
@@ -346,7 +348,7 @@ func (r runner) install(cmd *cobra.Command, paths []string, base string, yes, sy
 	var added []*domain.Manifest
 	for _, leaf := range leaves {
 		name := app.WorkspaceSlug(leaf.Path)
-		root := filepath.ToSlash(filepath.Join(base, filepath.FromSlash(leaf.Path)))
+		root := filepath.ToSlash(filepath.Join(base, filepath.FromSlash(app.WorkspacePath(leaf.Path))))
 		if _, ok := taken[name]; ok {
 			r.out.Info("%s is already installed", name)
 			continue
@@ -423,4 +425,44 @@ func (r runner) uninstallCmd() *cobra.Command {
 			return bare.Forget(args[0])
 		},
 	}
+}
+
+func (r runner) addCmd() *cobra.Command {
+	var in app.AddInput
+	var base string
+	var yes, install bool
+	cmd := &cobra.Command{
+		Use:   "add <owner/repo | url>",
+		Short: "Join a project: link its catalog, or list its workspace, and optionally install it",
+		Long: "The repository is looked at: one with a catalog.yaml is linked as a catalog\n" +
+			"(and may list its own workspace and deeper catalogs), one with only a\n" +
+			"multiverse.yaml is listed as a workspace. With no root catalog on this\n" +
+			"machine yet, init runs first.",
+		Example: "  multiversectl add fichero-app/multiverse --install\n  multiversectl add git@github.com:acme/multiverse.git --at personal",
+		Args:    cobra.ExactArgs(1),
+	}
+	atFlag(cmd, &in.At)
+	cmd.Flags().StringVar(&in.Name, "name", "", "name in the catalog (default: the one the repository gives itself)")
+	cmd.Flags().StringVar(&in.Ref, "ref", "", "branch, tag or commit of the repository")
+	cmd.Flags().StringVar(&in.Path, "path", "", "catalog or manifest path in the repository")
+	cmd.Flags().BoolVar(&install, "install", false, "install what was just added")
+	cmd.Flags().StringVar(&base, "base", "", "with --install: directory the workspaces go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
+	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		c, err := r.catalogs(yes)
+		if err != nil {
+			return err
+		}
+		in.Repo, in.AtGiven = args[0], cmd.Flags().Changed("at")
+		node, err := c.Add(cmd.Context(), in)
+		if err != nil {
+			return r.declined(err)
+		}
+		if !install {
+			r.out.Info("install it with: multiversectl install %s", node)
+			return nil
+		}
+		return r.install(cmd, []string{node}, firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"), yes, false)
+	}
+	return cmd
 }

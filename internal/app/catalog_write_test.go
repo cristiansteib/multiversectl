@@ -221,7 +221,7 @@ func TestAddWorkspaceTakesTheNameFromItsManifest(t *testing.T) {
 	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/pay.git": repo}}
 	r := newRig(t, git)
 	r.Yes = true
-	err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true})
+	_, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestAddWorkspaceNeedsAManifest(t *testing.T) {
 	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/none.git": t.TempDir()}}
 	r := newRig(t, git)
 	r.Yes = true
-	err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/none.git", At: "/", AtGiven: true})
+	_, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/none.git", At: "/", AtGiven: true})
 	if err == nil || !strings.Contains(err.Error(), "multiverse.yaml") {
 		t.Errorf("err = %v", err)
 	}
@@ -247,7 +247,7 @@ func TestAddCatalogRefusesAFileThatIsNotACatalog(t *testing.T) {
 	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/bad.git": repo}}
 	r := newRig(t, git)
 	r.Yes = true
-	err := r.AddCatalog(context.Background(), app.AddCatalogInput{Repo: "git@example.test:acme/bad.git", Name: "bad", At: "/", AtGiven: true})
+	_, err := r.AddCatalog(context.Background(), app.AddCatalogInput{Repo: "git@example.test:acme/bad.git", Name: "bad", At: "/", AtGiven: true})
 	if err == nil || !strings.Contains(err.Error(), "unsupported kind") {
 		t.Errorf("err = %v", err)
 	}
@@ -284,7 +284,7 @@ func TestWritingToARemoteCatalogPushesToItsBranch(t *testing.T) {
 	repo := t.TempDir()
 	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: pay\n")
 	git.repos["git@example.test:acme/pay.git"] = repo
-	if err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true}); err != nil {
+	if _, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true}); err != nil {
 		t.Fatal(err)
 	}
 	if len(git.pushed) != 1 || git.pushed[0] != "main" {
@@ -303,7 +303,7 @@ func TestARefusedPushIsReportedAndTheCloneReset(t *testing.T) {
 	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: pay\n")
 	git.repos["git@example.test:acme/pay.git"] = repo
 
-	err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true})
+	_, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true})
 	if err == nil || !strings.Contains(err.Error(), "refused") {
 		t.Fatalf("err = %v", err)
 	}
@@ -396,5 +396,89 @@ func TestLeavesTakeASubtreeOrOneWorkspace(t *testing.T) {
 	}
 	if app.WorkspaceSlug("acme/backend/pay") != "acme-backend-pay" {
 		t.Error("slug")
+	}
+	if app.WorkspaceSlug("fichero/fichero") != "fichero" || app.WorkspacePath("fichero/fichero") != "fichero" {
+		t.Error("a repeated segment should collapse")
+	}
+	if app.WorkspaceSlug("a/b/a") != "a-b-a" {
+		t.Error("only adjacent repeats collapse")
+	}
+}
+
+func manifestRepo(t *testing.T, name string) string {
+	t.Helper()
+	d := t.TempDir()
+	write(t, d, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: "+name+"\n")
+	return d
+}
+
+func TestAddLinksARepositoryWithACatalogAsACatalog(t *testing.T) {
+	proj := manifestRepo(t, "fichero")
+	// The project's own index lists its own workspace, in the same repository.
+	out, _ := catalog.Editor{}.AddWorkspaceRef([]byte(catalog.Editor{}.Scaffold("fichero")), domain.WorkspaceRef{Name: "app", Source: domain.Source{Path: "multiverse.yaml"}})
+	write(t, proj, "catalog.yaml", string(out))
+	git := &fakeRepos{repos: map[string]string{"https://github.com/fichero-app/multiverse.git": proj}}
+	r := newRig(t, git)
+	r.Yes = true
+
+	node, err := r.Add(context.Background(), app.AddInput{Repo: "fichero-app/multiverse", At: "/", AtGiven: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if node != "fichero" {
+		t.Errorf("node = %q", node)
+	}
+	leaf, ok := r.tree(t).Find("fichero/app")
+	if !ok || leaf.Source.Repo != "https://github.com/fichero-app/multiverse.git" || leaf.Source.Path != "multiverse.yaml" {
+		t.Errorf("the project's own workspace should resolve to its repository: %+v", leaf)
+	}
+}
+
+func TestAddListsABareManifestRepositoryAsAWorkspace(t *testing.T) {
+	git := &fakeRepos{repos: map[string]string{"https://github.com/acme/solo.git": manifestRepo(t, "solo")}}
+	r := newRig(t, git)
+	r.Yes = true
+	node, err := r.Add(context.Background(), app.AddInput{Repo: "acme/solo", At: "/", AtGiven: true})
+	if err != nil || node != "solo" {
+		t.Fatalf("node=%q err=%v", node, err)
+	}
+	if n, ok := r.tree(t).Find("solo"); !ok || n.Kind != domain.WorkspaceNode {
+		t.Errorf("not a workspace: %+v", n)
+	}
+}
+
+func TestAddTwiceIsANoOp(t *testing.T) {
+	git := &fakeRepos{repos: map[string]string{"https://github.com/acme/solo.git": manifestRepo(t, "solo")}}
+	r := newRig(t, git)
+	r.Yes = true
+	in := app.AddInput{Repo: "acme/solo", At: "/", AtGiven: true}
+	if _, err := r.Add(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+	before := len(git.commits)
+	if node, err := r.Add(context.Background(), in); err != nil || node != "solo" {
+		t.Fatalf("second add: node=%q err=%v", node, err)
+	}
+	if len(git.commits) != before {
+		t.Error("adding the same repository again must not commit")
+	}
+}
+
+func TestAddSetsUpARootFirstWhenThereIsNone(t *testing.T) {
+	git := &fakeRepos{repos: map[string]string{"https://github.com/acme/solo.git": manifestRepo(t, "solo")}}
+	r := newRig(t, git)
+	r.cfg.c = app.Config{}
+	_, err := r.Add(context.Background(), app.AddInput{Repo: "acme/solo"})
+	if !errors.Is(err, app.ErrNotInteractive) {
+		t.Fatalf("err = %v; without a terminal init cannot ask where the root lives", err)
+	}
+}
+
+func TestAddNeedsSomethingToAdd(t *testing.T) {
+	git := &fakeRepos{repos: map[string]string{"https://github.com/acme/empty.git": t.TempDir()}}
+	r := newRig(t, git)
+	r.Yes = true
+	if _, err := r.Add(context.Background(), app.AddInput{Repo: "acme/empty", At: "/", AtGiven: true}); err == nil || !strings.Contains(err.Error(), "multiverse.yaml") {
+		t.Errorf("err = %v", err)
 	}
 }

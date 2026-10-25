@@ -56,7 +56,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run := runner{g: g, out: out, f: f}
 	root.AddCommand(
 		run.newCmd(), run.upCmd(), run.downCmd(), run.rmCmd(), run.lsCmd(), run.urlsCmd(),
-		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.bootstrapCmd(), run.workspacesCmd(), run.useCmd(), run.catalogCmd(), run.initCmd(), run.installCmd(), run.uninstallCmd(), run.proxyCmd(),
+		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.bootstrapCmd(), run.workspacesCmd(), run.useCmd(), run.catalogCmd(), run.initCmd(), run.addCmd(), run.installCmd(), run.uninstallCmd(), run.proxyCmd(),
 		run.updateCmd(), run.versionCmd(),
 	)
 	return root, g

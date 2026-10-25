@@ -124,6 +124,25 @@ index
   <p>Each workspace is cloned under <code>~/multiverse/&lt;catalog path&gt;</code> (<code>--base</code> changes it) and recorded as <code>acme-api</code>. Installing does not switch the current workspace, and one that is already installed is skipped. If two installed workspaces would publish the same proxy port or share a proxy network, <code>install</code> says so, and so does <code>doctor</code> later, because only one proxy can bind it. <code>catalog sync</code> fetches every catalog repository again; <code>uninstall &lt;name&gt;</code> forgets a workspace and leaves its files.</p>
 </section>
 
+<section id="hw-share">
+  <h2 id="hw-share"><a href="#hw-share">Make a project others can join</a></h2>
+  <p>Give the project one repository that is both its index and its own workspace definition. The catalog can list that workspace with no <code>repo</code>, because a reference stays in the repository it is written in, and can link deeper catalogs when the project needs them.</p>
+  <div class="code"><pre><span class="c"># catalog.yaml in acme/multiverse</span>
+<span class="k">apiVersion</span>: multiverse/v1alpha1
+<span class="k">kind</span>: Catalog
+<span class="k">metadata</span>:
+  <span class="k">name</span>: acme
+<span class="k">spec</span>:
+  <span class="k">workspaces</span>:
+    - <span class="k">name</span>: acme                    <span class="c"># acme/acme installs as acme</span>
+      <span class="k">source</span>: {<span class="k">path</span>: multiverse.yaml}   <span class="c"># this repository's own manifest</span></pre></div>
+  <p>Anyone then needs one command. On a machine with no root catalog yet it asks where to keep one first.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl add acme/multiverse --install
+<span class="p">$ </span>multiversectl new 1
+<span class="p">$ </span>multiversectl up 1</pre></div>
+  <p><code>owner/repo</code> means GitHub; give a full URL for anywhere else. A repository with only a <code>multiverse.yaml</code> is listed as a workspace, and adding the same repository twice changes nothing. A catalog and a workspace with the same name are installed as one directory and one name, so the project above is just <code>acme</code>. Drop machine-specific lines such as an absolute <code>spec.root</code> from a manifest you share: <code>install</code> chooses where it goes.</p>
+</section>
+
   <nav class="pager" aria-label="Pages">
     <a class="prev" href="../tasks/services.html"><span>Previous</span>Control which services run</a>
     <a class="next" href="../reference/cli.html"><span>Next</span>Commands</a>
@@ -136,6 +155,7 @@ index
       <li><a href="#hw-nest">Nest another catalog</a></li>
       <li><a href="#hw-add">List a workspace</a></li>
       <li><a href="#hw-install">Install only what this machine needs</a></li>
+      <li><a href="#hw-share">Make a project others can join</a></li>
     </ul>
   </aside>
 </div>
