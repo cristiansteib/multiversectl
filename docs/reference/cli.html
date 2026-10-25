@@ -54,6 +54,7 @@
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
         <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/server.html">Explore it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -104,6 +105,7 @@
   <tr><td data-l="Command"><code>run &lt;universe&gt; &lt;app&gt; -- &lt;cmd&gt;</code></td><td data-l="What it does">Run a command in a fresh one-off container instead, for a task that should not need the service up — a migration, a shell on a stopped app.</td><td data-l="Example"><code>multiversectl run 3 api -- python manage.py migrate</code></td></tr>
   <tr><td data-l="Command"><code>env &lt;universe&gt;</code></td><td data-l="What it does">Print a universe's environment as <code>export</code> lines for your shell.</td><td data-l="Example"><code>eval "$(multiversectl env 3)"</code></td></tr>
   <tr><td data-l="Command"><code>proxy up|down|status</code></td><td data-l="What it does">Start, stop, or inspect the shared proxy and its network. Universes keep their data when it stops.</td><td data-l="Example"><code>multiversectl proxy status</code></td></tr>
+  <tr><td data-l="Command"><code>server</code></td><td data-l="What it does">Serve a read-only web view of the catalog tree, the installed workspaces and the fleet of universes. Loopback only, because it has no login: <code>--addr</code> picks the port (<code>0</code> for a free one), <code>--open</code> opens a browser, <code>--expose</code> allows any address. Alias <code>serve</code>.</td><td data-l="Example"><code>multiversectl server --open</code></td></tr>
   <tr><td data-l="Command"><code>init [owner/repo | url | path]</code></td><td data-l="What it does">Set up this machine's root catalog: an existing repository or path (checked; a repository with no catalog gets one), a new <strong>private</strong> repository via <code>gh</code> (<code>--create</code>), or a local git repository (<code>--local</code>). Pointing it at another source replaces the root, after asking.</td><td data-l="Example"><code>multiversectl init --create multiverse-index</code></td></tr>
   <tr><td data-l="Command"><code>self-update</code></td><td data-l="What it does">Replace this binary with the latest release.</td><td data-l="Example"><code>multiversectl self-update</code></td></tr>
   <tr><td data-l="Command"><code>version</code></td><td data-l="What it does">Print version, commit, build date and Go version.</td><td data-l="Example"><code>multiversectl version</code></td></tr>
@@ -114,7 +116,7 @@
 </section>
 
   <nav class="pager" aria-label="Pages">
-    <a class="prev" href="../tasks/catalog.html"><span>Previous</span>Manage many projects from one index</a>
+    <a class="prev" href="../tasks/server.html"><span>Previous</span>Explore it in a browser</a>
     <a class="next" href="../reference/manifest.html"><span>Next</span>Manifest</a>
   </nav>
 </main>

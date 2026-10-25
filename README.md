@@ -93,6 +93,13 @@ multiversectl update                    # catch up: manifests and new repositori
 
 See [Catalogs](https://cristiansteib.github.io/multiversectl/concepts/catalogs.html).
 
+To see all of it in a page (the tree, what is installed, every universe and what
+runs in it), without a way to change anything:
+
+```sh
+multiversectl server --open   # read-only, loopback only
+```
+
 ## Quick start
 
 ```sh

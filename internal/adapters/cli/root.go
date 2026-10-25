@@ -30,6 +30,9 @@ type Factory struct {
 	At func(g Globals, out app.Output, root, manifestPath string) (*app.Service, error)
 	// Catalogs builds the catalog service, which never needs a workspace.
 	Catalogs func(g Globals, out app.Output) (*app.Catalogs, error)
+	// Serve runs the web view until ctx ends; main owns it so the CLI never
+	// names the server adapter.
+	Serve func(ctx context.Context, g Globals, out app.Output, o ServeOptions, ready func(url string)) error
 }
 
 // New returns the root command and the globals its flags fill in.
@@ -56,7 +59,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	root.AddCommand(
 		run.newCmd(), run.upCmd(), run.downCmd(), run.rmCmd(), run.lsCmd(), run.urlsCmd(),
 		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.useCmd(), run.catalogCmd(), run.initCmd(), run.installCmd(), run.uninstallCmd(), run.statusCmd(), run.updateCmd(),
-		run.proxyCmd(), run.selfUpdateCmd(), run.versionCmd(),
+		run.proxyCmd(), run.serverCmd(), run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("workspace", run.completeWorkspaces)
 	root.Args = cobra.NoArgs

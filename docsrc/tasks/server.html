@@ -1,0 +1,19 @@
+<section id="hw-server">
+  <h2 id="hw-server"><a href="#hw-server">See the whole setup in a page</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl server --open
+✓ serving http://127.0.0.1:7777 (read-only; Ctrl-C stops it)</pre></div>
+  <p>One page, three views, refreshed every ten seconds while it is open:</p>
+  <ul class="t">
+    <li><strong>Overview</strong>: the root catalog, the workspaces installed here, and where each has drifted, as <code>status</code> shows it. <em>Fetch remotes and compare</em> is <code>status --fetch</code>.</li>
+    <li><strong>Catalog</strong>: the tree, with what is installed marked and layers you cannot reach listed with the reason. Filter it by name, path or repository, and copy the <code>install</code> command for any workspace.</li>
+    <li><strong>Fleet</strong>: every universe of every installed workspace, with its branches, its apps and the state of each service, its addresses as links, and the paths of its checkouts. Press <kbd>/</kbd> to filter. <em>Doctor</em> runs the checks for a workspace or a single universe.</li>
+  </ul>
+  <p>Each workspace also has a page with its repositories, whether each is cloned, its apps and their hostnames, and the proxy entrypoints it needs.</p>
+</section>
+
+<section id="hw-safe">
+  <h2 id="hw-safe"><a href="#hw-safe">What it will and will not do</a></h2>
+  <p>It only reads. There is no way to start, stop, install or edit anything from the page; it shows the command instead, ready to copy, and the command line remains the place where things change.</p>
+  <p>It has no login, so it listens on the loopback address only and answers only requests addressed to <code>localhost</code>, <code>127.0.0.1</code> or <code>::1</code>. That second check matters: without it, a web page on another site could point a name it controls at your machine and read your setup through the browser. <code>--addr</code> picks another loopback port (<code>0</code> chooses a free one). <code>--expose</code> allows any address and any host name; use it only on a network you trust, because anyone who can reach the port can read the same pages.</p>
+  <p>The page loads nothing from outside, which its content security policy enforces, and builds everything from text, so a branch name or a note cannot inject markup.</p>
+</section>

@@ -19,6 +19,7 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest"
 	"github.com/cristiansteib/multiversectl/internal/adapters/prompt"
 	"github.com/cristiansteib/multiversectl/internal/adapters/release"
+	"github.com/cristiansteib/multiversectl/internal/adapters/server"
 	"github.com/cristiansteib/multiversectl/internal/adapters/statestore"
 	"github.com/cristiansteib/multiversectl/internal/adapters/system"
 	"github.com/cristiansteib/multiversectl/internal/adapters/traefik"
@@ -44,6 +45,7 @@ func main() {
 		Bare:      bare,
 		At:        at,
 		Catalogs:  catalogs,
+		Serve:     serve,
 	})
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		if !cli.IsSilent(err) {
@@ -191,3 +193,22 @@ func first(values ...string) string {
 type manifestLoader struct{}
 
 func (manifestLoader) Load(path string) (*domain.Manifest, error) { return manifest.Load(path) }
+
+// serve wires the web view. The services it reads are built with a quiet
+// output: a server has no terminal, and a request that wants a service's
+// warnings collects them itself.
+func serve(ctx context.Context, g cli.Globals, _ app.Output, o cli.ServeOptions, ready func(url string)) error {
+	quiet := server.Quiet()
+	cats, err := catalogs(g, quiet)
+	if err != nil {
+		return err
+	}
+	machine, err := bare(g, quiet)
+	if err != nil {
+		return err
+	}
+	backend := server.NewServices(cats, machine, func(out app.Output, root, manifestPath string) (*app.Service, error) {
+		return at(g, out, root, manifestPath)
+	})
+	return server.Serve(ctx, backend, server.Options{Addr: o.Addr, Version: version, Expose: o.Expose}, ready)
+}

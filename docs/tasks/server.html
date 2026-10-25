@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explore it in a browser &middot; multiversectl</title>
+<meta name="description" content="A read-only web view of the catalog tree, the workspaces installed here and the fleet of universes, with doctor on demand.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html">Start</a>
+      <a href="../concepts/universes.html">Concepts</a>
+      <a href="../tasks/branches.html" aria-current="true">Tasks</a>
+      <a href="../reference/cli.html">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/server.html" aria-current="page">Explore it in a browser</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Tasks</span>
+  </nav>
+  <h1>Explore it in a browser</h1>
+  <p class="lede">A read-only web view of the catalog tree, the workspaces installed here and the fleet of universes, with doctor on demand.</p>
+<section id="hw-server">
+  <h2 id="hw-server"><a href="#hw-server">See the whole setup in a page</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl server --open
+✓ serving http://127.0.0.1:7777 (read-only; Ctrl-C stops it)</pre></div>
+  <p>One page, three views, refreshed every ten seconds while it is open:</p>
+  <ul class="t">
+    <li><strong>Overview</strong>: the root catalog, the workspaces installed here, and where each has drifted, as <code>status</code> shows it. <em>Fetch remotes and compare</em> is <code>status --fetch</code>.</li>
+    <li><strong>Catalog</strong>: the tree, with what is installed marked and layers you cannot reach listed with the reason. Filter it by name, path or repository, and copy the <code>install</code> command for any workspace.</li>
+    <li><strong>Fleet</strong>: every universe of every installed workspace, with its branches, its apps and the state of each service, its addresses as links, and the paths of its checkouts. Press <kbd>/</kbd> to filter. <em>Doctor</em> runs the checks for a workspace or a single universe.</li>
+  </ul>
+  <p>Each workspace also has a page with its repositories, whether each is cloned, its apps and their hostnames, and the proxy entrypoints it needs.</p>
+</section>
+
+<section id="hw-safe">
+  <h2 id="hw-safe"><a href="#hw-safe">What it will and will not do</a></h2>
+  <p>It only reads. There is no way to start, stop, install or edit anything from the page; it shows the command instead, ready to copy, and the command line remains the place where things change.</p>
+  <p>It has no login, so it listens on the loopback address only and answers only requests addressed to <code>localhost</code>, <code>127.0.0.1</code> or <code>::1</code>. That second check matters: without it, a web page on another site could point a name it controls at your machine and read your setup through the browser. <code>--addr</code> picks another loopback port (<code>0</code> chooses a free one). <code>--expose</code> allows any address and any host name; use it only on a network you trust, because anyone who can reach the port can read the same pages.</p>
+  <p>The page loads nothing from outside, which its content security policy enforces, and builds everything from text, so a branch name or a note cannot inject markup.</p>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../tasks/catalog.html"><span>Previous</span>Manage many projects from one index</a>
+    <a class="next" href="../reference/cli.html"><span>Next</span>Commands</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#hw-server">See the whole setup in a page</a></li>
+      <li><a href="#hw-safe">What it will and will not do</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>
