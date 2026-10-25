@@ -48,3 +48,32 @@ func TestHelpListsAliases(t *testing.T) {
 		t.Errorf("help does not show the alias of universe:\n%s", out.String())
 	}
 }
+
+// Cobra's own wording ("accepts 1 arg(s), received 0") says neither what is
+// missing nor what to type.
+func TestArgumentErrorsSayWhatToDo(t *testing.T) {
+	cases := []struct {
+		args []string
+		want []string
+	}{
+		{[]string{"catalog", "create"}, []string{"needs <name>", "usage:", "example:"}},
+		{[]string{"universe", "ls", "extra"}, []string{"takes no arguments", "extra"}},
+		{[]string{"u", "nwe"}, []string{`no command "nwe"`, "did you mean new", "commands:"}},
+	}
+	for _, c := range cases {
+		root, _ := New(Factory{})
+		root.SetOut(&bytes.Buffer{})
+		root.SetErr(&bytes.Buffer{})
+		root.SetArgs(c.args)
+		err := root.Execute()
+		if err == nil {
+			t.Errorf("%v: no error", c.args)
+			continue
+		}
+		for _, w := range c.want {
+			if !strings.Contains(err.Error(), w) {
+				t.Errorf("%v: %q lacks %q", c.args, err, w)
+			}
+		}
+	}
+}

@@ -67,6 +67,8 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	_ = root.RegisterFlagCompletionFunc("workspace", run.completeWorkspaces)
 	root.Args = cobra.NoArgs
 	root.RunE = run.welcome
+	explainArgs(root)
+	root.SetFlagErrorFunc(flagError)
 	groupCommands(root, g)
 	return root, g
 }

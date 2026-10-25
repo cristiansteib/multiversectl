@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -147,8 +146,12 @@ func (r runner) systemPrune(ctx context.Context, plans []workspacePlan, yes bool
 		out.Plain("%s", out.Red(out.Bold(fmt.Sprintf("!! THIS DESTROYS %s: THEIR CONTAINERS, VOLUMES AND WORKTREES, AND CANNOT BE UNDONE !!", strings.ToUpper(plural(remove, "universe"))))))
 		out.Plain("  committed work stays on its branch in the shared clone; the proxy and the workspaces are not touched")
 		fmt.Fprintf(os.Stdout, "Type %s to confirm, anything else aborts: ", out.Bold("prune"))
-		answer, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		if strings.TrimSpace(answer) != "prune" {
+		answer, err := readLine(ctx)
+		if ctx.Err() != nil {
+			fmt.Fprintln(os.Stdout)
+			return ctx.Err()
+		}
+		if err != nil || strings.TrimSpace(answer) != "prune" {
 			fmt.Fprintln(os.Stdout)
 			return errors.New("aborted: nothing was removed (without a terminal, pass --yes)")
 		}

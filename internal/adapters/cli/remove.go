@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -65,8 +64,12 @@ func (r runner) confirm(ctx context.Context, s *app.Service, arg string) error {
 	out.Plain("")
 
 	fmt.Fprintf(os.Stdout, "Type %s to confirm, anything else aborts: ", out.Bold(st.Name))
-	answer, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	if strings.TrimSpace(answer) != st.Name {
+	answer, err := readLine(ctx)
+	if ctx.Err() != nil {
+		fmt.Fprintln(os.Stdout)
+		return ctx.Err()
+	}
+	if err != nil || strings.TrimSpace(answer) != st.Name {
 		fmt.Fprintln(os.Stdout)
 		return fmt.Errorf("aborted: nothing was removed")
 	}

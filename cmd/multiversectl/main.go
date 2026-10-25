@@ -21,25 +21,55 @@ var (
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	ctx := interruptible()
 
 	cmd, globals := cli.New(cli.Factory{
-		Version:     version,
-		Commit:      commit,
-		Date:        date,
-		Workspace:   workspace,
-		Bare:        bare,
-		At:          at,
-		Catalogs:    catalogs,
-		Completions: func(out app.Output) *app.Completions { return wire.Machine{Version: version}.Completions(out) },
+		Version:   version,
+		Commit:    commit,
+		Date:      date,
+		Workspace: workspace,
+		Bare:      bare,
+		At:        at,
+		Catalogs:  catalogs,
+		Completions: func(out app.Output) *app.Completions {
+			return wire.Machine{Version: version, Ctx: interrupted}.Completions(out)
+		},
 	})
 	if err := cmd.ExecuteContext(ctx); err != nil {
+		if ctx.Err() != nil {
+			// Whatever the operation reported on its way out is a symptom of
+			// being stopped; saying so is what the person needs.
+			fmt.Fprintln(os.Stderr, "interrupted")
+			os.Exit(130)
+		}
 		if !cli.IsSilent(err) {
 			fmt.Fprintln(os.Stderr, errorPrefix(globals.NoColor)+err.Error())
 		}
 		os.Exit(1)
 	}
+}
+
+// interrupted ends the operations and the questions that are waiting. It is a
+// package variable because the factory functions below are called by the
+// command line without a context of their own.
+var interrupted = context.Background()
+
+// interruptible cancels the returned context on the first Ctrl+C, which lets
+// the operation stop what it started, and exits on the second, for the one that
+// does not.
+func interruptible() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	sig := make(chan os.Signal, 2)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sig
+		cancel()
+		<-sig
+		fmt.Fprintln(os.Stderr, "\nforced exit")
+		os.Exit(130)
+	}()
+	interrupted = ctx
+	return ctx
 }
 
 func errorPrefix(noColor bool) string {
@@ -50,7 +80,7 @@ func errorPrefix(noColor bool) string {
 }
 
 func machine(g cli.Globals) wire.Machine {
-	return wire.Machine{Version: version, Verbose: g.Verbose}
+	return wire.Machine{Version: version, Verbose: g.Verbose, Ctx: interrupted}
 }
 
 // workspace resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the

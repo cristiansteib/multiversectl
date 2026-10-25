@@ -3,6 +3,7 @@ package prompt
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,12 +18,19 @@ type Console struct {
 	in  *bufio.Reader
 	out io.Writer
 	tty bool
+	// ctx ends a question that is waiting for an answer: a read on a terminal
+	// does not return when Ctrl+C is caught rather than left to kill the
+	// process, so the wait has to be raced against the context.
+	ctx context.Context
 }
 
 var _ app.Prompter = (*Console)(nil)
 
-func New() *Console {
+// New asks on the terminal. A cancelled ctx abandons the question that is
+// waiting, with ctx's error.
+func New(ctx context.Context) *Console {
 	return &Console{
+		ctx: ctx,
 		in:  bufio.NewReader(os.Stdin),
 		out: os.Stderr, // stdout stays clean for output a script might read
 		tty: isTerminal(os.Stdin),
@@ -46,11 +54,25 @@ func (c *Console) line(label string) (string, error) {
 		return "", app.ErrNotInteractive
 	}
 	fmt.Fprint(c.out, label)
-	text, err := c.in.ReadString('\n')
-	if err != nil && text == "" {
-		return "", fmt.Errorf("no answer: %w", err)
+	type answer struct {
+		text string
+		err  error
 	}
-	return strings.TrimSpace(text), nil
+	got := make(chan answer, 1)
+	go func() {
+		text, err := c.in.ReadString('\n')
+		got <- answer{text, err}
+	}()
+	select {
+	case <-c.ctx.Done():
+		fmt.Fprintln(c.out)
+		return "", c.ctx.Err()
+	case a := <-got:
+		if a.err != nil && a.text == "" {
+			return "", fmt.Errorf("no answer: %w", a.err)
+		}
+		return strings.TrimSpace(a.text), nil
+	}
 }
 
 // show prints a menu. Every line is numbered by its place so the numbers do not

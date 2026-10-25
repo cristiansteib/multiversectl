@@ -4,6 +4,7 @@
 package wire
 
 import (
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -29,6 +30,15 @@ type Machine struct {
 	Version string
 	// Verbose shows the stdout of the commands being run.
 	Verbose bool
+	// Ctx ends a question waiting on the terminal; nil means never.
+	Ctx context.Context
+}
+
+func (m Machine) ctx() context.Context {
+	if m.Ctx == nil {
+		return context.Background()
+	}
+	return m.Ctx
 }
 
 // LoadConfig opens the per-machine config and reads it.
@@ -104,7 +114,7 @@ func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 		Files:     d.Files,
 		Decoder:   catalog.Decoder{},
 		Editor:    catalog.Editor{},
-		Prompt:    prompt.New(),
+		Prompt:    prompt.New(m.ctx()),
 		Host:      githost.New(),
 		Config:    store,
 		Manifests: ManifestLoader{},
@@ -116,7 +126,7 @@ func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 // Completions builds the use case that installs shell completions.
 func (m Machine) Completions(out app.Output) *app.Completions {
 	return app.NewCompletions(app.CompletionDeps{
-		Files: fsx.New(), System: system.New(), Prompt: prompt.New(), Out: out, Version: m.Version,
+		Files: fsx.New(), System: system.New(), Prompt: prompt.New(m.ctx()), Out: out, Version: m.Version,
 	})
 }
 
