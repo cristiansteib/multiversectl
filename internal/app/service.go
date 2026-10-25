@@ -15,16 +15,17 @@ import (
 
 // Deps are the ports a Service needs. Adapters are wired in main.
 type Deps struct {
-	Git      Git
-	Runtime  Runtime
-	Proxy    Proxy
-	Files    Files
-	System   System
-	Store    Store
-	Config   ConfigStore
-	Releases Releases
-	Router   Router
-	Out      Output
+	Git       Git
+	Runtime   Runtime
+	Proxy     Proxy
+	Files     Files
+	System    System
+	Store     Store
+	Config    ConfigStore
+	Manifests ManifestLoader
+	Releases  Releases
+	Router    Router
+	Out       Output
 }
 
 // Service carries out the use cases against one workspace.

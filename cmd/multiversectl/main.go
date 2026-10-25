@@ -23,6 +23,7 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/adapters/system"
 	"github.com/cristiansteib/multiversectl/internal/adapters/traefik"
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 var (
@@ -68,16 +69,17 @@ func deps(g cli.Globals, out app.Output, root string, cfg app.ConfigStore) app.D
 	}
 	proxy := traefik.New(childOut, os.Stderr)
 	return app.Deps{
-		Git:      gitcli.New(),
-		Runtime:  compose.New(childOut, os.Stderr),
-		Proxy:    proxy,
-		Router:   proxy,
-		Files:    fsx.New(),
-		System:   system.New(),
-		Store:    statestore.New(root),
-		Config:   cfg,
-		Releases: release.New(),
-		Out:      out,
+		Git:       gitcli.New(),
+		Runtime:   compose.New(childOut, os.Stderr),
+		Proxy:     proxy,
+		Router:    proxy,
+		Files:     fsx.New(),
+		System:    system.New(),
+		Store:     statestore.New(root),
+		Config:    cfg,
+		Manifests: manifestLoader{},
+		Releases:  release.New(),
+		Out:       out,
 	}
 }
 
@@ -183,3 +185,8 @@ func first(values ...string) string {
 	}
 	return ""
 }
+
+// manifestLoader adapts manifest.Load to the app.ManifestLoader port.
+type manifestLoader struct{}
+
+func (manifestLoader) Load(path string) (*domain.Manifest, error) { return manifest.Load(path) }

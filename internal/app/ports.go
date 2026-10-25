@@ -287,6 +287,12 @@ type CatalogEditor interface {
 	WorkspaceName(data []byte) (string, error)
 }
 
+// ManifestLoader reads a workspace manifest from disk, so a use case can look
+// at workspaces other than the one it was built for.
+type ManifestLoader interface {
+	Load(path string) (*domain.Manifest, error)
+}
+
 // CatalogDecoder turns a catalog file into the domain model; the app stays
 // ignorant of the file format.
 type CatalogDecoder interface {

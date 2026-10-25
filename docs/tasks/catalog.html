@@ -121,7 +121,7 @@ index
 <span class="p">$ </span>multiversectl install
 <span class="p">$ </span>multiversectl workspaces
 <span class="p">$ </span>multiversectl use acme-api</pre></div>
-  <p>Each workspace is cloned under <code>~/multiverse/&lt;catalog path&gt;</code> (<code>--base</code> changes it) and recorded as <code>acme-api</code>. Installing does not switch the current workspace, and one that is already installed is skipped. If two installed workspaces would publish the same proxy port or share a proxy network, <code>install</code> says so, because only one proxy can bind it. <code>catalog sync</code> fetches every catalog repository again; <code>uninstall &lt;name&gt;</code> forgets a workspace and leaves its files.</p>
+  <p>Each workspace is cloned under <code>~/multiverse/&lt;catalog path&gt;</code> (<code>--base</code> changes it) and recorded as <code>acme-api</code>. Installing does not switch the current workspace, and one that is already installed is skipped. If two installed workspaces would publish the same proxy port or share a proxy network, <code>install</code> says so, and so does <code>doctor</code> later, because only one proxy can bind it. <code>catalog sync</code> fetches every catalog repository again; <code>uninstall &lt;name&gt;</code> forgets a workspace and leaves its files.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">

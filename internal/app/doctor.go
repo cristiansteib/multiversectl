@@ -48,6 +48,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 		add("manifest", StatusWarn, "no manifest loaded; run bootstrap")
 	} else {
 		s.checkProxy(ctx, add)
+		s.checkWorkspaces(add)
 	}
 
 	var st domain.UniverseState
@@ -134,6 +135,44 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 		default:
 			add(label, StatusOK, "entrypoint %s: free", name)
 		}
+	}
+}
+
+// checkWorkspaces compares this workspace's proxy with every other workspace
+// on the machine: two that want the same host port or network cannot both run
+// their proxy. A manifest that cannot be read is skipped; it is that
+// workspace's own doctor run that reports it.
+func (s *Service) checkWorkspaces(add addCheck) {
+	if s.Config == nil || s.Manifests == nil {
+		return
+	}
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return
+	}
+	names := make([]string, 0, len(cfg.Workspaces))
+	for name := range cfg.Workspaces {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	others, clashes := 0, 0
+	for _, name := range names {
+		path := cfg.Workspaces[name].Manifest
+		if path == s.Manifest.Path {
+			continue
+		}
+		other, err := s.Manifests.Load(path)
+		if err != nil {
+			continue
+		}
+		others++
+		for _, clash := range domain.ProxyClashes(s.Manifest, other) {
+			clashes++
+			add("workspaces", StatusWarn, "%s", clash)
+		}
+	}
+	if others > 0 && clashes == 0 {
+		add("workspaces", StatusOK, "no proxy clash with the %d other workspaces on this machine", others)
 	}
 }
 
