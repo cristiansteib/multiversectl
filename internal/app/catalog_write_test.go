@@ -70,6 +70,9 @@ type fakeHost struct {
 	url      string
 	accounts []app.Account
 	repos    []app.RemoteRepo
+
+	signedOut bool // Available says to sign in, until Login is called
+	logins    int
 }
 
 func (h *fakeHost) Name() string { return "GitHub" }
@@ -80,7 +83,13 @@ func (h *fakeHost) Repos(context.Context, string) ([]app.RemoteRepo, error) {
 	return h.repos, nil
 }
 
-func (h *fakeHost) Available(context.Context) error { return h.err }
+func (h *fakeHost) Available(context.Context) error {
+	if h.signedOut {
+		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true}
+	}
+	return h.err
+}
+func (h *fakeHost) Login(context.Context) error { h.logins++; h.signedOut = false; return nil }
 func (h *fakeHost) Create(_ context.Context, name string, private bool) (string, error) {
 	if !private {
 		name += " (public)"

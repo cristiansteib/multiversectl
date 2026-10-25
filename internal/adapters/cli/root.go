@@ -30,6 +30,10 @@ type Factory struct {
 	At func(g Globals, out app.Output, root, manifestPath string) (*app.Service, error)
 	// Catalogs builds the catalog service, which never needs a workspace.
 	Catalogs func(g Globals, out app.Output) (*app.Catalogs, error)
+	// Prompter asks questions on the terminal.
+	Prompter func() app.Prompter
+	// Progress shows a spinner for a slow step; nil means none.
+	Progress func() app.Progress
 	// Server builds the port that starts and stops the web view process.
 	Server func() (app.ServerProcess, error)
 	// Completions builds the use case that installs and refreshes completions.

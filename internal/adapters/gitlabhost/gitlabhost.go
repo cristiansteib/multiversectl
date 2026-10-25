@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"path"
 	"strings"
@@ -27,10 +28,20 @@ func (Host) Name() string { return "GitLab" }
 
 func (Host) Available(ctx context.Context) error {
 	if _, err := exec.LookPath("glab"); err != nil {
-		return errors.New("the GitLab CLI (glab) is not installed")
+		return &app.HostUnavailable{Reason: "the GitLab CLI (glab) is not installed: https://gitlab.com/gitlab-org/cli"}
 	}
 	if _, err := glab(ctx, "auth", "status"); err != nil {
-		return errors.New("the GitLab CLI is not logged in; run: glab auth login")
+		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true}
+	}
+	return nil
+}
+
+// Login hands the terminal to glab, which offers a browser sign-in.
+func (Host) Login(ctx context.Context) error {
+	login := exec.CommandContext(ctx, "glab", "auth", "login")
+	login.Stdin, login.Stdout, login.Stderr = os.Stdin, os.Stderr, os.Stderr
+	if err := login.Run(); err != nil {
+		return fmt.Errorf("glab auth login: %w", err)
 	}
 	return nil
 }

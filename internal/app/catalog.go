@@ -34,8 +34,10 @@ type CatalogDeps struct {
 	Host      RepoHost
 	// Hosts are every service a repository can be searched or created on; Host
 	// alone is enough when there is only one.
-	Hosts    []RepoHost
-	Writer   ManifestWriter
+	Hosts  []RepoHost
+	Writer ManifestWriter
+	// Progress shows a spinner for slow calls; nil means none.
+	Progress Progress
 	CacheDir string // where remote repositories are cloned
 
 	// Yes answers every confirmation with its default, for scripts.
@@ -49,8 +51,15 @@ func NewCatalogs(d CatalogDeps) *Catalogs {
 	if len(d.Hosts) == 0 && d.Host != nil {
 		d.Hosts = []RepoHost{d.Host}
 	}
+	if d.Progress == nil {
+		d.Progress = noProgress{}
+	}
 	return &Catalogs{d}
 }
+
+type noProgress struct{}
+
+func (noProgress) Do(_ string, fn func(context.Context) error) error { return fn(context.Background()) }
 
 // Use records the root catalog for this machine.
 func (c *Catalogs) Use(source string) error {

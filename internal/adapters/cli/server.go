@@ -46,7 +46,11 @@ func (r runner) serverStartCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		info, err := p.Start(cmd.Context(), app.ServerStart{Addr: addr, Expose: expose})
+		var info app.ServerInfo
+		err = r.spin(true, "Starting the server", func() (err error) {
+			info, err = p.Start(cmd.Context(), app.ServerStart{Addr: addr, Expose: expose})
+			return err
+		})
 		switch {
 		case errors.Is(err, app.ErrServerRunning):
 			r.out.Info("already running at %s (pid %d); stop it with: multiversectl server stop", info.URL, info.PID)

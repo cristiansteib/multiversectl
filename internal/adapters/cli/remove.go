@@ -18,11 +18,15 @@ func (r runner) rmCmd() *cobra.Command {
 		Aliases: []string{"remove", "destroy"},
 		Short:   "Destroy a universe: worktrees, containers, volumes and state (asks first)",
 		Example: "  multiversectl universe rm 3\n  multiversectl universe rm fix/login --yes",
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "skip the confirmation prompt")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
+			args, err := r.universeArgs(cmd, args, s)
+			if err != nil {
+				return err
+			}
 			if !yes {
 				if err := r.confirm(ctx, s, args[0]); err != nil {
 					return err

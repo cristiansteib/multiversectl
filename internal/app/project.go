@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -90,6 +91,81 @@ func (c *Catalogs) ScanCheckouts(ctx context.Context, dir string) (base string, 
 	return "", nil
 }
 
+// hostChecks asks each hosting service once whether it can be used, in
+// parallel and behind one spinner, the first time a menu needs to know. A menu
+// is drawn again after every step; asking each time is a pause on every one.
+type hostChecks struct {
+	c       *Catalogs
+	checked bool
+	err     map[string]error
+}
+
+func (c *Catalogs) newHostChecks() *hostChecks { return &hostChecks{c: c, err: map[string]error{}} }
+
+func (hc *hostChecks) probe(ctx context.Context) {
+	if hc.checked {
+		return
+	}
+	hc.checked = true
+	results := make([]error, len(hc.c.Hosts))
+	_ = hc.c.Progress.Do("Checking your sign-in to "+hostNames(hc.c.Hosts), func(ctx context.Context) error {
+		var wg sync.WaitGroup
+		for i, h := range hc.c.Hosts {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				results[i] = h.Available(ctx)
+			}()
+		}
+		wg.Wait()
+		return nil
+	})
+	for i, h := range hc.c.Hosts {
+		hc.err[h.Name()] = results[i]
+	}
+}
+
+func hostNames(hosts []RepoHost) string {
+	names := make([]string, len(hosts))
+	for i, h := range hosts {
+		names[i] = h.Name()
+	}
+	return strings.Join(names, " and ")
+}
+
+// option is the menu line for using the service: ready when it can be, one
+// that signs in first when only the person is missing, and shown with its
+// reason when something has to be installed.
+func (hc *hostChecks) option(ctx context.Context, label string, h RepoHost) Option {
+	hc.probe(ctx)
+	o := Option{Label: label}
+	if err := hc.err[h.Name()]; err != nil {
+		var hu *HostUnavailable
+		if errors.As(err, &hu) && hu.CanSignIn {
+			o.Note = "not signed in; it signs you in first"
+		} else {
+			o.Disabled, o.Note = true, err.Error()
+		}
+	}
+	return o
+}
+
+// ready makes the service usable, signing in when that is all it needs.
+func (hc *hostChecks) ready(ctx context.Context, h RepoHost) error {
+	hc.probe(ctx)
+	err := hc.err[h.Name()]
+	var hu *HostUnavailable
+	if err == nil || !errors.As(err, &hu) || !hu.CanSignIn {
+		return err
+	}
+	hc.c.Out.Info("signing in to %s: follow what it shows, then come back here", h.Name())
+	if err := h.Login(ctx); err != nil {
+		return err
+	}
+	hc.err[h.Name()] = h.Available(ctx)
+	return hc.err[h.Name()]
+}
+
 // pick is a repository chosen for the project; co is set when it is already
 // cloned on this machine.
 type pick struct {
@@ -127,6 +203,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 	}
 
 	base, found := c.ScanCheckouts(ctx, dir)
+	hosts := c.newHostChecks()
 	chosen := &picks{}
 	for _, r := range in.Repos {
 		chosen.add(c.expand(r), nil)
@@ -137,7 +214,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 		}
 	}
 	if len(in.Repos) == 0 && !in.Scan {
-		if err := c.askRepos(ctx, chosen, found, base); err != nil && !errors.Is(err, ErrNotInteractive) {
+		if err := c.askRepos(ctx, hosts, chosen, found, base); err != nil && !errors.Is(err, ErrNotInteractive) {
 			return ProjectResult{}, err
 		}
 	}
@@ -155,7 +232,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 		return ProjectResult{}, err
 	}
 
-	target, err := c.projectTarget(ctx, in, dir)
+	target, err := c.projectTarget(ctx, hosts, in, dir)
 	if err != nil {
 		return ProjectResult{}, err
 	}
@@ -315,12 +392,9 @@ func canonical(url string) string {
 	return strings.TrimSuffix(strings.TrimRight(u, "/"), ".git")
 }
 
-// maxListed keeps a menu readable; a longer list says to narrow it.
-const maxListed = 60
-
 // askRepos is the guide's repository step: pick from what is already cloned
 // here, search an account on a hosting service, or paste URLs, until done.
-func (c *Catalogs) askRepos(ctx context.Context, chosen *picks, found []FoundCheckout, base string) error {
+func (c *Catalogs) askRepos(ctx context.Context, hosts *hostChecks, chosen *picks, found []FoundCheckout, base string) error {
 	usedScan := false
 	for {
 		var opts []Option
@@ -335,11 +409,12 @@ func (c *Catalogs) askRepos(ctx context.Context, chosen *picks, found []FoundChe
 		}
 		for _, h := range c.Hosts {
 			h := h
-			o := Option{Label: "Search my repositories on " + h.Name()}
-			if err := h.Available(ctx); err != nil {
-				o.Disabled, o.Note = true, err.Error()
-			}
-			add(o, func() error { return c.searchRepos(ctx, h, chosen) })
+			add(hosts.option(ctx, "Search my repositories on "+h.Name(), h), func() error {
+				if err := hosts.ready(ctx, h); err != nil {
+					return err
+				}
+				return c.searchRepos(ctx, h, chosen)
+			})
 		}
 		add(Option{Label: "Paste repository URLs", Note: "git, https or owner/repo, separated by spaces"}, func() error { return c.pasteRepos(chosen) })
 		done := len(opts)
@@ -361,7 +436,7 @@ func (c *Catalogs) askRepos(ctx context.Context, chosen *picks, found []FoundChe
 			return nil
 		}
 		if err := run[i](); err != nil {
-			if errors.Is(err, ErrNotInteractive) {
+			if errors.Is(err, ErrNotInteractive) || errors.Is(err, context.Canceled) {
 				return err
 			}
 			c.Out.Warn("%v", err)
@@ -376,7 +451,7 @@ func (c *Catalogs) pickCheckouts(chosen *picks, found []FoundCheckout) error {
 		if !co.Compose {
 			note += "  (no compose file)"
 		}
-		opts[i] = Option{Label: filepath.Base(co.Dir), Note: note}
+		opts[i] = Option{Label: filepath.Base(co.Dir), Note: note, Checked: true}
 	}
 	idx, err := c.Prompt.MultiSelect("Checkouts to include", opts)
 	if err != nil {
@@ -404,27 +479,18 @@ func (c *Catalogs) searchRepos(ctx context.Context, h RepoHost, chosen *picks) e
 	if err != nil {
 		return err
 	}
-	repos, err := h.Repos(ctx, account)
+	var repos []RemoteRepo
+	err = c.Progress.Do("Loading the repositories of "+account, func(ctx context.Context) (err error) {
+		repos, err = h.Repos(ctx, account)
+		return err
+	})
 	if err != nil {
 		return err
 	}
-	filter, err := c.Prompt.Input("Filter by name (Enter lists them all)", "")
-	if err != nil {
-		return err
+	if len(repos) == 0 {
+		return fmt.Errorf("%s has no repository you can see", account)
 	}
-	var match []RemoteRepo
-	for _, r := range repos {
-		if strings.Contains(strings.ToLower(r.Name+" "+r.Description), strings.ToLower(filter)) {
-			match = append(match, r)
-		}
-	}
-	if len(match) == 0 {
-		return fmt.Errorf("no repository of %s matches %q", account, filter)
-	}
-	if len(match) > maxListed {
-		c.Out.Info("%d match; showing the first %d — a longer filter narrows it", len(match), maxListed)
-		match = match[:maxListed]
-	}
+	match := repos
 	opts := make([]Option, len(match))
 	for i, r := range match {
 		note := r.Description
@@ -433,7 +499,7 @@ func (c *Catalogs) searchRepos(ctx context.Context, h RepoHost, chosen *picks) e
 		}
 		opts[i] = Option{Label: r.Name, Note: note}
 	}
-	idx, err := c.Prompt.MultiSelect("Repositories to include", opts)
+	idx, err := c.Prompt.MultiSelect(fmt.Sprintf("Repositories of %s to include  (type / to filter)", account), opts)
 	if err != nil {
 		return err
 	}
@@ -445,7 +511,11 @@ func (c *Catalogs) searchRepos(ctx context.Context, h RepoHost, chosen *picks) e
 
 // pickAccount lets a person choose where on a service, defaulting to their own.
 func (c *Catalogs) pickAccount(ctx context.Context, h RepoHost, label string) (string, error) {
-	accounts, err := h.Accounts(ctx)
+	var accounts []Account
+	err := c.Progress.Do("Loading your accounts on "+h.Name(), func(ctx context.Context) (err error) {
+		accounts, err = h.Accounts(ctx)
+		return err
+	})
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", h.Name(), err)
 	}
@@ -498,7 +568,7 @@ func (t projectHome) question(dir string) string {
 
 // projectTarget decides where the project's repository lives, from what was
 // said, from the origin Dir already has, or by asking.
-func (c *Catalogs) projectTarget(ctx context.Context, in ProjectInput, dir string) (projectHome, error) {
+func (c *Catalogs) projectTarget(ctx context.Context, hosts *hostChecks, in ProjectInput, dir string) (projectHome, error) {
 	switch {
 	case in.Local:
 		return projectHome{local: true}, nil
@@ -521,11 +591,10 @@ func (c *Catalogs) projectTarget(ctx context.Context, in ProjectInput, dir strin
 	}
 	for _, h := range c.Hosts {
 		h := h
-		o := Option{Label: "A new private repository on " + h.Name()}
-		if err := h.Available(ctx); err != nil {
-			o.Disabled, o.Note = true, err.Error()
-		}
-		add(o, func() (projectHome, error) {
+		add(hosts.option(ctx, "A new private repository on "+h.Name(), h), func() (projectHome, error) {
+			if err := hosts.ready(ctx, h); err != nil {
+				return projectHome{}, err
+			}
 			account, err := c.pickAccount(ctx, h, "Create it under which account or organization?")
 			if err != nil {
 				return projectHome{}, err
@@ -582,10 +651,13 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 	url := t.url
 	if t.create != "" {
 		if err := t.host.Available(ctx); err != nil {
-			return "", fmt.Errorf("cannot create a repository: %w (or pass --url with one you made)", err)
+			return "", fmt.Errorf("cannot create a repository on %s: %w; sign in with %s, or pass --url with one you made", t.host.Name(), err, signInCommand(t.host))
 		}
-		var err error
-		if url, err = t.host.Create(ctx, t.create, !t.public); err != nil {
+		err := c.Progress.Do("Creating "+t.create+" on "+t.host.Name(), func(ctx context.Context) (err error) {
+			url, err = t.host.Create(ctx, t.create, !t.public)
+			return err
+		})
+		if err != nil {
 			return "", err
 		}
 		c.Out.OK("created %s", url)
@@ -638,9 +710,17 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 	if err != nil {
 		return "", err
 	}
-	if err := c.Git.Push(ctx, dir, branch); err != nil {
+	if err := c.Progress.Do("Pushing to "+url, func(ctx context.Context) error { return c.Git.Push(ctx, dir, branch) }); err != nil {
 		return "", fmt.Errorf("push to %s: %w\n  the files are committed in %s; once access is sorted: git -C %s push -u origin %s", url, err, dir, dir, branch)
 	}
 	c.Out.OK("pushed to %s", url)
 	return url, nil
+}
+
+// signInCommand is what a person types to sign in to the service themselves.
+func signInCommand(h RepoHost) string {
+	if strings.EqualFold(h.Name(), "GitLab") {
+		return "glab auth login"
+	}
+	return "gh auth login"
 }

@@ -1,39 +1,43 @@
-// Package prompt asks questions on the terminal.
+// Package prompt asks questions on the terminal: arrow keys to move, Space to
+// tick, / to filter, Enter to accept. It is the one place the interface is
+// drawn, so every question in the tool looks and behaves the same.
 package prompt
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"strconv"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
+// Console asks on the terminal. It draws on stderr, so stdout stays clean for
+// output a script might read.
 type Console struct {
-	in  *bufio.Reader
-	out io.Writer
-	tty bool
-	// ctx ends a question that is waiting for an answer: a read on a terminal
-	// does not return when Ctrl+C is caught rather than left to kill the
-	// process, so the wait has to be raced against the context.
-	ctx context.Context
+	ctx        context.Context
+	tty        bool
+	accessible bool
+	theme      *huh.Theme
 }
 
 var _ app.Prompter = (*Console)(nil)
 
 // New asks on the terminal. A cancelled ctx abandons the question that is
-// waiting, with ctx's error.
+// waiting, and so does Ctrl+C, both ending in context.Canceled.
 func New(ctx context.Context) *Console {
 	return &Console{
 		ctx: ctx,
-		in:  bufio.NewReader(os.Stdin),
-		out: os.Stderr, // stdout stays clean for output a script might read
-		tty: isTerminal(os.Stdin),
+		tty: isTerminal(os.Stdin) && isTerminal(os.Stderr),
+		// A terminal that cannot draw gets plain line questions instead.
+		accessible: os.Getenv("TERM") == "dumb" || os.Getenv("ACCESSIBLE") != "",
+		theme:      theme(),
 	}
 }
 
@@ -49,171 +53,178 @@ func isTerminal(f *os.File) bool {
 	return err != nil || !os.SameFile(info, null)
 }
 
-func (c *Console) line(label string) (string, error) {
-	if !c.tty {
-		return "", app.ErrNotInteractive
-	}
-	fmt.Fprint(c.out, label)
-	type answer struct {
-		text string
-		err  error
-	}
-	got := make(chan answer, 1)
-	go func() {
-		text, err := c.in.ReadString('\n')
-		got <- answer{text, err}
-	}()
-	select {
-	case <-c.ctx.Done():
-		fmt.Fprintln(c.out)
-		return "", c.ctx.Err()
-	case a := <-got:
-		if a.err != nil && a.text == "" {
-			return "", fmt.Errorf("no answer: %w", a.err)
-		}
-		return strings.TrimSpace(a.text), nil
-	}
+// theme is quieter than the library's default: one accent colour, dim help,
+// and glyphs that read at a glance.
+func theme() *huh.Theme {
+	t := huh.ThemeBase()
+	accent := lipgloss.Color("6")
+	green := lipgloss.Color("2")
+	dim := lipgloss.Color("8")
+
+	f := &t.Focused
+	f.Base = f.Base.BorderForeground(accent)
+	f.Title = lipgloss.NewStyle().Foreground(accent).Bold(true)
+	f.Description = lipgloss.NewStyle().Foreground(dim)
+	f.ErrorIndicator = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).SetString(" ✗")
+	f.ErrorMessage = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	f.SelectSelector = lipgloss.NewStyle().Foreground(accent).SetString("❯ ")
+	f.Option = lipgloss.NewStyle()
+	f.NextIndicator = lipgloss.NewStyle().Foreground(dim).SetString(" ↓")
+	f.PrevIndicator = lipgloss.NewStyle().Foreground(dim).SetString(" ↑")
+	f.MultiSelectSelector = lipgloss.NewStyle().Foreground(accent).SetString("❯ ")
+	f.SelectedOption = lipgloss.NewStyle().Foreground(green)
+	f.SelectedPrefix = lipgloss.NewStyle().Foreground(green).SetString("◉ ")
+	f.UnselectedOption = lipgloss.NewStyle()
+	f.UnselectedPrefix = lipgloss.NewStyle().Foreground(dim).SetString("○ ")
+	f.TextInput.Cursor = lipgloss.NewStyle().Foreground(accent)
+	f.TextInput.Prompt = lipgloss.NewStyle().Foreground(accent)
+	f.TextInput.Placeholder = lipgloss.NewStyle().Foreground(dim)
+	f.FocusedButton = lipgloss.NewStyle().Padding(0, 2).Bold(true).Foreground(lipgloss.Color("0")).Background(accent)
+	f.BlurredButton = lipgloss.NewStyle().Padding(0, 2).Foreground(dim)
+	t.Blurred = *f
+	t.Blurred.Base = t.Blurred.Base.BorderStyle(lipgloss.HiddenBorder())
+	t.Blurred.Title = lipgloss.NewStyle().Foreground(dim)
+	t.Blurred.SelectSelector = lipgloss.NewStyle().SetString("  ")
+	t.Blurred.MultiSelectSelector = lipgloss.NewStyle().SetString("  ")
+
+	t.Help.ShortKey = lipgloss.NewStyle().Foreground(dim)
+	t.Help.ShortDesc = lipgloss.NewStyle().Foreground(dim).Faint(true)
+	t.Help.ShortSeparator = lipgloss.NewStyle().Foreground(dim).Faint(true)
+	t.Help.FullKey, t.Help.FullDesc, t.Help.FullSeparator = t.Help.ShortKey, t.Help.ShortDesc, t.Help.ShortSeparator
+	return t
 }
 
-// show prints a menu. Every line is numbered by its place so the numbers do not
-// shift; one that cannot be chosen gets a dash and its note, so it is still
-// seen and its absence not a mystery.
-func (c *Console) show(label string, options []app.Option) {
-	fmt.Fprintln(c.out, label)
+// run shows one field. Ctrl+C reaches us as a key, not a signal, so it is
+// turned into the same cancellation the rest of the tool treats as "stop".
+func (c *Console) run(field huh.Field) error {
+	if !c.tty {
+		return app.ErrNotInteractive
+	}
+	err := huh.NewForm(huh.NewGroup(field)).
+		WithTheme(c.theme).
+		WithKeyMap(keys()).
+		WithOutput(os.Stderr).
+		WithAccessible(c.accessible).
+		RunWithContext(c.ctx)
+	if errors.Is(err, huh.ErrUserAborted) {
+		return fmt.Errorf("%w", context.Canceled)
+	}
+	return err
+}
+
+// keys adds Space for ticking, which is what people reach for, and Esc for
+// leaving, beside the library's x and Ctrl+C.
+func keys() *huh.KeyMap {
+	km := huh.NewDefaultKeyMap()
+	km.MultiSelect.Toggle = key.NewBinding(key.WithKeys(" ", "x"), key.WithHelp("space", "toggle"))
+	km.Quit = key.NewBinding(key.WithKeys("ctrl+c", "esc"), key.WithHelp("esc", "cancel"))
+	return km
+}
+
+// labels draws each option as its name and, in a column beside it, its note.
+func labels(options []app.Option) []string {
 	width := 0
 	for _, o := range options {
-		if w := len([]rune(o.Label)); w > width {
-			width = w
-		}
+		width = max(width, utf8.RuneCountInString(o.Label))
 	}
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	out := make([]string, len(options))
 	for i, o := range options {
-		num := fmt.Sprintf("%2d", i+1)
-		if o.Disabled {
-			num = " -"
-		}
-		line := fmt.Sprintf("  %s  %s", num, o.Label)
+		text := o.Label
 		if o.Note != "" {
-			line += strings.Repeat(" ", width-len([]rune(o.Label))) + "  " + o.Note
+			text += strings.Repeat(" ", width-utf8.RuneCountInString(o.Label)) + "  " + dim.Render(o.Note)
 		}
-		fmt.Fprintln(c.out, strings.TrimRight(line, " "))
+		if o.Disabled {
+			text = dim.Render(o.Label + strings.Repeat(" ", width-utf8.RuneCountInString(o.Label)) + "  " + o.Note)
+		}
+		out[i] = text
 	}
+	return out
 }
 
-func chooseable(options []app.Option) int {
-	n := 0
-	for _, o := range options {
-		if !o.Disabled {
-			n++
-		}
-	}
-	return n
-}
+// listHeight keeps a long list scrolling inside the screen.
+func listHeight(n int) int { return min(n, 12) + 1 }
 
 func (c *Console) Select(label string, options []app.Option, def int) (int, error) {
 	if !c.tty {
 		return 0, app.ErrNotInteractive
 	}
-	if chooseable(options) == 0 {
+	free := 0
+	for _, o := range options {
+		if !o.Disabled {
+			free++
+		}
+	}
+	if free == 0 {
 		return 0, errors.New("nothing here can be chosen")
 	}
-	c.show(label, options)
+	texts := labels(options)
+	chosen := def
+	description := ""
 	for {
-		text, err := c.line(fmt.Sprintf("choose [%d]: ", def+1))
-		if err != nil {
+		opts := make([]huh.Option[int], len(options))
+		for i := range options {
+			opts[i] = huh.NewOption(texts[i], i)
+		}
+		sel := huh.NewSelect[int]().Title(label).Description(description).Options(opts...).Value(&chosen)
+		if len(options) > 12 {
+			sel = sel.Height(listHeight(len(options)))
+		}
+		if err := c.run(sel); err != nil {
 			return 0, err
 		}
-		if text == "" {
-			return def, nil
+		if !options[chosen].Disabled {
+			return chosen, nil
 		}
-		if n, err := strconv.Atoi(text); err == nil && n >= 1 && n <= len(options) && !options[n-1].Disabled {
-			return n - 1, nil
-		}
-		fmt.Fprintf(c.out, "enter the number of a line that has one\n")
+		// A line that cannot be chosen is shown with its reason, so it is not a mystery.
+		description = "not available: " + options[chosen].Note
 	}
 }
 
-// MultiSelect returns nothing on an empty answer: Enter is how a person backs
-// out, and a menu that can only be left with a valid number is a trap.
+// MultiSelect returns nothing when the person ticks nothing and presses Enter:
+// that is how they back out. Long lists can be filtered by typing /.
 func (c *Console) MultiSelect(label string, options []app.Option) ([]int, error) {
 	if !c.tty {
 		return nil, app.ErrNotInteractive
 	}
-	if chooseable(options) == 0 {
+	var shown []int // indexes into options of the lines that can be ticked
+	for i, o := range options {
+		if !o.Disabled {
+			shown = append(shown, i)
+		}
+	}
+	if len(shown) == 0 {
 		return nil, errors.New("nothing here can be chosen")
 	}
-	c.show(label, options)
-	for {
-		text, err := c.line("numbers separated by commas, all, or Enter for none: ")
-		if err != nil {
-			return nil, err
-		}
-		if strings.TrimSpace(text) == "" {
-			return nil, nil
-		}
-		if picked, ok := parseNumbers(text, options); ok {
-			return picked, nil
-		}
-		fmt.Fprintf(c.out, "enter numbers of lines that have one, or all\n")
+	texts := labels(options)
+	opts := make([]huh.Option[int], len(shown))
+	for k, i := range shown {
+		opts[k] = huh.NewOption(texts[i], i).Selected(options[i].Checked)
 	}
-}
-
-func parseNumbers(text string, options []app.Option) ([]int, bool) {
-	text = strings.TrimSpace(text)
-	var out []int
-	if text == "all" {
-		for i, o := range options {
-			if !o.Disabled {
-				out = append(out, i)
-			}
-		}
-		return out, true
+	var picked []int
+	field := huh.NewMultiSelect[int]().Title(label).Options(opts...).Value(&picked).Filterable(len(shown) > 8)
+	if len(shown) > 12 {
+		field = field.Height(listHeight(len(shown)))
 	}
-	seen := map[int]bool{}
-	for _, part := range strings.Split(text, ",") {
-		n, err := strconv.Atoi(strings.TrimSpace(part))
-		if err != nil || n < 1 || n > len(options) || options[n-1].Disabled {
-			return nil, false
-		}
-		if !seen[n-1] {
-			seen[n-1] = true
-			out = append(out, n-1)
-		}
+	if err := c.run(field); err != nil {
+		return nil, err
 	}
-	return out, true
+	return picked, nil
 }
 
 func (c *Console) Confirm(label string, def bool) (bool, error) {
-	hint := "[y/N]"
-	if def {
-		hint = "[Y/n]"
+	answer := def
+	if err := c.run(huh.NewConfirm().Title(label).Affirmative("Yes").Negative("No").Value(&answer)); err != nil {
+		return false, err
 	}
-	for {
-		text, err := c.line(fmt.Sprintf("%s %s ", label, hint))
-		if err != nil {
-			return false, err
-		}
-		switch strings.ToLower(text) {
-		case "":
-			return def, nil
-		case "y", "yes":
-			return true, nil
-		case "n", "no":
-			return false, nil
-		}
-	}
+	return answer, nil
 }
 
+// Input starts with def filled in, so Enter accepts it and a few keys edit it.
 func (c *Console) Input(label, def string) (string, error) {
-	prompt := label + ": "
-	if def != "" {
-		prompt = fmt.Sprintf("%s [%s]: ", label, def)
-	}
-	text, err := c.line(prompt)
-	if err != nil {
+	answer := def
+	if err := c.run(huh.NewInput().Title(label).Value(&answer)); err != nil {
 		return "", err
 	}
-	if text == "" {
-		return def, nil
-	}
-	return text, nil
+	return strings.TrimSpace(answer), nil
 }

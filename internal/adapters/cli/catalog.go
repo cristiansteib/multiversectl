@@ -72,7 +72,11 @@ func (r runner) showTree(cmd *cobra.Command, args []string, fetch bool, format, 
 	if err != nil {
 		return err
 	}
-	tree, err := c.Tree(cmd.Context(), localOrURL(from), fetch)
+	var tree domain.Node
+	err = r.spin(fetch, "Fetching the catalogs", func() (err error) {
+		tree, err = c.Tree(cmd.Context(), localOrURL(from), fetch)
+		return err
+	})
 	if err != nil {
 		return err
 	}
@@ -211,7 +215,7 @@ func (r runner) catalogAddCmd() *cobra.Command {
 			"  multiversectl catalog add ~/code/billing --at acme/backend\n" +
 			"  multiversectl catalog add ./acme.yaml                  # asks where the manifest lives\n" +
 			"  multiversectl catalog add ./acme.yaml --new-repo acme-org/multiverse",
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MaximumNArgs(1),
 	}
 	r.atFlag(cmd, &in.At)
 	cmd.Flags().StringVar(&in.Name, "name", "", "name in the catalog (default: the one the source gives itself)")
@@ -223,11 +227,15 @@ func (r runner) catalogAddCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&in.Where.Public, "public", false, "make a --new-repo public (private by default)")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation (entries go in the root unless --at says otherwise)")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		source, err := r.textArg(cmd, args, "Repository, URL or path to add  (owner/repo means GitHub)", "")
+		if err != nil {
+			return err
+		}
 		c, err := r.catalogs(yes)
 		if err != nil {
 			return err
 		}
-		in.Repo, in.AtGiven = args[0], cmd.Flags().Changed("at")
+		in.Repo, in.AtGiven = source, cmd.Flags().Changed("at")
 		node, err := c.Add(cmd.Context(), in)
 		if err != nil {
 			return r.declined(err)
@@ -247,7 +255,7 @@ func (r runner) catalogCreateCmd() *cobra.Command {
 		Long: "Create a catalog and link it from a parent. It can live in the parent's own\n" +
 			"repository, in a repository you already have, or in a new private one.",
 		Example: "  multiversectl catalog create acme --new-repo acme-index\n  multiversectl catalog create personal --same-repo --at /",
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MaximumNArgs(1),
 	}
 	r.atFlag(cmd, &in.At)
 	cmd.Flags().BoolVar(&in.Same, "same-repo", false, "keep it as a file in the parent's repository")
@@ -256,11 +264,15 @@ func (r runner) catalogCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&in.Where.Public, "public", false, "make a --new-repo public (private by default)")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		name, err := r.textArg(cmd, args, "Name of the catalog", "")
+		if err != nil {
+			return err
+		}
 		c, err := r.catalogs(yes)
 		if err != nil {
 			return err
 		}
-		in.Name, in.AtGiven = args[0], cmd.Flags().Changed("at")
+		in.Name, in.AtGiven = name, cmd.Flags().Changed("at")
 		node, err := c.CreateCatalog(cmd.Context(), in)
 		if err != nil {
 			return r.declined(err)
@@ -277,7 +289,7 @@ func (r runner) catalogRmCmd() *cobra.Command {
 		Use:               "rm <path>",
 		Short:             "Remove an entry from the catalog that holds it (what it points at is untouched)",
 		Example:           "  multiversectl catalog rm acme/backend/payments",
-		Args:              cobra.ExactArgs(1),
+		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeNodes(false),
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every confirmation")
@@ -286,7 +298,11 @@ func (r runner) catalogRmCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		return r.declined(c.Remove(cmd.Context(), args[0]))
+		node, err := r.nodeArg(cmd, args, c, "Which entry should come out of the catalog?")
+		if err != nil {
+			return err
+		}
+		return r.declined(c.Remove(cmd.Context(), node))
 	}
 	return cmd
 }
@@ -492,14 +508,18 @@ func (r runner) uninstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:               "uninstall <workspace>",
 		Short:             "Forget a workspace; its files stay on disk",
-		Args:              cobra.ExactArgs(1),
+		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeWorkspaces,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			bare, err := r.f.Bare(*r.g, r.out)
 			if err != nil {
 				return err
 			}
-			return bare.Forget(args[0])
+			name, err := r.workspaceArg(cmd, args, bare, "Which workspace should be forgotten?  (its files stay)")
+			if err != nil {
+				return err
+			}
+			return bare.Forget(name)
 		},
 	}
 }
@@ -508,14 +528,18 @@ func (r runner) useCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:               "use <workspace>",
 		Short:             "Make a workspace the one commands act on by default (a name, or its catalog path)",
-		Args:              cobra.ExactArgs(1),
+		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeWorkspaces,
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			bare, err := r.f.Bare(*r.g, r.out)
 			if err != nil {
 				return err
 			}
-			return bare.Use(args[0])
+			name, err := r.workspaceArg(cmd, args, bare, "Which workspace should commands act on?")
+			if err != nil {
+				return err
+			}
+			return bare.Use(name)
 		},
 	}
 }
@@ -541,7 +565,11 @@ func (r runner) statusCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		rep, err := c.Status(cmd.Context(), fetch)
+		var rep app.StatusReport
+		err = r.spin(fetch, "Fetching the catalogs", func() (err error) {
+			rep, err = c.Status(cmd.Context(), fetch)
+			return err
+		})
 		if err != nil {
 			return err
 		}

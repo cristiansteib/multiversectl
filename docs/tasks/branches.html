@@ -113,7 +113,7 @@ http://api-fix-login.10-0-0-5.traefik.me
   <div class="code"><pre><span class="p">$ </span>multiversectl universe rm 3
 <span class="c"># skip the prompt</span>
 <span class="p">$ </span>multiversectl universe rm 3 --yes</pre></div>
-  <p><code>rm</code> lists what it will destroy and asks you to type the number. It removes:</p>
+  <p><code>rm</code> lists what it will destroy and asks you to type the number back, which is the one question that is deliberately not a list to move through. It removes:</p>
   <ul class="t"><li>the universe's worktrees (uncommitted work in them is lost);</li><li>its containers and <strong>volumes</strong>, so every database in it;</li><li>its directory and state file.</li></ul>
   <p>The shared clones are not touched. To stop a universe and keep everything, use <code>multiversectl universe down 3</code>.</p>
 </section>

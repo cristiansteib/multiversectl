@@ -4,7 +4,17 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/cristiansteib/multiversectl/internal/app"
 )
+
+// noTerminal answers every question as a script would: there is nobody to ask.
+type noTerminal struct{}
+
+func (noTerminal) Select(string, []app.Option, int) (int, error)   { return 0, app.ErrNotInteractive }
+func (noTerminal) MultiSelect(string, []app.Option) ([]int, error) { return nil, app.ErrNotInteractive }
+func (noTerminal) Confirm(string, bool) (bool, error)              { return false, app.ErrNotInteractive }
+func (noTerminal) Input(string, string) (string, error)            { return "", app.ErrNotInteractive }
 
 func TestUniverseCommandsLiveUnderUniverse(t *testing.T) {
 	root, _ := New(Factory{})
@@ -61,7 +71,7 @@ func TestArgumentErrorsSayWhatToDo(t *testing.T) {
 		{[]string{"u", "nwe"}, []string{`no command "nwe"`, "did you mean new", "commands:"}},
 	}
 	for _, c := range cases {
-		root, _ := New(Factory{})
+		root, _ := New(Factory{Prompter: func() app.Prompter { return noTerminal{} }})
 		root.SetOut(&bytes.Buffer{})
 		root.SetErr(&bytes.Buffer{})
 		root.SetArgs(c.args)

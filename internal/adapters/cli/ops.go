@@ -70,9 +70,13 @@ func (r runner) envCmd() *cobra.Command {
 		Use:     "env <universe>",
 		Short:   "Print a universe's environment as export lines for your shell",
 		Example: `  eval "$(multiversectl universe env 3)"`,
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
+				args, err := r.universeArgs(cmd, args, s)
+				if err != nil {
+					return err
+				}
 				env, err := s.Env(ctx, args[0])
 				if err != nil {
 					return err

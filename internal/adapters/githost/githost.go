@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -24,11 +25,25 @@ func (Host) Name() string { return "GitHub" }
 
 func (Host) Available(ctx context.Context) error {
 	if _, err := exec.LookPath("gh"); err != nil {
-		return errors.New("the GitHub CLI (gh) is not installed")
+		return &app.HostUnavailable{Reason: "the GitHub CLI (gh) is not installed: https://cli.github.com"}
 	}
 	if err := exec.CommandContext(ctx, "gh", "auth", "status").Run(); err != nil {
-		return errors.New("the GitHub CLI is not logged in; run: gh auth login")
+		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true}
 	}
+	return nil
+}
+
+// Login hands the terminal to gh, which shows a one-time code and opens the
+// browser, then sets git up to push with the same credentials.
+func (Host) Login(ctx context.Context) error {
+	login := exec.CommandContext(ctx, "gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com")
+	login.Stdin, login.Stdout, login.Stderr = os.Stdin, os.Stderr, os.Stderr
+	if err := login.Run(); err != nil {
+		return fmt.Errorf("gh auth login: %w", err)
+	}
+	setup := exec.CommandContext(ctx, "gh", "auth", "setup-git")
+	setup.Stdout, setup.Stderr = os.Stderr, os.Stderr
+	_ = setup.Run() // pushing may still work through another credential helper
 	return nil
 }
 

@@ -302,17 +302,23 @@ type Option struct {
 	Label    string
 	Note     string
 	Disabled bool
+	// Checked starts a MultiSelect with the line ticked.
+	Checked bool
 }
 
 // RepoHost creates repositories on a hosting service.
 type RepoHost interface {
 	// Name is the service's own name, such as GitHub.
 	Name() string
-	// Available says why repositories cannot be created, nil when they can.
+	// Available says why the service cannot be used, nil when it can. A
+	// *HostUnavailable says whether signing in would fix it.
 	Available(ctx context.Context) error
 	// Create makes a repository; name is owner/name, or just a name for the
 	// signed-in account's own.
 	Create(ctx context.Context, name string, private bool) (url string, err error)
+	// Login signs in, handing the terminal to the service's own tool, which
+	// opens a browser or shows a code. It returns when that is done.
+	Login(ctx context.Context) error
 	// Accounts are the places a repository can be made or listed: the signed-in
 	// user first, then the organizations or groups they belong to.
 	Accounts(ctx context.Context) ([]Account, error)
@@ -425,3 +431,19 @@ var (
 	ErrServerRunning    = errors.New("the server is already running")
 	ErrServerNotRunning = errors.New("the server is not running")
 )
+
+// HostUnavailable is why a hosting service cannot be used right now. CanSignIn
+// says the tool is there and only the person is missing, which Login fixes;
+// otherwise something has to be installed first.
+type HostUnavailable struct {
+	Reason    string
+	CanSignIn bool
+}
+
+func (e *HostUnavailable) Error() string { return e.Reason }
+
+// Progress shows that something slow is happening and ends with it, leaving
+// nothing behind. Without a terminal it just runs fn.
+type Progress interface {
+	Do(label string, fn func(ctx context.Context) error) error
+}

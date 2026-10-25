@@ -21,14 +21,15 @@
   <h2 id="hw-add"><a href="#hw-add">Put a project in the right place</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl catalog add acme/billing
 › acme/billing holds a workspace manifest (billing)
-Where should it go?
-   1  index (root)         writes to me/multiverse-index
-   2  ├─ personal          writes to me/multiverse-index
-   3  └─ acme              writes to acme/index · another repository
-   4     ├─ backend        writes to acme/index · another repository
-   5     └─ frontend       writes to acme/index · another repository
-   -  └─ secret-team       no access or not found: acme/secret-index
-choose [4]:</pre></div>
+┃ Where should it go?
+┃   index (root)         writes to me/multiverse-index
+┃   ├─ personal          writes to me/multiverse-index
+┃   └─ acme              writes to acme/index · another repository
+┃ ❯    ├─ backend        writes to acme/index · another repository
+┃      └─ frontend       writes to acme/index · another repository
+┃      secret-team       no access or not found: acme/secret-index
+↑ up • ↓ down • / filter • enter submit</pre></div>
+  <p>Questions are asked with a list you move through: <kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Space</kbd> to tick when several can be chosen, <kbd>/</kbd> to filter a long list, <kbd>Enter</kbd> to accept and <kbd>Esc</kbd> or <kbd>Ctrl+C</kbd> to stop. A command that is missing something it needs asks for it this way, instead of failing: <code>universe up</code> offers your universes, <code>catalog rm</code> offers the entries of the tree, <code>catalog use</code> your installed workspaces, <code>universe new</code> the next free number. Without a terminal, such as in a script, nothing is asked and the command says what it needs.</p>
   <p>The default is the deepest catalog kept in a repository owned by the same owner as the project, since that is usually where it belongs; otherwise the root. The name is asked only when it is already taken there, and listing a project that is already somewhere else in the tree asks first. <code>--at &lt;path&gt;</code> names the place (<code>/</code> is the root), and with <code>--yes</code> and no <code>--at</code> an entry goes in the root, never into a repository nobody named.</p>
   <p>The source can be a repository, a path to a local checkout (added by its <code>origin</code>, because other machines have to be able to fetch it), or a manifest file. A manifest file has no repository, so it goes into one: a copy in the catalog's own, or a repository of its own, which makes a <em>project</em>.</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl catalog add ./acme.yaml --new-repo acme-org/multiverse</pre></div>
@@ -70,7 +71,7 @@ WORKSPACE  FROM            STATE
     <li><strong>Where its own repository lives.</strong> A new private one under any account or organization you can create in, on GitHub or GitLab; one that exists; the directory's own <code>origin</code>; or only on this machine for now.</li>
     <li><strong>Where to list it</strong> in your root catalog, with the same picker as <code>catalog add</code>, and whether to <strong>install it</strong> here so the next command can be <code>universe new 1</code>.</li>
   </ul>
-  <p>It writes <code>multiverse.yaml</code> and <code>catalog.yaml</code> into the directory, commits them and pushes. A repository with a <code>docker-compose.yml</code> becomes an app of the same name; one that was found cloned and has none is marked <code>runtime: none</code>; one only chosen from a search is left to start as an app when it gets a compose file. GitHub needs <code>gh</code> and GitLab needs <code>glab</code>, both signed in; any other host works by URL. Every answer has a flag, so with enough of them it asks nothing:</p>
+  <p>It writes <code>multiverse.yaml</code> and <code>catalog.yaml</code> into the directory, commits them and pushes. A repository with a <code>docker-compose.yml</code> becomes an app of the same name; one that was found cloned and has none is marked <code>runtime: none</code>; one only chosen from a search is left to start as an app when it gets a compose file. GitHub needs <code>gh</code> and GitLab needs <code>glab</code> installed; if you are not signed in, choosing the service signs you in first, with the tool's own browser login, and the guide carries on afterwards. Slow steps (listing repositories, creating one, pushing) show a spinner. Any other host works by URL. Every answer has a flag, so with enough of them it asks nothing:</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl project init ~/acme/multiverse --scan --create acme-org/multiverse --yes
 <span class="p">$ </span>multiversectl project init --name acme --repo acme-org/api --repo https://gitlab.com/acme/web.git --local</pre></div>
   <p>What it makes is a repository that is both the project's index and its own workspace definition. The catalog lists that workspace with no <code>repo</code>, because a reference stays in the repository it is written in, and can link deeper catalogs when the project needs them.</p>

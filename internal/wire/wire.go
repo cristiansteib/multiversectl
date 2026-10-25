@@ -111,12 +111,14 @@ func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 		return nil, err
 	}
 	d := m.Deps(out, "", store)
+	console := prompt.New(m.ctx())
 	return app.NewCatalogs(app.CatalogDeps{
 		Git:       d.Git,
 		Files:     d.Files,
 		Decoder:   catalog.Decoder{},
 		Editor:    catalog.Editor{},
-		Prompt:    prompt.New(m.ctx()),
+		Prompt:    console,
+		Progress:  console,
 		Host:      githost.New(),
 		Hosts:     []app.RepoHost{githost.New(), gitlabhost.New()},
 		Writer:    manifest.Writer{},
@@ -126,6 +128,12 @@ func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 		CacheDir:  filepath.Join(filepath.Dir(store.Path()), "catalogs"),
 	}), nil
 }
+
+// Prompter asks questions on the terminal.
+func (m Machine) Prompter() app.Prompter { return prompt.New(m.ctx()) }
+
+// Progress shows spinners on the terminal.
+func (m Machine) Progress() app.Progress { return prompt.New(m.ctx()) }
 
 // Server builds the port that runs multiversectl-server in the background.
 func Server() (app.ServerProcess, error) { return serverproc.New() }

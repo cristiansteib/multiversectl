@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -32,12 +33,14 @@ func main() {
 		At:        at,
 		Catalogs:  catalogs,
 		Server:    wire.Server,
+		Progress:  func() app.Progress { return wire.Machine{Ctx: interrupted}.Progress() },
+		Prompter:  func() app.Prompter { return wire.Machine{Ctx: interrupted}.Prompter() },
 		Completions: func(out app.Output) *app.Completions {
 			return wire.Machine{Version: version, Ctx: interrupted}.Completions(out)
 		},
 	})
 	if err := cmd.ExecuteContext(ctx); err != nil {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
 			// Whatever the operation reported on its way out is a symptom of
 			// being stopped; saying so is what the person needs.
 			fmt.Fprintln(os.Stderr, "interrupted")

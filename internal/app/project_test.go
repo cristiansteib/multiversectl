@@ -120,9 +120,9 @@ func TestProjectInitGuideSearchesAnAccountAndPastesURLs(t *testing.T) {
 		{Name: "acme-org/acme-api", URL: "https://github.com/acme-org/acme-api.git", Private: true},
 		{Name: "acme-org/other", URL: "https://github.com/acme-org/other.git"},
 	}
-	// Search (account 1, filter "api", first match), paste, done, then keep it local.
+	// Search (account 1, first match), paste, done, then keep it local.
 	r.prompt.selects = []int{0, 1, 1, 2, 2}
-	r.prompt.inputs = []string{"api", "https://example.test/acme/acme-web.git"}
+	r.prompt.inputs = []string{"https://example.test/acme/acme-web.git"}
 	r.prompt.multi = []int{0}
 	dir := filepath.Join(t.TempDir(), "multiverse")
 
@@ -195,5 +195,28 @@ func TestProjectInitNamesAndKeysSurviveAStrayRepository(t *testing.T) {
 	}
 	if m.Name != "acme" || m.Repos["api"].URL == "" || m.Repos["ui"].URL == "" || m.Repos["skills"].Dir != ".skills" {
 		t.Errorf("name %q, repos %+v: want acme, api, ui, and .skills kept as the directory of skills", m.Name, m.Repos)
+	}
+}
+
+// A service that only needs the person to sign in is offered, and signs them in
+// when chosen, instead of being greyed out with an instruction to go elsewhere.
+func TestProjectInitGuideSignsInWhenTheServiceNeedsIt(t *testing.T) {
+	git := &fakeRepos{inRepo: true}
+	r := projectRig(t, git)
+	r.host.signedOut = true
+	r.host.accounts = []app.Account{{Name: "me"}}
+	r.host.repos = []app.RemoteRepo{{Name: "me/api", URL: "https://github.com/me/api.git"}}
+	r.prompt.selects = []int{0, 0, 2, 2} // search GitHub, account me, Done, then keep it local
+	r.prompt.multi = []int{0}
+	dir := filepath.Join(t.TempDir(), "multiverse")
+
+	if _, err := r.InitProject(context.Background(), app.ProjectInput{Dir: dir, Name: "me"}); err != nil {
+		t.Fatal(err)
+	}
+	if r.host.logins != 1 {
+		t.Errorf("signed in %d times, want once", r.host.logins)
+	}
+	if _, err := manifest.Load(filepath.Join(dir, "multiverse.yaml")); err != nil {
+		t.Error(err)
 	}
 }

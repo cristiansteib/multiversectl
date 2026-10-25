@@ -43,7 +43,7 @@ func (r runner) newCmd() *cobra.Command {
 			"  multiversectl universe new fix/login                   # named after the branch it checks out\n" +
 			"  multiversectl universe new 3 --branch feat/invoicing\n" +
 			"  multiversectl universe new 3 --branch feat/invoicing --branch web=main",
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().StringArrayVar(&branches, "branch", nil,
 		"branch to check out in every repo, or repo=branch for one of them (repeatable)")
@@ -54,6 +54,10 @@ func (r runner) newCmd() *cobra.Command {
 			return err
 		}
 		return r.withService(func(ctx context.Context, s *app.Service) error {
+			args, err := r.newName(cmd, args, s)
+			if err != nil {
+				return err
+			}
 			st, err := s.Create(ctx, app.CreateInput{
 				Name: args[0], Branch: all, Branches: byRepo, Note: note,
 			})
@@ -74,11 +78,15 @@ func (r runner) upCmd() *cobra.Command {
 		Aliases: []string{"start"},
 		Short:   "Start a universe (all apps, or only those named)",
 		Example: "  multiversectl universe up 3\n  multiversectl universe up fix/login api --with workers",
-		Args:    cobra.MinimumNArgs(1),
+		Args:    cobra.ArbitraryArgs,
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
+			args, err := r.universeArgs(cmd, args, s)
+			if err != nil {
+				return err
+			}
 			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with})
 		})(cmd, args)
 	}
@@ -91,9 +99,13 @@ func (r runner) downCmd() *cobra.Command {
 		Aliases: []string{"stop"},
 		Short:   "Stop a universe (all apps, or only those named); keeps data and checkouts",
 		Example: "  multiversectl universe down 3\n  multiversectl universe down fix/login",
-		Args:    cobra.MinimumNArgs(1),
+		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
+				args, err := r.universeArgs(cmd, args, s)
+				if err != nil {
+					return err
+				}
 				return s.Stop(ctx, app.StopInput{Universe: args[0], Apps: args[1:]})
 			})(cmd, args)
 		},
@@ -527,9 +539,13 @@ func (r runner) urlsCmd() *cobra.Command {
 		Use:     "urls <universe>",
 		Short:   "Print a universe's URLs, one per line",
 		Example: "  multiversectl universe urls 3\n  multiversectl universe urls fix/login",
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
+				args, err := r.universeArgs(cmd, args, s)
+				if err != nil {
+					return err
+				}
 				st, err := s.Resolve(args[0])
 				if err != nil {
 					return err
