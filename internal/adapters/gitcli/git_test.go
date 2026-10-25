@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
@@ -169,4 +170,46 @@ func samePath(a, b string) bool {
 		return filepath.Clean(a) == filepath.Clean(b)
 	}
 	return ra == rb
+}
+
+func TestAheadAndBehindCountEachSidesCommits(t *testing.T) {
+	clone, origin := repo(t)
+	g := Git{}
+	ctx := context.Background()
+
+	commit(t, clone, "mine")
+	other := filepath.Join(t.TempDir(), "other")
+	if out, err := exec.Command("git", "clone", "-q", origin, other).CombinedOutput(); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	commit(t, other, "theirs1")
+	commit(t, other, "theirs2")
+	git(t, other, "push", "-q", "origin", "main")
+	if err := g.Fetch(ctx, clone); err != nil {
+		t.Fatal(err)
+	}
+
+	ahead, errA := g.Ahead(ctx, clone, "")
+	behind, errB := g.Behind(ctx, clone, "main")
+	if errA != nil || errB != nil || ahead != 1 || behind != 2 {
+		t.Errorf("ahead=%d (%v) behind=%d (%v), want 1 and 2: diverged", ahead, errA, behind, errB)
+	}
+}
+
+func TestLastFetchIsWhenGitLastFetched(t *testing.T) {
+	clone, _ := repo(t)
+	g := Git{}
+	ctx := context.Background()
+	if err := os.Remove(filepath.Join(clone, ".git", "FETCH_HEAD")); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if at := g.LastFetch(ctx, clone); !at.IsZero() {
+		t.Errorf("never fetched, got %v", at)
+	}
+	if err := g.Fetch(ctx, clone); err != nil {
+		t.Fatal(err)
+	}
+	if at := g.LastFetch(ctx, clone); time.Since(at) > time.Minute || at.IsZero() {
+		t.Errorf("just fetched, got %v", at)
+	}
 }

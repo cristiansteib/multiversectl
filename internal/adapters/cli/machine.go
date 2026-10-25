@@ -136,8 +136,11 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 				}
 			}
 		}
-		if w.Stale {
+		switch {
+		case w.Stale:
 			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s` is behind its remote (%s): `multiversectl project update %s`", w.Name, strings.Join(w.Notes, " · "), w.Name))
+		case w.Advice != "":
+			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s`: %s", w.Name, w.Advice))
 		}
 		ms.Workspaces = append(ms.Workspaces, line)
 	}
