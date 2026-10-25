@@ -76,7 +76,7 @@ func (r runner) projectInitCmd() *cobra.Command {
 		if err != nil {
 			return r.declined(err)
 		}
-		r.out.OK("project %s is ready in %s", res.Name, res.Dir)
+		r.out.OK("project `%s` is ready in `%s`", res.Name, res.Dir)
 		if noInstall {
 			return nil
 		}
@@ -95,7 +95,7 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 	if list, err := bare.Workspaces(); err == nil {
 		for _, w := range list {
 			if w.Name == res.Name {
-				r.out.Info("a workspace named %s is already installed (%s); to follow the new repository instead: multiversectl catalog uninstall %s, then multiversectl catalog install %s",
+				r.out.Info("a workspace named `%s` is already installed (`%s`); to follow the new repository instead: `multiversectl catalog uninstall %s`, then `multiversectl catalog install %s`",
 					res.Name, firstNonEmpty(w.From, w.Manifest), res.Name, installSource(res))
 				return nil
 			}
@@ -122,7 +122,7 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 		if res.Root != "" {
 			hint += " --root " + res.Root
 		}
-		r.out.Info("install it later with: %s", hint)
+		r.out.Info("install it later with: `%s`", hint)
 		return nil
 	}
 	return r.install(cmd, []string{src}, app.InstallOptions{

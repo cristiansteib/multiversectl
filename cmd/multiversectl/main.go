@@ -47,7 +47,7 @@ func main() {
 			os.Exit(130)
 		}
 		if !cli.IsSilent(err) {
-			fmt.Fprintln(os.Stderr, errorPrefix(globals.NoColor)+err.Error())
+			fmt.Fprintln(os.Stderr, errorPrefix(globals.NoColor)+cli.Markup(err.Error(), cli.ColorEnabled(os.Stderr, globals.NoColor)))
 		}
 		os.Exit(1)
 	}
@@ -112,7 +112,7 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 			}
 		}
 		if path, err = wire.Locate(start); err != nil {
-			return nil, fmt.Errorf("no workspace on this machine: multiversectl catalog install <owner/repo>  (or -f <manifest>): %w", err)
+			return nil, fmt.Errorf("no workspace on this machine: `multiversectl catalog install <owner/repo>`  (or -f <manifest>): %w", err)
 		}
 	}
 	m, err := manifest.Load(path)

@@ -119,7 +119,7 @@ func (c *Completions) Install(s Shell, gen ScriptFunc, yes bool) error {
 		c.Out.Plain("This will write %s%s", t.File, c.rcNote(t))
 		ok, err := c.Prompt.Confirm(fmt.Sprintf("Install %s completions?", s), true)
 		if errors.Is(err, ErrNotInteractive) {
-			return errors.New("no terminal to ask on: pass --yes to install, or print the script with: multiversectl completion " + string(s))
+			return errors.New("no terminal to ask on: pass --yes to install, or print the script with: `multiversectl completion " + string(s) + "`")
 		}
 		if err != nil {
 			return err

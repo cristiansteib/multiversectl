@@ -85,7 +85,7 @@ func (r runner) showTree(cmd *cobra.Command, args []string, fetch bool, format, 
 		path = strings.Trim(args[0], "/")
 		var ok bool
 		if node, ok = tree.Find(path); !ok {
-			return fmt.Errorf("nothing at %q; run multiversectl catalog to see the tree", args[0])
+			return fmt.Errorf("nothing at %q; run `multiversectl catalog` to see the tree", args[0])
 		}
 	}
 	installed, err := c.InstalledIn(tree)
@@ -101,7 +101,7 @@ func (r runner) showTree(cmd *cobra.Command, args []string, fetch bool, format, 
 		r.out.Plain("%s", line)
 	}
 	if len(node.Children) == 0 && node.Kind == domain.CatalogNode {
-		r.out.Info("empty: multiversectl catalog add <owner/repo>")
+		r.out.Info("empty: `multiversectl catalog add <owner/repo>`")
 	}
 	return nil
 }
@@ -240,7 +240,7 @@ func (r runner) catalogAddCmd() *cobra.Command {
 		if err != nil {
 			return r.declined(err)
 		}
-		r.out.Info("next: multiversectl catalog install %s", node)
+		r.out.Info("next: `multiversectl catalog install %s`", node)
 		return nil
 	}
 	return cmd
@@ -277,7 +277,7 @@ func (r runner) catalogCreateCmd() *cobra.Command {
 		if err != nil {
 			return r.declined(err)
 		}
-		r.out.Info("next: multiversectl catalog add <owner/repo> --at %s", node)
+		r.out.Info("next: `multiversectl catalog add <owner/repo> --at %s`", node)
 		return nil
 	}
 	return cmd
@@ -395,7 +395,7 @@ func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions,
 			r.out.Info("%s", t.How)
 		}
 		if t.Skip != "" {
-			r.out.Info("%s: %s; multiversectl catalog update %s refreshes it", t.Name, t.Skip, t.Name)
+			r.out.Info("%s: %s; `multiversectl catalog update %s` refreshes it", t.Name, t.Skip, t.Name)
 			continue
 		}
 		in := app.BootstrapInput{Name: t.Name, Root: t.Root, ManifestSource: t.ManifestSource, Ref: t.Ref,
@@ -445,17 +445,17 @@ func (r runner) installedHint(bare *app.Service, added []app.InstallTarget, args
 	}
 	switch {
 	case current == added[0].Name && len(added) == 1:
-		r.out.OK("installed %s and now using it (the first on this machine)", added[0].Name)
-		r.out.Info("next: multiversectl universe new 1 && multiversectl universe up 1")
+		r.out.OK("installed `%s` and now using it (the first on this machine)", added[0].Name)
+		r.out.Info("next: `multiversectl universe new 1 && multiversectl universe up 1`")
 	case current != "" && !contains(names, current):
-		r.out.OK("installed %s (still using %s)", strings.Join(names, ", "), current)
-		r.out.Info("switch: multiversectl catalog use %s", names[0])
+		r.out.OK("installed `%s` (still using `%s`)", strings.Join(names, "`, `"), current)
+		r.out.Info("switch: `multiversectl catalog use %s`", names[0])
 	default:
-		r.out.OK("installed %s; now using %s", strings.Join(names, ", "), current)
-		r.out.Info("next: multiversectl universe new 1 && multiversectl universe up 1")
+		r.out.OK("installed `%s`; now using `%s`", strings.Join(names, "`, `"), current)
+		r.out.Info("next: `multiversectl universe new 1 && multiversectl universe up 1`")
 	}
 	if added[0].From == "" && len(args) == 1 {
-		r.out.Info("keep it in your index: multiversectl catalog add %s", args[0])
+		r.out.Info("keep it in your index: `multiversectl catalog add %s`", args[0])
 	}
 }
 
@@ -587,14 +587,14 @@ func (r runner) statusCmd() *cobra.Command {
 func (r runner) printStatus(rep app.StatusReport) {
 	switch {
 	case rep.Root.Source == "":
-		r.out.Plain("%s  none %s", r.out.Bold("root catalog"), r.out.Dim("(install from sources only; multiversectl init makes one)"))
+		r.out.Plain("%s  none (install from sources only; `multiversectl init` makes one)", r.out.Bold("root catalog"))
 	case rep.Root.Unavailable != "":
 		r.out.Plain("%s  %s  %s", r.out.Bold("root catalog"), rep.Root.Source, r.out.Red("✗ "+rep.Root.Unavailable))
 	default:
-		r.out.Plain("%s  %s", r.out.Bold("root catalog"), rep.Root.Source)
+		r.out.Plain("%s  `%s`", r.out.Bold("root catalog"), rep.Root.Source)
 	}
 	if rep.Root.NoRemote {
-		r.out.Warn("the root catalog is local only: it is lost with this machine, and nobody can use it. git -C %s remote add origin <url>", filepath.Dir(rep.Root.Source))
+		r.out.Warn("the root catalog is local only: it is lost with this machine, and nobody can use it. `git -C %s remote add origin <url>`", filepath.Dir(rep.Root.Source))
 	}
 	if len(rep.Workspaces) == 0 {
 		r.out.Plain("")
@@ -618,7 +618,8 @@ func (r runner) printStatus(rep app.StatusReport) {
 	}
 	if rep.Next != "" {
 		r.out.Plain("")
-		r.out.Info("next: %s", rep.Next)
+		// Next holds commands joined by a middle dot; each is marked on its own.
+		r.out.Info("next: `%s`", strings.Join(strings.Split(rep.Next, "  ·  "), "`  ·  `"))
 	}
 }
 
@@ -656,7 +657,7 @@ func (r runner) updateCmd() *cobra.Command {
 				list = append(list, w)
 			}
 			if len(list) == 0 {
-				r.out.Info("nothing installed: multiversectl catalog install <owner/repo>")
+				r.out.Info("nothing installed: `multiversectl catalog install <owner/repo>`")
 				return nil
 			}
 			if _, err := c.Tree(ctx, "", true); err != nil && !strings.Contains(err.Error(), "no root catalog") {

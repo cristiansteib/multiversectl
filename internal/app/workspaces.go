@@ -37,7 +37,7 @@ func (c Config) Resolve(key string) (string, WorkspaceEntry, error) {
 			return name, e, nil
 		}
 	}
-	return "", WorkspaceEntry{}, fmt.Errorf("no workspace %q; installed: %s (multiversectl catalog install %s adds it)", key, c.names(), key)
+	return "", WorkspaceEntry{}, fmt.Errorf("no workspace %q; installed: %s (`multiversectl catalog install %s` adds it)", key, c.names(), key)
 }
 
 // Select returns the workspace called name, or the current one when name is
@@ -142,7 +142,7 @@ func (s *Service) Forget(key string) error {
 	}
 	s.Out.OK("forgot %s; its files are still at %s", name, entry.Root)
 	if wasCurrent && len(cfg.Workspaces) > 0 {
-		s.Out.Info("no current workspace: multiversectl catalog use <name>")
+		s.Out.Info("no current workspace: `multiversectl catalog use <name>`")
 	}
 	return nil
 }

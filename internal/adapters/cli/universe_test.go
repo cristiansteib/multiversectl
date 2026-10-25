@@ -68,7 +68,7 @@ func TestArgumentErrorsSayWhatToDo(t *testing.T) {
 	}{
 		{[]string{"catalog", "create"}, []string{"needs <name>", "usage:", "example:"}},
 		{[]string{"universe", "ls", "extra"}, []string{"takes no arguments", "extra"}},
-		{[]string{"u", "nwe"}, []string{`no command "nwe"`, "did you mean new", "commands:"}},
+		{[]string{"u", "nwe"}, []string{"has no command nwe", "did you mean new", "commands:"}},
 	}
 	for _, c := range cases {
 		root, _ := New(Factory{Prompter: func() app.Prompter { return noTerminal{} }})
@@ -80,9 +80,10 @@ func TestArgumentErrorsSayWhatToDo(t *testing.T) {
 			t.Errorf("%v: no error", c.args)
 			continue
 		}
+		shown := Markup(err.Error(), false) // what a person reads without colour
 		for _, w := range c.want {
-			if !strings.Contains(err.Error(), w) {
-				t.Errorf("%v: %q lacks %q", c.args, err, w)
+			if !strings.Contains(shown, w) {
+				t.Errorf("%v: %q lacks %q", c.args, shown, w)
 			}
 		}
 	}

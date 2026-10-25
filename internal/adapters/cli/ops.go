@@ -131,7 +131,7 @@ func (r runner) proxyCmd() *cobra.Command {
 					return err
 				}
 				if !st.Running {
-					s.Out.Warn("proxy is not running — start it with: multiversectl proxy up")
+					s.Out.Warn("proxy is not running — start it with: `multiversectl proxy up`")
 					return nil
 				}
 				s.Out.OK("proxy is running")

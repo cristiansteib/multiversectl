@@ -372,7 +372,7 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 	if cfg, err := c.Config.Load(); err == nil {
 		for installed, e := range cfg.Workspaces {
 			if e.From == nodePath || strings.HasPrefix(e.From, nodePath+"/") {
-				c.Out.Info("still installed here: multiversectl catalog uninstall %s", installed)
+				c.Out.Info("still installed here: `multiversectl catalog uninstall %s`", installed)
 			}
 		}
 	}
@@ -786,12 +786,12 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 		if source, err = c.localRoot(ctx, dir, firstOf(name, "index")); err != nil {
 			return err
 		}
-		c.Out.Info("to keep it elsewhere: git -C %s remote add origin <url> && git -C %s push -u origin HEAD", dir, dir)
+		c.Out.Info("to keep it elsewhere: `git -C %s remote add origin <url> && git -C %s push -u origin HEAD`", dir, dir)
 	}
 	if err := c.Use(source); err != nil {
 		return err
 	}
-	c.Out.Info("next: multiversectl catalog add <owner/repo>  ·  multiversectl catalog create <name>")
+	c.Out.Info("next: `multiversectl catalog add <owner/repo>`  ·  `multiversectl catalog create <name>`")
 	return nil
 }
 
@@ -916,7 +916,7 @@ type AddInput struct {
 
 // errNoRoot is what every command that writes to the index says when there is
 // none: reading and installing do not need one, writing does.
-var errNoRoot = errors.New("no root catalog to add to: multiversectl init  (installing a single project does not need one)")
+var errNoRoot = errors.New("no root catalog to add to: `multiversectl init`  (installing a single project does not need one)")
 
 // Add links a source into the catalog: a repository (owner/repo or a URL) or a
 // path on this machine. A catalog.yaml makes it a catalog, otherwise it is a

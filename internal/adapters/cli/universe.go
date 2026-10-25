@@ -168,7 +168,7 @@ func (r runner) lsCmd() *cobra.Command {
 				return err
 			}
 			if len(list) == 0 {
-				s.Out.Info("no universes yet — create one with: multiversectl universe new 1")
+				s.Out.Info("no universes yet — create one with: `multiversectl universe new 1`")
 				return nil
 			}
 			if f.table {
@@ -624,7 +624,7 @@ func (r runner) universeStatusCmd() *cobra.Command {
 			return err
 		}
 		if len(list) == 0 {
-			s.Out.Info("no universes yet — create one with: multiversectl universe new 1")
+			s.Out.Info("no universes yet — create one with: `multiversectl universe new 1`")
 			return nil
 		}
 		rows := make([][]Cell, 0, len(list))

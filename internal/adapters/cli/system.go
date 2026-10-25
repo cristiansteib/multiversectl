@@ -69,7 +69,7 @@ func (r runner) system(ctx context.Context, prune bool, o app.PruneOptions, yes 
 		list = []app.WorkspaceInfo{w}
 	}
 	if len(list) == 0 {
-		r.out.Info("nothing installed: multiversectl catalog install <owner/repo>")
+		r.out.Info("nothing installed: `multiversectl catalog install <owner/repo>`")
 		return nil
 	}
 
@@ -111,7 +111,7 @@ func (r runner) systemOverview(plans []workspacePlan) {
 	r.out.Table([]string{"WORKSPACE", "UNIVERSES", "CONTAINERS UP", "WITH UNCOMMITTED WORK"}, rows)
 	if universes > 0 {
 		r.out.Plain("")
-		r.out.Info("remove the idle ones: multiversectl system --prune   (--all includes running, --force uncommitted work)")
+		r.out.Info("remove the idle ones: `multiversectl system --prune`   (--all includes running, --force uncommitted work)")
 	}
 }
 

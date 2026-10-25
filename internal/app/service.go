@@ -73,7 +73,7 @@ func (s *Service) Resolve(arg string) (domain.UniverseState, error) {
 		}
 	}
 	if len(all) == 0 {
-		return st, fmt.Errorf("universe %q: %w — there are none yet; create one with: multiversectl universe new %s",
+		return st, fmt.Errorf("universe %q: %w — there are none yet; create one with: `multiversectl universe new %s`",
 			arg, domain.ErrNotFound, arg)
 	}
 	names := make([]string, 0, len(all))

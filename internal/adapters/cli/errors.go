@@ -39,14 +39,14 @@ func argError(cmd *cobra.Command, args []string) error {
 				names = append(names, sub.Name())
 			}
 		}
-		msg := fmt.Sprintf("%s has no command %q", cmd.CommandPath(), args[0])
+		msg := fmt.Sprintf("`%s` has no command `%s`", cmd.CommandPath(), args[0])
 		if cmd.SuggestionsMinimumDistance <= 0 {
 			cmd.SuggestionsMinimumDistance = 2 // cobra sets this only on its own lookup path
 		}
 		if near := cmd.SuggestionsFor(args[0]); len(near) > 0 {
-			msg += fmt.Sprintf(" — did you mean %s?", strings.Join(near, " or "))
+			msg += fmt.Sprintf(" — did you mean `%s`?", strings.Join(near, "` or `"))
 		}
-		return fmt.Errorf("%s\n  commands: %s\n  more:     %s --help", msg, strings.Join(names, ", "), cmd.CommandPath())
+		return fmt.Errorf("%s\n  commands: %s\n  more:     `%s --help`", msg, strings.Join(names, ", "), cmd.CommandPath())
 	}
 	_, use, _ := strings.Cut(cmd.Use, " ")
 	required := placeholder.FindAllString(optionalPart.ReplaceAllString(use, ""), -1)
@@ -54,23 +54,23 @@ func argError(cmd *cobra.Command, args []string) error {
 	var what string
 	switch {
 	case len(args) < len(required):
-		what = fmt.Sprintf("%s needs %s", cmd.CommandPath(), strings.Join(required[len(args):], " "))
+		what = fmt.Sprintf("`%s` needs `%s`", cmd.CommandPath(), strings.Join(required[len(args):], " "))
 		if len(args) > 0 {
-			what = fmt.Sprintf("%s is missing %s", cmd.CommandPath(), strings.Join(required[len(args):], " "))
+			what = fmt.Sprintf("`%s` is missing `%s`", cmd.CommandPath(), strings.Join(required[len(args):], " "))
 		}
 	case len(required) == 0 && !strings.Contains(use, "["):
-		what = fmt.Sprintf("%s takes no arguments, but got: %s", cmd.CommandPath(), strings.Join(args, " "))
+		what = fmt.Sprintf("`%s` takes no arguments, but got: `%s`", cmd.CommandPath(), strings.Join(args, " "))
 	default:
-		what = fmt.Sprintf("%s got more arguments than it takes: %s", cmd.CommandPath(), strings.Join(args, " "))
+		what = fmt.Sprintf("`%s` got more arguments than it takes: `%s`", cmd.CommandPath(), strings.Join(args, " "))
 	}
 
 	var b strings.Builder
 	b.WriteString(what)
-	fmt.Fprintf(&b, "\n  usage:   %s", cmd.UseLine())
+	fmt.Fprintf(&b, "\n  usage:   `%s`", cmd.UseLine())
 	if ex := firstExample(cmd); ex != "" {
-		fmt.Fprintf(&b, "\n  example: %s", ex)
+		fmt.Fprintf(&b, "\n  example: `%s`", ex)
 	}
-	fmt.Fprintf(&b, "\n  more:    %s --help", cmd.CommandPath())
+	fmt.Fprintf(&b, "\n  more:    `%s --help`", cmd.CommandPath())
 	return fmt.Errorf("%s", b.String())
 }
 
@@ -88,5 +88,5 @@ func firstExample(cmd *cobra.Command) string {
 
 // flagError says where the flags of a command are listed.
 func flagError(cmd *cobra.Command, err error) error {
-	return fmt.Errorf("%v\n  flags: %s --help", err, cmd.CommandPath())
+	return fmt.Errorf("%v\n  flags: `%s --help`", err, cmd.CommandPath())
 }

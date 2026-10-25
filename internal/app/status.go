@@ -175,7 +175,7 @@ func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e Workspac
 		return res, nil
 	}
 	if clean, err := c.Git.IsClean(ctx, dir); err != nil || !clean {
-		return res, fmt.Errorf("%s: local changes in %s; commit or stash them, then multiversectl catalog update %s", name, dir, name)
+		return res, fmt.Errorf("%s: local changes in `%s`; commit or stash them, then `multiversectl catalog update %s`", name, dir, name)
 	}
 	if err := c.Git.Fetch(ctx, dir); err != nil {
 		return res, fmt.Errorf("%s: fetch %s: %s", name, shortRepo(e.Source.Repo), reason(err, e.Source.Repo))

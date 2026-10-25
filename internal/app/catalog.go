@@ -98,7 +98,7 @@ func (c *Catalogs) tree(ctx context.Context, source string, refresh, offline boo
 			return domain.Node{}, err
 		}
 		if source = cfg.Catalog; source == "" {
-			return domain.Node{}, errors.New("no root catalog: multiversectl init  (installing a single project does not need one)")
+			return domain.Node{}, errors.New("no root catalog: `multiversectl init`  (installing a single project does not need one)")
 		}
 	}
 	r := &resolver{Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, fetched: map[string]bool{}}

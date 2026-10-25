@@ -53,11 +53,11 @@ func (r runner) serverStartCmd() *cobra.Command {
 		})
 		switch {
 		case errors.Is(err, app.ErrServerRunning):
-			r.out.Info("already running at %s (pid %d); stop it with: multiversectl server stop", info.URL, info.PID)
+			r.out.Info("already running at `%s` (pid %d); stop it with: `multiversectl server stop`", info.URL, info.PID)
 		case err != nil:
 			return err
 		default:
-			r.out.OK("serving %s in the background (pid %d, read-only); stop it with: multiversectl server stop", info.URL, info.PID)
+			r.out.OK("serving `%s` in the background (pid %d, read-only); stop it with: `multiversectl server stop`", info.URL, info.PID)
 			if expose {
 				r.out.Warn("--expose: anyone who can reach this address can read your setup")
 			}
@@ -82,13 +82,13 @@ func (r runner) serverStopCmd() *cobra.Command {
 			}
 			info, err := p.Stop(cmd.Context())
 			if errors.Is(err, app.ErrServerNotRunning) {
-				r.out.Info("the server is not running: multiversectl server start")
+				r.out.Info("the server is not running: `multiversectl server start`")
 				return nil
 			}
 			if err != nil {
 				return err
 			}
-			r.out.OK("stopped the server at %s (pid %d)", info.URL, info.PID)
+			r.out.OK("stopped the server at `%s` (pid %d)", info.URL, info.PID)
 			return nil
 		},
 	}
@@ -106,13 +106,13 @@ func (r runner) serverStatusCmd() *cobra.Command {
 			}
 			info, err := p.Status(cmd.Context())
 			if errors.Is(err, app.ErrServerNotRunning) {
-				r.out.Info("the server is not running: multiversectl server start")
+				r.out.Info("the server is not running: `multiversectl server start`")
 				return nil
 			}
 			if err != nil {
 				return err
 			}
-			r.out.OK("running at %s (pid %d, started %s); log: %s", info.URL, info.PID, age(info.Started), info.Log)
+			r.out.OK("running at `%s` (pid %d, started %s); log: `%s`", info.URL, info.PID, age(info.Started), info.Log)
 			return nil
 		},
 	}

@@ -34,7 +34,7 @@ func (r runner) universeArgs(cmd *cobra.Command, args []string, s *app.Service) 
 		return nil, err
 	}
 	if len(states) == 0 {
-		return nil, errors.New("no universes yet — create one with: multiversectl universe new")
+		return nil, errors.New("no universes yet — create one with: `multiversectl universe new`")
 	}
 	opts := make([]app.Option, len(states))
 	for i, st := range states {
@@ -107,7 +107,7 @@ func (r runner) nodeArg(cmd *cobra.Command, args []string, c *app.Catalogs, labe
 	}
 	rows := tree.Rows()[1:] // not the root: it is the catalog itself
 	if len(rows) == 0 {
-		return "", errors.New("the catalog has nothing in it yet: multiversectl catalog add <owner/repo>")
+		return "", errors.New("the catalog has nothing in it yet: `multiversectl catalog add <owner/repo>`")
 	}
 	opts := make([]app.Option, len(rows))
 	for i, row := range rows {
@@ -148,7 +148,7 @@ func (r runner) workspaceArg(cmd *cobra.Command, args []string, bare *app.Servic
 		return "", err
 	}
 	if len(list) == 0 {
-		return "", errors.New("nothing is installed: multiversectl catalog install <owner/repo>")
+		return "", errors.New("nothing is installed: `multiversectl catalog install <owner/repo>`")
 	}
 	opts := make([]app.Option, len(list))
 	def := 0

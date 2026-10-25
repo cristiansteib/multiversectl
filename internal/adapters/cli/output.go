@@ -10,14 +10,15 @@ import (
 )
 
 const (
-	reset  = "\x1b[0m"
-	bold   = "\x1b[1m"
-	dim    = "\x1b[2m"
-	red    = "\x1b[31m"
-	green  = "\x1b[32m"
-	yellow = "\x1b[33m"
-	blue   = "\x1b[34m"
-	cyan   = "\x1b[36m"
+	reset   = "\x1b[0m"
+	bold    = "\x1b[1m"
+	dim     = "\x1b[2m"
+	red     = "\x1b[31m"
+	green   = "\x1b[32m"
+	yellow  = "\x1b[33m"
+	blue    = "\x1b[34m"
+	magenta = "\x1b[35m"
+	cyan    = "\x1b[36m"
 )
 
 // ansi matches the escape sequences paint writes, so a painted string's
@@ -51,7 +52,7 @@ func (o *Output) paint(code, s string) string {
 }
 
 func (o *Output) line(code, glyph, format string, a ...any) {
-	fmt.Fprintf(o.w, "%s %s\n", o.paint(code, glyph), fmt.Sprintf(format, a...))
+	fmt.Fprintf(o.w, "%s %s\n", o.paint(code, glyph), Markup(fmt.Sprintf(format, a...), o.color))
 }
 
 func (o *Output) Info(format string, a ...any) { o.line(blue, "›", format, a...) }
@@ -59,7 +60,7 @@ func (o *Output) OK(format string, a ...any)   { o.line(green, "✓", format, a.
 func (o *Output) Warn(format string, a ...any) { o.line(yellow, "!", format, a...) }
 func (o *Output) Fail(format string, a ...any) { o.line(red, "✗", format, a...) }
 func (o *Output) Plain(format string, a ...any) {
-	fmt.Fprintf(o.w, format+"\n", a...)
+	fmt.Fprintln(o.w, Markup(fmt.Sprintf(format, a...), o.color))
 }
 
 // Bold and the colours below return s styled for the output's colour setting.
@@ -153,4 +154,33 @@ func (o *Output) Cells(headers []string, rows [][]Cell) {
 	for _, line := range o.tableLines(headers, rows) {
 		fmt.Fprintln(o.w, line)
 	}
+}
+
+var markedSpan = regexp.MustCompile("`([^`\n]+)`")
+
+// commandTools are the programs whose command lines a message may quote.
+var commandTools = []string{"multiversectl", "git ", "gh ", "glab "}
+
+// Markup draws the spans a message marks with backticks: a command someone can
+// type in the accent colour, anything else it points at (a repository, a path,
+// a name) in another, so both stand out from the sentence around them. The use
+// cases only mark; they know nothing of colour. Without colour the backticks go
+// and the text is what it always was.
+func Markup(s string, color bool) string {
+	return markedSpan.ReplaceAllStringFunc(s, func(m string) string {
+		inner := m[1 : len(m)-1]
+		if !color {
+			return inner
+		}
+		style := magenta
+		for _, tool := range commandTools {
+			if strings.HasPrefix(inner, tool) {
+				style = bold + cyan
+				break
+			}
+		}
+		// Back to the default colour and weight, not a full reset, so a message
+		// painted around the span keeps its own style after it.
+		return style + inner + "\x1b[39m\x1b[22m"
+	})
 }

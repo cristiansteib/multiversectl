@@ -238,7 +238,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 	}
 
 	c.Out.Plain("")
-	c.Out.Plain("Project %s, in %s", name, dir)
+	c.Out.Plain("Project %s, in `%s`", name, dir)
 	width := 0
 	for _, r := range draft.Repos {
 		width = max(width, len(r.Key))
@@ -248,7 +248,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 		if r.NoRuntime {
 			note = "  (no compose file: checkout only)"
 		}
-		c.Out.Plain("  %-*s %s%s", width, r.Key, r.URL, note)
+		c.Out.Plain("  %-*s `%s`%s", width, r.Key, r.URL, note)
 	}
 	c.Out.Plain("  repository:    %s", target.describe())
 	if ok, err := c.confirm(target.question(dir), true); err != nil {
@@ -269,7 +269,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 		return res, err
 	}
 	if cfg.Catalog == "" {
-		c.Out.Info("no root catalog to list it in: multiversectl init, then multiversectl catalog add %s", res.URL)
+		c.Out.Info("no root catalog to list it in: `multiversectl init`, then `multiversectl catalog add %s`", res.URL)
 		return res, nil
 	}
 	res.Node, err = c.Add(ctx, AddInput{Repo: res.URL, At: in.At, AtGiven: in.AtGiven})
@@ -551,9 +551,9 @@ func (t projectHome) describe() string {
 		if t.public {
 			vis = "PUBLIC"
 		}
-		return fmt.Sprintf("a new %s repository %s on %s", vis, t.create, t.host.Name())
+		return fmt.Sprintf("a new %s repository `%s` on %s", vis, t.create, t.host.Name())
 	}
-	return t.url
+	return "`" + t.url + "`"
 }
 
 func (t projectHome) question(dir string) string {
@@ -660,7 +660,7 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 		if err != nil {
 			return "", err
 		}
-		c.Out.OK("created %s", url)
+		c.Out.OK("created `%s`", url)
 	}
 
 	if err := c.Files.MkdirAll(dir); err != nil {
@@ -717,7 +717,7 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 	}
 	c.Out.OK("wrote %s, %s and AGENTS.md", defaultManifestFile, defaultCatalogFile)
 	if url == "" {
-		c.Out.Info("only on this machine: git -C %s remote add origin <url> && git -C %s push -u origin HEAD", dir, dir)
+		c.Out.Info("only on this machine: `git -C %s remote add origin <url> && git -C %s push -u origin HEAD`", dir, dir)
 		return "", nil
 	}
 	branch, err := c.Git.CurrentBranch(ctx, dir)
@@ -725,9 +725,9 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 		return "", err
 	}
 	if err := c.Progress.Do("Pushing to "+url, func(ctx context.Context) error { return c.Git.Push(ctx, dir, branch) }); err != nil {
-		return "", fmt.Errorf("push to %s: %w\n  the files are committed in %s; once access is sorted: git -C %s push -u origin %s", url, err, dir, dir, branch)
+		return "", fmt.Errorf("push to %s: %w\n  the files are committed in %s; once access is sorted: `git -C %s push -u origin %s`", url, err, dir, dir, branch)
 	}
-	c.Out.OK("pushed to %s", url)
+	c.Out.OK("pushed to `%s`", url)
 	return url, nil
 }
 
