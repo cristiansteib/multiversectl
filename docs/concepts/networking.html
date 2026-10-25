@@ -69,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -88,7 +88,7 @@
 
 <section id="proxy">
   <h2 id="proxy"><a href="#proxy">The shared proxy</a></h2>
-  <p>One Traefik container for the whole machine, in its own runtime project <code>multiverse-proxy</code>, joined to one external network &mdash; <code>multiversenet</code> by default. The first <code>up</code> brings it up; it is not per workspace and not per universe.</p>
+  <p>One Traefik container for the whole machine, in its own compose project <code>multiverse-proxy</code>, joined to one external network &mdash; <code>multiversenet</code> by default. The first <code>up</code> brings it up; it is not per project and not per universe.</p>
   <p>It discovers routes from the container runtime, so starting a universe is all the configuration it needs. multiversectl writes the labels for it into a generated compose fragment, one per app, which is why your own compose files say nothing about Traefik:</p>
   <div class="code"><pre><span class="c"># universes/3/.multiverse-routes-api.yml, rewritten on every up</span>
 <span class="k">services</span>:
@@ -130,7 +130,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
 
 <section id="domains">
   <h2 id="domains"><a href="#domains">Domains</a></h2>
-  <p><code>spec.domain</code> is the wildcard domain every hostname is built under. <code>auto</code>, the default, derives one from how the workspace is exposed.</p>
+  <p><code>spec.domain</code> is the wildcard domain every hostname is built under. <code>auto</code>, the default, derives one from how the project is exposed.</p>
   <div class="tw"><table>
   <thead><tr><th scope="col">Setting</th><th scope="col">Hostnames</th><th scope="col">Resolution</th></tr></thead><tbody>
   <tr><td data-l="Setting"><code>auto</code> with <code>expose: lan</code></td><td data-l="Hostnames"><code>api-u3.192-168-1-20.traefik.me</code></td><td data-l="Resolution">A public wildcard DNS service answers with the address in the name, so any device on the network resolves it with nothing installed.</td></tr>
@@ -147,7 +147,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
   <span class="c"># expose: local</span></pre></div>
   <p><code>lan</code> publishes the proxy's ports on every interface and derives a publicly resolvable domain: a phone, a tablet or a colleague on the same network opens a universe with nothing to install. <code>local</code> publishes on <code>127.0.0.1</code> only and derives <code>localhost</code>: nothing about the project is looked up anywhere, and nothing off the machine can connect at all.</p>
   <p>They are one setting rather than two knobs because either alone is a half-measure. A <code>.localhost</code> name with the proxy still on <code>0.0.0.0</code> leaves the port open to anyone who sends the right <code>Host</code> header; a loopback bind with public hostnames still puts your naming in a stranger's DNS logs.</p>
-  <p><code>doctor</code> reports where the proxy actually listens, and warns when that is not what the workspace asks for.</p>
+  <p><code>doctor</code> reports where the proxy actually listens, and warns when that is not what the project asks for.</p>
   <h3 id="expose-risk">What <code>lan</code> actually exposes</h3>
   <p>Worth reading once before choosing it. A development stack usually runs with debug pages on, seeded data and no authentication in front of its mail catcher &mdash; so anyone on the network can read every message a universe sends, password resets included. That is fine on a home network and not fine in a café, a hotel or a shared office.</p>
   <p>Those hostnames are also public DNS names pointing at a private address, which means a web page you happen to open can make your browser send requests to a universe. Reading the response needs permissive CORS, which development stacks often have. Under <code>localhost</code> the browser blocks that class of request outright.</p>
@@ -171,13 +171,13 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
 </section>
 
 <section id="shared">
-  <h2 id="shared"><a href="#shared">One proxy, several workspaces</a></h2>
-  <p>The proxy is per machine, so two workspaces with different entrypoints or a different <code>expose</code> compete for it: starting a universe in the second reconfigures it, and the first workspace's universes stop answering until something is started there again. Starting says so explicitly:</p>
+  <h2 id="shared"><a href="#shared">One proxy, several projects</a></h2>
+  <p>The proxy is per machine, so two projects with different entrypoints or a different <code>expose</code> compete for it: starting a universe in the second reconfigures it, and the first project's universes stop answering until something is started there again. Starting says so explicitly:</p>
   <div class="code"><pre>! the shared proxy is being reconfigured: published on 127.0.0.1 instead of
   0.0.0.0, entrypoints web:80 instead of devapi:8001 web:80 — universes of any
-  other workspace on this machine stop answering until it is started from
+  other project on this machine stop answering until it is started from
   there again</pre></div>
-  <p class="muted">Running several workspaces side by side is therefore best done with the same entrypoints and the same exposure. A proxy that merges what each workspace asks for is an open question, not a settled design.</p>
+  <p class="muted">Running several projects side by side is therefore best done with the same entrypoints and the same exposure. A proxy that merges what each project asks for is an open question, not a settled design.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">
@@ -196,7 +196,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
       <li><a href="#expose">Who can reach a universe</a></li>
       <li><a href="#ports">Why nothing publishes a port</a></li>
       <li><a href="#inside">Talking between services</a></li>
-      <li><a href="#shared">One proxy, several workspaces</a></li>
+      <li><a href="#shared">One proxy, several projects</a></li>
     </ul>
   </aside>
 </div>

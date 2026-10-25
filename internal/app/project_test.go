@@ -65,10 +65,10 @@ func TestProjectInitCreatesTheRepositoryPushesAndLinksIt(t *testing.T) {
 		t.Errorf("the project's name should be dropped from the keys, and owner/repo means GitHub: %+v", m.Repos)
 	}
 	if got := read1(t, filepath.Join(dir, "catalog.yaml")); !strings.Contains(got, "kind: Catalog") || !strings.Contains(got, "- name: acme") {
-		t.Errorf("the catalog does not list the project's own workspace:\n%s", got)
+		t.Errorf("the catalog does not list the project's own project:\n%s", got)
 	}
 	agents := read1(t, filepath.Join(dir, "AGENTS.md"))
-	for _, want := range []string{"**acme**", "multiverse.yaml", "catalog install " + r.host.url, "universe up", "acme-api"} {
+	for _, want := range []string{"**acme**", "multiverse.yaml", "project install " + r.host.url, "universe up", "acme-api"} {
 		if !strings.Contains(agents, want) {
 			t.Errorf("AGENTS.md lacks %q:\n%s", want, agents)
 		}

@@ -17,7 +17,7 @@ const (
 	RuntimeNone    Runtime = "none"
 )
 
-// Manifest is the workspace description: which repositories make up the
+// Manifest is the project description: which repositories make up the
 // project, how to run them and how a universe is addressed. It never
 // describes containers — that stays in the runtime's own files.
 //
@@ -78,7 +78,7 @@ func (m *Manifest) BindAddress() string {
 	return "0.0.0.0"
 }
 
-// DefaultBranchFor renders the workspace's branch template for a universe.
+// DefaultBranchFor renders the project's branch template for a universe.
 func (m *Manifest) DefaultBranchFor(number int) string {
 	template := m.Branch
 	if template == "" {
@@ -87,7 +87,7 @@ func (m *Manifest) DefaultBranchFor(number int) string {
 	return strings.ReplaceAll(template, "{{universe}}", strconv.Itoa(number))
 }
 
-// Repo is one source repository of the workspace.
+// Repo is one source repository of the project.
 type Repo struct {
 	URL     string
 	Dir     string // clone directory name, defaults to the repo key
@@ -236,11 +236,11 @@ func (m *Manifest) ComposeFiles(appKey, repoDir string) []string {
 	return out
 }
 
-// ProxyClashes says where two workspaces disagree about the proxy. There is
+// ProxyClashes says where two projects disagree about the proxy. There is
 // one proxy per machine, so sharing its network and its ports is the design:
-// the trouble is that starting a workspace rewrites the proxy from its own
-// manifest, which drops what another workspace needs from it. aName and bName
-// are what the user calls the workspaces, which is not always metadata.name.
+// the trouble is that starting a project rewrites the proxy from its own
+// manifest, which drops what another project needs from it. aName and bName
+// are what the user calls the projects, which is not always metadata.name.
 func ProxyClashes(aName string, a *Manifest, bName string, b *Manifest) []string {
 	var out []string
 	if a.Proxy.Network != "" && b.Proxy.Network != "" && a.Proxy.Network != b.Proxy.Network {

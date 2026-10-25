@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// PruneOptions say how much of a workspace's universes a prune may take.
+// PruneOptions say how much of a project's universes a prune may take.
 type PruneOptions struct {
 	// All includes universes with containers running; without it those are kept.
 	All bool
@@ -29,7 +29,7 @@ type PruneItem struct {
 	Skip string
 }
 
-// PrunePlan reports every universe of the workspace and whether a prune with
+// PrunePlan reports every universe of the project and whether a prune with
 // these options would remove it. Nothing is changed. It is also the footprint
 // a plain overview shows, which is why every universe is listed.
 func (s *Service) PrunePlan(ctx context.Context, o PruneOptions) ([]PruneItem, error) {
@@ -77,7 +77,7 @@ func (s *Service) PrunePlan(ctx context.Context, o PruneOptions) ([]PruneItem, e
 // Prune removes the universes of a plan that are not skipped, the way rm does:
 // containers and volumes, worktrees, directory and state. One that fails is
 // reported and does not stop the rest. The shared clones, the branches in
-// them, the proxy and the installed workspace are untouched.
+// them, the proxy and the installed project are untouched.
 func (s *Service) Prune(ctx context.Context, items []PruneItem) (removed int, err error) {
 	var errs []error
 	for _, it := range items {

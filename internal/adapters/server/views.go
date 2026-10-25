@@ -38,7 +38,7 @@ func locOf(l domain.Location) *locView {
 type nodeView struct {
 	Name        string `json:"name"`
 	Path        string `json:"path"`
-	Kind        string `json:"kind"` // catalog or workspace
+	Kind        string `json:"kind"` // catalog or project
 	Repo        string `json:"repo,omitempty"`
 	Ref         string `json:"ref,omitempty"`
 	File        string `json:"file,omitempty"`
@@ -52,7 +52,7 @@ type nodeView struct {
 }
 
 type fleetView struct {
-	Workspaces []fleetWorkspace `json:"workspaces"`
+	Workspaces []fleetWorkspace `json:"projects"`
 	Error      string           `json:"error,omitempty"`
 }
 
@@ -164,7 +164,7 @@ type overviewView struct {
 	ReadOnly bool             `json:"readOnly,omitempty"`
 	Status   app.StatusReport `json:"status"`
 	// RootLoc is where the root catalog lives and Sources where each installed
-	// workspace's manifest came from, by workspace name.
+	// project's manifest came from, by project name.
 	RootLoc *locView           `json:"rootLoc,omitempty"`
 	Sources map[string]locView `json:"sources,omitempty"`
 }

@@ -28,7 +28,7 @@ func TestRenderTree(t *testing.T) {
 		"index", "root", "github:me/index",
 		"├─ personal", "github:me/index catalogs/personal.yaml", // same repository as the root, and the file says which catalog
 		"file:~/notes/multiverse.yaml",
-		"gitlab:acme/index", "gitlab:acme/pay@v1", "workspace", "✓ installed as payments",
+		"gitlab:acme/index", "gitlab:acme/pay@v1", "project", "✓ installed as payments",
 		"✗ no access or not found: github:acme/private",
 	} {
 		if !strings.Contains(got, want) {

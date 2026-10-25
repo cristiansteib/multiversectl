@@ -6,13 +6,13 @@ import (
 )
 
 func TestMarkupColoursCommandsAndReferencesDifferently(t *testing.T) {
-	msg := "a workspace named `fichero` is already installed; run `multiversectl catalog uninstall fichero`, then `git -C /x push`"
+	msg := "a project named `fichero` is already installed; run `multiversectl project uninstall fichero`, then `git -C /x push`"
 	plain := Markup(msg, false)
-	if plain != "a workspace named fichero is already installed; run multiversectl catalog uninstall fichero, then git -C /x push" {
+	if plain != "a project named fichero is already installed; run multiversectl project uninstall fichero, then git -C /x push" {
 		t.Errorf("without colour the text must be what it always was: %q", plain)
 	}
 	coloured := Markup(msg, true)
-	cmd, ref := bold+cyan+"multiversectl catalog uninstall fichero", magenta+"fichero"
+	cmd, ref := bold+cyan+"multiversectl project uninstall fichero", magenta+"fichero"
 	if !strings.Contains(coloured, cmd) || !strings.Contains(coloured, bold+cyan+"git -C /x push") {
 		t.Errorf("commands should be in the accent colour: %q", coloured)
 	}

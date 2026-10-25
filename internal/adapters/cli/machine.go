@@ -30,7 +30,7 @@ func (quietOut) Table([]string, [][]string) {}
 type machineStatus struct {
 	Version    string          `json:"version"`
 	Root       app.RootStatus  `json:"root"`
-	Workspaces []workspaceLine `json:"workspaces"`
+	Workspaces []workspaceLine `json:"projects"`
 	Proxy      proxyLine       `json:"proxy"`
 	Server     serverLine      `json:"server"`
 	Latest     string          `json:"latest,omitempty"`
@@ -65,9 +65,9 @@ func (r runner) machineStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "How this machine stands: the root, what is installed and drifted, what is running, and what needs attention",
 		Long: "One answer to \"is this machine in order?\": the root catalog, each installed\n" +
-			"workspace with how many universes it has and how many run, the shared proxy and\n" +
+			"project with how many universes it has and how many run, the shared proxy and\n" +
 			"the web server, and, first, what needs attention: a root that cannot be read or\n" +
-			"is not marked, a workspace behind its remote, universes running without the\n" +
+			"is not marked, a project behind its remote, universes running without the\n" +
 			"proxy, and anything `doctor` warns about. It reads what was last fetched, and is\n" +
 			"quick; --fetch compares with the remotes and looks for a newer release.\n" +
 			"`catalog status` and `universe status` have the detail of each part.",
@@ -137,7 +137,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 			}
 		}
 		if w.Stale {
-			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s` is behind its remote (%s): `multiversectl catalog update %s`", w.Name, strings.Join(w.Notes, " · "), w.Name))
+			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s` is behind its remote (%s): `multiversectl project update %s`", w.Name, strings.Join(w.Notes, " · "), w.Name))
 		}
 		ms.Workspaces = append(ms.Workspaces, line)
 	}
@@ -214,9 +214,9 @@ func (r runner) printMachine(ms machineStatus) {
 	o.Plain("%s  %s", o.Bold("Root       "), root)
 
 	if len(ms.Workspaces) == 0 {
-		o.Plain("%s  %s", o.Bold("Workspaces "), o.Dim("nothing installed: ")+"`multiversectl catalog install <owner/repo>`")
+		o.Plain("%s  %s", o.Bold("Projects   "), o.Dim("nothing installed: ")+"`multiversectl project install <owner/repo>`")
 	} else {
-		o.Plain("%s", o.Bold("Workspaces"))
+		o.Plain("%s", o.Bold("Projects"))
 		cells := make([][]Cell, len(ms.Workspaces))
 		for i, w := range ms.Workspaces {
 			name := "  " + w.Name
@@ -269,7 +269,7 @@ func (r runner) printMachine(ms machineStatus) {
 		}
 	}
 	o.Plain("")
-	o.Info("detail: `multiversectl catalog status`  ·  `multiversectl universe status`  ·  `multiversectl universe doctor`")
+	o.Info("detail: `multiversectl project status`  ·  `multiversectl universe status`  ·  `multiversectl universe doctor`")
 }
 
 func pluralize(n int, noun string) string {

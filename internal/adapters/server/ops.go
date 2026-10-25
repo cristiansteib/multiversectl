@@ -18,14 +18,14 @@ import (
 // An operation is one thing the page asked the server to do: start a universe,
 // say. It runs in the background and its output is sent to every open page as
 // it happens, so the person sees what the command line would have shown. Only
-// one runs at a time in a workspace; a second would be two compose commands
+// one runs at a time in a project; a second would be two compose commands
 // fighting over the same project.
 
 // opRequest is what a page may ask for. Every action is a use case the command
 // line has too.
 type opRequest struct {
 	Action    string `json:"action"` // up, down, rm, new, checkout, update, use
-	Workspace string `json:"workspace"`
+	Workspace string `json:"project"`
 	Universe  string `json:"universe,omitempty"`
 	Name      string `json:"name,omitempty"` // new: the number or name, empty for the next free number
 	Note      string `json:"note,omitempty"`
@@ -52,7 +52,7 @@ type opView struct {
 	ID        string   `json:"id"`
 	Action    string   `json:"action"`
 	Title     string   `json:"title"`
-	Workspace string   `json:"workspace"`
+	Workspace string   `json:"project"`
 	Universe  string   `json:"universe,omitempty"`
 	State     string   `json:"state"` // running, done, failed
 	Error     string   `json:"error,omitempty"`
@@ -88,7 +88,7 @@ type ops struct {
 	s    *Server
 	mu   sync.Mutex
 	all  []*op
-	busy map[string]string // workspace -> operation id
+	busy map[string]string // project -> operation id
 	seq  int
 }
 
@@ -136,7 +136,7 @@ func title(r opRequest) string {
 	case "update":
 		return "Update " + r.Workspace
 	case "use":
-		return "Make " + r.Workspace + " the current workspace"
+		return "Make " + r.Workspace + " the current project"
 	}
 	return r.Action
 }
@@ -149,7 +149,7 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 		return opView{}, bad(http.StatusBadRequest, fmt.Sprintf("unknown action %q", r.Action))
 	}
 	if r.Workspace == "" {
-		return opView{}, bad(http.StatusBadRequest, "workspace is required")
+		return opView{}, bad(http.StatusBadRequest, "project is required")
 	}
 	if needsUniverse[r.Action] && r.Universe == "" {
 		return opView{}, bad(http.StatusBadRequest, "universe is required")

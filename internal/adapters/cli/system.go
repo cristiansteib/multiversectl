@@ -12,19 +12,19 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-// systemCmd is the machine-wide view: every installed workspace, not the one
+// systemCmd is the machine-wide view: every installed project, not the one
 // commands act on by default, which is what makes a prune across them possible.
 func (r runner) pruneCmd() *cobra.Command {
 	var all, force, yes, dry bool
 	cmd := &cobra.Command{
 		Use:   "prune",
-		Short: "Remove universes across every installed workspace: the idle ones, or all of them",
+		Short: "Remove universes across every installed project: the idle ones, or all of them",
 		Long: "Removes universes the way `universe rm` does (containers, volumes, worktrees,\n" +
-			"directory and state) in every installed workspace, or in the one named with -w.\n" +
+			"directory and state) in every installed project, or in the one named with -w.\n" +
 			"It lists what it will do, and keeps, saying why:\n" +
 			"  - universes with containers running, unless --all\n" +
 			"  - universes with uncommitted work in a worktree, unless --force\n" +
-			"It leaves the shared clones, the proxy and the installed workspaces alone. A\n" +
+			"It leaves the shared clones, the proxy and the installed projects alone. A\n" +
 			"branch a universe started is deleted only when every commit on it is already\n" +
 			"on the base branch or a remote; one with anything else is kept and named, so\n" +
 			"committed work survives. It asks before removing anything, unless --yes;\n" +
@@ -42,7 +42,7 @@ func (r runner) pruneCmd() *cobra.Command {
 	return cmd
 }
 
-// workspacePlan is one installed workspace and what a prune would do there.
+// workspacePlan is one installed project and what a prune would do there.
 type workspacePlan struct {
 	name  string
 	svc   *app.Service
@@ -66,7 +66,7 @@ func (r runner) prune(ctx context.Context, o app.PruneOptions, yes, dry bool) er
 		list = []app.WorkspaceInfo{w}
 	}
 	if len(list) == 0 {
-		r.out.Info("nothing installed: `multiversectl catalog install <owner/repo>`")
+		r.out.Info("nothing installed: `multiversectl project install <owner/repo>`")
 		return nil
 	}
 
@@ -121,7 +121,7 @@ func (r runner) systemPrune(ctx context.Context, plans []workspacePlan, yes, dry
 	if !yes {
 		out.Plain("")
 		out.Plain("%s", out.Red(out.Bold(fmt.Sprintf("!! THIS DESTROYS %s: THEIR CONTAINERS, VOLUMES AND WORKTREES, AND CANNOT BE UNDONE !!", strings.ToUpper(plural(remove, "universe"))))))
-		out.Plain("  a branch holding commits that are on no remote is kept; the proxy and the workspaces are not touched")
+		out.Plain("  a branch holding commits that are on no remote is kept; the proxy and the projects are not touched")
 		fmt.Fprintf(os.Stdout, "Type %s to confirm, anything else aborts: ", out.Bold("prune"))
 		answer, err := readLine(ctx)
 		if ctx.Err() != nil {

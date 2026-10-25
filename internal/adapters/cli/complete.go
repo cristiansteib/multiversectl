@@ -35,7 +35,7 @@ func (r runner) completeWorkspaces(cmd *cobra.Command, _ []string, toComplete st
 }
 
 // completeNodes offers the paths in the root catalog as last fetched.
-// onlyCatalogs is for --at, which names a place and not a workspace; "/" is the
+// onlyCatalogs is for --at, which names a place and not a project; "/" is the
 // root.
 func (r runner) completeNodes(onlyCatalogs bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {

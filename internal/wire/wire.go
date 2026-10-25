@@ -106,7 +106,7 @@ func (m Machine) At(out app.Output, root, path string) (*app.Service, error) {
 }
 
 // Bare builds a service that needs no manifest: it knows the machine, not a
-// workspace.
+// project.
 func (m Machine) Bare(out app.Output, root string) (*app.Service, error) {
 	store, _, err := LoadConfig()
 	if err != nil {
@@ -115,7 +115,7 @@ func (m Machine) Bare(out app.Output, root string) (*app.Service, error) {
 	return app.New(m.Deps(out, root, store), root, nil, m.Version), nil
 }
 
-// Catalogs builds the catalog service, which never needs a workspace.
+// Catalogs builds the catalog service, which never needs a project.
 func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 	store, _, err := LoadConfig()
 	if err != nil {

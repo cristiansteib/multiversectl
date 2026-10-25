@@ -249,7 +249,7 @@ type Releases interface {
 	Download(ctx context.Context, url, dest string) error
 }
 
-// Origin is where a workspace's manifest came from. It is recorded at install
+// Origin is where a project's manifest came from. It is recorded at install
 // so update and status can tell when the manifest or the catalog has moved on.
 type Origin struct {
 	Repo string `yaml:"repo,omitempty"`
@@ -257,7 +257,7 @@ type Origin struct {
 	Path string `yaml:"path,omitempty"`
 }
 
-// WorkspaceEntry is one workspace this machine knows how to reach.
+// WorkspaceEntry is one project this machine knows how to reach.
 type WorkspaceEntry struct {
 	Root     string `yaml:"root"`
 	Manifest string `yaml:"manifest"`
@@ -268,19 +268,22 @@ type WorkspaceEntry struct {
 	Source Origin `yaml:"source,omitempty"`
 }
 
-// Config is where this machine keeps its workspaces, so the tool works from
+// Config is where this machine keeps its projects, so the tool works from
 // any directory once bootstrapped. Several can coexist; Current is the one
 // commands use when no flag says otherwise.
 type Config struct {
 	Current    string                    `yaml:"current,omitempty"`
-	Workspaces map[string]WorkspaceEntry `yaml:"workspaces,omitempty"`
+	Workspaces map[string]WorkspaceEntry `yaml:"projects,omitempty"`
+	// LegacyWorkspaces is where a config written before projects were called
+	// that kept them. Normalize folds it into Projects; nothing writes it.
+	LegacyWorkspaces map[string]WorkspaceEntry `yaml:"workspaces,omitempty"`
 
 	// Catalog is where this machine's root catalog lives: a git URL or a
 	// local file. Empty until one is chosen.
 	Catalog string `yaml:"catalog,omitempty"`
 
-	// Root and Manifest are what releases before multiple workspaces wrote.
-	// Normalize folds them into Workspaces; nothing writes them any more.
+	// Root and Manifest are what releases before multiple projects wrote.
+	// Normalize folds them into Projects; nothing writes them any more.
 	Root     string `yaml:"root,omitempty"`
 	Manifest string `yaml:"manifest,omitempty"`
 }
@@ -366,7 +369,7 @@ type ProjectDraft struct {
 }
 
 // DraftRepo is one repository of the project; Dir is where it sits under the
-// workspace root. A repository runs from its own docker-compose.yml unless
+// project root. A repository runs from its own docker-compose.yml unless
 // NoRuntime says it has none, which is what a library or a mobile app wants.
 type DraftRepo struct {
 	Key, URL, Dir string
@@ -400,8 +403,8 @@ type CatalogEditor interface {
 	WorkspaceRoot(data []byte) string
 }
 
-// ManifestLoader reads a workspace manifest from disk, so a use case can look
-// at workspaces other than the one it was built for.
+// ManifestLoader reads a project manifest from disk, so a use case can look
+// at projects other than the one it was built for.
 type ManifestLoader interface {
 	Load(path string) (*domain.Manifest, error)
 }

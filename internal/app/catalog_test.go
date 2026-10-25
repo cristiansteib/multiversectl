@@ -122,7 +122,7 @@ func TestTreeComposesLocalAndRemoteCatalogs(t *testing.T) {
     - name: acme
       source: {repo: git@example.test:acme/index.git, ref: v1}
 `))
-	write(t, local, "catalogs/personal.yaml", cat("personal", `  workspaces:
+	write(t, local, "catalogs/personal.yaml", cat("personal", `  projects:
     - name: billing
       source: {repo: git@example.test:me/billing.git}
 `))
@@ -130,7 +130,7 @@ func TestTreeComposesLocalAndRemoteCatalogs(t *testing.T) {
     - name: backend
       source: {path: teams/backend.yaml}
 `))
-	write(t, remote, "teams/backend.yaml", cat("backend", `  workspaces:
+	write(t, remote, "teams/backend.yaml", cat("backend", `  projects:
     - name: payments
       source: {path: payments/multiverse.yaml}
 `))
@@ -147,7 +147,7 @@ func TestTreeComposesLocalAndRemoteCatalogs(t *testing.T) {
 		t.Fatalf("acme/backend/payments not found: %+v", root)
 	}
 	if got.Source.Repo != "git@example.test:acme/index.git" || got.Source.Ref != "v1" || got.Source.Path != "payments/multiverse.yaml" {
-		t.Errorf("a same-repo workspace must inherit the repository and ref: %+v", got.Source)
+		t.Errorf("a same-repo project must inherit the repository and ref: %+v", got.Source)
 	}
 	if _, ok := root.Find("personal/billing"); !ok {
 		t.Error("personal/billing not found")
@@ -172,7 +172,7 @@ func TestTreeKeepsGoingPastAnUnreachableLayer(t *testing.T) {
       source: {repo: git@example.test:acme/private.git}
     - name: missing
       source: {path: nope.yaml}
-  workspaces:
+  projects:
     - name: billing
       source: {repo: git@example.test:me/billing.git}
 `))
@@ -188,7 +188,7 @@ func TestTreeKeepsGoingPastAnUnreachableLayer(t *testing.T) {
 		}
 	}
 	if _, ok := root.Find("billing"); !ok {
-		t.Error("the reachable workspace disappeared")
+		t.Error("the reachable project disappeared")
 	}
 }
 

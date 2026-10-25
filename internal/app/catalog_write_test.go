@@ -262,7 +262,7 @@ func TestCreateCatalogRefusesADuplicateName(t *testing.T) {
 
 func TestAddWorkspaceTakesTheNameFromItsManifest(t *testing.T) {
 	repo := t.TempDir()
-	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: payments\n")
+	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: payments\n")
 	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/pay.git": repo}}
 	r := newRig(t, git)
 	r.Yes = true
@@ -288,7 +288,7 @@ func TestAddWorkspaceNeedsAManifest(t *testing.T) {
 
 func TestAddCatalogRefusesAFileThatIsNotACatalog(t *testing.T) {
 	repo := t.TempDir()
-	write(t, repo, "catalog.yaml", "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata: {name: x}\n")
+	write(t, repo, "catalog.yaml", "apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata: {name: x}\n")
 	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/bad.git": repo}}
 	r := newRig(t, git)
 	r.Yes = true
@@ -327,7 +327,7 @@ func TestWritingToARemoteCatalogPushesToItsBranch(t *testing.T) {
 	r.cfg.c.Catalog = "git@example.test:acme/index.git"
 
 	repo := t.TempDir()
-	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: pay\n")
+	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: pay\n")
 	git.repos["git@example.test:acme/pay.git"] = repo
 	if _, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true}); err != nil {
 		t.Fatal(err)
@@ -345,7 +345,7 @@ func TestARefusedPushIsReportedAndTheCloneReset(t *testing.T) {
 	r.Yes = true
 	r.cfg.c.Catalog = "git@example.test:acme/index.git"
 	repo := t.TempDir()
-	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: pay\n")
+	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: pay\n")
 	git.repos["git@example.test:acme/pay.git"] = repo
 
 	_, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true})
@@ -417,13 +417,13 @@ func TestInitAsksBeforeReplacingTheRoot(t *testing.T) {
 func manifestRepo(t *testing.T, name string) string {
 	t.Helper()
 	d := t.TempDir()
-	write(t, d, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: "+name+"\n")
+	write(t, d, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: "+name+"\n")
 	return d
 }
 
 func TestAddLinksARepositoryWithACatalogAsACatalog(t *testing.T) {
 	proj := manifestRepo(t, "billing")
-	// The project's own index lists its own workspace, in the same repository.
+	// The project's own index lists its own project, in the same repository.
 	out, _ := catalog.Editor{}.AddWorkspaceRef([]byte(catalog.Editor{}.Scaffold("billing")), domain.WorkspaceRef{Name: "app", Source: domain.Source{Path: "multiverse.yaml"}})
 	write(t, proj, "catalog.yaml", string(out))
 	git := &fakeRepos{repos: map[string]string{"https://github.com/acme-org/multiverse.git": proj}}
@@ -439,7 +439,7 @@ func TestAddLinksARepositoryWithACatalogAsACatalog(t *testing.T) {
 	}
 	leaf, ok := r.tree(t).Find("billing/app")
 	if !ok || leaf.Source.Repo != "https://github.com/acme-org/multiverse.git" || leaf.Source.Path != "multiverse.yaml" {
-		t.Errorf("the project's own workspace should resolve to its repository: %+v", leaf)
+		t.Errorf("the project's own project should resolve to its repository: %+v", leaf)
 	}
 }
 
@@ -452,7 +452,7 @@ func TestAddListsABareManifestRepositoryAsAWorkspace(t *testing.T) {
 		t.Fatalf("node=%q err=%v", node, err)
 	}
 	if n, ok := r.tree(t).Find("solo"); !ok || n.Kind != domain.WorkspaceNode {
-		t.Errorf("not a workspace: %+v", n)
+		t.Errorf("not a project: %+v", n)
 	}
 }
 
@@ -492,7 +492,7 @@ func TestAddNeedsSomethingToAdd(t *testing.T) {
 	}
 }
 
-const wsYAML = "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: billing\nspec:\n  root: /home/me/billing\n"
+const wsYAML = "apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: billing\nspec:\n  root: /home/me/billing\n"
 
 func TestCreateCatalogWithAManifestMakesTheProjectItsOwnWorkspace(t *testing.T) {
 	src := t.TempDir()
@@ -512,7 +512,7 @@ func TestCreateCatalogWithAManifestMakesTheProjectItsOwnWorkspace(t *testing.T) 
 	}
 	leaf, ok := r.tree(t).Find("billing/billing")
 	if !ok || leaf.Source.Path != "multiverse.yaml" || leaf.Source.Repo != "git@example.test:me/new.git" {
-		t.Errorf("the project's workspace should live in its own repository: %+v", leaf)
+		t.Errorf("the project's project should live in its own repository: %+v", leaf)
 	}
 }
 
@@ -587,10 +587,10 @@ func TestAddAManifestFileCopiesItIntoTheCatalogsRepository(t *testing.T) {
 		t.Fatalf("node=%q err=%v", node, err)
 	}
 	leaf, ok := r.tree(t).Find("billing")
-	if !ok || !strings.HasSuffix(leaf.Source.Path, "/workspaces/billing/multiverse.yaml") {
+	if !ok || !strings.HasSuffix(leaf.Source.Path, "/projects/billing/multiverse.yaml") {
 		t.Fatalf("leaf = %+v", leaf)
 	}
-	if _, err := os.Stat(filepath.Join(r.root, "workspaces", "billing", "multiverse.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(r.root, "projects", "billing", "multiverse.yaml")); err != nil {
 		t.Errorf("manifest not copied: %v", err)
 	}
 	before := len(git.commits)
@@ -604,7 +604,7 @@ func TestAddAFileThatIsNeitherIsRefused(t *testing.T) {
 	write(t, src, "notes.yaml", "just: notes\n")
 	r := newRig(t, &fakeRepos{})
 	r.Yes = true
-	if _, err := r.Add(context.Background(), app.AddInput{Repo: filepath.Join(src, "notes.yaml"), At: "/", AtGiven: true}); err == nil || !strings.Contains(err.Error(), "neither a catalog nor a workspace manifest") {
+	if _, err := r.Add(context.Background(), app.AddInput{Repo: filepath.Join(src, "notes.yaml"), At: "/", AtGiven: true}); err == nil || !strings.Contains(err.Error(), "neither a catalog nor a project manifest") {
 		t.Errorf("err = %v", err)
 	}
 }

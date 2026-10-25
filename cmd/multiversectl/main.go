@@ -87,8 +87,8 @@ func machine(g cli.Globals) wire.Machine {
 	return wire.Machine{Version: version, Verbose: g.Verbose, Ctx: interrupted}
 }
 
-// workspace resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the
-// manifest's own spec.root, the config file's workspace (-w, else the current
+// project resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the
+// manifest's own spec.root, the config file's project (-w, else the current
 // one), then the manifest found upwards from the current directory.
 func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 	store, cfg, err := wire.LoadConfig()
@@ -112,7 +112,7 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 			}
 		}
 		if path, err = wire.Locate(start); err != nil {
-			return nil, fmt.Errorf("no workspace on this machine: `multiversectl catalog install <owner/repo>`  (or -f <manifest>): %w", err)
+			return nil, fmt.Errorf("no project on this machine: `multiversectl project install <owner/repo>`  (or -f <manifest>): %w", err)
 		}
 	}
 	m, err := manifest.Load(path)

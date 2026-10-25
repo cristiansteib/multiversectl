@@ -9,7 +9,7 @@ hostnames behind one shared Traefik.
 ```sh
 make build        # ./dist/multiversectl
 make test lint    # go test ./... ; gofmt -l + go vet
-make schema       # regenerate schema/workspace.v1alpha1.yaml from the Go types
+make schema       # regenerate schema/project.v1alpha1.yaml from the Go types
 make schema-check # fail if that file is stale (CI runs it)
 make docs         # regenerate docs/ from docsrc/ (sources, layout and menu)
 ```
@@ -35,6 +35,12 @@ A new capability starts as a port method in `internal/app/ports.go`.
 - Sign your commits off (`git commit -s`); see [CONTRIBUTING.md](CONTRIBUTING.md).
 - Conventional commits, and **`fix:` while the project is pre-1.0** —
   `feat:` cuts a minor release, and releases should stay on patches for now.
+- The word users see is **project**: one set of repositories, described by a
+  `multiverse.yaml` (`kind: Project`), listed in catalogs, installed on a machine. Go
+  identifiers still say `Workspace` (`app.WorkspaceEntry`, `domain.WorkspaceRef`) from before
+  the rename, and the old names are still *read* in files, config and flags; new text,
+  messages and files say project. Do not use "project" for a compose project: that is
+  the **compose project**.
 - Comments say *why*, not what. Don't narrate code that reads plainly.
 - Tests cover behaviour that would otherwise be argued about; don't pad.
 - Nothing about any private project belongs in this repo — examples use

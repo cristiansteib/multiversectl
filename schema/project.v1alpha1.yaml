@@ -7,14 +7,14 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: workspaces.multiverse
+  name: projects.multiverse
 spec:
   group: multiverse
   scope: Namespaced
   names:
-    kind: Workspace
-    plural: workspaces
-    singular: workspace
+    kind: Project
+    plural: projects
+    singular: project
   versions:
     - name: v1alpha1
       served: true
@@ -23,13 +23,13 @@ spec:
         openAPIV3Schema:
           type: object
           description: >-
-            Workspace is one project that can exist several times on a
-            machine. Each copy is a universe: a git worktree of every
-            repository here, one container runtime project per app, and
-            hostnames of the form <host>-<universe>.<domain> served through
-            one shared reverse proxy. A universe is numbered, and then its
-            part of a hostname is u3, or named after a branch, and then it
-            is fix-login.
+            Project is a set of repositories that run together, and that can
+            exist several times on a machine. Each copy is a universe: a git
+            worktree of every repository here, one compose project per app,
+            and hostnames of the form <host>-<universe>.<domain> served
+            through one shared reverse proxy. A universe is numbered, and
+            then its part of a hostname is u3, or named after a branch, and
+            then it is fix-login.
           required: [apiVersion, kind, metadata, spec]
           properties:
             apiVersion:
@@ -39,7 +39,7 @@ spec:
               enum: ["multiverse/v1alpha1"]
             kind:
               type: string
-              enum: ["Workspace"]
+              enum: ["Project"]
             metadata:
               type: object
               required: [name]
@@ -47,9 +47,9 @@ spec:
                 name:
                   type: string
                   description: >-
-                    Names the workspace and prefixes every runtime project,
-                    so a universe's containers are
-                    <name>-<universe>-<app>-*, e.g. acme-u3-api-web-1.
+                    Names the project and prefixes every compose project, so
+                    a universe's containers are <name>-<universe>-<app>-*,
+                    e.g. acme-u3-api-web-1.
                   pattern: "^[a-z][a-z0-9-]*$"
             spec:
               type: object
@@ -186,7 +186,7 @@ spec:
                       name:
                         type: string
                         description: >-
-                          Also the runtime project suffix, so each app's
+                          Also the compose project suffix, so each app's
                           containers are namespaced separately and two
                           repositories may both call a service "app".
                         pattern: "^[a-z][a-z0-9-]*$"
@@ -377,7 +377,7 @@ spec:
 #
 #   UNIVERSE, UNIVERSE_SLUG, UNIVERSE_DIR   its name, the part hostnames carry, its path
 #   MULTIVERSE_DOMAIN                       the wildcard domain in use
-#   COMPOSE_PROJECT_NAME                    the app's runtime project
+#   COMPOSE_PROJECT_NAME                    the app's compose project
 #   <HOST>_HOST                             one per host key, e.g. APP_HOST
 #   <HOST>_URL                              the same with scheme and port
 #   MULTIVERSE_HOSTS                        every hostname, comma separated

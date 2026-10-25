@@ -258,9 +258,9 @@ func (r runner) lsCmd() *cobra.Command {
 // lsList is one line per universe, for a quick look at what exists or for
 // piping into something else.
 func lsList(o *Output, list []app.Summary, wide bool) {
-	headers := []string{"UNIVERSE", "PROJECT", "RUNNING", "HOSTS", "BRANCHES"}
+	headers := []string{"UNIVERSE", "COMPOSE", "RUNNING", "HOSTS", "BRANCHES"}
 	if wide {
-		headers = []string{"UNIVERSE", "PROJECT", "DIR", "CREATED", "RUNNING", "SERVICES", "VOLUMES", "HOSTS", "BRANCHES"}
+		headers = []string{"UNIVERSE", "COMPOSE", "DIR", "CREATED", "RUNNING", "SERVICES", "VOLUMES", "HOSTS", "BRANCHES"}
 	}
 	rows := make([][]string, 0, len(list))
 	for _, u := range list {
@@ -313,7 +313,7 @@ func lsTable(o *Output, list []app.Summary, wide bool) {
 			o.Plain("%s", o.Dim(metaLine(u)))
 			o.Plain("")
 			o.Block(o.Dim("on disk"),
-				[]string{"REPO", "WORKTREE", "PROJECT", "VOLUMES"}, diskRows(u))
+				[]string{"REPO", "WORKTREE", "COMPOSE", "VOLUMES"}, diskRows(u))
 		}
 	}
 }
@@ -348,7 +348,7 @@ func diskRows(u app.Summary) [][]Cell {
 }
 
 // universeTitle heads a universe's block: which universe, why it exists if
-// anyone said, its runtime project, whether anything is up, and the domain its
+// anyone said, its compose project, whether anything is up, and the domain its
 // hostnames sit under.
 func universeTitle(o *Output, u app.Summary) string {
 	state := o.Green(fmt.Sprintf("%d running", u.Running))

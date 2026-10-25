@@ -91,7 +91,7 @@ func TestProxyClashes(t *testing.T) {
 
 	same := &Manifest{Name: "gamma", Proxy: Proxy{Network: "multiversenet", Entrypoints: web}}
 	if c := ProxyClashes("beta", b, "gamma", same); len(c) != 0 {
-		t.Errorf("two default workspaces must not warn: %v", c)
+		t.Errorf("two default projects must not warn: %v", c)
 	}
 
 	other := &Manifest{Name: "delta", Proxy: Proxy{Network: "edge", Entrypoints: map[string]int{"web": 8080}}}

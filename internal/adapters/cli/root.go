@@ -22,13 +22,13 @@ type Globals struct {
 type Factory struct {
 	Version, Commit, Date string
 
-	// Workspace resolves root and manifest from flags, env, config and cwd.
+	// Project resolves root and manifest from flags, env, config and cwd.
 	Workspace func(g Globals, out app.Output) (*app.Service, error)
-	// Bare needs no manifest: install, status, update and the workspace list.
+	// Bare needs no manifest: install, status, update and the project list.
 	Bare func(g Globals, out app.Output) (*app.Service, error)
 	// At builds a service for an explicit root and manifest file.
 	At func(g Globals, out app.Output, root, manifestPath string) (*app.Service, error)
-	// Catalogs builds the catalog service, which never needs a workspace.
+	// Catalogs builds the catalog service, which never needs a project.
 	Catalogs func(g Globals, out app.Output) (*app.Catalogs, error)
 	// Prompter asks questions on the terminal.
 	Prompter func() app.Prompter
@@ -58,9 +58,13 @@ func New(f Factory) (*cobra.Command, *Globals) {
 		},
 	}
 	flags := root.PersistentFlags()
-	flags.StringVarP(&g.Manifest, "manifest", "f", "", "path to the workspace manifest")
-	flags.StringVarP(&g.Workspace, "workspace", "w", "", "workspace to act on (default: the one chosen with the use command)")
-	flags.StringVar(&g.Root, "root", "", "workspace root (default $MULTIVERSECTL_ROOT, the manifest's spec.root, config, or the manifest's directory)")
+	flags.StringVarP(&g.Manifest, "manifest", "f", "", "path to the project manifest")
+	flags.StringVarP(&g.Workspace, "project", "p", "", "project to act on (default: the one chosen with `project use`)")
+	// The name this flag had before a project was called a project.
+	flags.StringVarP(&g.Workspace, "workspace", "w", "", "")
+	_ = flags.MarkHidden("workspace")
+	_ = flags.MarkDeprecated("workspace", "use --project (-p)")
+	flags.StringVar(&g.Root, "root", "", "project root (default $MULTIVERSECTL_ROOT, the manifest's spec.root, config, or the manifest's directory)")
 	flags.BoolVar(&g.NoColor, "no-color", false, "disable colour output")
 	flags.BoolVarP(&g.Verbose, "verbose", "v", false, "show the commands being run")
 
@@ -70,7 +74,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 		run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.projectCmd(), run.initCmd(), run.resetCmd(), run.completionCmd(root),
 		run.selfUpdateCmd(), run.versionCmd(),
 	)
-	_ = root.RegisterFlagCompletionFunc("workspace", run.completeWorkspaces)
+	_ = root.RegisterFlagCompletionFunc("project", run.completeWorkspaces)
 	root.Args = cobra.NoArgs
 	root.RunE = run.welcome
 	explainArgs(root)
@@ -85,7 +89,7 @@ type runner struct {
 	f   Factory
 }
 
-// withService runs fn against the resolved workspace.
+// withService runs fn against the resolved project.
 func (r runner) withService(fn func(ctx context.Context, s *app.Service) error) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
 		s, err := r.f.Workspace(*r.g, r.out)
@@ -109,7 +113,7 @@ func (r runner) welcome(cmd *cobra.Command, _ []string) error {
 	if list, err := bare.Workspaces(); err == nil && len(list) == 0 {
 		r.out.Plain("")
 		r.out.Plain("%s", r.out.Bold("Get started:"))
-		r.out.Plain("  `multiversectl catalog install <owner/repo>`   one project, from a repository or a path")
+		r.out.Plain("  `multiversectl project install <owner/repo>`   one project, from a repository or a path")
 		r.out.Plain("  `multiversectl init`                   your own index of projects")
 	}
 	return nil

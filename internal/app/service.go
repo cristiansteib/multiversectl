@@ -28,7 +28,7 @@ type Deps struct {
 	Out       Output
 }
 
-// Service carries out the use cases against one workspace.
+// Service carries out the use cases against one project.
 type Service struct {
 	Deps
 	Workspace string
@@ -36,7 +36,7 @@ type Service struct {
 	Version   string
 }
 
-// New builds a Service for a workspace whose manifest is already parsed.
+// New builds a Service for a project whose manifest is already parsed.
 func New(deps Deps, workspace string, manifest *domain.Manifest, version string) *Service {
 	return &Service{Deps: deps, Workspace: workspace, Manifest: manifest, Version: version}
 }
@@ -85,7 +85,7 @@ func (s *Service) Resolve(arg string) (domain.UniverseState, error) {
 }
 
 // ResolveDomain turns a manifest domain of "auto" into one that suits how the
-// workspace is exposed: a public wildcard name resolving to this machine when
+// project is exposed: a public wildcard name resolving to this machine when
 // another device has to reach it, and .localhost when nothing should.
 func (s *Service) ResolveDomain(ctx context.Context) (string, error) {
 	if s.Manifest.Domain != "auto" {

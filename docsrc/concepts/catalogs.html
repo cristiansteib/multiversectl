@@ -1,12 +1,12 @@
 <section id="why">
   <h2 id="why"><a href="#why">What a catalog is for</a></h2>
-  <p>A workspace manifest describes one project. A <strong>catalog</strong> answers a different question: which projects exist, and which of them should be on this machine. It is a file of pointers, so the manifests stay with the repositories they describe and nobody has to copy them.</p>
+  <p>A project manifest describes one project. A <strong>catalog</strong> answers a different question: which projects exist, and which of them should be on this machine. It is a file of pointers, so the manifests stay with the repositories they describe and nobody has to copy them.</p>
   <p>Catalogs nest. A personal catalog can link a catalog that a team keeps in its own repository, which can link another, and each layer is edited by whoever owns that repository. A machine installs only the branches of the tree it wants.</p>
-  <p>You do not need one to use a project. <code>multiversectl catalog install acme/multiverse</code> works on a machine with no catalog at all; the catalog is for keeping your own index of what you work on.</p>
+  <p>You do not need one to use a project. <code>multiversectl project install acme/multiverse</code> works on a machine with no catalog at all; the catalog is for keeping your own index of what you work on.</p>
 </section>
 
 <section id="kinds">
-  <h2 id="kinds"><a href="#kinds">Catalog, CatalogRef and WorkspaceRef</a></h2>
+  <h2 id="kinds"><a href="#kinds">Catalog, CatalogRef and ProjectRef</a></h2>
   <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
 <span class="k">kind</span>: Catalog
 <span class="k">metadata</span>:
@@ -17,9 +17,9 @@
       <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:acme/multiverse-index.git, <span class="k">ref</span>: main}
     - <span class="k">name</span>: personal                <span class="c"># no repo: a file in this same repository</span>
       <span class="k">source</span>: {<span class="k">path</span>: catalogs/personal.yaml}
-  <span class="k">workspaces</span>:                       <span class="c"># WorkspaceRef: a leaf</span>
+  <span class="k">projects</span>:                       <span class="c"># ProjectRef: a leaf</span>
     - <span class="k">name</span>: notes
-      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:me/notes-workspace.git}</pre></div>
+      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:me/notes-project.git}</pre></div>
   <table>
     <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
     <tbody>
@@ -48,8 +48,8 @@
 index     <span class="c">root</span>       github:me/index
 ├─ personal  <span class="c">catalog</span>    github:me/index <span class="c">catalogs/personal.yaml</span>
 └─ acme      <span class="c">catalog</span>    gitlab:acme/index
-   └─ billing  <span class="c">workspace</span>  gitlab:acme/billing  ✓ installed as billing</pre></div>
-  <p>The web page draws the same: each platform's mark beside its name, a badge for <em>root</em>, <em>catalog</em> or <em>workspace</em>, and the file as a chip. Hovering a location shows the URL as written. <code>status</code>, <code>project list</code> and the messages the tool prints use the notation too.</p>
+   └─ billing  <span class="c">project</span>  gitlab:acme/billing  ✓ installed as billing</pre></div>
+  <p>The web page draws the same: each platform's mark beside its name, a badge for <em>root</em>, <em>catalog</em> or <em>project</em>, and the file as a chip. Hovering a location shows the URL as written. <code>status</code>, <code>project list</code> and the messages the tool prints use the notation too.</p>
 </section>
 
 <section id="root">
@@ -67,16 +67,16 @@ index     <span class="c">root</span>       github:me/index
   <h2 id="split"><a href="#split">Three separate things</a></h2>
   <ul class="t">
     <li><strong>The catalog</strong> is shared and versioned: what exists. It holds pointers, never definitions.</li>
-    <li><strong>The workspace list</strong> is per machine, in <code>~/.config/multiversectl/config.yaml</code>: what is installed here, which one is current, and where each came from.</li>
-    <li><strong>Universes</strong> work as before. <code>new</code>, <code>up</code>, <code>ls</code> and the rest act on one workspace and never read a catalog.</li>
+    <li><strong>The project list</strong> is per machine, in <code>~/.config/multiversectl/config.yaml</code>: what is installed here, which one is current, and where each came from.</li>
+    <li><strong>Universes</strong> work as before. <code>new</code>, <code>up</code>, <code>ls</code> and the rest act on one project and never read a catalog.</li>
   </ul>
   <p>Only <code>install</code> connects the first two, and it only reads: installing never writes to a catalog. <code>catalog add</code>, <code>create</code> and <code>rm</code> are the commands that edit one.</p>
 </section>
 
 <section id="names">
   <h2 id="names"><a href="#names">Names</a></h2>
-  <p>A workspace is installed under its own name, <code>billing</code>, in <code>~/multiverse/billing</code>. If that name is taken, the name above it goes in front (<code>payments-billing</code>) and then the next; <code>--name</code> overrides. The name does not change after install, so <code>-w billing</code> in a script keeps working if the catalog is reorganised. Anywhere a workspace name is accepted, the catalog path it was installed from is too: <code>use acme/backend/billing</code>.</p>
-  <p>Each installed workspace records where it came from, which is how <code>status</code> and <code>update</code> know it has drifted.</p>
+  <p>A project is installed under its own name, <code>billing</code>, in <code>~/multiverse/billing</code>. If that name is taken, the name above it goes in front (<code>payments-billing</code>) and then the next; <code>--name</code> overrides. The name does not change after install, so <code>-w billing</code> in a script keeps working if the catalog is reorganised. Anywhere a project name is accepted, the catalog path it was installed from is too: <code>use acme/backend/billing</code>.</p>
+  <p>Each installed project records where it came from, which is how <code>status</code> and <code>update</code> know it has drifted.</p>
 </section>
 
 <section id="failure">
@@ -85,6 +85,6 @@ index     <span class="c">root</span>       github:me/index
 </section>
 
 <section id="proxy">
-  <h2 id="proxy"><a href="#proxy">Several workspaces, one proxy</a></h2>
-  <p>A machine has one proxy, and starting any workspace rewrites it from that workspace's manifest. Sharing its network and its default <code>web</code> port is therefore normal. What is not is a workspace that needs an entrypoint another one's proxy does not have, or a different network or bind address: starting the second reconfigures the proxy and the first loses it. <code>install</code> and <code>doctor</code> name those differences, by workspace name.</p>
+  <h2 id="proxy"><a href="#proxy">Several projects, one proxy</a></h2>
+  <p>A machine has one proxy, and starting any project rewrites it from that project's manifest. Sharing its network and its default <code>web</code> port is therefore normal. What is not is a project that needs an entrypoint another one's proxy does not have, or a different network or bind address: starting the second reconfigures the proxy and the first loses it. <code>install</code> and <code>doctor</code> name those differences, by project name.</p>
 </section>

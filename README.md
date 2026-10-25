@@ -24,7 +24,7 @@ the database already has the other branch's schema in it.
 multiversectl makes the second copy cheap, by **namespacing instead of
 virtualizing**: nothing is nested, duplicated or emulated.
 
-- One container-runtime project per app per universe, so the runtime itself
+- One compose project per app per universe, so the runtime itself
   namespaces containers, networks and volumes — including a database per
   universe.
 - One git worktree per repository, sharing the clone's object store: no second
@@ -76,7 +76,7 @@ for what it needs on the machine.
 A project someone points you at needs one command, with nothing set up first:
 
 ```sh
-multiversectl catalog install acme/multiverse   # owner/repo, any git URL, or a path
+multiversectl project install acme/multiverse   # owner/repo, any git URL, or a path
 multiversectl universe new 1 && multiversectl universe up 1
 ```
 
@@ -87,9 +87,9 @@ catalog. It is a git repository of pointers, private if you let `init` create it
 multiversectl init                      # asks where it should live
 multiversectl catalog add acme/billing  # asks which node of the tree it goes in
 multiversectl project init              # a guide: pick its repositories, create its repository, list it
-multiversectl catalog                   # the tree, with what is installed marked
-multiversectl catalog status                    # what is installed here, and what has drifted
-multiversectl catalog update                    # catch up: manifests and new repositories
+multiversectl catalog list              # the tree, with what is installed marked
+multiversectl project status                    # what is installed here, and what has drifted
+multiversectl project update                    # catch up: manifests and new repositories
 ```
 
 See [Catalogs](https://cristiansteib.github.io/multiversectl/concepts/catalogs.html).
@@ -106,7 +106,7 @@ multiversectl server stop
 ## Quick start
 
 ```sh
-multiversectl catalog install ./multiverse.yaml --root ~/acme
+multiversectl project install ./multiverse.yaml --root ~/acme
 multiversectl universe new 1            # universe 1: a worktree of every repo on branch u1
 multiversectl universe new fix/login    # or name it after the branch it checks out
 multiversectl universe up fix/login     # start its containers
@@ -122,14 +122,14 @@ walks through the same thing with a manifest to copy.
 
 ## Manifest
 
-One file describes the workspace: the repositories a project is made of, how a
+One file describes the project: the repositories a project is made of, how a
 universe is addressed, and only the apps that need something other than the
 defaults. It does not describe containers — the repositories' own compose files
 already do, and multiversectl reads them rather than making you repeat them.
 
 ```yaml
 apiVersion: multiverse/v1alpha1
-kind: Workspace
+kind: Project
 metadata:
   name: acme
 spec:
@@ -142,17 +142,17 @@ spec:
       url: git@github.com:acme/web.git
 ```
 
-That is a working workspace: each repository gets an app of its own name, its
+That is a working project: each repository gets an app of its own name, its
 compose files are found by convention, and its addresses come from their labels.
 [examples/multiverse.yaml](examples/multiverse.yaml) is a commented example with
 the rest, and every field is documented in the
 [manifest reference](https://cristiansteib.github.io/multiversectl/reference/manifest.html)
-and in the generated [schema](schema/workspace.v1alpha1.yaml).
+and in the generated [schema](schema/project.v1alpha1.yaml).
 
 ## How it works
 
 Each universe is a git worktree of every repository in the manifest plus one
-container-runtime project per app. Universes are reached through a shared
+compose project per app. Universes are reached through a shared
 reverse proxy on per-universe hostnames, and the routing labels, the proxy
 network and the dropping of published ports are generated per universe — your
 compose files stay the ones you already run.

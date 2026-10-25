@@ -85,15 +85,22 @@ func convert(c *v1alpha1.Catalog) (*domain.Catalog, error) {
 		}
 		out.Catalogs = append(out.Catalogs, domain.CatalogRef{Name: r.Name, Source: src})
 	}
-	for i, r := range c.Spec.Workspaces {
-		if err := claim(r.Name); err != nil {
-			return nil, fmt.Errorf("spec.workspaces[%d]: %w", i, err)
+	// A file may use either name, or both while it is being moved from one to the
+	// other; the names still have to be distinct across all of them.
+	for _, list := range []struct {
+		key  string
+		refs []v1alpha1.ProjectRef
+	}{{"projects", c.Spec.Projects}, {"workspaces", c.Spec.Workspaces}} {
+		for i, r := range list.refs {
+			if err := claim(r.Name); err != nil {
+				return nil, fmt.Errorf("spec.%s[%d]: %w", list.key, i, err)
+			}
+			src, err := source(r.Source, DefaultWorkspacePath)
+			if err != nil {
+				return nil, fmt.Errorf("spec.%s[%d] %s: %w", list.key, i, r.Name, err)
+			}
+			out.Workspaces = append(out.Workspaces, domain.WorkspaceRef{Name: r.Name, Source: src})
 		}
-		src, err := source(r.Source, DefaultWorkspacePath)
-		if err != nil {
-			return nil, fmt.Errorf("spec.workspaces[%d] %s: %w", i, r.Name, err)
-		}
-		out.Workspaces = append(out.Workspaces, domain.WorkspaceRef{Name: r.Name, Source: src})
 	}
 	return out, nil
 }

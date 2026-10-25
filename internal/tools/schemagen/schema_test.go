@@ -10,8 +10,9 @@ import (
 // remember to run `make schema`.
 func TestCommittedSchemasAreCurrent(t *testing.T) {
 	tests := []struct{ kind, types, file string }{
-		{"Workspace", filepath.Join("manifest", "v1alpha1", "types.go"), "workspace.v1alpha1.yaml"},
+		{"Project", filepath.Join("manifest", "v1alpha1", "types.go"), "project.v1alpha1.yaml"},
 		{"Catalog", filepath.Join("catalog", "v1alpha1", "types.go"), "catalog.v1alpha1.yaml"},
+		{"CatalogRoot", filepath.Join("catalog", "v1alpha1", "types.go"), "catalogroot.v1alpha1.yaml"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.kind, func(t *testing.T) {

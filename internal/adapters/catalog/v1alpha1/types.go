@@ -1,4 +1,4 @@
-// Package v1alpha1 is the catalog's file format, shaped like the workspace
+// Package v1alpha1 is the catalog's file format, shaped like the project
 // manifest's so both read as the same family of objects.
 //
 // Markers follow the manifest types: +pattern=, +required, +default=.
@@ -13,8 +13,8 @@ const (
 	KindRoot = "CatalogRoot"
 )
 
-// Catalog is an index of workspaces and of other catalogs. It holds pointers
-// only: each workspace's repository owns its multiverse.yaml, and each nested
+// Catalog is an index of projects and of other catalogs. It holds pointers
+// only: each project's repository owns its multiverse.yaml, and each nested
 // catalog is owned by whoever owns the repository it lives in.
 type Catalog struct {
 	TypeMeta `yaml:",inline"`
@@ -47,8 +47,13 @@ type Spec struct {
 	// of the refs leading to it, e.g. acme/backend.
 	Catalogs []CatalogRef `yaml:"catalogs"`
 
-	// WorkspaceRefs are the leaves: a repository with a multiverse.yaml.
-	Workspaces []WorkspaceRef `yaml:"workspaces"`
+	// ProjectRefs are the leaves: a repository with a multiverse.yaml.
+	Projects []ProjectRef `yaml:"projects"`
+
+	// Projects is the old name of Projects, still read so a catalog written
+	// before they were called projects keeps working, and never written to a
+	// file that does not already use it.
+	Workspaces []ProjectRef `yaml:"workspaces"`
 }
 
 type CatalogRef struct {
@@ -61,7 +66,7 @@ type CatalogRef struct {
 	Source Source `yaml:"source"`
 }
 
-type WorkspaceRef struct {
+type ProjectRef struct {
 	// +pattern=^[a-z][a-z0-9-]*$
 	// +required
 	Name string `yaml:"name"`

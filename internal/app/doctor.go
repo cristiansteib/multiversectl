@@ -30,12 +30,12 @@ type Report struct {
 	Checks []Check
 }
 
-// DoctorInput picks the scope: a universe number, or 0 for the workspace only.
+// DoctorInput picks the scope: a universe number, or 0 for the project only.
 type DoctorInput struct {
 	Universe string
 }
 
-// Doctor inspects the host and the workspace. A failing check is a finding in
+// Doctor inspects the host and the project. A failing check is a finding in
 // the report, never an error.
 func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 	var r Report
@@ -45,7 +45,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 
 	s.checkRuntime(ctx, add)
 	if s.Manifest == nil {
-		add("manifest", StatusWarn, "no manifest loaded; multiversectl catalog install <owner/repo>")
+		add("manifest", StatusWarn, "no manifest loaded; multiversectl project install <owner/repo>")
 	} else {
 		s.checkProxy(ctx, add)
 		s.checkWorkspaces(add)
@@ -109,7 +109,7 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 		}
 		if want := s.Manifest.BindAddress(); want != where {
 			add("proxy", StatusWarn,
-				"running on %s (%s), but this workspace asks for %s — starting a universe moves it",
+				"running on %s (%s), but this project asks for %s — starting a universe moves it",
 				where, reach, want)
 			return
 		}
@@ -138,10 +138,10 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 	}
 }
 
-// checkWorkspaces compares this workspace's proxy with every other workspace
+// checkWorkspaces compares this project's proxy with every other project
 // on the machine: two that want the same host port or network cannot both run
 // their proxy. A manifest that cannot be read is skipped; it is that
-// workspace's own doctor run that reports it.
+// project's own doctor run that reports it.
 func (s *Service) checkWorkspaces(add addCheck) {
 	if s.Config == nil || s.Manifests == nil {
 		return
@@ -169,11 +169,11 @@ func (s *Service) checkWorkspaces(add addCheck) {
 		others++
 		for _, clash := range domain.ProxyClashes(mine, s.Manifest, name, other) {
 			clashes++
-			add("workspaces", StatusWarn, "%s", clash)
+			add("projects", StatusWarn, "%s", clash)
 		}
 	}
 	if others > 0 && clashes == 0 {
-		add("workspaces", StatusOK, "no proxy clash with the %d other workspaces on this machine", others)
+		add("projects", StatusOK, "no proxy clash with the %d other projects on this machine", others)
 	}
 }
 
@@ -238,7 +238,7 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 		return
 	}
 	for _, appKey := range s.Manifest.RunnableApps() {
-		// Each app runs as its own runtime project, so that is the prefix
+		// Each app runs as its own compose project, so that is the prefix
 		// its container names carry.
 		add("app "+appKey, StatusOK, "%d running", runningFor(containers, s.Universe(st.Name).ProjectFor(appKey)))
 	}
@@ -246,7 +246,7 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 
 // runningFor counts running containers of an app's services, relying on the
 // "<project>-<service>-<n>" naming the runtime gives them.
-// Count by the app's own runtime project: the manifest need not list services,
+// Count by the app's own compose project: the manifest need not list services,
 // so the project prefix is the only thing that always identifies them.
 func runningFor(containers []Container, project string) int {
 	n := 0

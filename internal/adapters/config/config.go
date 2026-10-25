@@ -33,7 +33,7 @@ func New() (*Store, error) {
 func (s *Store) Path() string { return s.path }
 
 // Load returns a zero Config when the file does not exist yet, and upgrades
-// the single-workspace layout older releases wrote.
+// the single-project layout older releases wrote.
 func (s *Store) Load() (app.Config, error) {
 	var c app.Config
 	data, err := os.ReadFile(s.path)

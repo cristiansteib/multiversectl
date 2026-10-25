@@ -108,7 +108,7 @@ func TestInitRefusesToSwitchRootsWhileWorkspacesDependOnIt(t *testing.T) {
 	r.Yes = true
 
 	err := r.Init(context.Background(), app.InitInput{Source: other})
-	if err == nil || !strings.Contains(err.Error(), "multiversectl reset") || !strings.Contains(err.Error(), "1 installed workspaces") {
+	if err == nil || !strings.Contains(err.Error(), "multiversectl reset") || !strings.Contains(err.Error(), "1 installed projects") {
 		t.Fatalf("err = %v, want a refusal that names reset", err)
 	}
 	if !strings.Contains(r.cfg.c.Catalog, r.root) {

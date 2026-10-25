@@ -8,7 +8,7 @@ http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
 </section>
 
 <section id="hw-domain">
-  <h2 id="hw-domain"><a href="#hw-domain">Point a workspace at a domain you own</a></h2>
+  <h2 id="hw-domain"><a href="#hw-domain">Point a project at a domain you own</a></h2>
   <p>Create a wildcard DNS record, <code>*.dev.example.test</code>, pointing at this machine, then replace <code>domain: auto</code>:</p>
   <div class="code"><pre><span class="c"># multiverse.yaml</span>
 <span class="k">spec</span>:
@@ -23,6 +23,6 @@ http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
 <span class="p">$ </span>multiversectl universe exec 3 api --service db -- psql -U postgres
 <span class="c"># a one-off container instead, when the app itself need not be up</span>
 <span class="p">$ </span>multiversectl universe run 3 api -- python manage.py migrate</pre></div>
-  <p class="muted">Each app is its own compose project, named <code>&lt;workspace&gt;-u&lt;universe&gt;-&lt;app&gt;</code>, so <code>docker compose -p acme-u3-api ps</code> works too.</p>
+  <p class="muted">Each app is its own compose project, named <code>&lt;project&gt;-u&lt;universe&gt;-&lt;app&gt;</code>, so <code>docker compose -p acme-u3-api ps</code> works too.</p>
   <p class="muted">Need a host port anyway? See <a href="services.html#hw-publish">Keep a service's published port</a>.</p>
 </section>

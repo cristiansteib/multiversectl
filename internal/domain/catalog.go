@@ -40,7 +40,7 @@ type NodeKind string
 
 const (
 	CatalogNode   NodeKind = "catalog"
-	WorkspaceNode NodeKind = "workspace"
+	WorkspaceNode NodeKind = "project"
 )
 
 // Node is a catalog resolved into a tree. Path is the slash-joined names from
@@ -59,7 +59,7 @@ type Node struct {
 
 	// File and Dir are where a loaded catalog node lives on this machine: its
 	// file, and the root of the checkout or directory its paths are relative
-	// to. They are what a write goes to; workspaces and unavailable nodes have
+	// to. They are what a write goes to; projects and unavailable nodes have
 	// neither.
 	File, Dir string
 
@@ -82,7 +82,7 @@ func (n Node) Find(path string) (Node, bool) {
 	return Node{}, false
 }
 
-// Leaves are the workspaces under n, in tree order; n itself if it is one.
+// Leaves are the projects under n, in tree order; n itself if it is one.
 func (n Node) Leaves() []Node {
 	if n.Kind == WorkspaceNode {
 		return []Node{n}

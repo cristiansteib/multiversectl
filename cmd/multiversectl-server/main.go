@@ -29,9 +29,9 @@ var (
 const usage = `multiversectl-server serves a read-only web view of this machine's setup and fleet.
 
 It serves one page, a JSON API and a websocket: the root catalog as a tree, the
-workspaces installed here and how they have drifted, every universe of every
-workspace with what is running in it, the versions of what it all runs on, and
-buttons to start, stop, create and remove universes and to update a workspace.
+projects installed here and how they have drifted, every universe of every
+project with what is running in it, the versions of what it all runs on, and
+buttons to start, stop, create and remove universes and to update a project.
 What changes is pushed to the page as it happens.
 
 Because the page can act, it is opened with a link that carries a token made

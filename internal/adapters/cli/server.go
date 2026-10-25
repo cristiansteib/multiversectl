@@ -20,7 +20,7 @@ func (r runner) serverCmd() *cobra.Command {
 		Short: "Start, stop and check the web view of this machine's setup and fleet",
 		Long: "The web view is a separate program, multiversectl-server, installed beside this\n" +
 			"one. These commands run it in the background and remember it. The page shows\n" +
-			"the catalog, the workspaces and the fleet live, their versions, and has buttons to\n" +
+			"the catalog, the projects and the fleet live, their versions, and has buttons to\n" +
 			"start, stop, create and remove universes. It is opened with a link that carries a\n" +
 			"token, which `server start` and `server status` print; --read-only removes the buttons.",
 		Example: "  multiversectl server start --open\n  multiversectl server status\n  multiversectl server stop",

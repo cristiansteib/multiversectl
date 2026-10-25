@@ -11,7 +11,7 @@ Pull requests are welcome.
   docker or the filesystem lives in `internal/adapters`.
 - `gofmt`, `go vet ./...` and `go test ./...` must pass; CI runs exactly that.
 - Two things are generated and committed, and a test fails when either is
-  stale: `schema/workspace.v1alpha1.yaml` from the Go types (`make schema`) and
+  stale: `schema/project.v1alpha1.yaml` from the Go types (`make schema`) and
   `docs/` from [`docsrc/`](docsrc/) (`make docs`). Edit the source, not the
   output.
 - Tests for logic worth testing, not for coverage's sake.

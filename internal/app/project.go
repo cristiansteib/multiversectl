@@ -44,7 +44,7 @@ type ProjectResult struct {
 	// Node is where it was listed in the root catalog, "" when it was not.
 	Node string
 	// Root is the directory the project's checkouts already sit under, which is
-	// the workspace root to install it with; "" when there were none.
+	// the project root to install it with; "" when there were none.
 	Root string
 }
 

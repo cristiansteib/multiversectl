@@ -10,8 +10,8 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// BootstrapInput says where the workspace lives and where its manifest comes
-// from: a git URL, which is cloned into the workspace, or a local path.
+// BootstrapInput says where the project lives and where its manifest comes
+// from: a git URL, which is cloned into the project, or a local path.
 type BootstrapInput struct {
 	Name           string // empty: derived from the root directory
 	Root           string
@@ -21,13 +21,13 @@ type BootstrapInput struct {
 	Ref          string
 	ManifestPath string
 	// From and Origin are recorded so a later update or status can compare the
-	// workspace with where it came from.
+	// project with where it came from.
 	From   string
 	Origin Origin
 }
 
-// Bootstrap records this machine's workspace so the tool works from any
-// directory afterwards. Other workspaces already recorded are kept.
+// Bootstrap records this machine's project so the tool works from any
+// directory afterwards. Other projects already recorded are kept.
 func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEntry, error) {
 	if in.Root == "" || in.ManifestSource == "" {
 		return WorkspaceEntry{}, fmt.Errorf("bootstrap: root and manifest are both required")
@@ -65,7 +65,7 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEn
 	if name == "" {
 		name = WorkspaceNameFor(root)
 	} else if !workspaceNameRE.MatchString(name) {
-		return WorkspaceEntry{}, fmt.Errorf("workspace name %q must match %s", name, workspaceNameRE)
+		return WorkspaceEntry{}, fmt.Errorf("project name %q must match %s", name, workspaceNameRE)
 	}
 	cfg, err := s.Config.Load()
 	if err != nil {
@@ -76,7 +76,7 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEn
 		cfg.Workspaces = map[string]WorkspaceEntry{}
 	}
 	cfg.Workspaces[name] = entry
-	// The first workspace on a machine is the one to work in; later ones are
+	// The first project on a machine is the one to work in; later ones are
 	// installed beside it, and switching is an explicit `use`.
 	if cfg.Current == "" {
 		cfg.Current = name
@@ -84,7 +84,7 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEn
 	if err := s.Config.Save(cfg); err != nil {
 		return WorkspaceEntry{}, fmt.Errorf("saving the configuration: %w", err)
 	}
-	s.Out.OK("workspace %s at %s, manifest %s", name, entry.Root, entry.Manifest)
+	s.Out.OK("project %s at %s, manifest %s", name, entry.Root, entry.Manifest)
 	return entry, nil
 }
 

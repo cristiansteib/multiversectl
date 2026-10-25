@@ -45,11 +45,11 @@ func (Editor) MarkRoot(data []byte) ([]byte, error) {
 }
 
 func (Editor) AddCatalogRef(data []byte, ref domain.CatalogRef) ([]byte, error) {
-	return addRef(data, "catalogs", ref.Name, ref.Source, DefaultCatalogPath)
+	return addRef(data, []string{"catalogs"}, ref.Name, ref.Source, DefaultCatalogPath)
 }
 
 func (Editor) AddWorkspaceRef(data []byte, ref domain.WorkspaceRef) ([]byte, error) {
-	return addRef(data, "workspaces", ref.Name, ref.Source, DefaultWorkspacePath)
+	return addRef(data, []string{"projects", "workspaces"}, ref.Name, ref.Source, DefaultWorkspacePath)
 }
 
 func (Editor) RemoveRef(data []byte, name string) ([]byte, error) {
@@ -92,8 +92,8 @@ func (Editor) WorkspaceName(data []byte) (string, error) {
 	if err := yaml.Unmarshal(data, &w); err != nil {
 		return "", fmt.Errorf("not valid YAML: %w", err)
 	}
-	if w.Kind != "Workspace" || w.Metadata.Name == "" {
-		return "", errors.New("not a Workspace manifest with a metadata.name")
+	if (w.Kind != "Project" && w.Kind != "Workspace") || w.Metadata.Name == "" {
+		return "", errors.New("not a Project manifest with a metadata.name")
 	}
 	return w.Metadata.Name, nil
 }
@@ -110,7 +110,11 @@ func (Editor) WorkspaceRoot(data []byte) string {
 	return w.Spec.Root
 }
 
-func addRef(data []byte, list, name string, src domain.Source, defaultPath string) ([]byte, error) {
+// addRef appends an entry to a list of the spec. keys are the names the list may
+// have, preferred first: an entry goes in the list the file already uses, so a
+// catalog written before projects were called that is not half moved to the new
+// name, and a file with neither starts the preferred one.
+func addRef(data []byte, keys []string, name string, src domain.Source, defaultPath string) ([]byte, error) {
 	doc, spec, err := parse(data)
 	if err != nil {
 		return nil, err
@@ -124,7 +128,14 @@ func addRef(data []byte, list, name string, src domain.Source, defaultPath strin
 			}
 		}
 	}
-	seq := mapValue(spec, list)
+	list := keys[0]
+	var seq *yaml.Node
+	for _, k := range keys {
+		if found := mapValue(spec, k); found != nil {
+			list, seq = k, found
+			break
+		}
+	}
 	if seq == nil {
 		spec.Content = append(spec.Content, scalar(list), &yaml.Node{Kind: yaml.SequenceNode})
 		seq = spec.Content[len(spec.Content)-1]

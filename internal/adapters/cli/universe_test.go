@@ -34,17 +34,29 @@ func TestUniverseCommandsLiveUnderUniverse(t *testing.T) {
 	}
 }
 
-func TestCatalogCommandsLiveUnderCatalog(t *testing.T) {
+func TestEachCommandLivesWhereItsSubjectDoes(t *testing.T) {
 	root, _ := New(Factory{})
-	for _, name := range []string{"add", "create", "rm", "install", "uninstall", "use", "status", "update"} {
-		c, _, err := root.Find([]string{"catalog", name})
-		if err != nil || c.Name() != name {
-			t.Errorf("catalog %s: not found (%v)", name, err)
+	// The tree of catalogs is edited under catalog; what is installed here, and
+	// how it is kept, is a project's.
+	for parent, names := range map[string][]string{
+		"catalog": {"add", "create", "rm"},
+		"project": {"list", "init", "add", "install", "uninstall", "use", "status", "update"},
+	} {
+		for _, name := range names {
+			c, _, err := root.Find([]string{parent, name})
+			if err != nil || c.Name() != name {
+				t.Errorf("%s %s: not found (%v)", parent, name, err)
+			}
+			// status and init are also top-level commands, but different ones: the
+			// machine's overview and its root, not a project's drift or start.
+			if top, _, _ := root.Find([]string{name}); name != "status" && name != "init" && top != root {
+				t.Errorf("%s is still a top-level command", name)
+			}
 		}
-		// status is also a top-level command, but a different one: the machine's
-		// overview, not the catalog's drift.
-		if top, _, _ := root.Find([]string{name}); name != "status" && top != root {
-			t.Errorf("%s is still a top-level command", name)
+	}
+	for _, gone := range []string{"install", "use", "update"} {
+		if c, _, _ := root.Find([]string{"catalog", gone}); c.Name() == gone {
+			t.Errorf("catalog %s should be project %s", gone, gone)
 		}
 	}
 }
@@ -90,5 +102,23 @@ func TestArgumentErrorsSayWhatToDo(t *testing.T) {
 				t.Errorf("%v: %q lacks %q", c.args, shown, w)
 			}
 		}
+	}
+}
+
+// -w/--workspace is what the flag was called before; scripts that use it keep
+// working, and it says what to use instead.
+func TestTheOldWorkspaceFlagStillSelectsAProject(t *testing.T) {
+	for _, args := range [][]string{{"-p", "acme"}, {"--project", "acme"}, {"-w", "acme"}, {"--workspace", "acme"}} {
+		root, g := New(Factory{})
+		if err := root.PersistentFlags().Parse(args); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if g.Workspace != "acme" {
+			t.Errorf("%v selected %q", args, g.Workspace)
+		}
+	}
+	root, _ := New(Factory{})
+	if f := root.PersistentFlags().Lookup("workspace"); f == nil || !f.Hidden || f.Deprecated == "" {
+		t.Errorf("the old flag should be hidden and say what replaced it: %+v", f)
 	}
 }

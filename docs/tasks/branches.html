@@ -69,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -101,7 +101,7 @@ http://api-fix-login.10-0-0-5.traefik.me
 
 
 <section id="hw-repo">
-  <h2 id="hw-repo"><a href="#hw-repo">Add a repository to a workspace</a></h2>
+  <h2 id="hw-repo"><a href="#hw-repo">Add a repository to a project</a></h2>
   <div class="code"><pre><span class="c"># multiverse.yaml</span>
 <span class="k">spec</span>:
   <span class="k">repos</span>:
@@ -109,7 +109,7 @@ http://api-fix-login.10-0-0-5.traefik.me
       <span class="k">url</span>: git@github.com:acme/worker.git</pre></div>
   <p>That is the whole change: a repository no <code>apps</code> entry names gets an app of its own name, its compose files are found by convention, every service they define is started and the addresses come from their labels. Add an <code>apps</code> entry only to change one of those, or to split the repository into several apps.</p>
   <div class="code"><pre><span class="c"># clone the new repo (already-cloned ones are skipped)</span>
-<span class="p">$ </span>multiversectl catalog install ./multiverse.yaml --root ~/acme
+<span class="p">$ </span>multiversectl project install ./multiverse.yaml --root ~/acme
 <span class="c"># add its worktree to an existing universe; existing checkouts are kept</span>
 <span class="p">$ </span>multiversectl universe new 3
 <span class="p">$ </span>multiversectl universe up 3 worker</pre></div>
@@ -131,10 +131,10 @@ http://api-fix-login.10-0-0-5.traefik.me
   <div class="code"><pre><span class="p">$ </span>multiversectl universe prune --dry-run                    <span class="c"># show what it would remove, and stop</span>
 <span class="p">$ </span>multiversectl universe prune            <span class="c"># remove the idle ones, asking first</span>
 <span class="p">$ </span>multiversectl universe prune --all --yes <span class="c"># everything, running ones included, no question</span></pre></div>
-  <p><code>universe prune</code> does to each universe what <code>universe rm</code> does, in every installed workspace, or only the one you name with <code>-w</code>: the containers and <strong>volumes</strong>, the worktrees, the directory and the state file. It is deliberately not a way to stop containers and keep the data; that is <code>universe down</code>.</p>
+  <p><code>universe prune</code> does to each universe what <code>universe rm</code> does, in every installed project, or only the one you name with <code>-w</code>: the containers and <strong>volumes</strong>, the worktrees, the directory and the state file. It is deliberately not a way to stop containers and keep the data; that is <code>universe down</code>.</p>
   <p>Two kinds of universe are kept unless you say otherwise, and each is listed with the reason:</p>
   <ul class="t"><li>one with containers running, until you add <code>--all</code>;</li><li>one with uncommitted work in a worktree, until you add <code>--force</code>. <code>--yes</code> only skips the question; it never discards work.</li></ul>
-  <p>What it does not touch: the shared clones; the shared proxy; and the installed workspaces and catalogs. The branches a universe started are deleted only when every commit on them is already on the base branch or on a remote, so committed work is never lost, and one holding anything else is kept and named.</p>
+  <p>What it does not touch: the shared clones; the shared proxy; and the installed projects and catalogs. The branches a universe started are deleted only when every commit on them is already on the base branch or on a remote, so committed work is never lost, and one holding anything else is kept and named.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">
@@ -147,7 +147,7 @@ http://api-fix-login.10-0-0-5.traefik.me
     <ul>
       <li><a href="#hw-branches">Work on two branches at once</a></li>
       <li><a href="#hw-checkout">Review or continue a branch that already exists</a></li>
-      <li><a href="#hw-repo">Add a repository to a workspace</a></li>
+      <li><a href="#hw-repo">Add a repository to a project</a></li>
       <li><a href="#hw-rm">Remove a universe and its data</a></li>
       <li><a href="#hw-prune">Clear out every universe on the machine</a></li>
     </ul>

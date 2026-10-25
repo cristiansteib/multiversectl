@@ -82,11 +82,46 @@ spec:
                               Relative to the repository root. Defaults to
                               catalog.yaml for a CatalogRef and
                               multiverse.yaml for a WorkspaceRef.
+                projects:
+                  type: array
+                  description: >-
+                    ProjectRefs are the leaves: a repository with a
+                    multiverse.yaml.
+                  items:
+                    type: object
+                    required: [name, source]
+                    properties:
+                      name:
+                        type: string
+                        pattern: "^[a-z][a-z0-9-]*$"
+                      source:
+                        type: object
+                        description: >-
+                          Source locates a file. Leave repo out to mean the
+                          repository the reference is written in.
+                        properties:
+                          repo:
+                            type: string
+                            description: >-
+                              A git URL.
+                          ref:
+                            type: string
+                            description: >-
+                              Branch, tag or commit. Defaults to the
+                              repository's default branch.
+                          path:
+                            type: string
+                            description: >-
+                              Relative to the repository root. Defaults to
+                              catalog.yaml for a CatalogRef and
+                              multiverse.yaml for a WorkspaceRef.
                 workspaces:
                   type: array
                   description: >-
-                    WorkspaceRefs are the leaves: a repository with a
-                    multiverse.yaml.
+                    Projects is the old name of Projects, still read so a
+                    catalog written before they were called projects keeps
+                    working, and never written to a file that does not
+                    already use it.
                   items:
                     type: object
                     required: [name, source]

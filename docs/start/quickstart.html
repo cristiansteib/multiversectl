@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Quick start &middot; multiversectl</title>
-<meta name="description" content="Describe a workspace, create a universe and open it — from nothing to two running copies of a project.">
+<meta name="description" content="Describe a project, create a universe and open it — from nothing to two running copies of a project.">
 <meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
@@ -69,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -79,13 +79,13 @@
   <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Start</span>
   </nav>
   <h1>Quick start</h1>
-  <p class="lede">Describe a workspace, create a universe and open it — from nothing to two running copies of a project.</p>
+  <p class="lede">Describe a project, create a universe and open it — from nothing to two running copies of a project.</p>
 <section id="quickstart">
     <h2 id="before"><a href="#before">Before you start</a></h2>
   <p>You need a container runtime with <code>docker compose</code>, git, and a <a href="../reference/manifest.html"><code>multiverse.yaml</code></a> (a path or a git URL).</p>
   <h2 id="first"><a href="#first">Your first universe</a></h2>
-  <div class="code"><pre><span class="c"># record the workspace and clone its repos</span>
-<span class="p">$ </span>multiversectl catalog install ./multiverse.yaml --root ~/acme
+  <div class="code"><pre><span class="c"># record the project and clone its repos</span>
+<span class="p">$ </span>multiversectl project install ./multiverse.yaml --root ~/acme
 <span class="c"># universe 1: a worktree of every repo</span>
 <span class="p">$ </span>multiversectl universe new 1
 <span class="c"># start its containers</span>
@@ -94,7 +94,7 @@
 <span class="p">$ </span>multiversectl universe ls
 <span class="c"># print the hostnames universe 1 answers on</span>
 <span class="p">$ </span>multiversectl universe urls 1
-<span class="c"># check the host, the workspace and universe 1</span>
+<span class="c"># check the host, the project and universe 1</span>
 <span class="p">$ </span>multiversectl universe doctor 1
 <span class="c"># stop and delete universe 1 (asks first)</span>
 <span class="p">$ </span>multiversectl universe rm 1</pre></div>

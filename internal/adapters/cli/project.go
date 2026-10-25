@@ -18,15 +18,18 @@ func (r runner) projectCmd() *cobra.Command {
 		Use:     "project",
 		Aliases: []string{"p"},
 		Short:   "List, start and add projects: the repositories that say what a project is made of",
-		Long: "A project is one repository that is both its index and its own workspace\n" +
-			"definition, so anyone can join it with `catalog install owner/repo`. `list` shows\n" +
-			"the projects in your catalog and which are installed here, `init` starts a new one,\n" +
-			"and `add` puts an existing one in your catalog.",
+		Long: "A project is a set of repositories that run together, described by a\n" +
+			"multiverse.yaml. A project repository holds that file and a catalog.yaml listing\n" +
+			"it, so anyone can join with `project install owner/repo`. `list` shows the\n" +
+			"projects in your catalog and which are installed here, `init` starts a new one,\n" +
+			"`add` puts an existing one in your catalog, and `install`, `use`, `update`,\n" +
+			"`status` and `uninstall` look after what is on this machine.",
 		Example: "  multiversectl project list\n  multiversectl p init\n  multiversectl p add acme/multiverse",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.projectListCmd(), r.projectInitCmd(), r.projectAddCmd())
+	cmd.AddCommand(r.projectListCmd(), r.projectInitCmd(), r.projectAddCmd(),
+		r.installCmd(), r.uninstallCmd(), r.useCmd(), r.statusCmd(), r.updateCmd())
 	return cmd
 }
 
@@ -100,7 +103,7 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 	if list, err := bare.Workspaces(); err == nil {
 		for _, w := range list {
 			if w.Name == res.Name {
-				r.out.Info("a workspace named `%s` is already installed (`%s`); to follow the new repository instead: `multiversectl catalog uninstall %s`, then `multiversectl catalog install %s`",
+				r.out.Info("a project named `%s` is already installed (`%s`); to follow the new repository instead: `multiversectl project uninstall %s`, then `multiversectl project install %s`",
 					res.Name, firstNonEmpty(w.From, w.Manifest), res.Name, installSource(res))
 				return nil
 			}
@@ -123,7 +126,7 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 		}
 	}
 	if !ok {
-		hint := "multiversectl catalog install " + src
+		hint := "multiversectl project install " + src
 		if res.Root != "" {
 			hint += " --root " + res.Root
 		}
@@ -171,7 +174,7 @@ func (r runner) projectListCmd() *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List the projects in your catalog, and which are installed here",
-		Long: "Every workspace in your root catalog, with the repository it lives in, the name\n" +
+		Long: "Every project in your root catalog, with the repository it lives in, the name\n" +
 			"it is installed under on this machine and whether it has drifted. Projects\n" +
 			"installed here from outside the catalog are listed too. It reads what was last\n" +
 			"fetched unless --fetch.",

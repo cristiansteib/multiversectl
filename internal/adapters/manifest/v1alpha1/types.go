@@ -1,5 +1,5 @@
 // Package v1alpha1 is the manifest's file format. These types are the single
-// source of truth for it: schema/workspace.v1alpha1.yaml is generated from the
+// source of truth for it: schema/project.v1alpha1.yaml is generated from the
 // doc comments and +markers below by `make schema`.
 //
 // Markers: +default=, +pattern=, +enum=a;b, +min=, +max=, +minItems=,
@@ -10,15 +10,19 @@ import "gopkg.in/yaml.v3"
 
 const (
 	APIVersion = "multiverse/v1alpha1"
-	Kind       = "Workspace"
+	Kind       = "Project"
+	// LegacyKind is what a project's file said before it was called one; it is
+	// still read, and never written.
+	LegacyKind = "Workspace"
 )
 
-// Workspace is one project that can exist several times on a machine. Each copy
-// is a universe: a git worktree of every repository here, one container runtime
-// project per app, and hostnames of the form <host>-<universe>.<domain> served
-// through one shared reverse proxy. A universe is numbered, and then its part
-// of a hostname is u3, or named after a branch, and then it is fix-login.
-type Workspace struct {
+// Project is a set of repositories that run together, and that can exist several
+// times on a machine. Each copy is a universe: a git worktree of every
+// repository here, one compose project per app, and hostnames of the form
+// <host>-<universe>.<domain> served through one shared reverse proxy. A universe
+// is numbered, and then its part of a hostname is u3, or named after a branch,
+// and then it is fix-login.
+type Project struct {
 	TypeMeta `yaml:",inline"`
 
 	// +required
@@ -34,13 +38,13 @@ type TypeMeta struct {
 	// +required
 	APIVersion string `yaml:"apiVersion"`
 
-	// +enum=Workspace
+	// +enum=Project
 	// +required
 	Kind string `yaml:"kind"`
 }
 
 type ObjectMeta struct {
-	// Names the workspace and prefixes every runtime project, so a universe's
+	// Names the project and prefixes every compose project, so a universe's
 	// containers are <name>-<universe>-<app>-*, e.g. acme-u3-api-web-1.
 	// +pattern=^[a-z][a-z0-9-]*$
 	// +required
@@ -154,7 +158,7 @@ type Repo struct {
 }
 
 type App struct {
-	// Also the runtime project suffix, so each app's containers are namespaced
+	// Also the compose project suffix, so each app's containers are namespaced
 	// separately and two repositories may both call a service "app".
 	// +pattern=^[a-z][a-z0-9-]*$
 	// +required

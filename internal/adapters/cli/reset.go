@@ -10,11 +10,11 @@ func (r runner) resetCmd() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "reset",
-		Short: "Forget this machine's root catalog and installed workspaces, to start again",
+		Short: "Forget this machine's root catalog and installed projects, to start again",
 		Long: "Clears what multiversectl remembers: the root catalog and every installed\n" +
-			"workspace. It deletes no file, no checkout and no universe, so what is on disk\n" +
+			"project. It deletes no file, no checkout and no universe, so what is on disk\n" +
 			"stays, unmanaged, and can be installed again (install reuses checkouts with\n" +
-			"--root). Use it to switch to another root: init refuses to while workspaces\n" +
+			"--root). Use it to switch to another root: init refuses to while projects\n" +
 			"installed from the old one exist. Remove universes first with\n" +
 			"`multiversectl universe prune` if you want them gone.",
 		Example: "  multiversectl reset\n  multiversectl reset --yes",
@@ -33,7 +33,7 @@ func (r runner) resetCmd() *cobra.Command {
 	return cmd
 }
 
-// warnUniverses says which installed workspaces still have universes, since
+// warnUniverses says which installed projects still have universes, since
 // resetting leaves them on disk with nothing managing them.
 func (r runner) warnUniverses(cmd *cobra.Command) {
 	bare, err := r.f.Bare(*r.g, r.out)

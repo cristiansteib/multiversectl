@@ -84,7 +84,7 @@ const ICONS = {
   file: { d: 'M1.5 3A1.5 1.5 0 0 1 3 1.5h3.1c.4 0 .78.16 1.06.44L8.2 3H13A1.5 1.5 0 0 1 14.5 4.5v7A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5z' },
   root: { d: 'M8 1.2l2.1 4.4 4.8.7-3.5 3.4.8 4.8L8 12.2l-4.2 2.3.8-4.8L1.1 6.3l4.8-.7z' },
   catalog: { d: 'M2 3.5h12v1.6H2zM2 7.2h12v1.6H2zM2 10.9h8v1.6H2z' },
-  workspace: { d: 'M8 1.5l5.5 3v7L8 14.5l-5.5-3v-7zM2.5 4.5L8 7.5l5.5-3M8 7.5v7', stroke: true },
+  project: { d: 'M8 1.5l5.5 3v7L8 14.5l-5.5-3v-7zM2.5 4.5L8 7.5l5.5-3M8 7.5v7', stroke: true },
 };
 
 function svg(name, cls) {
@@ -179,25 +179,25 @@ function overview(st, rootLoc, sources) {
     if (root.noRemote) rootCard.append(h('p', null, badge('warn', 'local only'), ' Lost with this machine, and nobody else can use it.'));
     rootCard.append(h('p', null, h('a', { href: '#/catalog' }, 'Browse the tree →')));
   }
-  const ws = st.workspaces || [];
+  const ws = st.projects || [];
   const stale = ws.filter((w) => w.stale).length;
   out.push(h('div', { class: 'cards' },
     rootCard,
     h('div', { class: 'card' }, h('h3', null, 'Installed'), h('div', { class: 'big' }, ws.length),
-      h('div', { class: 'muted' }, ws.length === 1 ? 'workspace' : 'workspaces')),
+      h('div', { class: 'muted' }, ws.length === 1 ? 'project' : 'projects')),
     h('div', { class: 'card' }, h('h3', null, 'Drift'), h('div', { class: 'big' }, stale),
       h('div', { class: 'muted' }, stale ? 'need an update' : 'all up to date'))));
 
-  out.push(h('h2', null, 'Workspaces'));
+  out.push(h('h2', null, 'Projects'));
   if (!ws.length) {
-    out.push(empty('Nothing installed yet.', h('br'), cmd('multiversectl catalog install <owner/repo>')));
+    out.push(empty('Nothing installed yet.', h('br'), cmd('multiversectl project install <owner/repo>')));
     return out;
   }
   out.push(h('div', { class: 'scroll' }, h('table', null,
-    h('thead', null, h('tr', null, ['Workspace', 'Catalog path', 'Source', 'State', 'Root', ''].map((t) => h('th', null, t)))),
+    h('thead', null, h('tr', null, ['Project', 'Catalog path', 'Source', 'State', 'Root', ''].map((t) => h('th', null, t)))),
     h('tbody', null, ws.map((w) => h('tr', null,
-      h('td', null, w.current ? h('span', { title: 'current workspace' }, '★ ') : '',
-        h('a', { href: '#/workspace/' + encodeURIComponent(w.name) }, w.name)),
+      h('td', null, w.current ? h('span', { title: 'current project' }, '★ ') : '',
+        h('a', { href: '#/project/' + encodeURIComponent(w.name) }, w.name)),
       h('td', { class: 'mono' }, w.from || '—'),
       h('td', null, place(sources[w.name]) || h('span', { class: 'muted' }, '—')),
       h('td', null, w.notes && w.notes.length
@@ -247,9 +247,9 @@ views.catalog = {
         n.unavailable ? badge('bad', '✗ ' + n.unavailable) : null,
         n.installedAs ? badge('ok', '✓ installed as ' + n.installedAs) : null,
       ];
-      if (n.kind === 'workspace') {
+      if (n.kind === 'project') {
         return h('li', { class: 'leaf' }, h('div', { class: 'node ws' }, label,
-          n.installedAs ? null : copyable('multiversectl catalog install ' + n.path, 'install')));
+          n.installedAs ? null : copyable('multiversectl project install ' + n.path, 'install')));
       }
       const kids = (n.children || []).map(item).filter(Boolean);
       const d = h('details', { ontoggle: (e) => { e.target.open ? open.add(n.path) : open.delete(n.path); } },
@@ -271,7 +271,7 @@ views.catalog = {
       if (btn) btn.disabled = true;
       try {
         data = await api('catalog' + (fetch ? '?fetch=1' : ''));
-        // Open the tree the first time, so the workspaces are in view; a large
+        // Open the tree the first time, so the projects are in view; a large
         // catalog stays closed, and the filter opens what it finds.
         if (first) { first = false; const count = (n) => 1 + (n.children || []).reduce((a, c) => a + count(c), 0); if (count(data.root) <= 150) all(true)(); }
         draw(); if (fetch) toast('Fetched');
@@ -290,7 +290,7 @@ function universeCard(w, u) {
   const busy = isBusy(w.name);
   const act = (action, label, kind) => h('button', { type: 'button', class: 'btn small ' + (kind || ''), disabled: busy,
     title: busy ? 'Another operation is running in ' + w.name : null,
-    onclick: () => run({ action, workspace: w.name, universe: u.name }) }, label);
+    onclick: () => run({ action, project: w.name, universe: u.name }) }, label);
   const actions = state.readOnly ? null : h('div', { class: 'actions' },
     u.running < total || !u.running ? act('up', 'Start', 'primary') : null,
     u.running ? act('down', 'Stop') : null,
@@ -324,12 +324,12 @@ function universeCard(w, u) {
 // whenever something changes and a result should not vanish with it.
 const doctorResults = new Map();
 
-async function runDoctor(into, workspace, universe, btn) {
+async function runDoctor(into, project, universe, btn) {
   btn.disabled = true;
-  const key = workspace + '/' + universe;
+  const key = project + '/' + universe;
   into.replaceChildren(h('p', { class: 'muted' }, 'Checking…'));
   try {
-    const q = 'doctor?workspace=' + encodeURIComponent(workspace) + (universe ? '&universe=' + encodeURIComponent(universe) : '');
+    const q = 'doctor?project=' + encodeURIComponent(project) + (universe ? '&universe=' + encodeURIComponent(universe) : '');
     const rep = await api(q);
     const kind = { ok: 'ok', warn: 'warn', fail: 'bad' };
     const result = h('div', { class: 'panel' },
@@ -353,22 +353,22 @@ views.fleet = {
       oninput: (e) => { filter = e.target.value.trim().toLowerCase(); draw(); },
     });
     host.append(h('h1', null, 'Fleet'),
-      h('p', { class: 'lede' }, 'Every universe of every installed workspace, and what is running in it.'),
+      h('p', { class: 'lede' }, 'Every universe of every installed project, and what is running in it.'),
       h('div', { class: 'bar' }, search), body);
     const wanted = (u) => !filter || [u.name, u.note, ...Object.values(u.branches || {})].some((s) => (s || '').toLowerCase().includes(filter));
 
     function draw() {
       if (!data) return;
       if (data.error) { body.replaceChildren(errorBox(data.error)); return; }
-      if (!data.workspaces.length) {
-        body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl catalog install <owner/repo>')));
+      if (!data.projects.length) {
+        body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl project install <owner/repo>')));
         return;
       }
-      body.replaceChildren(...data.workspaces.map((w) => {
+      body.replaceChildren(...data.projects.map((w) => {
         const list = w.universes.filter(wanted);
         const panel = h('div');
         return h('section', null,
-          h('div', { class: 'ws-head' }, h('h2', null, h('a', { href: '#/workspace/' + encodeURIComponent(w.name) }, w.name)),
+          h('div', { class: 'ws-head' }, h('h2', null, h('a', { href: '#/project/' + encodeURIComponent(w.name) }, w.name)),
             w.current ? badge('info', 'current') : null,
             h('span', { class: 'muted' }, w.universes.length + (w.universes.length === 1 ? ' universe' : ' universes')),
             h('span', { class: 'grow' }),
@@ -378,7 +378,7 @@ views.fleet = {
           w.error ? errorBox(w.error) : null,
           (w.warnings || []).map((x) => h('p', { class: 'muted' }, badge('warn', 'warning'), ' ', x)),
           list.length ? h('div', { class: 'universes' }, list.map((u) => universeCard(w, u)))
-            : (!w.error && h('div', { class: 'empty' }, w.universes.length ? 'No universe matches.' : ['No universes yet. ', cmd('multiversectl -w ' + w.name + ' universe new 1')])));
+            : (!w.error && h('div', { class: 'empty' }, w.universes.length ? 'No universe matches.' : ['No universes yet. ', cmd('multiversectl -p ' + w.name + ' universe new 1')])));
       }));
     }
     return {
@@ -394,8 +394,8 @@ views.fleet = {
   },
 };
 
-views.workspace = {
-  title: 'Workspace',
+views.project = {
+  title: 'Project',
   mount(host, name) {
     const body = h('div');
     host.append(h('p', null, h('a', { href: '#/' }, '← Overview')), h('h1', null, name), body);
@@ -407,7 +407,7 @@ views.workspace = {
       async refresh() {
         try {
           loaded = true;
-          const w = await api('workspaces/' + encodeURIComponent(name));
+          const w = await api('projects/' + encodeURIComponent(name));
           body.replaceChildren(
             h('p', { class: 'lede' }, w.current ? badge('info', 'current') : null, ' ', copyable(w.root)),
             state.readOnly ? null : h('div', { class: 'bar' }, wsActions({ name: w.name, current: w.current, universes: [] }, { create: true, update: true, use: !w.current })),
@@ -441,7 +441,7 @@ views.workspace = {
 // server runs it in the background and sends its output as it happens; the
 // dock at the bottom is where that is read.
 
-const isBusy = (workspace) => state.ops.some((o) => o.workspace === workspace && o.state === 'running');
+const isBusy = (project) => state.ops.some((o) => o.project === project && o.state === 'running');
 
 // run starts an action and opens the dock on it. An error comes back to the
 // caller, which is a dialog that can say it where the person is looking.
@@ -458,7 +458,7 @@ async function runSafely(request) {
   try { await run(request); } catch (e) { toast(e.message); }
 }
 
-// The buttons that act on a whole workspace. A workspace row may not know its
+// The buttons that act on a whole project. A project row may not know its
 // universes, so the caller can pass the fleet entry that does.
 function wsActions(w, want, fleetEntry) {
   if (state.readOnly) return null;
@@ -466,8 +466,8 @@ function wsActions(w, want, fleetEntry) {
   const tip = busy ? 'Another operation is running in ' + w.name : null;
   return h('span', { class: 'actions' },
     want.create ? h('button', { type: 'button', class: 'btn small primary', disabled: busy, title: tip, onclick: () => newDialog(w) }, 'New universe') : null,
-    want.update ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Fetch the manifest and clone what it newly lists', onclick: () => runSafely({ action: 'update', workspace: w.name }) }, 'Update') : null,
-    want.use ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Make it the workspace commands act on by default', onclick: () => runSafely({ action: 'use', workspace: w.name }) }, 'Make current') : null);
+    want.update ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Fetch the manifest and clone what it newly lists', onclick: () => runSafely({ action: 'update', project: w.name }) }, 'Update') : null,
+    want.use ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Make it the project commands act on by default', onclick: () => runSafely({ action: 'use', project: w.name }) }, 'Make current') : null);
 }
 
 // modal shows a dialog with a form. submit may throw, and what it says is shown
@@ -507,7 +507,7 @@ function removeDialog(w, u) {
     ],
     async submit(c) {
       try {
-        await run({ action: 'rm', workspace: w.name, universe: u.name, confirm: input.value, force });
+        await run({ action: 'rm', project: w.name, universe: u.name, confirm: input.value, force });
       } catch (e) {
         // Uncommitted work is never discarded by accident: the server refuses,
         // says where it is, and only a second, deliberate press removes it.
@@ -571,21 +571,21 @@ function newDialog(w) {
     ],
     async submit() {
       if (mode === 'new') {
-        await run({ action: 'new', workspace: w.name, name: name.value.trim(), base: base.value.trim(), branch: newBranch.value.trim(), note: note.value.trim() });
+        await run({ action: 'new', project: w.name, name: name.value.trim(), base: base.value.trim(), branch: newBranch.value.trim(), note: note.value.trim() });
       } else {
-        await run({ action: 'checkout', workspace: w.name, branch: pick.value.trim(), name: pickName.value.trim(), onlyExisting: only.checked, note: note.value.trim() });
+        await run({ action: 'checkout', project: w.name, branch: pick.value.trim(), name: pickName.value.trim(), onlyExisting: only.checked, note: note.value.trim() });
       }
     },
   });
 
   // What the server knows that a form cannot: the number that is free (not just
   // one no universe has) and the branches there are.
-  api('next?workspace=' + encodeURIComponent(w.name)).then((n) => {
+  api('next?project=' + encodeURIComponent(w.name)).then((n) => {
     if (!name.value) name.value = String(n.number);
     if (n.skipped && n.skipped.length) skipped.textContent = 'Skipped ' + n.skipped.join('; ') + '.';
     ctl.refresh();
   }).catch(() => {});
-  api('branches?workspace=' + encodeURIComponent(w.name)).then((r) => {
+  api('branches?project=' + encodeURIComponent(w.name)).then((r) => {
     branches = r.branches || [];
     list.replaceChildren(...branches.map((b) => h('option', { value: b.name }, b.repos.join(', '))));
     hint();
@@ -772,7 +772,7 @@ function route() {
   const key = page === '' ? 'overview' : page;
   const view = views[key] || views.overview;
   document.querySelectorAll('.rail a').forEach((a) => {
-    if (a.dataset.route === (key === 'workspace' ? 'overview' : key)) a.setAttribute('aria-current', 'page');
+    if (a.dataset.route === (key === 'project' ? 'overview' : key)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
   main.replaceChildren();
@@ -796,7 +796,7 @@ function schedule() {
   clearInterval(timer);
   if (state.connected) return;
   timer = setInterval(() => {
-    if (!document.hidden && /^#\/(fleet|workspace\/.*)?$|^$/.test(location.hash)) refresh();
+    if (!document.hidden && /^#\/(fleet|project\/.*)?$|^$/.test(location.hash)) refresh();
   }, REFRESH_MS);
 }
 

@@ -29,19 +29,19 @@ type target struct {
 }
 
 var targets = map[string]target{
-	"Workspace":   {kind: "Workspace", plural: "workspaces", pkg: "manifest", footer: labelsFooter},
+	"Project":     {kind: "Project", plural: "projects", pkg: "manifest", footer: labelsFooter},
 	"Catalog":     {kind: "Catalog", plural: "catalogs", pkg: "catalog"},
 	"CatalogRoot": {kind: "CatalogRoot", plural: "catalogroots", pkg: "catalog"},
 }
 
 func main() {
-	args, kindName := os.Args[1:], "Workspace"
+	args, kindName := os.Args[1:], "Project"
 	if len(args) >= 2 && args[0] == "-kind" {
 		kindName, args = args[1], args[2:]
 	}
 	t, ok := targets[kindName]
 	if !ok || len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: schemagen [-kind Workspace|Catalog|CatalogRoot] <types.go> [more.go...]")
+		fmt.Fprintln(os.Stderr, "usage: schemagen [-kind Project|Catalog|CatalogRoot] <types.go> [more.go...]")
 		os.Exit(2)
 	}
 	structs, err := parse(args)
@@ -407,7 +407,7 @@ const labelsFooter = `
 #
 #   UNIVERSE, UNIVERSE_SLUG, UNIVERSE_DIR   its name, the part hostnames carry, its path
 #   MULTIVERSE_DOMAIN                       the wildcard domain in use
-#   COMPOSE_PROJECT_NAME                    the app's runtime project
+#   COMPOSE_PROJECT_NAME                    the app's compose project
 #   <HOST>_HOST                             one per host key, e.g. APP_HOST
 #   <HOST>_URL                              the same with scheme and port
 #   MULTIVERSE_HOSTS                        every hostname, comma separated

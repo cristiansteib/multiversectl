@@ -15,11 +15,11 @@ import (
 )
 
 // Backend is what the server reads. It is read-only by construction: there is
-// no method here that changes a catalog, a workspace or a universe.
+// no method here that changes a catalog, a project or a universe.
 type Backend interface {
 	Status(ctx context.Context, fetch bool) (app.StatusReport, error)
 	Catalog(ctx context.Context, fetch bool) (catalogView, error)
-	// Fleet lists the universes of one installed workspace, or of all.
+	// Fleet lists the universes of one installed project, or of all.
 	Fleet(ctx context.Context, workspace string) (fleetView, error)
 	Workspace(ctx context.Context, name string) (workspaceView, error)
 	Doctor(ctx context.Context, workspace, universe string) (doctorView, error)
@@ -31,7 +31,7 @@ type Backend interface {
 	// NextFree is the number a new universe would get, and the numbers passed
 	// over because a branch of that name is left behind.
 	NextFree(ctx context.Context, workspace string) (nextView, error)
-	// Branches lists the branches across a workspace's repositories.
+	// Branches lists the branches across a project's repositories.
 	Branches(ctx context.Context, workspace string) ([]branchView, error)
 	// Do carries out an action, reporting to the sink as it goes.
 	Do(ctx context.Context, r opRequest, k Sink) error
@@ -50,8 +50,8 @@ type Services struct {
 	Catalogs *app.Catalogs
 	// mu keeps two requests from cloning the same catalog repository at once.
 	mu      *sync.Mutex
-	Machine *app.Service // knows the installed workspaces
-	// At builds a service for one workspace. The output is where it warns, which
+	Machine *app.Service // knows the installed projects
+	// At builds a service for one project. The output is where it warns, which
 	// a page cannot show, so the server collects it per request; stdout and
 	// stderr are where the commands it runs print, nil to drop them.
 	At func(out app.Output, stdout, stderr io.Writer, root, manifest string) (*app.Service, error)
@@ -104,7 +104,7 @@ func (s Services) infos(workspace string) ([]app.WorkspaceInfo, error) {
 	return s.Machine.Workspaces()
 }
 
-// Fleet asks every workspace at once: each asks the container runtime about
+// Fleet asks every project at once: each asks the container runtime about
 // each of its universes, and the page would otherwise wait on them in turn.
 func (s Services) Fleet(ctx context.Context, workspace string) (fleetView, error) {
 	list, err := s.infos(workspace)
@@ -298,7 +298,7 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 		if err := s.Machine.Use(r.Workspace); err != nil {
 			return err
 		}
-		k.OK("%s is now the current workspace", r.Workspace)
+		k.OK("%s is now the current project", r.Workspace)
 		return nil
 	}
 	w, err := s.Machine.WorkspaceNamed(r.Workspace)
@@ -336,7 +336,7 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 	return fmt.Errorf("unknown action %q", r.Action)
 }
 
-// update is what `catalog update` does for one workspace.
+// update is what `catalog update` does for one project.
 func (s Services) update(ctx context.Context, w app.WorkspaceInfo, svc *app.Service, k Sink) error {
 	res, err := s.Catalogs.RefreshWorkspace(ctx, w.Name, w.WorkspaceEntry)
 	if err != nil {

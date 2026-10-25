@@ -172,7 +172,7 @@ func TestInstallNameAndRootNameOneWorkspace(t *testing.T) {
 	data := wsRef(t, e, wsRef(t, e, e.Scaffold("me"), "a", "git@example.test:acme/a.git", ""), "b", "git@example.test:acme/b.git", "")
 	write(t, r.root, "catalog.yaml", string(data))
 	if _, err := r.PlanInstall(context.Background(), []string{"a", "b"}, app.InstallOptions{Base: "/ws", Name: "x"}); err == nil {
-		t.Error("--name with two workspaces must be refused")
+		t.Error("--name with two projects must be refused")
 	}
 	if got := plan(t, r, []string{"a"}, app.InstallOptions{Name: "mine"}); got[0].Name != "mine" || got[0].Root != "/ws/mine" {
 		t.Errorf("%+v", got)

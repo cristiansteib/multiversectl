@@ -20,7 +20,7 @@ const maxCatalogDepth = 8
 const defaultCatalogFile = "catalog.yaml"
 
 // CatalogDeps are the ports the catalog service needs. It is deliberately not
-// part of Service: browsing what exists never touches a workspace or a
+// part of Service: browsing what exists never touches a project or a
 // universe, and the two should not be able to reach into each other.
 type CatalogDeps struct {
 	Git       Git
@@ -212,7 +212,7 @@ func (r *resolver) locate(from location, s domain.Source) (location, error) {
 	return location{repo: s.Repo, ref: s.Ref, dir: dir, file: rel}, nil
 }
 
-// absolute fills in what a workspace ref left implicit. In a local catalog
+// absolute fills in what a project ref left implicit. In a local catalog
 // there is no repository, so the path becomes the absolute manifest file.
 func (r *resolver) absolute(from location, s domain.Source) domain.Source {
 	if s.Repo == "" {
@@ -309,7 +309,7 @@ func reason(err error, repo string) string {
 	return strings.TrimSpace(lines[0])
 }
 
-// InstalledIn maps the catalog paths of a tree's workspaces to the names they
+// InstalledIn maps the catalog paths of a tree's projects to the names they
 // are installed under here, by the path they were installed from or, failing
 // that, by the source they came from, so one installed straight from its
 // repository is still marked once the catalog lists it.

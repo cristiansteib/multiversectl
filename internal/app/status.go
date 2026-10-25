@@ -22,7 +22,7 @@ type RootStatus struct {
 	Legacy bool `json:"legacy,omitempty"`
 }
 
-// WorkspaceStatus is one installed workspace and how far it has drifted from
+// WorkspaceStatus is one installed project and how far it has drifted from
 // where it came from.
 type WorkspaceStatus struct {
 	Name    string `json:"name"`
@@ -40,14 +40,14 @@ type WorkspaceStatus struct {
 // StatusReport is what `status` shows.
 type StatusReport struct {
 	Root       RootStatus        `json:"root"`
-	Workspaces []WorkspaceStatus `json:"workspaces"`
+	Workspaces []WorkspaceStatus `json:"projects"`
 	Next       string            `json:"next,omitempty"`
 }
 
 // manifestClone is where install keeps a git-hosted manifest.
 func manifestClone(root string) string { return filepath.Join(root, ".multiverse", "workspace") }
 
-// Status reads the root catalog and every installed workspace and says where
+// Status reads the root catalog and every installed project and says where
 // each has drifted: a manifest behind its remote, repositories its manifest
 // lists that are not cloned, an entry the catalog dropped or repointed. Without
 // fetch it compares with what was last fetched, so it is quick and offline.
@@ -97,11 +97,11 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 
 	switch {
 	case len(stale) > 0:
-		rep.Next = "multiversectl catalog update " + strings.Join(stale, " ")
+		rep.Next = "multiversectl project update " + strings.Join(stale, " ")
 	case len(rep.Workspaces) == 0 && cfg.Catalog == "":
-		rep.Next = "multiversectl catalog install <owner/repo>  ·  multiversectl init"
+		rep.Next = "multiversectl project install <owner/repo>  ·  multiversectl init"
 	case len(rep.Workspaces) == 0:
-		rep.Next = "multiversectl catalog  ·  multiversectl catalog install <path>"
+		rep.Next = "multiversectl catalog list  ·  multiversectl project install <path>"
 	}
 	return rep, nil
 }
@@ -158,12 +158,12 @@ func missingRepos(files Files, m *domain.Manifest, root string) []string {
 	return out
 }
 
-// MissingRepos is what an update has to clone for a workspace.
+// MissingRepos is what an update has to clone for a project.
 func (c *Catalogs) MissingRepos(m *domain.Manifest, root string) []string {
 	return missingRepos(c.Files, m, root)
 }
 
-// UpdateResult is what refreshing one workspace's manifest did.
+// UpdateResult is what refreshing one project's manifest did.
 type UpdateResult struct {
 	Name    string
 	Changed bool
@@ -171,9 +171,9 @@ type UpdateResult struct {
 	Skipped string
 }
 
-// RefreshWorkspace brings a workspace's manifest up to date with where it was
+// RefreshWorkspace brings a project's manifest up to date with where it was
 // installed from. Cloning the repositories it newly lists is the caller's, which
-// holds a Service for the workspace.
+// holds a Service for the project.
 func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e WorkspaceEntry) (UpdateResult, error) {
 	res := UpdateResult{Name: name}
 	dir := manifestClone(e.Root)
@@ -182,7 +182,7 @@ func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e Workspac
 		return res, nil
 	}
 	if clean, err := c.Git.IsClean(ctx, dir); err != nil || !clean {
-		return res, fmt.Errorf("%s: local changes in `%s`; commit or stash them, then `multiversectl catalog update %s`", name, dir, name)
+		return res, fmt.Errorf("%s: local changes in `%s`; commit or stash them, then `multiversectl project update %s`", name, dir, name)
 	}
 	if err := c.Git.Fetch(ctx, dir); err != nil {
 		return res, fmt.Errorf("%s: fetch %s: %s", name, shortRepo(e.Source.Repo), reason(err, e.Source.Repo))

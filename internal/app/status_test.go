@@ -11,8 +11,8 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// installedRig has one workspace installed from a repository, its manifest
-// cloned under the workspace root and listing two repositories, one cloned.
+// installedRig has one project installed from a repository, its manifest
+// cloned under the project root and listing two repositories, one cloned.
 func installedRig(t *testing.T) (*rig, string) {
 	t.Helper()
 	git := &fakeRepos{}
@@ -49,7 +49,7 @@ func TestStatusSaysWhereAWorkspaceHasDrifted(t *testing.T) {
 	if !w.Stale || !w.Current || !strings.Contains(notes, "manifest behind 2 (as of the last fetch)") || !strings.Contains(notes, "billing-api not cloned") {
 		t.Errorf("%+v", w)
 	}
-	if rep.Next != "multiversectl catalog update acme" {
+	if rep.Next != "multiversectl project update acme" {
 		t.Errorf("next = %q", rep.Next)
 	}
 	if len(r.git.fetched) != 0 {
@@ -96,7 +96,7 @@ func TestStatusOnAFreshMachineSaysHowToBegin(t *testing.T) {
 	r := newRig(t, &fakeRepos{})
 	r.cfg.c = app.Config{}
 	rep, _ := r.Status(context.Background(), false)
-	if !strings.Contains(rep.Next, "multiversectl catalog install <owner/repo>") || !strings.Contains(rep.Next, "multiversectl init") {
+	if !strings.Contains(rep.Next, "multiversectl project install <owner/repo>") || !strings.Contains(rep.Next, "multiversectl init") {
 		t.Errorf("next = %q", rep.Next)
 	}
 }
@@ -118,6 +118,6 @@ func TestRefreshMovesTheManifestForwardAndOnlyThen(t *testing.T) {
 	file := r.cfg.c.Workspaces["acme"]
 	file.Source = app.Origin{}
 	if res, _ := r.RefreshWorkspace(context.Background(), "acme", file); res.Skipped == "" {
-		t.Error("a workspace installed from a file has nothing to update from")
+		t.Error("a project installed from a file has nothing to update from")
 	}
 }

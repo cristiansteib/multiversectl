@@ -18,13 +18,13 @@ groups:
       - path: start/quickstart
         title: Quick start
         summary: >-
-          Describe a workspace, create a universe and open it — from nothing to
+          Describe a project, create a universe and open it — from nothing to
           two running copies of a project.
       - path: start/concepts
         title: Concepts at a glance
         nav: Concepts at a glance
         summary: >-
-          The five words this documentation uses — workspace, universe, app,
+          The five words this documentation uses — project, universe, app,
           host and entrypoint — and how they fit together.
   - title: Concepts
     pages:
@@ -56,7 +56,7 @@ groups:
       - path: concepts/catalogs
         title: Catalogs
         summary: >-
-          An index of workspaces and of other indexes, kept in git, that says
+          An index of projects and of other indexes, kept in git, that says
           what exists and leaves what is installed to each machine.
   - title: Tasks
     pages:
@@ -78,12 +78,12 @@ groups:
       - path: tasks/catalog
         title: Manage many projects from one index
         summary: >-
-          Set up a root catalog, nest another one under it, list workspaces in
+          Set up a root catalog, nest another one under it, list projects in
           it, and install only the ones this machine needs.
       - path: tasks/server
         title: Explore and run it in a browser
         summary: >-
-          A live web view of the catalog, the workspaces and the fleet of
+          A live web view of the catalog, the projects and the fleet of
           universes, with versions and buttons to start, stop, create and
           remove universes, behind a token.
   - title: Reference
@@ -93,7 +93,7 @@ groups:
         summary: Every command, what it does and the arguments it takes.
       - path: reference/manifest
         title: Manifest
-        summary: Every field of a workspace manifest, with its default.
+        summary: Every field of a project manifest, with its default.
       - path: reference/variables
         title: Variables and labels
         summary: >-

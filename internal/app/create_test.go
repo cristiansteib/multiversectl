@@ -55,7 +55,7 @@ func (noRuntime) Inspect(context.Context, app.RuntimeRequest) (app.ProjectConfig
 	return app.ProjectConfig{}, errors.New("no runtime in a test")
 }
 
-// bench is a workspace of two repositories (api and web), each a clone of its
+// bench is a project of two repositories (api and web), each a clone of its
 // own origin, with a Service over them.
 type bench struct {
 	t       *testing.T

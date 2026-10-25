@@ -17,7 +17,7 @@ spec:
       source: {repo: git@example.test:acme/index.git, ref: main}
     - name: personal
       source: {path: catalogs/personal.yaml}
-  workspaces:
+  projects:
     - name: billing
       source: {repo: git@example.test:me/billing.git}
 `
@@ -30,7 +30,7 @@ func TestDecode(t *testing.T) {
 	}{
 		{name: "valid", yaml: valid},
 		{name: "empty spec", yaml: "apiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata: {name: me}\n"},
-		{name: "workspace file", yaml: strings.Replace(valid, "Catalog", "Workspace", 1), wantErr: `unsupported kind "Workspace"`},
+		{name: "project file", yaml: strings.Replace(valid, "Catalog", "Project", 1), wantErr: `unsupported kind "Project"`},
 		{name: "version", yaml: strings.Replace(valid, "v1alpha1", "v9", 1), wantErr: "unsupported apiVersion"},
 		{name: "unknown field", yaml: strings.Replace(valid, "ref:", "rev:", 1), wantErr: "field rev not found"},
 		{name: "bad name", yaml: strings.Replace(valid, "name: acme", "name: Acme", 1), wantErr: `name "Acme" must match`},
@@ -61,7 +61,7 @@ func TestDecodeDefaultsPaths(t *testing.T) {
 		t.Errorf("catalog path = %q", got)
 	}
 	if got := c.Workspaces[0].Source.Path; got != DefaultWorkspacePath {
-		t.Errorf("workspace path = %q", got)
+		t.Errorf("project path = %q", got)
 	}
 }
 
@@ -125,12 +125,12 @@ func TestEditorRefusesDuplicatesAndRemoves(t *testing.T) {
 }
 
 func TestWorkspaceName(t *testing.T) {
-	name, err := Editor{}.WorkspaceName([]byte("apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: acme\n"))
+	name, err := Editor{}.WorkspaceName([]byte("apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: acme\n"))
 	if err != nil || name != "acme" {
 		t.Fatalf("name=%q err=%v", name, err)
 	}
 	if _, err := (Editor{}).WorkspaceName([]byte(valid)); err == nil {
-		t.Error("a Catalog is not a workspace manifest")
+		t.Error("a Catalog is not a project manifest")
 	}
 }
 
@@ -143,7 +143,7 @@ func domainCat(name, repo, ref, path string) domain.CatalogRef {
 }
 
 func TestACatalogRootDecodesAsACatalogThatIsTheRoot(t *testing.T) {
-	root, err := Decoder{}.Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: CatalogRoot\nmetadata:\n  name: me\nspec:\n  workspaces:\n    - name: acme\n      source: {}\n"))
+	root, err := Decoder{}.Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: CatalogRoot\nmetadata:\n  name: me\nspec:\n  projects:\n    - name: acme\n      source: {}\n"))
 	if err != nil || !root.Root || len(root.Workspaces) != 1 {
 		t.Fatalf("root %+v, err %v", root, err)
 	}
@@ -151,13 +151,13 @@ func TestACatalogRootDecodesAsACatalogThatIsTheRoot(t *testing.T) {
 	if err != nil || plain.Root {
 		t.Fatalf("a plain Catalog is not a root: %+v, %v", plain, err)
 	}
-	if _, err := (Decoder{}).Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: x\n")); err == nil || !strings.Contains(err.Error(), "CatalogRoot") {
+	if _, err := (Decoder{}).Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: x\n")); err == nil || !strings.Contains(err.Error(), "CatalogRoot") {
 		t.Errorf("the error for another kind should name both: %v", err)
 	}
 }
 
 func TestMarkRootChangesTheKindAndKeepsEverythingElse(t *testing.T) {
-	in := "# my index\napiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata:\n  name: me   # mine\nspec:\n  workspaces:\n    - name: acme\n      source: {}\n"
+	in := "# my index\napiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata:\n  name: me   # mine\nspec:\n  projects:\n    - name: acme\n      source: {}\n"
 	out, err := Editor{}.MarkRoot([]byte(in))
 	if err != nil {
 		t.Fatal(err)

@@ -92,8 +92,8 @@ tr:last-child td { border-bottom: 0; }
 .node .name { font-weight: 600; }
 .node .kind { font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; }
 .node .kind.root { color: var(--accent); border-color: var(--accent); }
-.node .kind.workspace { color: var(--info); }
-.ki { flex: none; color: var(--muted); } .ki.root { color: var(--accent); } .ki.catalog { color: var(--accent); } .ki.workspace { color: var(--info); }
+.node .kind.project { color: var(--info); }
+.ki { flex: none; color: var(--muted); } .ki.root { color: var(--accent); } .ki.catalog { color: var(--accent); } .ki.project { color: var(--info); }
 .place { display: inline-flex; align-items: center; gap: 4px; font: 12px var(--mono); color: var(--muted); flex-wrap: wrap; }
 .place .pi { flex: none; } .place .plat { font-weight: 700; color: var(--text); } .place .sep { margin: 0 -4px; }
 .place.gitlab .pi, .place.gitlab .plat { color: #e8590c; }

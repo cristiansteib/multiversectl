@@ -54,7 +54,7 @@ func TestDoctorSaysSoWhenWorkspacesDoNotClash(t *testing.T) {
 	if len(got) != 1 || got[0] != StatusOK {
 		t.Fatalf("got %v", got)
 	}
-	// A machine with a single workspace has nothing to compare, so says nothing.
+	// A machine with a single project has nothing to compare, so says nothing.
 	s.Config = fakeConfig{}
 	got = nil
 	s.checkWorkspaces(func(_ string, st Status, _ string, _ ...any) { got = append(got, st) })

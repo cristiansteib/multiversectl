@@ -10,16 +10,16 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// InstallOptions say where workspaces go and how to read the arguments.
+// InstallOptions say where projects go and how to read the arguments.
 type InstallOptions struct {
-	Base  string // directory workspaces go under, each in <Base>/<name>
-	Root  string // the exact directory, for a single workspace
-	Name  string // the name to record, for a single workspace
-	All   bool   // take every workspace a repository's catalog lists
+	Base  string // directory projects go under, each in <Base>/<name>
+	Root  string // the exact directory, for a single project
+	Name  string // the name to record, for a single project
+	All   bool   // take every project a repository's catalog lists
 	Fetch bool   // refresh catalogs first
 }
 
-// InstallTarget is one workspace to set up. Skip says why it is not.
+// InstallTarget is one project to set up. Skip says why it is not.
 type InstallTarget struct {
 	Name, Root     string
 	ManifestSource string // a git URL, or an absolute manifest file
@@ -31,9 +31,9 @@ type InstallTarget struct {
 	Skip           string
 }
 
-// PlanInstall turns what the user typed into workspaces to set up. Each
+// PlanInstall turns what the user typed into projects to set up. Each
 // argument is read in a fixed order and the way it was read is reported:
-//  1. a node in the root catalog (a workspace, or everything under a catalog);
+//  1. a node in the root catalog (a project, or everything under a catalog);
 //  2. a path on this machine: a manifest, a catalog, or a directory holding one;
 //  3. a git URL;
 //  4. owner/repo, meaning GitHub.
@@ -61,7 +61,7 @@ func (c *Catalogs) PlanInstall(ctx context.Context, args []string, o InstallOpti
 	var found []found
 	if len(args) == 0 {
 		if root == nil {
-			return nil, firstErr(rootErr, errors.New("no root catalog to pick from: `multiversectl catalog install <owner/repo | url | path>`, or `multiversectl init`"))
+			return nil, firstErr(rootErr, errors.New("no root catalog to pick from: `multiversectl project install <owner/repo | url | path>`, or `multiversectl init`"))
 		}
 		picked, err := c.pickLeaves(*root, cfg)
 		if err != nil {
@@ -79,7 +79,7 @@ func (c *Catalogs) PlanInstall(ctx context.Context, args []string, o InstallOpti
 
 	explicit := len(found)
 	if (o.Name != "" || o.Root != "") && explicit != 1 {
-		return nil, errors.New("--name and --root name one workspace; this installs several (give --base instead)")
+		return nil, errors.New("--name and --root name one project; this installs several (give --base instead)")
 	}
 
 	taken := map[string]bool{}
@@ -105,7 +105,7 @@ func (c *Catalogs) PlanInstall(ctx context.Context, args []string, o InstallOpti
 		seen[t.Origin] = true
 		name := firstOf(o.Name, pickName(f.leaf.Name, f.leaf.Path, taken))
 		if o.Name != "" && taken[name] {
-			return nil, fmt.Errorf("a workspace named %q is already installed; pick another --name", name)
+			return nil, fmt.Errorf("a project named %q is already installed; pick another --name", name)
 		}
 		if err := validWorkspaceName(name); err != nil {
 			return nil, err
@@ -118,7 +118,7 @@ func (c *Catalogs) PlanInstall(ctx context.Context, args []string, o InstallOpti
 	return out, nil
 }
 
-// found is a workspace an argument led to, with where it sits in the root
+// found is a project an argument led to, with where it sits in the root
 // catalog if it came from there.
 type found struct {
 	leaf domain.Node
@@ -128,7 +128,7 @@ type found struct {
 
 func originOf(s domain.Source) Origin { return Origin{Repo: s.Repo, Ref: s.Ref, Path: s.Path} }
 
-// installedAs reports a workspace already recorded for this catalog path or
+// installedAs reports a project already recorded for this catalog path or
 // this source, so installing twice is not an error and a renamed catalog node
 // does not install it a second time.
 func installedAs(cfg Config, from string, o Origin) (string, bool) {
@@ -160,7 +160,7 @@ func pickName(leaf, path string, taken map[string]bool) string {
 
 func validWorkspaceName(name string) error {
 	if !workspaceNameRE.MatchString(name) {
-		return fmt.Errorf("workspace name %q must match %s", name, workspaceNameRE)
+		return fmt.Errorf("project name %q must match %s", name, workspaceNameRE)
 	}
 	return nil
 }
@@ -173,7 +173,7 @@ func (c *Catalogs) resolveSource(ctx context.Context, arg string, root *domain.N
 			}
 			leaves := n.Leaves()
 			if len(leaves) == 0 {
-				return nil, fmt.Errorf("%q has no workspaces under it", arg)
+				return nil, fmt.Errorf("%q has no projects under it", arg)
 			}
 			out := make([]found, len(leaves))
 			for i, l := range leaves {
@@ -210,7 +210,7 @@ func (c *Catalogs) resolveSource(ctx context.Context, arg string, root *domain.N
 	return out, nil
 }
 
-// chooseAmong narrows what an outside source lists: one workspace is taken as
+// chooseAmong narrows what an outside source lists: one project is taken as
 // it is, several need --all or a choice.
 func (c *Catalogs) chooseAmong(leaves []domain.Node, o InstallOptions) ([]domain.Node, error) {
 	if len(leaves) <= 1 || o.All {
@@ -220,9 +220,9 @@ func (c *Catalogs) chooseAmong(leaves []domain.Node, o InstallOptions) ([]domain
 	for i, l := range leaves {
 		opts[i] = Option{Label: l.Name, Note: shortRepo(l.Source.Repo)}
 	}
-	idx, err := c.Prompt.MultiSelect(fmt.Sprintf("It lists %d workspaces. Install which?", len(leaves)), opts)
+	idx, err := c.Prompt.MultiSelect(fmt.Sprintf("It lists %d projects. Install which?", len(leaves)), opts)
 	if errors.Is(err, ErrNotInteractive) {
-		return nil, fmt.Errorf("it lists %d workspaces (%s): pass --all to install them all", len(leaves), leafNames(leaves))
+		return nil, fmt.Errorf("it lists %d projects (%s): pass --all to install them all", len(leaves), leafNames(leaves))
 	}
 	if err != nil {
 		return nil, err
@@ -279,7 +279,7 @@ func (c *Catalogs) openLocal(ctx context.Context, arg string, o InstallOptions) 
 	}
 	name, err := c.Editor.WorkspaceName(data)
 	if err != nil {
-		return nil, "", fmt.Errorf("%s is neither a catalog nor a workspace manifest: %w", file, err)
+		return nil, "", fmt.Errorf("%s is neither a catalog nor a project manifest: %w", file, err)
 	}
 	return []domain.Node{{Name: name, Path: name, Kind: domain.WorkspaceNode, Source: domain.Source{Path: file}}}, how + ", a manifest", nil
 }
@@ -314,7 +314,7 @@ func (c *Catalogs) openRemote(ctx context.Context, url string, o InstallOptions)
 	return []domain.Node{{Name: name, Path: name, Kind: domain.WorkspaceNode, Source: domain.Source{Repo: url, Path: file}}}, how + " with a manifest", nil
 }
 
-// pickLeaves is the menu for `install` with no argument: every workspace in
+// pickLeaves is the menu for `install` with no argument: every project in
 // the root catalog, as the tree, with those already here shown as such.
 func (c *Catalogs) pickLeaves(root domain.Node, cfg Config) ([]found, error) {
 	var leaves []domain.Node
@@ -334,7 +334,7 @@ func (c *Catalogs) pickLeaves(root domain.Node, cfg Config) ([]found, error) {
 			leaves = append(leaves, domain.Node{})
 		}
 	}
-	idx, err := c.Prompt.MultiSelect("Which workspaces should be installed?", opts)
+	idx, err := c.Prompt.MultiSelect("Which projects should be installed?", opts)
 	if errors.Is(err, ErrNotInteractive) {
 		return nil, fmt.Errorf("%w (name them: install <path>..., or --all with a repository)", err)
 	}
