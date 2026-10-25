@@ -377,3 +377,47 @@ func TestBranchesAreListedAcrossTheRepositories(t *testing.T) {
 		t.Errorf("branches = %v", got)
 	}
 }
+
+func TestRunningACheckoutUniverseAgainKeepsWhatIsThere(t *testing.T) {
+	b := newBench(t)
+	sh(t, b.clone("api"), "branch", "fix-login") // api has it; web gets one of its own
+
+	first, err := b.create(app.CreateInput{Checkout: true, Branch: "fix-login"})
+	if err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	again, err := b.create(app.CreateInput{Checkout: true, Branch: "fix-login"})
+	if err != nil {
+		t.Fatalf("a second run keeps the checkouts it finds, it does not refuse: %v", err)
+	}
+	if again.Name != first.Name || again.Branches["api"] != "fix-login" || again.Branches["web"] != "fix-login" {
+		t.Errorf("again = %+v, first = %+v", again, first)
+	}
+}
+
+func TestANewUniverseCanStartFromABaseOnlyTheCloneHas(t *testing.T) {
+	b := newBench(t)
+	// origin's main moves ahead, so the clone's own copy is a distinct commit.
+	other := filepath.Join(t.TempDir(), "other")
+	if out, err := exec.Command("git", "clone", "-q", b.origins["api"], other).CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	commitIn(t, other, "theirs")
+	sh(t, other, "push", "-q", "origin", "main")
+
+	was := map[string]string{}
+	for _, key := range []string{"api", "web"} {
+		was[key] = sh(t, b.clone(key), "rev-parse", "HEAD")
+		sh(t, b.clone(key), "branch", "release/1.2") // in the clone only, never pushed
+	}
+
+	st, err := b.create(app.CreateInput{Name: "4", Base: "release/1.2"})
+	if err != nil {
+		t.Fatalf("a base the plan accepted must not then fail in git: %v", err)
+	}
+	for _, key := range []string{"api", "web"} {
+		if at := sh(t, b.clone(key), "rev-parse", st.Branches[key]); at != was[key] {
+			t.Errorf("%s: %s starts at %s, want the base in the clone at %s", key, st.Branches[key], at, was[key])
+		}
+	}
+}
