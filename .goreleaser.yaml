@@ -69,6 +69,9 @@ nfpms:
 
 brews:
   - name: multiversectl
+    # The tarball holds both programs; the raw per-platform binaries are for
+    # self-update and the install script, and a formula cannot pick between them.
+    ids: [tarball]
     # The tap is a separate repository, so the workflow's own token cannot
     # write to it: HOMEBREW_TAP_TOKEN is a fine-grained token with contents
     # write on cristiansteib/homebrew-tap and nothing else.
