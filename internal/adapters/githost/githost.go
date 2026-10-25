@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
@@ -90,6 +91,41 @@ func (Host) Repos(ctx context.Context, account string) ([]app.RemoteRepo, error)
 	}
 	return parseRepos(out)
 }
+
+// ReposWithTopic asks each account in turn, in parallel. GitHub's own search
+// leaves out private repositories, which is where a root usually is.
+func (h Host) ReposWithTopic(ctx context.Context, topic string) ([]app.RemoteRepo, error) {
+	accounts, err := h.Accounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	results := make([][]app.RemoteRepo, len(accounts))
+	var wg sync.WaitGroup
+	for i, a := range accounts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out, err := gh(ctx, "repo", "list", a.Name, "--topic", topic, "--limit", "50", "--json", "nameWithOwner,url,description,isPrivate")
+			if err != nil {
+				return // an account that cannot be listed has nothing to offer
+			}
+			results[i], _ = parseRepos(out)
+		}()
+	}
+	wg.Wait()
+	var all []app.RemoteRepo
+	for _, r := range results {
+		all = append(all, r...)
+	}
+	return all, nil
+}
+
+func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
+	_, err := gh(ctx, "repo", "edit", repoURL, "--add-topic", topic)
+	return err
+}
+
+func (Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "github.com") }
 
 func parseRepos(out string) ([]app.RemoteRepo, error) {
 	var raw []struct {

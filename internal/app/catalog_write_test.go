@@ -71,6 +71,9 @@ type fakeHost struct {
 	accounts []app.Account
 	repos    []app.RemoteRepo
 
+	roots  []app.RemoteRepo // what a search by the root topic finds
+	topics []string         // "<repo> <topic>" for each AddTopic
+
 	signedOut bool // Available says to sign in, until Login is called
 	logins    int
 }
@@ -89,6 +92,14 @@ func (h *fakeHost) Available(context.Context) error {
 	}
 	return h.err
 }
+func (h *fakeHost) ReposWithTopic(context.Context, string) ([]app.RemoteRepo, error) {
+	return h.roots, nil
+}
+func (h *fakeHost) AddTopic(_ context.Context, repoURL, topic string) error {
+	h.topics = append(h.topics, repoURL+" "+topic)
+	return nil
+}
+func (h *fakeHost) Owns(repoURL string) bool    { return strings.Contains(repoURL, "example.test") }
 func (h *fakeHost) Login(context.Context) error { h.logins++; h.signedOut = false; return nil }
 func (h *fakeHost) Create(_ context.Context, name string, private bool) (string, error) {
 	if !private {
@@ -121,18 +132,20 @@ type rig struct {
 	out    *quiet
 	loader fakeLoader
 	root   string // local root catalog directory
+	cache  string // where remote repositories are cloned
 }
 
 // newRig starts with a local root catalog and this machine pointing at it.
 func newRig(t *testing.T, git *fakeRepos) *rig {
 	t.Helper()
 	root := t.TempDir()
+	cache := t.TempDir()
 	write(t, root, "catalog.yaml", string(catalog.Editor{}.Scaffold("me")))
 	r := &rig{git: git, host: &fakeHost{url: "git@example.test:me/new.git"}, prompt: &scripted{}, out: &quiet{}, loader: fakeLoader{},
-		cfg: &memConfig{c: app.Config{Catalog: filepath.Join(root, "catalog.yaml")}}, root: root}
+		cfg: &memConfig{c: app.Config{Catalog: filepath.Join(root, "catalog.yaml")}}, root: root, cache: cache}
 	r.Catalogs = app.NewCatalogs(app.CatalogDeps{
 		Git: git, Files: fsx.New(), Decoder: catalog.Decoder{}, Editor: catalog.Editor{},
-		Config: r.cfg, Manifests: r.loader, Out: r.out, Prompt: r.prompt, Host: r.host, CacheDir: t.TempDir(),
+		Config: r.cfg, Manifests: r.loader, Out: r.out, Prompt: r.prompt, Host: r.host, CacheDir: cache,
 	})
 	return r
 }

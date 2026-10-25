@@ -17,6 +17,9 @@ type RootStatus struct {
 	Local       bool   `json:"local,omitempty"`
 	NoRemote    bool   `json:"noRemote,omitempty"`
 	Unavailable string `json:"unavailable,omitempty"`
+	// Legacy is a root that is a plain Catalog, from before CatalogRoot: it works,
+	// but a new machine cannot tell it from a project's catalog.
+	Legacy bool `json:"legacy,omitempty"`
 }
 
 // WorkspaceStatus is one installed workspace and how far it has drifted from
@@ -59,6 +62,7 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 			rep.Root.Unavailable = reason(terr, cfg.Catalog)
 		} else {
 			tree = &t
+			rep.Root.Legacy = !t.Root
 		}
 		if !isGitURL(cfg.Catalog) {
 			rep.Root.Local = true

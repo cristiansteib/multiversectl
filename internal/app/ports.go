@@ -324,6 +324,13 @@ type RepoHost interface {
 	Accounts(ctx context.Context) ([]Account, error)
 	// Repos lists an account's repositories, for searching through them.
 	Repos(ctx context.Context, account string) ([]RemoteRepo, error)
+	// ReposWithTopic finds, across every account the user can see, the
+	// repositories carrying a topic. It is how a new machine finds a root.
+	ReposWithTopic(ctx context.Context, topic string) ([]RemoteRepo, error)
+	// AddTopic puts a topic on a repository, named by its URL.
+	AddTopic(ctx context.Context, repoURL, topic string) error
+	// Owns says whether a repository URL is on this service.
+	Owns(repoURL string) bool
 }
 
 // Account is a user, organization or group on a hosting service.
@@ -367,6 +374,11 @@ type ManifestWriter interface {
 // a person wrote, which a decode and re-encode of the domain model would lose.
 type CatalogEditor interface {
 	Scaffold(name string) []byte
+	// ScaffoldRoot is Scaffold for the catalog a machine starts from, whose kind
+	// is CatalogRoot.
+	ScaffoldRoot(name string) []byte
+	// MarkRoot changes a Catalog into a CatalogRoot, and nothing else about it.
+	MarkRoot(data []byte) ([]byte, error)
 	AddCatalogRef(data []byte, ref domain.CatalogRef) ([]byte, error)
 	AddWorkspaceRef(data []byte, ref domain.WorkspaceRef) ([]byte, error)
 	RemoveRef(data []byte, name string) ([]byte, error)

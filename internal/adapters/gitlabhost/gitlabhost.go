@@ -144,13 +144,54 @@ func parseProjects(out, account string) ([]app.RemoteRepo, error) {
 			return nil, fmt.Errorf("read the project list: %w", err)
 		}
 		for _, p := range page {
-			if p.Path == account || strings.HasPrefix(p.Path, account+"/") {
+			if account == "" || p.Path == account || strings.HasPrefix(p.Path, account+"/") {
 				repos = append(repos, app.RemoteRepo{Name: p.Path, URL: p.HTTP, Description: p.Description, Private: p.Visibility != "public"})
 			}
 		}
 	}
 	return repos, nil
 }
+
+// ReposWithTopic is one request: the projects the user is a member of that
+// carry the topic.
+func (Host) ReposWithTopic(ctx context.Context, topic string) ([]app.RemoteRepo, error) {
+	out, err := glab(ctx, "api", "projects?membership=true&simple=true&per_page=100&topic="+url.QueryEscape(topic), "--paginate")
+	if err != nil {
+		return nil, err
+	}
+	return parseProjects(out, "")
+}
+
+// AddTopic keeps the topics the project has: setting them replaces the list.
+func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
+	id := url.PathEscape(strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(repoURL, "https://"), "http://"), ".git"))
+	if i := strings.Index(id, "%2F"); i >= 0 {
+		id = id[i+3:] // drop the host: the API addresses a project by its path
+	}
+	out, err := glab(ctx, "api", "projects/"+id)
+	if err != nil {
+		return err
+	}
+	var project struct {
+		Topics []string `json:"topics"`
+	}
+	if err := json.Unmarshal([]byte(out), &project); err != nil {
+		return fmt.Errorf("glab: read the project: %w", err)
+	}
+	for _, t := range project.Topics {
+		if t == topic {
+			return nil
+		}
+	}
+	args := []string{"api", "projects/" + id, "-X", "PUT"}
+	for _, t := range append(project.Topics, topic) {
+		args = append(args, "-f", "topics[]="+t)
+	}
+	_, err = glab(ctx, args...)
+	return err
+}
+
+func (Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "gitlab") }
 
 func glab(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "glab", args...)

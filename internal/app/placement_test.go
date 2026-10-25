@@ -180,7 +180,10 @@ func TestInitTakesAPathOrARepositoryAsItsSource(t *testing.T) {
 	}
 
 	r2 := newRig(t, &fakeRepos{})
-	if err := r2.Init(context.Background(), app.InitInput{}); err == nil || !strings.Contains(err.Error(), "give a source to replace it") {
-		t.Errorf("without a terminal and with a root already set, the error says how to replace it: %v", err)
+	if err := r2.Init(context.Background(), app.InitInput{}); err != nil {
+		t.Errorf("without a terminal and with a root already set, init keeps it: %v", err)
+	}
+	if !strings.Contains(strings.Join(r2.out.infos, "|"), "this machine uses") {
+		t.Errorf("init should say what the machine already has: %v", r2.out.infos)
 	}
 }

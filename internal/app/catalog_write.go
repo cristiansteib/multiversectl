@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -513,7 +514,7 @@ type RepoChoice struct {
 
 // provision makes sure a repository holds a catalog.yaml and returns its URL.
 // A repository that already has one is reused as it is.
-func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName string, sd *seed) (string, error) {
+func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName string, sd *seed, root bool) (string, error) {
 	url := ch.URL
 	if ch.Create != "" {
 		if err := c.Host.Available(ctx); err != nil {
@@ -565,7 +566,11 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 	if err := domain.ValidateCatalogName(catalogName); err != nil {
 		return "", fmt.Errorf("%w (--name sets it)", err)
 	}
-	data, paths, what := c.Editor.Scaffold(catalogName), []string{file}, defaultCatalogFile
+	scaffold := c.Editor.Scaffold
+	if root {
+		scaffold = c.Editor.ScaffoldRoot
+	}
+	data, paths, what := scaffold(catalogName), []string{file}, defaultCatalogFile
 	if sd != nil {
 		manifestFile := filepath.Join(dir, defaultManifestFile)
 		if c.Files.Exists(manifestFile) {
@@ -676,7 +681,7 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) (st
 		})
 	}
 
-	url, err := c.provision(ctx, where, in.Name, sd)
+	url, err := c.provision(ctx, where, in.Name, sd, false)
 	if err != nil {
 		return "", err
 	}
@@ -734,8 +739,15 @@ type InitInput struct {
 	Only   bool   // keep it local and git-only, with no remote yet
 }
 
-// Init sets up the root catalog: an existing repository or file, a new
-// private repository, or a local-only git repository to push somewhere later.
+// RootTopic is the topic a root catalog's repository carries on its host, so a
+// new machine can find it without cloning anything.
+const RootTopic = "multiversectl-root"
+
+// Init sets up the root catalog: one found on a hosting service, an existing
+// repository or file, a new private repository, or a local-only git repository
+// to push somewhere later. A machine that already has one is told so, and keeps
+// it unless it is asked to switch; switching is refused while workspaces
+// installed from the old root depend on it.
 func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	cfg, err := c.Config.Load()
 	if err != nil {
@@ -749,20 +761,34 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 		}
 	}
 	in.Where.URL = c.expand(in.Where.URL)
-	if in.Where.URL == "" && in.Where.Create == "" && in.Local == "" && !in.Only {
-		if in, err = c.askInit(in); err != nil {
-			if errors.Is(err, ErrNotInteractive) && cfg.Catalog != "" {
-				return fmt.Errorf("already using %s; give a source to replace it: init <repo|path>", cfg.Catalog)
+	requested := in.Where.URL != "" || in.Where.Create != "" || in.Local != "" || in.Only
+
+	if cfg.Catalog != "" {
+		c.describeSetup(cfg)
+	}
+	if !requested {
+		if cfg.Catalog != "" {
+			switchRoot, err := c.askKeepOrSwitch(cfg)
+			if err != nil {
+				return err
 			}
+			if !switchRoot {
+				return c.ensureRoot(ctx, cfg.Catalog)
+			}
+		}
+		if in, err = c.askInit(ctx, in); err != nil {
 			return err
 		}
 	}
 	if cfg.Catalog != "" && c.sameRoot(cfg.Catalog, in) {
-		c.Out.Info("already using %s as the root catalog", cfg.Catalog)
-		return nil
+		c.Out.Info("already using `%s` as the root catalog", cfg.Catalog)
+		return c.ensureRoot(ctx, cfg.Catalog)
 	}
 	if cfg.Catalog != "" {
-		if ok, err := c.confirm(fmt.Sprintf("This machine already uses %s as its root catalog. Replace it?", cfg.Catalog), false); err != nil {
+		if n := dependents(cfg); n > 0 {
+			return fmt.Errorf("%d installed workspaces come from `%s`, and would point into a root that is no longer used.\n  start over with `multiversectl reset` (it forgets the root and the workspaces, and deletes no file), or remove them one by one with `multiversectl catalog uninstall <name>`, then run init again", n, cfg.Catalog)
+		}
+		if ok, err := c.confirm(fmt.Sprintf("This machine already uses `%s` as its root catalog. Replace it?", cfg.Catalog), false); err != nil {
 			return err
 		} else if !ok {
 			return ErrCancelled
@@ -773,8 +799,8 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	var source string
 	switch {
 	case in.Where.URL != "" || in.Where.Create != "":
-		name = firstOf(name, in.Where.Create, "index")
-		if source, err = c.provision(ctx, in.Where, name, nil); err != nil {
+		name = firstOf(name, repoBase(in.Where.Create), "index")
+		if source, err = c.provision(ctx, in.Where, name, nil, true); err != nil {
 			return err
 		}
 	case in.Local != "":
@@ -791,42 +817,288 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	if err := c.Use(source); err != nil {
 		return err
 	}
+	if err := c.ensureRoot(ctx, source); err != nil {
+		return err
+	}
 	c.Out.Info("next: `multiversectl catalog add <owner/repo>`  ·  `multiversectl catalog create <name>`")
 	return nil
 }
 
-func (c *Catalogs) askInit(in InitInput) (InitInput, error) {
-	i, err := c.Prompt.Select("Where should your root catalog live?", []Option{
-		{Label: "In an existing repository or file"},
-		{Label: "In a new private repository on GitHub"},
-		{Label: "Only on this machine for now", Note: "a local git repository with no remote yet"},
-	}, 1)
+// dependents counts the installed workspaces that came from the root's tree,
+// which a different root would leave pointing at nothing.
+func dependents(cfg Config) int {
+	n := 0
+	for _, w := range cfg.Workspaces {
+		if w.From != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// describeSetup says what this machine has, so init starts from what is true.
+func (c *Catalogs) describeSetup(cfg Config) {
+	c.Out.Info("this machine uses `%s` as its root catalog", cfg.Catalog)
+	if len(cfg.Workspaces) == 0 {
+		c.Out.Info("nothing is installed from it yet")
+		return
+	}
+	names := make([]string, 0, len(cfg.Workspaces))
+	for n := range cfg.Workspaces {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	c.Out.Info("installed here: `%s`", strings.Join(names, "`, `"))
+}
+
+// askKeepOrSwitch is the question a machine that is already set up is asked.
+// Without a terminal nothing is asked and the root is kept.
+func (c *Catalogs) askKeepOrSwitch(cfg Config) (bool, error) {
+	if c.Yes {
+		return false, nil // --yes takes the default, which is to keep it
+	}
+	switchOpt := Option{Label: "Use a different root catalog"}
+	if n := dependents(cfg); n > 0 {
+		switchOpt.Disabled = true
+		switchOpt.Note = fmt.Sprintf("%d installed workspaces come from this one; `multiversectl reset` first", n)
+	}
+	i, err := c.Prompt.Select("This machine is already set up. What now?", []Option{
+		{Label: "Keep this root", Note: "check it, and mark it as the root if it is not yet"},
+		switchOpt,
+	}, 0)
 	if errors.Is(err, ErrNotInteractive) {
-		return in, fmt.Errorf("%w: give a source (init <repo|path>), --create <name> or --local <dir>", err)
+		return false, nil
 	}
+	return i == 1, err
+}
+
+// ensureRoot checks the root catalog is marked as one: a CatalogRoot, and, on a
+// hosting service, tagged with the topic a new machine searches by. A root that
+// predates the kind is upgraded, after asking. Problems here never fail init:
+// the root works either way, it is only harder to find.
+func (c *Catalogs) ensureRoot(ctx context.Context, source string) error {
+	tree, err := c.Tree(ctx, source, false)
 	if err != nil {
-		return in, err
+		c.Out.Warn("could not read the root catalog to check it: %v", err)
+		return nil
 	}
-	switch i {
-	case 0:
-		where, err := c.Prompt.Input("Repository URL or path to a catalog", "")
-		if err != nil || where == "" {
-			return in, firstErr(err, errors.New("a location is required"))
+	if !tree.Root {
+		c.Out.Info("this root is a plain Catalog; as a CatalogRoot a new machine can tell it from a project's catalog")
+		err := c.edit(ctx, tree, "mark the catalog as your root (kind: CatalogRoot)", func(data []byte) ([]fileChange, error) {
+			out, err := c.Editor.MarkRoot(data)
+			return []fileChange{{tree.File, out}}, err
+		})
+		if err != nil {
+			if errors.Is(err, ErrCancelled) {
+				return nil
+			}
+			c.Out.Warn("%v", err)
 		}
-		if isGitURL(where) {
-			in.Where.URL = where
-		} else {
-			in.Local = where
+	}
+	c.markTopic(ctx, source)
+	return nil
+}
+
+// markTopic tags the root's repository so it can be found from a machine that
+// has nothing: best effort, since the root works without it.
+func (c *Catalogs) markTopic(ctx context.Context, source string) {
+	if !isGitURL(source) {
+		return
+	}
+	for _, h := range c.Hosts {
+		if !h.Owns(source) {
+			continue
 		}
-	case 1:
-		in.Where.Create, err = c.Prompt.Input("New repository name", "multiverse-index")
+		if err := h.Available(ctx); err != nil {
+			c.Out.Info("to let a new machine find it, tag `%s` with the topic `%s` on %s", source, RootTopic, h.Name())
+			return
+		}
+		err := c.Progress.Do("Tagging the repository with the topic "+RootTopic, func(ctx context.Context) error {
+			return h.AddTopic(ctx, source, RootTopic)
+		})
+		if err != nil {
+			c.Out.Warn("could not tag `%s` with the topic `%s`: %v", source, RootTopic, err)
+			return
+		}
+		c.Out.OK("`%s` carries the topic `%s`, so a new machine can find it", source, RootTopic)
+		return
+	}
+}
+
+// rootSearch is what has been found, and where has been looked.
+type rootSearch struct {
+	searched map[string]bool
+	found    []RemoteRepo
+}
+
+func (rs *rootSearch) add(repos []RemoteRepo) {
+	for _, r := range repos {
+		dup := false
+		for _, have := range rs.found {
+			dup = dup || sameRepo(have.URL, r.URL)
+		}
+		if !dup {
+			rs.found = append(rs.found, r)
+		}
+	}
+}
+
+// search looks for roots on one service, behind a spinner.
+func (c *Catalogs) searchRoots(ctx context.Context, h RepoHost, rs *rootSearch) {
+	rs.searched[h.Name()] = true
+	var repos []RemoteRepo
+	err := c.Progress.Do("Looking for your root catalog on "+h.Name(), func(ctx context.Context) (err error) {
+		repos, err = h.ReposWithTopic(ctx, RootTopic)
+		return err
+	})
+	if err != nil {
+		c.Out.Warn("could not search %s: %v", h.Name(), err)
+		return
+	}
+	rs.add(repos)
+}
+
+// askInit asks where the root catalog is, offering first what a search of the
+// services this person is signed in to turned up.
+func (c *Catalogs) askInit(ctx context.Context, in InitInput) (InitInput, error) {
+	hosts := c.newHostChecks()
+	rs := &rootSearch{searched: map[string]bool{}}
+	if len(c.Hosts) > 0 {
+		hosts.probe(ctx)
+		for _, h := range c.Hosts {
+			if hosts.err[h.Name()] == nil {
+				c.searchRoots(ctx, h, rs)
+			}
+		}
+	}
+	if c.Yes {
+		if len(rs.found) == 0 {
+			return in, errors.New("no root catalog to use: give a source (init <repo|path>), --create <name> or --local <dir>")
+		}
+		in.Where.URL = rs.found[0].URL
+		return in, nil
+	}
+	for {
+		var opts []Option
+		var act []func() (done bool, err error)
+		add := func(o Option, f func() (bool, error)) { opts, act = append(opts, o), append(act, f) }
+
+		for _, r := range rs.found {
+			note := "tagged " + RootTopic
+			if r.Private {
+				note = "private; " + note
+			}
+			add(Option{Label: "Use " + r.Name, Note: note}, func() (bool, error) { in.Where.URL = r.URL; return true, nil })
+		}
+		for _, h := range c.Hosts {
+			if rs.searched[h.Name()] {
+				continue
+			}
+			o := hosts.option(ctx, "Look for it on "+h.Name(), h)
+			if o.Disabled {
+				continue
+			}
+			add(o, func() (bool, error) {
+				if err := hosts.ready(ctx, h); err != nil {
+					return false, err
+				}
+				c.searchRoots(ctx, h, rs)
+				if len(rs.found) == 0 {
+					c.Out.Info("no repository on %s carries the topic `%s`", h.Name(), RootTopic)
+				}
+				return false, nil
+			})
+		}
+		add(Option{Label: "In an existing repository or file"}, func() (bool, error) {
+			where, err := c.Prompt.Input("Repository URL or path to a catalog", "")
+			if err != nil || where == "" {
+				return false, firstErr(err, errors.New("a location is required"))
+			}
+			if isGitURL(where) {
+				in.Where.URL = c.expand(where)
+			} else {
+				in.Local = where
+			}
+			return true, nil
+		})
+		newIdx := len(opts)
+		add(Option{Label: "In a new private repository on GitHub"}, func() (bool, error) {
+			// Under which account is asked when GitHub can answer; a bare name
+			// goes to the signed-in user's own.
+			owner := ""
+			if c.Host != nil && hosts.ready(ctx, c.Host) == nil {
+				if account, err := c.pickAccount(ctx, c.Host, "Create it under which account or organization?"); err == nil {
+					owner = account + "/"
+				} else if errors.Is(err, context.Canceled) {
+					return false, err
+				}
+			}
+			name, err := c.Prompt.Input("New repository name", "multiverse-index")
+			in.Where.Create = owner + name
+			return err == nil, err
+		})
+		add(Option{Label: "Only on this machine for now", Note: "a local git repository with no remote yet"}, func() (bool, error) { in.Only = true; return true, nil })
+
+		def := newIdx
+		if len(rs.found) > 0 {
+			def = 0
+		}
+		i, err := c.Prompt.Select("Where is your root catalog?", opts, def)
+		if errors.Is(err, ErrNotInteractive) {
+			return in, fmt.Errorf("%w: give a source (init <repo|path>), --create <name> or --local <dir>", err)
+		}
 		if err != nil {
 			return in, err
 		}
-	default:
-		in.Only = true
+		done, err := act[i]()
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return in, err
+			}
+			c.Out.Warn("%v", err)
+			continue
+		}
+		if done {
+			return in, nil
+		}
 	}
-	return in, nil
+}
+
+// Reset forgets this machine's root catalog and every installed workspace, so
+// it can start again from another root. It deletes no file, no checkout and no
+// universe; it only clears what multiversectl remembers.
+func (c *Catalogs) Reset() (forgot bool, err error) {
+	cfg, err := c.Config.Load()
+	if err != nil {
+		return false, err
+	}
+	if cfg.Catalog == "" && len(cfg.Workspaces) == 0 {
+		c.Out.Info("nothing to reset: this machine has no root catalog and no installed workspaces")
+		return false, nil
+	}
+	if cfg.Catalog != "" {
+		c.Out.Plain("  root catalog   `%s`", cfg.Catalog)
+	}
+	names := make([]string, 0, len(cfg.Workspaces))
+	for n := range cfg.Workspaces {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		c.Out.Plain("  workspace      `%s`  (files stay in `%s`)", n, cfg.Workspaces[n].Root)
+	}
+	ok, err := c.confirm("Forget these? Nothing on disk is deleted.", false)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, ErrCancelled
+	}
+	if err := c.Config.Save(Config{}); err != nil {
+		return false, fmt.Errorf("saving the configuration: %w", err)
+	}
+	c.Out.OK("this machine is reset: `multiversectl init` starts again")
+	return true, nil
 }
 
 // localRoot makes a catalog file out of a directory or a path, starting a git
@@ -867,7 +1139,7 @@ func (c *Catalogs) localRoot(ctx context.Context, p, name string) (string, error
 			return "", err
 		}
 	}
-	if err := c.Files.WriteFile(file, c.Editor.Scaffold(name), 0o644); err != nil {
+	if err := c.Files.WriteFile(file, c.Editor.ScaffoldRoot(name), 0o644); err != nil {
 		return "", err
 	}
 	if err := c.Git.Commit(ctx, dir, "fix: start a catalog", file); err != nil {

@@ -31,6 +31,17 @@
   <p>A node is addressed by the names that lead to it, for example <code>acme/backend/billing</code>. Names are unique among siblings. The schema is <code>schema/catalog.v1alpha1.yaml</code>.</p>
 </section>
 
+<section id="root">
+  <h2 id="root"><a href="#root">The root, and how a new machine finds it</a></h2>
+  <p>Every machine starts from one catalog, its <em>root</em>, and the root has its own kind so it can be told from the catalogs of the projects hanging under it:</p>
+  <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
+<span class="k">kind</span>: CatalogRoot
+<span class="k">metadata</span>:
+  <span class="k">name</span>: me</pre></div>
+  <p>A <code>CatalogRoot</code> is a <code>Catalog</code> in every other respect: the same <code>spec</code>, and anything that reads catalogs reads it. One listed under another catalog is just a catalog there. What the kind adds is that <code>init</code> knows which one is the starting point.</p>
+  <p>On a hosting service the root's repository also carries the topic <code>multiversectl-root</code>. <code>init</code> sets it, and on a machine with nothing it searches your repositories, across your organizations too, for that topic, without cloning anything. A root made before the kind existed is a plain <code>Catalog</code>; <code>init</code> offers to mark it, which changes that one line.</p>
+</section>
+
 <section id="split">
   <h2 id="split"><a href="#split">Three separate things</a></h2>
   <ul class="t">

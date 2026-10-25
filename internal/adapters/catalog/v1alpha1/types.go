@@ -7,6 +7,10 @@ package v1alpha1
 const (
 	APIVersion = "multiverse/v1alpha1"
 	Kind       = "Catalog"
+	// KindRoot is the catalog a machine starts from. It is a Catalog in every
+	// other respect; the kind is what lets a new machine tell the index a person
+	// begins with from the catalogs of the projects hanging under it.
+	KindRoot = "CatalogRoot"
 )
 
 // Catalog is an index of workspaces and of other catalogs. It holds pointers
@@ -78,4 +82,16 @@ type Source struct {
 	// Relative to the repository root. Defaults to catalog.yaml for a
 	// CatalogRef and multiverse.yaml for a WorkspaceRef.
 	Path string `yaml:"path"`
+}
+
+// CatalogRoot is a Catalog that is the starting point of a machine: the one
+// `multiversectl init` is pointed at. Its spec is a Catalog's.
+type CatalogRoot struct {
+	TypeMeta `yaml:",inline"`
+
+	// +required
+	ObjectMeta ObjectMeta `yaml:"metadata"`
+
+	// +required
+	Spec Spec `yaml:"spec"`
 }

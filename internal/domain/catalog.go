@@ -29,7 +29,9 @@ type WorkspaceRef struct {
 
 // Catalog is one index file: pointers only, never definitions.
 type Catalog struct {
-	Name       string
+	Name string
+	// Root says the file is a CatalogRoot: the index a machine starts from.
+	Root       bool
 	Catalogs   []CatalogRef
 	Workspaces []WorkspaceRef
 }
@@ -51,6 +53,9 @@ type Node struct {
 	Kind     NodeKind
 	Source   Source
 	Children []Node
+	// Root is set on a catalog that is a CatalogRoot, which is how a machine
+	// whose root predates the kind is recognised.
+	Root bool
 
 	// File and Dir are where a loaded catalog node lives on this machine: its
 	// file, and the root of the checkout or directory its paths are relative

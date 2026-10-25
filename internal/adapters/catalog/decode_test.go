@@ -141,3 +141,37 @@ func domainWS(name, repo, ref, path string) domain.WorkspaceRef {
 func domainCat(name, repo, ref, path string) domain.CatalogRef {
 	return domain.CatalogRef{Name: name, Source: domain.Source{Repo: repo, Ref: ref, Path: path}}
 }
+
+func TestACatalogRootDecodesAsACatalogThatIsTheRoot(t *testing.T) {
+	root, err := Decoder{}.Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: CatalogRoot\nmetadata:\n  name: me\nspec:\n  workspaces:\n    - name: acme\n      source: {}\n"))
+	if err != nil || !root.Root || len(root.Workspaces) != 1 {
+		t.Fatalf("root %+v, err %v", root, err)
+	}
+	plain, err := Decoder{}.Decode(Editor{}.Scaffold("me"))
+	if err != nil || plain.Root {
+		t.Fatalf("a plain Catalog is not a root: %+v, %v", plain, err)
+	}
+	if _, err := (Decoder{}).Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: x\n")); err == nil || !strings.Contains(err.Error(), "CatalogRoot") {
+		t.Errorf("the error for another kind should name both: %v", err)
+	}
+}
+
+func TestMarkRootChangesTheKindAndKeepsEverythingElse(t *testing.T) {
+	in := "# my index\napiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata:\n  name: me   # mine\nspec:\n  workspaces:\n    - name: acme\n      source: {}\n"
+	out, err := Editor{}.MarkRoot([]byte(in))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	for _, want := range []string{"kind: CatalogRoot", "# my index", "# mine", "name: acme"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("lost %q:\n%s", want, got)
+		}
+	}
+	if root, err := (Decoder{}).Decode(out); err != nil || !root.Root {
+		t.Errorf("the result must decode as a root: %v", err)
+	}
+	if string(Editor{}.ScaffoldRoot("me")) == string(Editor{}.Scaffold("me")) {
+		t.Error("the root scaffold must differ from the plain one")
+	}
+}

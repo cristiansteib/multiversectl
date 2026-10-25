@@ -21,6 +21,10 @@ case "$*" in
     echo '[{"path_with_namespace":"acme/api","http_url_to_repo":"https://gitlab.example.test/acme/api.git","description":"the api","visibility":"private"}]'
     echo '[{"path_with_namespace":"acme/sub/web","http_url_to_repo":"https://gitlab.example.test/acme/sub/web.git","visibility":"public"},{"path_with_namespace":"me/notes","http_url_to_repo":"https://gitlab.example.test/me/notes.git","visibility":"private"}]' ;;
   "api namespaces/acme") echo '{"id":42}' ;;
+  "api projects?membership=true&simple=true&per_page=100&topic=multiversectl-root --paginate")
+    echo '[{"path_with_namespace":"me/multiverse-index","http_url_to_repo":"https://gitlab.example.test/me/multiverse-index.git","visibility":"private"}]' ;;
+  "api projects/me%2Fmultiverse-index") echo '{"topics":["go","cli"]}' ;;
+  "api projects/me%2Fmultiverse-index -X PUT -f topics[]=go -f topics[]=cli -f topics[]=multiversectl-root") echo '{}' ;;
   "api projects -X POST -f name=multiverse -f path=multiverse -f visibility=private -f namespace_id=42")
     echo '{"http_url_to_repo":"https://gitlab.example.test/acme/multiverse.git"}' ;;
   *) echo "unexpected: $*" >&2; exit 1 ;;
@@ -62,5 +66,18 @@ func TestCreateFindsTheNamespaceAndReturnsTheCloneURL(t *testing.T) {
 	}
 	if _, err := (Host{}).Create(context.Background(), "nowhere/x", true); err == nil || !strings.Contains(err.Error(), "unexpected") {
 		t.Errorf("a failing glab call must surface its words, got %v", err)
+	}
+}
+
+func TestRootsAreFoundByTopicAndTaggedWithoutLosingTopics(t *testing.T) {
+	fakeGlab(t)
+	got, err := Host{}.ReposWithTopic(context.Background(), "multiversectl-root")
+	if err != nil || len(got) != 1 || got[0].Name != "me/multiverse-index" || !got[0].Private {
+		t.Fatalf("found %+v, %v", got, err)
+	}
+	// Setting topics replaces the list, so the ones it had must be sent back too;
+	// the stand-in only accepts exactly that request.
+	if err := (Host{}).AddTopic(context.Background(), "https://gitlab.example.test/me/multiverse-index.git", "multiversectl-root"); err != nil {
+		t.Fatal(err)
 	}
 }

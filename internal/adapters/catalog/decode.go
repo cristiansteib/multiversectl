@@ -41,8 +41,8 @@ func (Decoder) Decode(data []byte) (*domain.Catalog, error) {
 	if env.APIVersion != v1alpha1.APIVersion {
 		return nil, fmt.Errorf("unsupported apiVersion %q; supported: %s", env.APIVersion, v1alpha1.APIVersion)
 	}
-	if env.Kind != v1alpha1.Kind {
-		return nil, fmt.Errorf("unsupported kind %q; this file must be a %s", env.Kind, v1alpha1.Kind)
+	if env.Kind != v1alpha1.Kind && env.Kind != v1alpha1.KindRoot {
+		return nil, fmt.Errorf("unsupported kind %q; this file must be a %s or a %s", env.Kind, v1alpha1.Kind, v1alpha1.KindRoot)
 	}
 
 	dec := yaml.NewDecoder(bytes.NewReader(data))
@@ -51,7 +51,12 @@ func (Decoder) Decode(data []byte) (*domain.Catalog, error) {
 	if err := dec.Decode(&c); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("decode %s %s: %w", env.APIVersion, env.Kind, err)
 	}
-	return convert(&c)
+	out, err := convert(&c)
+	if err != nil {
+		return nil, err
+	}
+	out.Root = env.Kind == v1alpha1.KindRoot
+	return out, nil
 }
 
 func convert(c *v1alpha1.Catalog) (*domain.Catalog, error) {

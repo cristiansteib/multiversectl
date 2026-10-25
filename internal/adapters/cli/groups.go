@@ -16,7 +16,7 @@ const (
 )
 
 var commandGroups = map[string]string{
-	"init": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup,
+	"init": groupSetup, "reset": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup,
 	"catalog": groupCatalog, "project": groupCatalog,
 	"universe": groupUniverse, "system": groupUniverse, "server": groupUniverse, "doctor": groupUniverse, "proxy": groupUniverse,
 }

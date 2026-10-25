@@ -90,13 +90,24 @@
 
 <section id="hw-init">
   <h2 id="hw-init"><a href="#hw-init">Keep your own index</a></h2>
-  <div class="code"><pre><span class="c"># asks: a new private repository, one you have, or only this machine for now</span>
+  <div class="code"><pre><span class="c"># looks for your root on GitHub and GitLab, or asks: a new private repository, one you have, or only here</span>
 <span class="p">$ </span>multiversectl init
 <span class="c"># or say it</span>
 <span class="p">$ </span>multiversectl init --create multiverse-index
 <span class="p">$ </span>multiversectl init me/multiverse-index
 <span class="p">$ </span>multiversectl init --local ~/multiverse-index</pre></div>
   <p><code>--create</code> uses the GitHub CLI and makes the repository <strong>private</strong>; <code>--public</code> is the only way to make it public. Without <code>gh</code>, make the repository yourself and pass it. A repository that already holds a <code>catalog.yaml</code> is used as it is, and one that does not gets one. Creating a repository and pushing both ask first; <code>--yes</code> accepts them for scripts. A root that is only on this machine is fine to start with, and <code>status</code> keeps reminding you that nobody else can use it.</p>
+  <p>On a machine that has nothing, <code>init</code> first searches the services you are signed in to for a repository tagged as a root (the topic <code>multiversectl-root</code>) and offers what it finds at the top of the list. On a machine that is already set up it says so, with the root and what is installed from it, and offers to keep it; it checks the root is marked as a <code>CatalogRoot</code> and tags its repository, which also upgrades a root made before the kind existed.</p>
+  <p>To start again from another root, <code>init</code> refuses while workspaces installed from the current one exist, because they would point into a root that is no longer used. <code>multiversectl reset</code> forgets the root and the installed workspaces, deleting no file, checkout or universe; run <code>system --prune</code> first if you want the universes gone.</p>
+</section>
+
+<section id="hw-restore">
+  <h2 id="hw-restore"><a href="#hw-restore">Start again on a new machine</a></h2>
+  <div class="code"><pre><span class="p">$ </span>gh auth login                      <span class="c"># or let init sign you in</span>
+<span class="p">$ </span>multiversectl init                  <span class="c"># finds your root</span>
+<span class="p">$ </span>multiversectl catalog install        <span class="c"># pick the projects this machine needs</span>
+<span class="p">$ </span>multiversectl universe new 1</pre></div>
+  <p>That restores what git holds: which projects exist, how each is described, and every repository. It does not restore what git does not: files a project keeps out of it (<code>.env</code>, service-account keys, which a project lists under <code>secrets</code> and which are copied from its clones), uncommitted work and branches that were never pushed, database volumes, and universes, which are created again. Put those somewhere of your own before wiping a machine, and keep a project's full manifest in its repository rather than beside it.</p>
 </section>
 
 <section id="hw-add">
@@ -179,6 +190,7 @@ WORKSPACE  FROM            STATE
     <ul>
       <li><a href="#hw-first">Use a project someone points you at</a></li>
       <li><a href="#hw-init">Keep your own index</a></li>
+      <li><a href="#hw-restore">Start again on a new machine</a></li>
       <li><a href="#hw-add">Put a project in the right place</a></li>
       <li><a href="#hw-install">Install what this machine needs</a></li>
       <li><a href="#hw-update">Keep installed workspaces current</a></li>

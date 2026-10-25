@@ -23,6 +23,27 @@ func (Editor) Scaffold(name string) []byte {
 		"\nmetadata:\n  name: " + name + "\nspec: {}\n")
 }
 
+// ScaffoldRoot is Scaffold for the catalog a machine starts from.
+func (Editor) ScaffoldRoot(name string) []byte {
+	return []byte("apiVersion: " + v1alpha1.APIVersion + "\nkind: " + v1alpha1.KindRoot +
+		"\nmetadata:\n  name: " + name + "\nspec: {}\n")
+}
+
+// MarkRoot turns a Catalog into a CatalogRoot, touching only its kind, so what
+// a person wrote around it is kept.
+func (Editor) MarkRoot(data []byte) ([]byte, error) {
+	doc, _, err := parse(data)
+	if err != nil {
+		return nil, err
+	}
+	kind := mapValue(doc.Content[0], "kind")
+	if kind == nil {
+		return nil, errors.New("catalog has no kind")
+	}
+	kind.Value = v1alpha1.KindRoot
+	return encode(doc)
+}
+
 func (Editor) AddCatalogRef(data []byte, ref domain.CatalogRef) ([]byte, error) {
 	return addRef(data, "catalogs", ref.Name, ref.Source, DefaultCatalogPath)
 }

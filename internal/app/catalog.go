@@ -167,7 +167,7 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 	node := domain.Node{
 		Name: name, Path: nodePath, Kind: domain.CatalogNode,
 		Source: domain.Source{Repo: at.repo, Ref: at.ref, Path: filepath.ToSlash(at.file)},
-		File:   filepath.Join(at.dir, at.file), Dir: at.dir,
+		File:   filepath.Join(at.dir, at.file), Dir: at.dir, Root: cat.Root,
 	}
 	stack = append(stack, k)
 

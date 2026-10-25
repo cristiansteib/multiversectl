@@ -606,6 +606,9 @@ func (r runner) printStatus(rep app.StatusReport) {
 	default:
 		r.out.Plain("%s  `%s`", r.out.Bold("root catalog"), rep.Root.Source)
 	}
+	if rep.Root.Legacy {
+		r.out.Info("the root is a plain Catalog, which a new machine cannot tell from a project's: `multiversectl init` marks it as your root")
+	}
 	if rep.Root.NoRemote {
 		r.out.Warn("the root catalog is local only: it is lost with this machine, and nobody can use it. `git -C %s remote add origin <url>`", filepath.Dir(rep.Root.Source))
 	}
