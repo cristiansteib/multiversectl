@@ -39,7 +39,9 @@ func TestCatalogCommandsLiveUnderCatalog(t *testing.T) {
 		if err != nil || c.Name() != name {
 			t.Errorf("catalog %s: not found (%v)", name, err)
 		}
-		if top, _, _ := root.Find([]string{name}); top != root {
+		// status is also a top-level command, but a different one: the machine's
+		// overview, not the catalog's drift.
+		if top, _, _ := root.Find([]string{name}); name != "status" && top != root {
 			t.Errorf("%s is still a top-level command", name)
 		}
 	}

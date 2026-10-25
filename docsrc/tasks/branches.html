@@ -1,14 +1,22 @@
 <section id="hw-branches">
   <h2 id="hw-branches"><a href="#hw-branches">Work on two branches at once</a></h2>
-  <div class="code"><pre><span class="c"># name the universe after the branch it checks out</span>
+  <div class="code"><pre><span class="c"># a new universe: branches of its own, named after it</span>
 <span class="p">$ </span>multiversectl universe new fix/login --note <span class="s">"PR 412 review"</span>
 <span class="p">$ </span>multiversectl universe up fix/login
 <span class="p">$ </span>multiversectl universe urls fix/login
 http://api-fix-login.10-0-0-5.traefik.me
-<span class="c"># or number it, and override one repository's branch</span>
-<span class="p">$ </span>multiversectl universe new 2 --branch feat/invoicing --branch web=main</pre></div>
-  <p class="muted">A named universe is checked out on its own name; a numbered one takes its branch from <code>spec.branch</code>, <code>u{{universe}}</code> by default. <code>--branch</code> is repeatable: a bare name is every repository, <code>repo=branch</code> overrides one. Every command accepts the name as typed, the directory it lives in, or the slug in its hostnames. Each universe has its own checkouts, containers and database.</p>
+<span class="c"># or number it (leave the number out for the next free one), and say where it starts</span>
+<span class="p">$ </span>multiversectl universe new 2 --branch feat/invoicing --base api=release/1.2</pre></div>
+  <p class="muted">A new universe never reuses a branch: if the name is taken in any repository, in the clone or on origin, nothing is created and every clash is listed. A numbered one takes its branch from <code>spec.branch</code>, <code>u{{universe}}</code> by default. Every command accepts the name as typed, the directory it lives in, or the slug in its hostnames. Each universe has its own containers, volumes and hostnames, so the two run side by side.</p>
 </section>
+
+<section id="hw-checkout">
+  <h2 id="hw-checkout"><a href="#hw-checkout">Review or continue a branch that already exists</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe checkout fix/login           <span class="c"># or with no branch, to pick from the ones there are</span>
+<span class="p">$ </span>multiversectl universe checkout fix/login --only-existing</pre></div>
+  <p>This is the other way in: instead of starting branches, it checks out the one you name, in every repository that has it. A repository that lacks it gets a new branch of that name, or with <code>--only-existing</code> stays on its base, detached. It refuses a branch that is checked out in another universe or in the shared clone, because git allows a branch in one worktree only, and it refuses a name no repository has, so a typo does not become a branch. When you remove the universe the branch stays; only a branch a universe started is ever deleted.</p>
+</section>
+
 
 <section id="hw-repo">
   <h2 id="hw-repo"><a href="#hw-repo">Add a repository to a workspace</a></h2>
@@ -44,5 +52,5 @@ http://api-fix-login.10-0-0-5.traefik.me
   <p><code>--prune</code> does to each universe what <code>universe rm</code> does, in every installed workspace, or only the one you name with <code>-w</code>: the containers and <strong>volumes</strong>, the worktrees, the directory and the state file. It is deliberately not a way to stop containers and keep the data; that is <code>universe down</code>.</p>
   <p>Two kinds of universe are kept unless you say otherwise, and each is listed with the reason:</p>
   <ul class="t"><li>one with containers running, until you add <code>--all</code>;</li><li>one with uncommitted work in a worktree, until you add <code>--force</code>. <code>--yes</code> only skips the question; it never discards work.</li></ul>
-  <p>What it does not touch: the shared clones and the branches in them, so committed work survives and the universe can be created again; the shared proxy; and the installed workspaces and catalogs.</p>
+  <p>What it does not touch: the shared clones; the shared proxy; and the installed workspaces and catalogs. The branches a universe started are deleted only when every commit on them is already on the base branch or on a remote, so committed work is never lost, and one holding anything else is kept and named.</p>
 </section>

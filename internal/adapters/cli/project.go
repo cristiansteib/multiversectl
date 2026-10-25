@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -13,15 +16,18 @@ import (
 
 func (r runner) projectCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "project",
-		Short: "Start a project: the repository that says what it is made of",
+		Use:     "project",
+		Aliases: []string{"p"},
+		Short:   "List, start and add projects: the repositories that say what a project is made of",
 		Long: "A project is one repository that is both its index and its own workspace\n" +
-			"definition, so anyone can join it with `catalog install owner/repo`.",
-		Example: "  multiversectl project init",
+			"definition, so anyone can join it with `catalog install owner/repo`. `list` shows\n" +
+			"the projects in your catalog and which are installed here, `init` starts a new one,\n" +
+			"and `add` puts an existing one in your catalog.",
+		Example: "  multiversectl project list\n  multiversectl p init\n  multiversectl p add acme/multiverse",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.projectInitCmd())
+	cmd.AddCommand(r.projectListCmd(), r.projectInitCmd(), r.projectAddCmd())
 	return cmd
 }
 
@@ -135,4 +141,134 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 // the root catalog, else its repository, else the directory it is in.
 func installSource(res app.ProjectResult) string {
 	return strings.TrimSpace(firstNonEmpty(res.Node, res.URL, res.Dir))
+}
+
+// projectAddCmd is `catalog add` under the name people look for: putting a
+// project they already have into their catalog.
+func (r runner) projectAddCmd() *cobra.Command {
+	cmd := r.catalogAddCmd()
+	cmd.Use = "add [owner/repo | url | path]"
+	cmd.Short = "Put an existing project in your catalog, in the place you pick"
+	cmd.Example = "  multiversectl project add acme/multiverse\n" +
+		"  multiversectl project add ~/code/billing --at acme/backend\n" +
+		"  multiversectl project add ./acme.yaml --new-repo acme-org/multiverse"
+	return cmd
+}
+
+// projectRow is one project as `project list` shows it.
+type projectRow struct {
+	Project     string `json:"project"`
+	Repository  string `json:"repository,omitempty"`
+	InstalledAs string `json:"installedAs,omitempty"`
+	Current     bool   `json:"current,omitempty"`
+	State       string `json:"state,omitempty"`
+	InCatalog   bool   `json:"inCatalog"`
+}
+
+func (r runner) projectListCmd() *cobra.Command {
+	var fetch bool
+	var format string
+	cmd := &cobra.Command{
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List the projects in your catalog, and which are installed here",
+		Long: "Every workspace in your root catalog, with the repository it lives in, the name\n" +
+			"it is installed under on this machine and whether it has drifted. Projects\n" +
+			"installed here from outside the catalog are listed too. It reads what was last\n" +
+			"fetched unless --fetch.",
+		Example: "  multiversectl project list\n  multiversectl p ls --fetch\n  multiversectl p ls -o json",
+		Args:    cobra.NoArgs,
+	}
+	cmd.Flags().BoolVar(&fetch, "fetch", false, "fetch the catalogs first")
+	cmd.Flags().StringVarP(&format, "output", "o", "table", "output: table or json")
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		if format != "table" && format != "json" {
+			return fmt.Errorf("--output must be table or json, not %q", format)
+		}
+		c, err := r.catalogs(false)
+		if err != nil {
+			return err
+		}
+		var rows []projectRow
+		err = r.spin(fetch, "Fetching the catalogs", func() (err error) { rows, err = r.projectRows(cmd.Context(), c, fetch); return err })
+		if err != nil {
+			return err
+		}
+		if format == "json" {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(rows)
+		}
+		if len(rows) == 0 {
+			r.out.Info("no projects yet: `multiversectl project init` starts one, `multiversectl project add <owner/repo>` adds one you have")
+			return nil
+		}
+		cells := make([][]Cell, len(rows))
+		for i, p := range rows {
+			installed := Cell{Text: "—", Style: dim}
+			if p.InstalledAs != "" {
+				mark := "✓ " + p.InstalledAs
+				if p.Current {
+					mark += " (current)"
+				}
+				installed = Cell{Text: mark, Style: green}
+			}
+			state := Cell{Text: p.State}
+			switch {
+			case !p.InCatalog:
+				state = Cell{Text: "not in your catalog", Style: yellow}
+			case p.State != "" && p.State != "up to date":
+				state.Style = yellow
+			case p.State == "up to date":
+				state.Style = dim
+			}
+			cells[i] = []Cell{{Text: p.Project}, {Text: firstNonEmpty(p.Repository, "—"), Style: dim}, installed, state}
+		}
+		r.out.Cells([]string{"PROJECT", "REPOSITORY", "INSTALLED", "STATE"}, cells)
+		return nil
+	}
+	return cmd
+}
+
+// projectRows joins what the catalog lists with what is installed. A root that
+// cannot be read is not an error here: what is installed is still worth listing.
+func (r runner) projectRows(ctx context.Context, c *app.Catalogs, fetch bool) ([]projectRow, error) {
+	rep, err := c.Status(ctx, fetch)
+	if err != nil {
+		return nil, err
+	}
+	byName := map[string]app.WorkspaceStatus{}
+	for _, w := range rep.Workspaces {
+		byName[w.Name] = w
+	}
+	var rows []projectRow
+	listed := map[string]bool{}
+	if tree, err := c.Tree(ctx, "", fetch); err == nil {
+		installed, _ := c.InstalledIn(tree)
+		for _, leaf := range tree.Leaves() {
+			p := projectRow{Project: leaf.Path, Repository: shortRepoName(leaf.Source.Repo), InCatalog: true}
+			if p.Repository == "" {
+				p.Repository = filepath.Base(leaf.Source.Path)
+			}
+			if name := installed[leaf.Path]; name != "" {
+				w := byName[name]
+				p.InstalledAs, p.Current, p.State = name, w.Current, stateOf(w)
+				listed[name] = true
+			}
+			rows = append(rows, p)
+		}
+	}
+	for _, w := range rep.Workspaces {
+		if !listed[w.Name] {
+			rows = append(rows, projectRow{Project: w.Name, Repository: firstNonEmpty(w.Source, "a local manifest"), InstalledAs: w.Name, Current: w.Current, State: stateOf(w)})
+		}
+	}
+	return rows, nil
+}
+
+func stateOf(w app.WorkspaceStatus) string {
+	if len(w.Notes) > 0 {
+		return strings.Join(w.Notes, " · ")
+	}
+	return "up to date"
 }

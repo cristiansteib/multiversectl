@@ -155,7 +155,7 @@ func (r runner) nodeArg(cmd *cobra.Command, args []string, c *app.Catalogs, labe
 
 func shortRepoName(repo string) string {
 	repo = strings.TrimSuffix(strings.TrimRight(repo, "/"), ".git")
-	for _, p := range []string{"https://", "http://", "ssh://"} {
+	for _, p := range []string{"https://", "http://", "ssh://", "file://"} {
 		repo = strings.TrimPrefix(repo, p)
 	}
 	if i := strings.Index(repo, "@"); i >= 0 {
