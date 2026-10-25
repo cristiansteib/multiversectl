@@ -9,21 +9,34 @@ import (
 )
 
 func TestRenderTree(t *testing.T) {
-	root := domain.Node{Name: "me", Kind: domain.CatalogNode, Source: domain.Source{Repo: "git@example.test:me/index.git"}, Children: []domain.Node{
-		{Name: "acme", Path: "acme", Kind: domain.CatalogNode, Source: domain.Source{Repo: "git@example.test:acme/index.git"}, Children: []domain.Node{
-			{Name: "payments", Path: "acme/payments", Kind: domain.WorkspaceNode,
-				Source: domain.Source{Repo: "git@example.test:acme/pay.git", Ref: "v1", Path: "multiverse.yaml"}},
+	t.Setenv("HOME", "/home/me")
+	root := domain.Node{Name: "index", Kind: domain.CatalogNode, Source: domain.Source{Repo: "https://github.com/me/index.git", Path: "catalog.yaml"}, Children: []domain.Node{
+		// The same repository as the root, told apart by its file.
+		{Name: "personal", Path: "personal", Kind: domain.CatalogNode, Source: domain.Source{Repo: "https://github.com/me/index.git", Path: "catalogs/personal.yaml"}, Children: []domain.Node{
+			{Name: "notes", Path: "personal/notes", Kind: domain.WorkspaceNode, Source: domain.Source{Path: "/home/me/notes/multiverse.yaml"}},
 		}},
-		{Name: "private", Path: "private", Kind: domain.CatalogNode, Unavailable: "no access or not found: acme/private"},
+		{Name: "acme", Path: "acme", Kind: domain.CatalogNode, Source: domain.Source{Repo: "git@gitlab.com:acme/index.git", Path: "catalog.yaml"}, Children: []domain.Node{
+			{Name: "payments", Path: "acme/payments", Kind: domain.WorkspaceNode,
+				Source: domain.Source{Repo: "git@gitlab.com:acme/pay.git", Ref: "v1", Path: "multiverse.yaml"}},
+		}},
+		{Name: "private", Path: "private", Kind: domain.CatalogNode, Unavailable: "no access or not found: github:acme/private"},
 	}}
 	var buf bytes.Buffer
 	r := runner{out: NewOutput(&buf, false)}
-	got := strings.Join(r.renderTree(root, root.Source.Repo, map[string]string{"acme/payments": "payments"}), "\n")
-	for _, want := range []string{"me  ", "├─ acme", "│  └─ payments", "└─ private",
-		"acme/pay@v1", "✓ installed as payments", "✗ no access or not found: acme/private", "acme/index"} {
+	got := strings.Join(r.renderTree(root, map[string]string{"acme/payments": "payments"}), "\n")
+	for _, want := range []string{
+		"index", "root", "github:me/index",
+		"├─ personal", "github:me/index catalogs/personal.yaml", // same repository as the root, and the file says which catalog
+		"file:~/notes/multiverse.yaml",
+		"gitlab:acme/index", "gitlab:acme/pay@v1", "workspace", "✓ installed as payments",
+		"✗ no access or not found: github:acme/private",
+	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "https://") || strings.Contains(got, "git@") {
+		t.Errorf("a URL is how it was written, not where it is:\n%s", got)
 	}
 }
 

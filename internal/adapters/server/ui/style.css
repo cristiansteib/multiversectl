@@ -89,13 +89,24 @@ tr:last-child td { border-bottom: 0; }
 .tree li { margin: 2px 0; }
 .node { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 5px 8px; border-radius: 8px; }
 .node:hover { background: var(--sunk); }
-.node .name { font-weight: 600; } .node .repo { color: var(--muted); font: 12px var(--mono); }
+.node .name { font-weight: 600; }
+.node .kind { font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 6px; }
+.node .kind.root { color: var(--accent); border-color: var(--accent); }
+.node .kind.workspace { color: var(--info); }
+.ki { flex: none; color: var(--muted); } .ki.root { color: var(--accent); } .ki.catalog { color: var(--accent); } .ki.workspace { color: var(--info); }
+.place { display: inline-flex; align-items: center; gap: 4px; font: 12px var(--mono); color: var(--muted); flex-wrap: wrap; }
+.place .pi { flex: none; } .place .plat { font-weight: 700; color: var(--text); } .place .sep { margin: 0 -4px; }
+.place.gitlab .pi, .place.gitlab .plat { color: #e8590c; }
+:root[data-theme="dark"] .place.gitlab .pi, :root[data-theme="dark"] .place.gitlab .plat { color: #fc9a5d; }
+.place.file .pi, .place.file .plat { color: var(--accent); }
+.place.git .pi, .place.git .plat { color: var(--info); }
+.place .within { margin-left: 6px; padding: 0 6px; border-radius: 5px; background: var(--sunk); border: 1px solid var(--line); }
 .node.cat .name { color: var(--accent); }
 details > summary { list-style: none; cursor: pointer; }
 details > summary::-webkit-details-marker { display: none; }
 details > summary .node::before { content: "▸"; color: var(--muted); width: 12px; transition: transform .12s; }
 details[open] > summary .node::before { transform: rotate(90deg); }
-.leaf .node::before { content: "◦"; color: var(--muted); width: 12px; text-align: center; }
+.leaf .node::before { content: ""; width: 12px; }
 
 .ws-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 30px 0 12px; }
 .ws-head h2 { margin: 0; font-size: 17px; }

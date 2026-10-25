@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 const (
@@ -183,4 +185,22 @@ func Markup(s string, color bool) string {
 		// painted around the span keeps its own style after it.
 		return style + inner + "\x1b[39m\x1b[22m"
 	})
+}
+
+// Place writes a location in the notation used everywhere, github:owner/repo,
+// with the platform in a colour of its own so the kind of place reads before the
+// name does. Without colour the prefix alone says it.
+func (o *Output) Place(l domain.Location) string {
+	if l.Platform == "" {
+		return ""
+	}
+	home, _ := os.UserHomeDir()
+	prefix, rest, _ := strings.Cut(l.Short(home), ":")
+	style := map[domain.Platform]string{
+		domain.PlatformGitHub: bold,
+		domain.PlatformGitLab: bold + yellow,
+		domain.PlatformGit:    magenta,
+		domain.PlatformFile:   cyan,
+	}[l.Platform]
+	return o.paint(style, prefix+":") + rest
 }

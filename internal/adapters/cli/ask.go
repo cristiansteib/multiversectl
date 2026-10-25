@@ -3,12 +3,14 @@ package cli
 import (
 	"context"
 	"errors"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // A command that is missing something it needs asks for it, with a list to
@@ -154,14 +156,8 @@ func (r runner) nodeArg(cmd *cobra.Command, args []string, c *app.Catalogs, labe
 }
 
 func shortRepoName(repo string) string {
-	repo = strings.TrimSuffix(strings.TrimRight(repo, "/"), ".git")
-	for _, p := range []string{"https://", "http://", "ssh://", "file://"} {
-		repo = strings.TrimPrefix(repo, p)
-	}
-	if i := strings.Index(repo, "@"); i >= 0 {
-		repo = repo[i+1:]
-	}
-	return strings.Replace(repo, ":", "/", 1)
+	home, _ := os.UserHomeDir()
+	return domain.Locate(repo, "").Short(home)
 }
 
 // workspaceArg is an installed workspace: the argument, or the one picked.

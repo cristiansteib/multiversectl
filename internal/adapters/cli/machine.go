@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // quietOut drops what a use case would print: status asks many services about
@@ -204,11 +205,11 @@ func (r runner) printMachine(ms machineStatus) {
 	case ms.Root.Source == "":
 		root = o.Dim("none: ") + "`multiversectl init`"
 	case ms.Root.Unavailable != "":
-		root = "`" + ms.Root.Source + "`  " + o.Red("✗ unreadable")
+		root = o.Place(domain.Locate(ms.Root.Source, "")) + "  " + o.Red("✗ unreadable")
 	case ms.Root.Legacy:
-		root = "`" + ms.Root.Source + "`  " + o.Yellow("plain Catalog")
+		root = o.Place(domain.Locate(ms.Root.Source, "")) + "  " + o.Yellow("plain Catalog")
 	default:
-		root = "`" + ms.Root.Source + "`  " + o.Green("✓ CatalogRoot")
+		root = o.Place(domain.Locate(ms.Root.Source, "")) + "  " + o.Green("✓ CatalogRoot")
 	}
 	o.Plain("%s  %s", o.Bold("Root       "), root)
 

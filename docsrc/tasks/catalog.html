@@ -33,12 +33,12 @@
   <div class="code"><pre><span class="p">$ </span>multiversectl catalog add acme/billing
 › acme/billing holds a workspace manifest (billing)
 ┃ Where should it go?
-┃   index (root)         writes to me/multiverse-index
-┃   ├─ personal          writes to me/multiverse-index
-┃   └─ acme              writes to acme/index · another repository
-┃ ❯    ├─ backend        writes to acme/index · another repository
-┃      └─ frontend       writes to acme/index · another repository
-┃      secret-team       no access or not found: acme/secret-index
+┃   index (root)         writes to github:me/multiverse-index
+┃   ├─ personal          writes to github:me/multiverse-index
+┃   └─ acme              writes to github:acme/index · another repository
+┃ ❯    ├─ backend        writes to github:acme/index · another repository
+┃      └─ frontend       writes to github:acme/index · another repository
+┃      secret-team       no access or not found: github:acme/secret-index
 ↑ up • ↓ down • / filter • enter submit</pre></div>
   <p>Questions are asked with a list you move through: <kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Space</kbd> to tick when several can be chosen, <kbd>/</kbd> to filter a long list, <kbd>Enter</kbd> to accept and <kbd>Esc</kbd> or <kbd>Ctrl+C</kbd> to stop. A command that is missing something it needs asks for it this way, instead of failing: <code>universe up</code> offers your universes, <code>catalog rm</code> offers the entries of the tree, <code>catalog use</code> your installed workspaces, <code>universe new</code> the next free number. Without a terminal, such as in a script, nothing is asked and the command says what it needs.</p>
   <p>The default is the deepest catalog kept in a repository owned by the same owner as the project, since that is usually where it belongs; otherwise the root. The name is asked only when it is already taken there, and listing a project that is already somewhere else in the tree asks first. <code>--at &lt;path&gt;</code> names the place (<code>/</code> is the root), and with <code>--yes</code> and no <code>--at</code> an entry goes in the root, never into a repository nobody named.</p>

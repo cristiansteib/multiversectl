@@ -97,7 +97,7 @@ func (r runner) showTree(cmd *cobra.Command, args []string, fetch bool, format, 
 		enc.SetIndent("", "  ")
 		return enc.Encode(toJSON(node, installed))
 	}
-	for _, line := range r.renderTree(node, tree.Source.Repo, installed) {
+	for _, line := range r.renderTree(node, installed) {
 		r.out.Plain("%s", line)
 	}
 	if len(node.Children) == 0 && node.Kind == domain.CatalogNode {
@@ -127,10 +127,10 @@ func toJSON(n domain.Node, installed map[string]string) jsonNode {
 	return j
 }
 
-// renderTree draws a node and what is under it. A catalog is named with the
-// repository it lives in only when that is not the root's, because that is
-// where a write would go somewhere else.
-func (r runner) renderTree(root domain.Node, rootRepo string, installed map[string]string) []string {
+// renderTree draws a node and what is under it: its name, what kind of node it
+// is (the root, a catalog, a workspace), where it lives, and the file within that
+// place when it shares the place with another node.
+func (r runner) renderTree(root domain.Node, installed map[string]string) []string {
 	rows := root.Rows()
 	width := 0
 	for _, row := range rows {
@@ -139,48 +139,35 @@ func (r runner) renderTree(root domain.Node, rootRepo string, installed map[stri
 		}
 	}
 	lines := make([]string, 0, len(rows))
-	for i, row := range rows {
+	for _, row := range rows {
 		n := row.Node
-		label := row.Prefix + n.Name
-		pad := strings.Repeat(" ", width-len([]rune(label)))
-		var detail string
+		kind, name := "catalog", r.out.Accent(n.Name)
 		switch {
-		case n.Unavailable != "":
-			detail = r.out.Red("✗ " + n.Unavailable)
+		case n.Path == "":
+			kind, name = "root", r.out.Bold(r.out.Accent(n.Name))
 		case n.Kind == domain.WorkspaceNode:
-			detail = r.out.Dim("workspace  ") + shortSource(n.Source)
-			if name, ok := installed[n.Path]; ok {
-				detail += "  " + r.out.Green("✓ installed as "+name)
+			kind, name = "workspace", n.Name
+		}
+		label := row.Prefix + n.Name
+		parts := []string{
+			row.Prefix + name + strings.Repeat(" ", width-len([]rune(label))),
+			r.out.Dim(kind + strings.Repeat(" ", 9-len(kind))),
+		}
+		if loc := r.out.Place(n.Location()); loc != "" {
+			if f := n.FileWithin(); f != "" {
+				loc += " " + r.out.Dim(f)
 			}
-		case n.Source.Repo != "" && (n.Source.Repo != rootRepo || i == 0):
-			detail = r.out.Dim("catalog    ") + shortSource(domain.Source{Repo: n.Source.Repo})
-		default:
-			detail = r.out.Dim("catalog")
+			parts = append(parts, loc)
 		}
-		name := n.Name
-		if n.Kind == domain.CatalogNode {
-			name = r.out.Accent(n.Name)
+		if n.Unavailable != "" {
+			parts = append(parts, r.out.Red("✗ "+n.Unavailable))
 		}
-		lines = append(lines, strings.TrimRight(row.Prefix+name+pad+"  "+detail, " "))
+		if name, ok := installed[n.Path]; ok && n.Kind == domain.WorkspaceNode {
+			parts = append(parts, r.out.Green("✓ installed as "+name))
+		}
+		lines = append(lines, strings.TrimRight(strings.Join(parts, "  "), " "))
 	}
 	return lines
-}
-
-func shortSource(s domain.Source) string {
-	label := strings.TrimSuffix(s.Repo, ".git")
-	for _, p := range []string{"https://github.com/", "git@github.com:"} {
-		label = strings.TrimPrefix(label, p)
-	}
-	if label == "" {
-		return s.Path
-	}
-	if s.Ref != "" {
-		label += "@" + s.Ref
-	}
-	if s.Path != "" && s.Path != "multiverse.yaml" && s.Path != "catalog.yaml" {
-		label += " " + s.Path
-	}
-	return label
 }
 
 // localOrURL makes a file argument absolute so a saved path still works from
@@ -602,9 +589,9 @@ func (r runner) printStatus(rep app.StatusReport) {
 	case rep.Root.Source == "":
 		r.out.Plain("%s  none (install from sources only; `multiversectl init` makes one)", r.out.Bold("root catalog"))
 	case rep.Root.Unavailable != "":
-		r.out.Plain("%s  %s  %s", r.out.Bold("root catalog"), rep.Root.Source, r.out.Red("✗ "+rep.Root.Unavailable))
+		r.out.Plain("%s  %s  %s", r.out.Bold("root catalog"), r.out.Place(domain.Locate(rep.Root.Source, "")), r.out.Red("✗ "+rep.Root.Unavailable))
 	default:
-		r.out.Plain("%s  `%s`", r.out.Bold("root catalog"), rep.Root.Source)
+		r.out.Plain("%s  %s", r.out.Bold("root catalog"), r.out.Place(domain.Locate(rep.Root.Source, "")))
 	}
 	if rep.Root.Legacy {
 		r.out.Info("the root is a plain Catalog, which a new machine cannot tell from a project's: `multiversectl init` marks it as your root")

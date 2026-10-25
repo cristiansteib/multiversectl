@@ -74,7 +74,7 @@ func (c *Catalogs) Use(source string) error {
 	if err := c.Config.Save(cfg); err != nil {
 		return fmt.Errorf("saving the configuration: %w", err)
 	}
-	c.Out.OK("root catalog is %s", source)
+	c.Out.OK("root catalog is `%s`", shortRepo(source))
 	return nil
 }
 
@@ -297,7 +297,7 @@ func reason(err error, repo string) string {
 		"authentication failed", "permission denied", "terminal prompts disabled", "could not read username", "not found",
 	} {
 		if repo != "" && strings.Contains(low, marker) {
-			return "no access or not found: " + repo
+			return "no access or not found: " + shortRepo(repo)
 		}
 	}
 	lines := strings.Split(strings.TrimSpace(text), "\n")

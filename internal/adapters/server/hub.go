@@ -146,7 +146,7 @@ func (s *Server) look1(ctx context.Context, fleet, status bool) {
 			if err != nil {
 				return
 			}
-			s.hub.publish("overview", event{Type: "overview", Data: overviewView{Version: s.o.Version, ReadOnly: s.o.ReadOnly, Status: rep}})
+			s.hub.publish("overview", event{Type: "overview", Data: overviewOf(s.o.Version, s.o.ReadOnly, rep)})
 		}()
 	}
 	wg.Wait()

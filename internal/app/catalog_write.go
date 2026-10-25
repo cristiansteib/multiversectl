@@ -781,14 +781,14 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 		}
 	}
 	if cfg.Catalog != "" && c.sameRoot(cfg.Catalog, in) {
-		c.Out.Info("already using `%s` as the root catalog", cfg.Catalog)
+		c.Out.Info("already using `%s` as the root catalog", shortRepo(cfg.Catalog))
 		return c.ensureRoot(ctx, cfg.Catalog)
 	}
 	if cfg.Catalog != "" {
 		if n := dependents(cfg); n > 0 {
 			return fmt.Errorf("%d installed workspaces come from `%s`, and would point into a root that is no longer used.\n  start over with `multiversectl reset` (it forgets the root and the workspaces, and deletes no file), or remove them one by one with `multiversectl catalog uninstall <name>`, then run init again", n, cfg.Catalog)
 		}
-		if ok, err := c.confirm(fmt.Sprintf("This machine already uses `%s` as its root catalog. Replace it?", cfg.Catalog), false); err != nil {
+		if ok, err := c.confirm(fmt.Sprintf("This machine already uses `%s` as its root catalog. Replace it?", shortRepo(cfg.Catalog)), false); err != nil {
 			return err
 		} else if !ok {
 			return ErrCancelled
@@ -838,7 +838,7 @@ func dependents(cfg Config) int {
 
 // describeSetup says what this machine has, so init starts from what is true.
 func (c *Catalogs) describeSetup(cfg Config) {
-	c.Out.Info("this machine uses `%s` as its root catalog", cfg.Catalog)
+	c.Out.Info("this machine uses `%s` as its root catalog", shortRepo(cfg.Catalog))
 	if len(cfg.Workspaces) == 0 {
 		c.Out.Info("nothing is installed from it yet")
 		return
@@ -910,17 +910,17 @@ func (c *Catalogs) markTopic(ctx context.Context, source string) {
 			continue
 		}
 		if err := h.Available(ctx); err != nil {
-			c.Out.Info("to let a new machine find it, tag `%s` with the topic `%s` on %s", source, RootTopic, h.Name())
+			c.Out.Info("to let a new machine find it, tag `%s` with the topic `%s` on %s", shortRepo(source), RootTopic, h.Name())
 			return
 		}
 		err := c.Progress.Do("Tagging the repository with the topic "+RootTopic, func(ctx context.Context) error {
 			return h.AddTopic(ctx, source, RootTopic)
 		})
 		if err != nil {
-			c.Out.Warn("could not tag `%s` with the topic `%s`: %v", source, RootTopic, err)
+			c.Out.Warn("could not tag `%s` with the topic `%s`: %v", shortRepo(source), RootTopic, err)
 			return
 		}
-		c.Out.OK("`%s` carries the topic `%s`, so a new machine can find it", source, RootTopic)
+		c.Out.OK("`%s` carries the topic `%s`, so a new machine can find it", shortRepo(source), RootTopic)
 		return
 	}
 }
@@ -1077,7 +1077,7 @@ func (c *Catalogs) Reset() (forgot bool, err error) {
 		return false, nil
 	}
 	if cfg.Catalog != "" {
-		c.Out.Plain("  root catalog   `%s`", cfg.Catalog)
+		c.Out.Plain("  root catalog   `%s`", shortRepo(cfg.Catalog))
 	}
 	names := make([]string, 0, len(cfg.Workspaces))
 	for n := range cfg.Workspaces {

@@ -185,7 +185,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	reply(w, overviewView{Version: s.o.Version, ReadOnly: s.o.ReadOnly, Status: rep})
+	reply(w, overviewOf(s.o.Version, s.o.ReadOnly, rep))
 }
 
 func (s *Server) catalog(w http.ResponseWriter, r *http.Request) {

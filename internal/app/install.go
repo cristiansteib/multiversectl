@@ -363,15 +363,11 @@ func unreadable(n domain.Node) []domain.Node {
 	return out
 }
 
-// shortRepo is owner/name for a GitHub-style URL, and the URL otherwise, so a
-// menu line stays short.
+// shortRepo is a repository in the notation used everywhere it is shown, such as
+// github:owner/name, so a line says where it is and stays short.
 func shortRepo(url string) string {
 	if url == "" {
 		return "this machine"
 	}
-	s := strings.TrimSuffix(url, ".git")
-	for _, p := range []string{"https://github.com/", "git@github.com:", "ssh://git@github.com/"} {
-		s = strings.TrimPrefix(s, p)
-	}
-	return s
+	return domain.Locate(url, "").Short("")
 }

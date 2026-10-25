@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -246,10 +245,8 @@ func (r runner) projectRows(ctx context.Context, c *app.Catalogs, fetch bool) ([
 	if tree, err := c.Tree(ctx, "", fetch); err == nil {
 		installed, _ := c.InstalledIn(tree)
 		for _, leaf := range tree.Leaves() {
-			p := projectRow{Project: leaf.Path, Repository: shortRepoName(leaf.Source.Repo), InCatalog: true}
-			if p.Repository == "" {
-				p.Repository = filepath.Base(leaf.Source.Path)
-			}
+			home, _ := os.UserHomeDir()
+			p := projectRow{Project: leaf.Path, Repository: leaf.Location().Short(home), InCatalog: true}
 			if name := installed[leaf.Path]; name != "" {
 				w := byName[name]
 				p.InstalledAs, p.Current, p.State = name, w.Current, stateOf(w)
@@ -260,7 +257,7 @@ func (r runner) projectRows(ctx context.Context, c *app.Catalogs, fetch bool) ([
 	}
 	for _, w := range rep.Workspaces {
 		if !listed[w.Name] {
-			rows = append(rows, projectRow{Project: w.Name, Repository: firstNonEmpty(w.Source, "a local manifest"), InstalledAs: w.Name, Current: w.Current, State: stateOf(w)})
+			rows = append(rows, projectRow{Project: w.Name, Repository: firstNonEmpty(shortRepoName(w.RepoURL), "a local manifest"), InstalledAs: w.Name, Current: w.Current, State: stateOf(w)})
 		}
 	}
 	return rows, nil

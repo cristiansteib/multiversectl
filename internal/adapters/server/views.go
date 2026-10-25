@@ -1,6 +1,11 @@
 package server
 
-import "github.com/cristiansteib/multiversectl/internal/app"
+import (
+	"os"
+
+	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
+)
 
 // The JSON the UI reads. These are written for the page, not borrowed from the
 // app types: the page is a client with its own lifetime, and what it is shown
@@ -11,16 +16,39 @@ type catalogView struct {
 	Installs int      `json:"installed"`
 }
 
+// locView is where something lives, for the page to draw with the platform's own
+// icon: the notation is computed here, once, so the page does not parse URLs.
+type locView struct {
+	Platform string `json:"platform"`
+	Short    string `json:"short"`
+	Path     string `json:"path"`
+	Host     string `json:"host,omitempty"`
+	Ref      string `json:"ref,omitempty"`
+	URL      string `json:"url,omitempty"`
+}
+
+func locOf(l domain.Location) *locView {
+	if l.Platform == "" {
+		return nil
+	}
+	home, _ := os.UserHomeDir()
+	return &locView{Platform: string(l.Platform), Short: l.Short(home), Path: l.Path, Host: l.Host, Ref: l.Ref, URL: l.URL}
+}
+
 type nodeView struct {
-	Name        string     `json:"name"`
-	Path        string     `json:"path"`
-	Kind        string     `json:"kind"` // catalog or workspace
-	Repo        string     `json:"repo,omitempty"`
-	Ref         string     `json:"ref,omitempty"`
-	File        string     `json:"file,omitempty"`
-	InstalledAs string     `json:"installedAs,omitempty"`
-	Unavailable string     `json:"unavailable,omitempty"`
-	Children    []nodeView `json:"children,omitempty"`
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+	Kind        string `json:"kind"` // catalog or workspace
+	Repo        string `json:"repo,omitempty"`
+	Ref         string `json:"ref,omitempty"`
+	File        string `json:"file,omitempty"`
+	InstalledAs string `json:"installedAs,omitempty"`
+	Unavailable string `json:"unavailable,omitempty"`
+	// Loc is where the node lives and Within the file inside it, when that is
+	// not the default: two catalogs in one repository differ only by it.
+	Loc      *locView   `json:"loc,omitempty"`
+	Within   string     `json:"within,omitempty"`
+	Children []nodeView `json:"children,omitempty"`
 }
 
 type fleetView struct {
@@ -97,11 +125,12 @@ type workspaceView struct {
 }
 
 type repoView struct {
-	Key     string `json:"key"`
-	URL     string `json:"url"`
-	Dir     string `json:"dir"`
-	Runtime string `json:"runtime"`
-	Cloned  bool   `json:"cloned"`
+	Key     string   `json:"key"`
+	Loc     *locView `json:"loc,omitempty"`
+	URL     string   `json:"url"`
+	Dir     string   `json:"dir"`
+	Runtime string   `json:"runtime"`
+	Cloned  bool     `json:"cloned"`
 }
 
 type appDefView struct {
@@ -134,6 +163,20 @@ type overviewView struct {
 	Version  string           `json:"version"`
 	ReadOnly bool             `json:"readOnly,omitempty"`
 	Status   app.StatusReport `json:"status"`
+	// RootLoc is where the root catalog lives and Sources where each installed
+	// workspace's manifest came from, by workspace name.
+	RootLoc *locView           `json:"rootLoc,omitempty"`
+	Sources map[string]locView `json:"sources,omitempty"`
+}
+
+func overviewOf(version string, readOnly bool, rep app.StatusReport) overviewView {
+	v := overviewView{Version: version, ReadOnly: readOnly, Status: rep, RootLoc: locOf(domain.Locate(rep.Root.Source, "")), Sources: map[string]locView{}}
+	for _, w := range rep.Workspaces {
+		if l := locOf(domain.Locate(w.RepoURL, w.Ref)); l != nil {
+			v.Sources[w.Name] = *l
+		}
+	}
+	return v
 }
 
 // helloView is the first thing a page is told on the websocket.

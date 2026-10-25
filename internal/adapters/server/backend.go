@@ -86,7 +86,7 @@ func (s Services) Catalog(ctx context.Context, fetch bool) (catalogView, error) 
 
 func toNode(n domain.Node, installed map[string]string) nodeView {
 	v := nodeView{Name: n.Name, Path: n.Path, Kind: string(n.Kind), Repo: n.Source.Repo, Ref: n.Source.Ref,
-		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable}
+		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable, Loc: locOf(n.Location()), Within: n.FileWithin()}
 	for _, c := range n.Children {
 		v.Children = append(v.Children, toNode(c, installed))
 	}
@@ -185,7 +185,7 @@ func (s Services) Workspace(ctx context.Context, name string) (workspaceView, er
 		Network: m.Proxy.Network, Proxy: m.Proxy.Entrypoints, Env: m.Env, Repos: []repoView{}, Apps: []appDefView{}}
 	for _, key := range sortedKeys(m.Repos) {
 		r := m.Repos[key]
-		v.Repos = append(v.Repos, repoView{Key: key, URL: r.URL, Dir: r.Dir, Runtime: string(r.Runtime),
+		v.Repos = append(v.Repos, repoView{Key: key, Loc: locOf(domain.Locate(r.URL, "")), URL: r.URL, Dir: r.Dir, Runtime: string(r.Runtime),
 			Cloned: svc.Files.Exists(m.CloneDir(w.Root, key))})
 	}
 	for _, key := range sortedKeys(m.Apps) {

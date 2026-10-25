@@ -55,10 +55,10 @@ func TestThePickerDefaultsToTheCatalogOwnedBySameOwnerAsTheSource(t *testing.T) 
 			disabled = append(disabled, o.Label+" "+o.Note)
 		}
 	}
-	if !strings.Contains(strings.Join(notes, "|"), "writes to acme/index · another repository") {
+	if !strings.Contains(strings.Join(notes, "|"), "writes to github:acme/index · another repository") {
 		t.Errorf("notes %v should say where writing goes, and that it is another repository", notes)
 	}
-	if len(disabled) != 1 || !strings.Contains(disabled[0], "secret") || !strings.Contains(disabled[0], "no access or not found: https://github.com/acme/private.git") {
+	if len(disabled) != 1 || !strings.Contains(disabled[0], "secret") || !strings.Contains(disabled[0], "no access or not found: github:acme/private") {
 		t.Errorf("an unreachable layer is listed, not hidden: %v", disabled)
 	}
 }
@@ -90,7 +90,7 @@ func TestANameThatIsTakenIsAskedAboutOnlyThen(t *testing.T) {
 		t.Fatalf("node=%q err=%v", node, err)
 	}
 	asked := strings.Join(r.prompt.asked, "|")
-	if !strings.Contains(asked, `"billing" exists here (git@example.test:other/billing-v1). Name`) {
+	if !strings.Contains(asked, `"billing" exists here (git:example.test/other/billing-v1). Name`) {
 		t.Errorf("asked %q", asked)
 	}
 	if strings.Contains(asked, "Name in the catalog") {

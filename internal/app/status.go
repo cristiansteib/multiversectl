@@ -25,11 +25,14 @@ type RootStatus struct {
 // WorkspaceStatus is one installed workspace and how far it has drifted from
 // where it came from.
 type WorkspaceStatus struct {
-	Name    string   `json:"name"`
-	Current bool     `json:"current,omitempty"`
-	Root    string   `json:"root"`
-	From    string   `json:"from,omitempty"`
-	Source  string   `json:"source,omitempty"`
+	Name    string `json:"name"`
+	Current bool   `json:"current,omitempty"`
+	Root    string `json:"root"`
+	From    string `json:"from,omitempty"`
+	Source  string `json:"source,omitempty"`
+	// RepoURL and Ref are where the manifest was installed from, as written.
+	RepoURL string   `json:"repoUrl,omitempty"`
+	Ref     string   `json:"ref,omitempty"`
 	Notes   []string `json:"notes,omitempty"`
 	Stale   bool     `json:"stale,omitempty"`
 }
@@ -81,7 +84,7 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 	var stale []string
 	for _, name := range names {
 		e := cfg.Workspaces[name]
-		w := WorkspaceStatus{Name: name, Current: name == cfg.Current, Root: e.Root, From: e.From, Source: shortRepo(e.Source.Repo)}
+		w := WorkspaceStatus{Name: name, Current: name == cfg.Current, Root: e.Root, From: e.From, Source: shortRepo(e.Source.Repo), RepoURL: e.Source.Repo, Ref: e.Source.Ref}
 		if e.Source.Repo == "" {
 			w.Source = ""
 		}

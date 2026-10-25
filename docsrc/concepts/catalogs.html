@@ -31,6 +31,27 @@
   <p>A node is addressed by the names that lead to it, for example <code>acme/backend/billing</code>. Names are unique among siblings. The schema is <code>schema/catalog.v1alpha1.yaml</code>.</p>
 </section>
 
+<section id="places">
+  <h2 id="places"><a href="#places">Where a node lives</a></h2>
+  <p>A repository is written as a URL, which says how it was typed and not where it is, so every place the tool shows one uses a notation that names the platform first:</p>
+  <div class="tw"><table>
+    <thead><tr><th scope="col">You see</th><th scope="col">It is</th></tr></thead>
+    <tbody>
+      <tr><td data-l="You see"><code>github:acme/api</code></td><td data-l="It is">a repository on GitHub, however its URL was written (https, ssh or <code>owner/repo</code>)</td></tr>
+      <tr><td data-l="You see"><code>gitlab:acme/team/api</code></td><td data-l="It is">a project on GitLab, groups and subgroups included</td></tr>
+      <tr><td data-l="You see"><code>git:git.example.test/acme/api</code></td><td data-l="It is">a repository on any other host, with the host named</td></tr>
+      <tr><td data-l="You see"><code>file:~/code/index/catalog.yaml</code></td><td data-l="It is">a file or directory on this machine, with <code>~</code> for your home</td></tr>
+    </tbody>
+  </table></div>
+  <p>A branch, tag or commit follows as <code>@ref</code>. Self-hosted GitHub and GitLab servers keep their host: <code>gitlab:gitlab.example.test/acme/api</code>. The tree says what each node is, as well as where it lives, and when a catalog shares its repository with another, which a personal catalog kept in the root's repository does, the file inside it follows:</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl catalog
+index     <span class="c">root</span>       github:me/index
+├─ personal  <span class="c">catalog</span>    github:me/index <span class="c">catalogs/personal.yaml</span>
+└─ acme      <span class="c">catalog</span>    gitlab:acme/index
+   └─ billing  <span class="c">workspace</span>  gitlab:acme/billing  ✓ installed as billing</pre></div>
+  <p>The web page draws the same: each platform's mark beside its name, a badge for <em>root</em>, <em>catalog</em> or <em>workspace</em>, and the file as a chip. Hovering a location shows the URL as written. <code>status</code>, <code>project list</code> and the messages the tool prints use the notation too.</p>
+</section>
+
 <section id="root">
   <h2 id="root"><a href="#root">The root, and how a new machine finds it</a></h2>
   <p>Every machine starts from one catalog, its <em>root</em>, and the root has its own kind so it can be told from the catalogs of the projects hanging under it:</p>

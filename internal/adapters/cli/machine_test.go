@@ -6,13 +6,15 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-func TestRepositoriesAreShownAsOwnerSlashName(t *testing.T) {
+func TestRepositoriesAreShownByPlatform(t *testing.T) {
+	t.Setenv("HOME", "/home/me")
 	for in, want := range map[string]string{
-		"https://github.com/acme/api.git":   "github.com/acme/api",
-		"git@github.com:acme/api.git":       "github.com/acme/api",
-		"file:///tmp/uidemo/proj":           "/tmp/uidemo/proj",
-		"ssh://git@gitlab.example.test/a/b": "gitlab.example.test/a/b",
-		"":                                  "",
+		"https://github.com/acme/api.git":  "github:acme/api",
+		"git@github.com:acme/api.git":      "github:acme/api",
+		"https://gitlab.com/acme/team/api": "gitlab:acme/team/api",
+		"file:///home/me/code/proj":        "file:~/code/proj",
+		"ssh://git@git.example.test/a/b":   "git:git.example.test/a/b",
+		"":                                 "",
 	} {
 		if got := shortRepoName(in); got != want {
 			t.Errorf("shortRepoName(%q) = %q, want %q", in, got, want)

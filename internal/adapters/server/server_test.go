@@ -17,6 +17,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 const testToken = "test-token"
@@ -704,5 +705,50 @@ func TestNewAndCheckoutAreActionsAndTheFormHelpersAreEndpoints(t *testing.T) {
 	defer f.mu.Unlock()
 	if len(f.did) != 2 || f.did[1].Branch != "feat/x" || !f.did[1].OnlyExisting {
 		t.Errorf("did %+v", f.did)
+	}
+}
+
+// Where something lives is worked out once, on the server, in one notation, so
+// the page draws a platform's mark and never has to read a URL.
+func TestNodesAndOverviewsCarryTheirLocationInOneNotation(t *testing.T) {
+	t.Setenv("HOME", "/home/me")
+	index := domain.Source{Repo: "https://github.com/me/index.git", Path: "catalog.yaml"}
+	tree := domain.Node{Name: "index", Kind: domain.CatalogNode, Source: index, Children: []domain.Node{
+		{Name: "personal", Path: "personal", Kind: domain.CatalogNode, Source: domain.Source{Repo: index.Repo, Path: "catalogs/personal.yaml"}},
+		{Name: "acme", Path: "acme", Kind: domain.CatalogNode, Source: domain.Source{Repo: "git@gitlab.com:acme/index.git", Path: "catalog.yaml"}},
+		{Name: "notes", Path: "notes", Kind: domain.WorkspaceNode, Source: domain.Source{Path: "/home/me/notes/multiverse.yaml"}},
+	}}
+	v := toNode(tree, map[string]string{})
+	got := map[string]string{}
+	for _, c := range append([]nodeView{v}, v.Children...) {
+		got[c.Name] = c.Loc.Short + "|" + c.Within
+	}
+	for name, want := range map[string]string{
+		"index":    "github:me/index|",
+		"personal": "github:me/index|catalogs/personal.yaml", // the same repository as the root: the file says which catalog
+		"acme":     "gitlab:acme/index|",
+		"notes":    "file:~/notes/multiverse.yaml|",
+	} {
+		if got[name] != want {
+			t.Errorf("%s: %q, want %q", name, got[name], want)
+		}
+	}
+	if v.Loc.Platform != "github" || v.Children[1].Loc.Platform != "gitlab" || v.Children[2].Loc.Platform != "file" {
+		t.Errorf("platforms: %+v", v)
+	}
+
+	rep := app.StatusReport{
+		Root:       app.RootStatus{Source: "https://github.com/me/index.git"},
+		Workspaces: []app.WorkspaceStatus{{Name: "acme", RepoURL: "git@gitlab.com:acme/multiverse.git", Ref: "main"}, {Name: "local"}},
+	}
+	o := overviewOf("v1", false, rep)
+	if o.RootLoc == nil || o.RootLoc.Short != "github:me/index" {
+		t.Errorf("root: %+v", o.RootLoc)
+	}
+	if s := o.Sources["acme"]; s.Short != "gitlab:acme/multiverse@main" || s.Platform != "gitlab" {
+		t.Errorf("source: %+v", s)
+	}
+	if _, ok := o.Sources["local"]; ok {
+		t.Error("a workspace with no repository has no source to draw")
 	}
 }

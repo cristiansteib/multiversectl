@@ -72,6 +72,54 @@ const empty = (...kids) => h('div', { class: 'empty' }, kids);
 const cmd = (c) => h('code', null, c);
 const errorBox = (e) => h('div', { class: 'error', role: 'alert' }, String(e.message || e));
 
+// Where something lives is drawn the same way everywhere: the platform's mark and
+// its name, then the path on it (github:owner/repo, gitlab:group/repo,
+// file:~/path), so the kind of place reads before the name does. The marks are
+// built with the DOM, like everything else here, never from markup strings.
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const ICONS = {
+  github: { d: 'M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z' },
+  gitlab: { d: 'M8 14.9L.9 9.6l1.1-3.3L3.7 1.7c.1-.3.6-.3.7 0L6 6.3h4l1.6-4.6c.1-.3.6-.3.7 0L14 6.3l1.1 3.3z' },
+  git: { d: 'M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5z' },
+  file: { d: 'M1.5 3A1.5 1.5 0 0 1 3 1.5h3.1c.4 0 .78.16 1.06.44L8.2 3H13A1.5 1.5 0 0 1 14.5 4.5v7A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5z' },
+  root: { d: 'M8 1.2l2.1 4.4 4.8.7-3.5 3.4.8 4.8L8 12.2l-4.2 2.3.8-4.8L1.1 6.3l4.8-.7z' },
+  catalog: { d: 'M2 3.5h12v1.6H2zM2 7.2h12v1.6H2zM2 10.9h8v1.6H2z' },
+  workspace: { d: 'M8 1.5l5.5 3v7L8 14.5l-5.5-3v-7zM2.5 4.5L8 7.5l5.5-3M8 7.5v7', stroke: true },
+};
+
+function svg(name, cls) {
+  const icon = ICONS[name] || ICONS.git;
+  const el = document.createElementNS(SVG_NS, 'svg');
+  el.setAttribute('viewBox', '0 0 16 16');
+  el.setAttribute('width', '14');
+  el.setAttribute('height', '14');
+  el.setAttribute('aria-hidden', 'true');
+  el.setAttribute('class', cls || '');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', icon.d);
+  if (icon.stroke) {
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '1.3');
+    path.setAttribute('stroke-linejoin', 'round');
+  } else {
+    path.setAttribute('fill', 'currentColor');
+  }
+  el.append(path);
+  return el;
+}
+
+// place draws a location the server worked out: its platform mark, the platform
+// named, and the rest. within is the file inside the repository, when that is
+// what tells this node from another in the same one.
+function place(loc, within) {
+  if (!loc) return null;
+  const i = loc.short.indexOf(':');
+  return h('span', { class: 'place ' + loc.platform, title: loc.url || loc.short },
+    svg(loc.platform, 'pi'), h('span', { class: 'plat' }, loc.short.slice(0, i)), h('span', { class: 'sep' }, ':'),
+    h('span', { class: 'path' }, loc.short.slice(i + 1)), within ? h('span', { class: 'within' }, within) : null);
+}
+
 function ago(iso) {
   if (!iso) return '';
   const s = (Date.now() - Date.parse(iso)) / 1000;
@@ -99,23 +147,23 @@ views.overview = {
           onclick: async (e) => { e.target.disabled = true; try { await refresh(true); toast('Compared with the remotes'); } finally { e.target.disabled = false; } } },
         'Fetch remotes and compare')), body);
     let last = null;
-    const draw = (status) => { last = status; body.replaceChildren(...overview(status)); };
+    const draw = (d) => { last = d; body.replaceChildren(...overview(d.status, d.rootLoc, d.sources || {})); };
     return {
       async refresh(fetch) {
         try {
-          const { readOnly, status } = await api('overview' + (fetch ? '?fetch=1' : ''));
-          if (readOnly) state.readOnly = true;
-          draw(status);
+          const d = await api('overview' + (fetch ? '?fetch=1' : ''));
+          if (d.readOnly) state.readOnly = true;
+          draw(d);
         } catch (e) { body.replaceChildren(errorBox(e)); }
       },
-      onOverview(status) { draw(status); },
+      onOverview(d) { draw(d); },
       onOps() { if (last) draw(last); },
       onMode() { if (last) draw(last); },
     };
   },
 };
 
-function overview(st) {
+function overview(st, rootLoc, sources) {
   const out = [];
   if (st.next) out.push(h('div', { class: 'next' }, h('b', null, 'Next'), copyable(st.next)));
 
@@ -125,7 +173,8 @@ function overview(st) {
     rootCard.append(h('p', { class: 'muted' }, 'None. Projects can still be installed from a repository.'),
       h('p', null, cmd('multiversectl init')));
   } else {
-    rootCard.append(h('div', { class: 'mono wrap' }, root.source));
+    rootCard.append(h('div', null, place(rootLoc) || h('span', { class: 'mono wrap' }, root.source), ' ',
+      root.unavailable ? null : root.legacy ? badge('warn', 'plain Catalog', 'Not marked as a root: run multiversectl init') : badge('ok', 'CatalogRoot')));
     if (root.unavailable) rootCard.append(h('p', null, badge('bad', 'unavailable'), ' ', root.unavailable));
     if (root.noRemote) rootCard.append(h('p', null, badge('warn', 'local only'), ' Lost with this machine, and nobody else can use it.'));
     rootCard.append(h('p', null, h('a', { href: '#/catalog' }, 'Browse the tree →')));
@@ -145,11 +194,12 @@ function overview(st) {
     return out;
   }
   out.push(h('div', { class: 'scroll' }, h('table', null,
-    h('thead', null, h('tr', null, ['Workspace', 'From', 'State', 'Root', ''].map((t) => h('th', null, t)))),
+    h('thead', null, h('tr', null, ['Workspace', 'Catalog path', 'Source', 'State', 'Root', ''].map((t) => h('th', null, t)))),
     h('tbody', null, ws.map((w) => h('tr', null,
       h('td', null, w.current ? h('span', { title: 'current workspace' }, '★ ') : '',
         h('a', { href: '#/workspace/' + encodeURIComponent(w.name) }, w.name)),
-      h('td', { class: 'mono' }, w.from || w.source || '—'),
+      h('td', { class: 'mono' }, w.from || '—'),
+      h('td', null, place(sources[w.name]) || h('span', { class: 'muted' }, '—')),
       h('td', null, w.notes && w.notes.length
         ? w.notes.map((n) => [badge(w.stale ? 'warn' : 'mute', n), ' '])
         : badge('ok', 'up to date')),
@@ -181,16 +231,21 @@ views.catalog = {
         h('button', { type: 'button', class: 'btn', onclick: (e) => load(true, e.target) }, 'Fetch remotes')),
       body);
 
-    const matches = (n) => !filter || [n.name, n.path, n.repo || ''].some((s) => s.toLowerCase().includes(filter));
+    const matches = (n) => !filter || [n.name, n.path, n.repo || '', n.loc ? n.loc.short : '', n.within || ''].some((s) => s.toLowerCase().includes(filter));
     const keeps = (n) => matches(n) || (n.children || []).some(keeps);
 
     function item(n) {
       if (!keeps(n)) return null;
+      // What kind of node it is, said in words and drawn, and where it lives:
+      // two catalogs can share a repository and differ only by their file.
+      const kind = n.path === '' ? 'root' : n.kind;
       const label = [
-        h('span', { class: 'name' }, n.path === '' ? n.name + ' (root)' : n.name),
+        svg(kind, 'ki ' + kind),
+        h('span', { class: 'name' }, n.name),
+        h('span', { class: 'kind ' + kind }, kind),
+        place(n.loc, n.within),
         n.unavailable ? badge('bad', '✗ ' + n.unavailable) : null,
         n.installedAs ? badge('ok', '✓ installed as ' + n.installedAs) : null,
-        n.repo ? h('span', { class: 'repo' }, n.repo + (n.ref ? '@' + n.ref : '')) : null,
       ];
       if (n.kind === 'workspace') {
         return h('li', { class: 'leaf' }, h('div', { class: 'node ws' }, label,
@@ -362,8 +417,8 @@ views.workspace = {
                 h('div', null, Object.entries(w.entrypoints || {}).map(([k, v]) => [h('span', { class: 'chip' }, k + ' :' + v), ' '])))),
             h('h2', null, 'Repositories'),
             h('div', { class: 'scroll' }, h('table', null,
-              h('thead', null, h('tr', null, ['Name', 'URL', 'Runtime', 'Clone'].map((t) => h('th', null, t)))),
-              h('tbody', null, w.repos.map((r) => h('tr', null, h('td', null, r.key), h('td', { class: 'mono' }, r.url),
+              h('thead', null, h('tr', null, ['Name', 'Repository', 'Runtime', 'Clone'].map((t) => h('th', null, t)))),
+              h('tbody', null, w.repos.map((r) => h('tr', null, h('td', null, r.key), h('td', null, place(r.loc) || h('span', { class: 'mono' }, r.url)),
                 h('td', null, r.runtime || 'compose'), h('td', null, r.cloned ? badge('ok', 'cloned') : badge('warn', 'not cloned'))))))),
             h('h2', null, 'Apps'),
             h('div', { class: 'cards' }, w.apps.map((a) => h('div', { class: 'card' }, h('h3', null, a.key),
@@ -642,7 +697,7 @@ function onEvent(e) {
       break;
     }
     case 'fleet': state.fleet = e.data; if (current && current.onFleet) current.onFleet(e.data); stamp(); break;
-    case 'overview': state.overview = e.data; if (current && current.onOverview) current.onOverview(e.data.status); stamp(); break;
+    case 'overview': state.overview = e.data; if (current && current.onOverview) current.onOverview(e.data); stamp(); break;
     case 'op': onOp(e.data); break;
     case 'opline': onOpLine(e.data); break;
     default: break;
