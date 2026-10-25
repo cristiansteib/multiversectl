@@ -178,8 +178,25 @@ func (r runner) renderTree(root domain.Node, installed map[string]string) []stri
 		if n.Unavailable != "" {
 			parts = append(parts, r.out.Red("✗ "+n.Unavailable))
 		}
-		if name, ok := installed[n.Path]; ok && n.Kind == domain.WorkspaceNode {
-			parts = append(parts, r.out.Green("✓ installed as "+name))
+		switch {
+		case n.Kind == domain.WorkspaceNode && n.Unavailable == "":
+			if name, ok := installed[n.Path]; ok {
+				parts = append(parts, r.out.Green("✓ installed as "+name))
+			} else {
+				parts = append(parts, r.out.Dim("○ not installed"))
+			}
+		case n.Kind == domain.CatalogNode && n.Unavailable == "":
+			// How much of what a catalog lists is on this machine, so a group can be
+			// judged without opening it.
+			if leaves := n.Leaves(); len(leaves) > 0 {
+				have := 0
+				for _, l := range leaves {
+					if _, ok := installed[l.Path]; ok {
+						have++
+					}
+				}
+				parts = append(parts, r.out.Dim(fmt.Sprintf("%d/%d installed", have, len(leaves))))
+			}
 		}
 		lines = append(lines, strings.TrimRight(strings.Join(parts, "  "), " "))
 	}

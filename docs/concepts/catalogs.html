@@ -125,12 +125,13 @@
       <tr><td data-l="You see"><code>file:~/code/index/catalog.yaml</code></td><td data-l="It is">a file or directory on this machine, with <code>~</code> for your home</td></tr>
     </tbody>
   </table></div>
-  <p>A branch, tag or commit follows as <code>@ref</code>. Self-hosted GitHub and GitLab servers keep their host: <code>gitlab:gitlab.example.test/acme/api</code>. The tree says what each node is, as well as where it lives, and when a catalog shares its repository with another, which a personal catalog kept in the root's repository does, the file inside it follows:</p>
+  <p>A branch, tag or commit follows as <code>@ref</code>. Self-hosted GitHub and GitLab servers keep their host: <code>gitlab:gitlab.example.test/acme/api</code>. The tree says what each node is, as well as where it lives, whether each project is installed here (<code>✓ installed as billing</code> or <code>○ not installed</code>) and, on each catalog, how many of the projects under it are, and when a catalog shares its repository with another, which a personal catalog kept in the root's repository does, the file inside it follows:</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl catalog
-index     <span class="c">root</span>       github:me/index
-├─ personal  <span class="c">catalog</span>    github:me/index <span class="c">catalogs/personal.yaml</span>
-└─ acme      <span class="c">catalog</span>    gitlab:acme/index
-   └─ billing  <span class="c">project</span>  gitlab:acme/billing  ✓ installed as billing</pre></div>
+index     <span class="c">root</span>       github:me/index                              1/2 installed
+├─ personal  <span class="c">catalog</span>    github:me/index <span class="c">catalogs/personal.yaml</span>  0/1 installed
+│  └─ notes     <span class="c">project</span>  file:~/notes/multiverse.yaml           ○ not installed
+└─ acme      <span class="c">catalog</span>    gitlab:acme/index                            1/1 installed
+   └─ billing  <span class="c">project</span>  gitlab:acme/billing                        ✓ installed as billing</pre></div>
   <p>The web page draws the same: each platform's mark beside its name, a badge for <em>root</em>, <em>catalog</em> or <em>project</em>, and the file as a chip. Hovering a location shows the URL as written. <code>status</code>, <code>project list</code> and the messages the tool prints use the notation too.</p>
 </section>
 

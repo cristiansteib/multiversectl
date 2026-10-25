@@ -245,7 +245,7 @@ views.catalog = {
         h('span', { class: 'kind ' + kind }, kind),
         place(n.loc, n.within),
         n.unavailable ? badge('bad', '✗ ' + n.unavailable) : null,
-        n.installedAs ? badge('ok', '✓ installed as ' + n.installedAs) : null,
+        n.kind === 'project' && !n.unavailable ? (n.installedAs ? badge('ok', '✓ installed as ' + n.installedAs) : badge('mute', '○ not installed')) : null,
       ];
       if (n.kind === 'project') {
         return h('li', { class: 'leaf' }, h('div', { class: 'node ws' }, label,

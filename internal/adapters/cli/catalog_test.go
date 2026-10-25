@@ -30,6 +30,9 @@ func TestRenderTree(t *testing.T) {
 		"file:~/notes/multiverse.yaml",
 		"gitlab:acme/index", "gitlab:acme/pay@v1", "project", "✓ installed as payments",
 		"✗ no access or not found: github:acme/private",
+		"○ not installed", // notes is a project that is listed and not on this machine
+		"1/1 installed",   // acme: payments is installed
+		"0/1 installed",   // personal: notes is not
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
