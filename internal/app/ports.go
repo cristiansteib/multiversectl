@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io/fs"
 	"sort"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -349,3 +350,34 @@ type Output interface {
 	Plain(format string, a ...any)
 	Table(headers []string, rows [][]string)
 }
+
+// ServerProcess runs the web view as a background process of its own. The web
+// view is a separate program (multiversectl-server); this is how the command
+// line starts and stops it without containing it.
+type ServerProcess interface {
+	// Start launches it detached and returns once it answers. A server that is
+	// already running is returned as it is, with ErrServerRunning.
+	Start(ctx context.Context, o ServerStart) (ServerInfo, error)
+	// Stop ends the server this port started, ErrServerNotRunning when none is.
+	Stop(ctx context.Context) (ServerInfo, error)
+	Status(ctx context.Context) (ServerInfo, error)
+}
+
+// ServerStart says where the server listens.
+type ServerStart struct {
+	Addr   string
+	Expose bool
+}
+
+// ServerInfo is a running server.
+type ServerInfo struct {
+	PID     int
+	URL     string
+	Started time.Time
+	Log     string
+}
+
+var (
+	ErrServerRunning    = errors.New("the server is already running")
+	ErrServerNotRunning = errors.New("the server is not running")
+)

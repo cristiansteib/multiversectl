@@ -18,6 +18,7 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest"
 	"github.com/cristiansteib/multiversectl/internal/adapters/prompt"
 	"github.com/cristiansteib/multiversectl/internal/adapters/release"
+	"github.com/cristiansteib/multiversectl/internal/adapters/serverproc"
 	"github.com/cristiansteib/multiversectl/internal/adapters/statestore"
 	"github.com/cristiansteib/multiversectl/internal/adapters/system"
 	"github.com/cristiansteib/multiversectl/internal/adapters/traefik"
@@ -122,6 +123,9 @@ func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 		CacheDir:  filepath.Join(filepath.Dir(store.Path()), "catalogs"),
 	}), nil
 }
+
+// Server builds the port that runs multiversectl-server in the background.
+func Server() (app.ServerProcess, error) { return serverproc.New() }
 
 // Completions builds the use case that installs shell completions.
 func (m Machine) Completions(out app.Output) *app.Completions {

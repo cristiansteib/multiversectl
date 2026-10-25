@@ -1,8 +1,11 @@
 <section id="hw-server">
   <h2 id="hw-server"><a href="#hw-server">See the whole setup in a page</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl-server --open
-serving http://127.0.0.1:7777 (read-only; Ctrl-C stops it)</pre></div>
-  <p><code>multiversectl-server</code> is a separate program from <code>multiversectl</code>, built from the same project: the command line carries no web server, and you install the server only where you want it. <code>make install</code> and the release archives and the <code>.deb</code> include both; the release also publishes a raw <code>multiversectl-server_&lt;os&gt;_&lt;arch&gt;</code> binary. It reads the same configuration, so it shows whatever <code>multiversectl</code> has installed.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl server start --open
+✓ serving http://127.0.0.1:7777 in the background (pid 4242, read-only); stop it with: multiversectl server stop
+<span class="p">$ </span>multiversectl server status
+<span class="p">$ </span>multiversectl server stop</pre></div>
+  <p><code>start</code> runs the web view detached from your terminal and remembers it, so closing the shell does not stop it; <code>start</code> again reports the one already running, and <code>stop</code> ends it. <code>--addr</code>, <code>--expose</code> and <code>--open</code> are described below. Its output goes to <code>server.log</code> beside the configuration file, which is where <code>start</code> shows the reason when the server cannot start, such as a port already in use. To keep it in a terminal instead, run <code>multiversectl-server</code> itself; Ctrl-C stops it.</p>
+  <p><code>multiversectl-server</code> is a separate program from <code>multiversectl</code>, built from the same project: the command line carries no web server, and <code>multiversectl server</code> only starts and stops that program, which it looks for beside itself and then on the <code>PATH</code>. <code>make install</code> and the release archives and the <code>.deb</code> include both; the release also publishes a raw <code>multiversectl-server_&lt;os&gt;_&lt;arch&gt;</code> binary. It reads the same configuration, so it shows whatever <code>multiversectl</code> has installed.</p>
   <p>One page, three views, refreshed every ten seconds while it is open:</p>
   <ul class="t">
     <li><strong>Overview</strong>: the root catalog, the workspaces installed here, and where each has drifted, as <code>status</code> shows it. <em>Fetch remotes and compare</em> is <code>status --fetch</code>.</li>

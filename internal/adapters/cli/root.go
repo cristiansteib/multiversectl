@@ -30,6 +30,8 @@ type Factory struct {
 	At func(g Globals, out app.Output, root, manifestPath string) (*app.Service, error)
 	// Catalogs builds the catalog service, which never needs a workspace.
 	Catalogs func(g Globals, out app.Output) (*app.Catalogs, error)
+	// Server builds the port that starts and stops the web view process.
+	Server func() (app.ServerProcess, error)
 	// Completions builds the use case that installs and refreshes completions.
 	Completions func(out app.Output) *app.Completions
 }
@@ -61,7 +63,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run = runner{g: g, out: out, f: f}
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
-		run.universeCmd(), run.systemCmd(), run.doctorCmd(), run.catalogCmd(), run.initCmd(), run.completionCmd(root),
+		run.universeCmd(), run.systemCmd(), run.serverCmd(), run.doctorCmd(), run.catalogCmd(), run.initCmd(), run.completionCmd(root),
 		run.proxyCmd(), run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("workspace", run.completeWorkspaces)

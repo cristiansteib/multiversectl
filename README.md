@@ -97,7 +97,8 @@ To see all of it in a page (the tree, what is installed, every universe and what
 runs in it), without a way to change anything:
 
 ```sh
-multiversectl-server --open   # read-only, loopback only
+multiversectl server start --open   # in the background; read-only, loopback only
+multiversectl server stop
 ```
 
 ## Quick start

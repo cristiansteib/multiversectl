@@ -31,6 +31,7 @@ func main() {
 		Bare:      bare,
 		At:        at,
 		Catalogs:  catalogs,
+		Server:    wire.Server,
 		Completions: func(out app.Output) *app.Completions {
 			return wire.Machine{Version: version, Ctx: interrupted}.Completions(out)
 		},
