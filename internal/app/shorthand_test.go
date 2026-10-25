@@ -8,8 +8,8 @@ func TestExpandShorthand(t *testing.T) {
 		local bool
 		want  string
 	}{
-		{"fichero-app/multiverse", false, "https://github.com/fichero-app/multiverse.git"},
-		{"fichero-app/multiverse.git", false, "https://github.com/fichero-app/multiverse.git"},
+		{"acme-org/multiverse", false, "https://github.com/acme-org/multiverse.git"},
+		{"acme-org/multiverse.git", false, "https://github.com/acme-org/multiverse.git"},
 		{"git@github.com:acme/x.git", false, "git@github.com:acme/x.git"},
 		{"https://example.test/acme/x.git", false, "https://example.test/acme/x.git"},
 		{"./acme/x", false, "./acme/x"},

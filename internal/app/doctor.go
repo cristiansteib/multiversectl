@@ -45,7 +45,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 
 	s.checkRuntime(ctx, add)
 	if s.Manifest == nil {
-		add("manifest", StatusWarn, "no manifest loaded; run bootstrap")
+		add("manifest", StatusWarn, "no manifest loaded; multiversectl install <owner/repo>")
 	} else {
 		s.checkProxy(ctx, add)
 		s.checkWorkspaces(add)
@@ -156,6 +156,7 @@ func (s *Service) checkWorkspaces(add addCheck) {
 	}
 	sort.Strings(names)
 	others, clashes := 0, 0
+	mine := s.Manifest.Name
 	for _, name := range names {
 		path := cfg.Workspaces[name].Manifest
 		if path == s.Manifest.Path {
@@ -166,7 +167,7 @@ func (s *Service) checkWorkspaces(add addCheck) {
 			continue
 		}
 		others++
-		for _, clash := range domain.ProxyClashes(s.Manifest, other) {
+		for _, clash := range domain.ProxyClashes(mine, s.Manifest, name, other) {
 			clashes++
 			add("workspaces", StatusWarn, "%s", clash)
 		}

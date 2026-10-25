@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,14 +16,21 @@ import (
 )
 
 type scripted struct {
-	selects  []int
-	inputs   []string
-	confirms []bool
-	asked    []string
+	takeDefault bool // answer Select with its default
+	lastOptions []app.Option
+	multi       []int // nil: no terminal
+	selects     []int
+	inputs      []string
+	confirms    []bool
+	asked       []string
 }
 
-func (p *scripted) Select(label string, _ []string, def int) (int, error) {
+func (p *scripted) Select(label string, opts []app.Option, def int) (int, error) {
 	p.asked = append(p.asked, label)
+	p.lastOptions = opts
+	if p.takeDefault {
+		return def, nil
+	}
 	if len(p.selects) == 0 {
 		return 0, app.ErrNotInteractive
 	}
@@ -30,9 +38,12 @@ func (p *scripted) Select(label string, _ []string, def int) (int, error) {
 	p.selects = p.selects[1:]
 	return n, nil
 }
-func (p *scripted) MultiSelect(label string, _ []string) ([]int, error) {
+func (p *scripted) MultiSelect(label string, _ []app.Option) ([]int, error) {
 	p.asked = append(p.asked, label)
-	return nil, app.ErrNotInteractive
+	if p.multi == nil {
+		return nil, app.ErrNotInteractive
+	}
+	return p.multi, nil
 }
 func (p *scripted) Confirm(label string, def bool) (bool, error) {
 	p.asked = append(p.asked, label)
@@ -74,11 +85,11 @@ func (m *memConfig) Load() (app.Config, error) { return m.c, nil }
 func (m *memConfig) Save(c app.Config) error   { m.c = c; return nil }
 func (m *memConfig) Path() string              { return "/cfg/config.yaml" }
 
-type quiet struct{ warns []string }
+type quiet struct{ warns, infos []string }
 
-func (*quiet) Info(string, ...any)        {}
+func (q *quiet) Info(f string, a ...any)  { q.infos = append(q.infos, fmt.Sprintf(f, a...)) }
 func (*quiet) OK(string, ...any)          {}
-func (q *quiet) Warn(f string, a ...any)  { q.warns = append(q.warns, f) }
+func (q *quiet) Warn(f string, a ...any)  { q.warns = append(q.warns, fmt.Sprintf(f, a...)) }
 func (*quiet) Plain(string, ...any)       {}
 func (*quiet) Table([]string, [][]string) {}
 
@@ -88,6 +99,8 @@ type rig struct {
 	host   *fakeHost
 	prompt *scripted
 	cfg    *memConfig
+	out    *quiet
+	loader fakeLoader
 	root   string // local root catalog directory
 }
 
@@ -96,11 +109,11 @@ func newRig(t *testing.T, git *fakeRepos) *rig {
 	t.Helper()
 	root := t.TempDir()
 	write(t, root, "catalog.yaml", string(catalog.Editor{}.Scaffold("me")))
-	r := &rig{git: git, host: &fakeHost{url: "git@example.test:me/new.git"}, prompt: &scripted{},
+	r := &rig{git: git, host: &fakeHost{url: "git@example.test:me/new.git"}, prompt: &scripted{}, out: &quiet{}, loader: fakeLoader{},
 		cfg: &memConfig{c: app.Config{Catalog: filepath.Join(root, "catalog.yaml")}}, root: root}
 	r.Catalogs = app.NewCatalogs(app.CatalogDeps{
 		Git: git, Files: fsx.New(), Decoder: catalog.Decoder{}, Editor: catalog.Editor{},
-		Config: r.cfg, Out: &quiet{}, Prompt: r.prompt, Host: r.host, CacheDir: t.TempDir(),
+		Config: r.cfg, Manifests: r.loader, Out: r.out, Prompt: r.prompt, Host: r.host, CacheDir: t.TempDir(),
 	})
 	return r
 }
@@ -118,7 +131,7 @@ func TestCreateCatalogInTheParentsRepository(t *testing.T) {
 	git := &fakeRepos{inRepo: true}
 	r := newRig(t, git)
 	r.Yes = true
-	err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal", Same: true})
+	_, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal", Same: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +154,7 @@ func TestCreateCatalogInANewPrivateRepository(t *testing.T) {
 	git := &fakeRepos{repos: map[string]string{"git@example.test:me/new.git": empty}, emptyRepo: true}
 	r := newRig(t, git)
 	r.Yes = true
-	err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "acme", Where: app.RepoChoice{Create: "acme-index"}})
+	_, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "acme", Where: app.RepoChoice{Create: "acme-index"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +176,7 @@ func TestCreateCatalogReusesARepositoryThatAlreadyHasOne(t *testing.T) {
 	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/index.git": existing}}
 	r := newRig(t, git)
 	r.Yes = true
-	err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "acme", Where: app.RepoChoice{URL: "git@example.test:acme/index.git"}})
+	_, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "acme", Where: app.RepoChoice{URL: "git@example.test:acme/index.git"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,10 +192,10 @@ func TestCreateCatalogAsksWhereWhenNothingSaysSo(t *testing.T) {
 	git := &fakeRepos{inRepo: true}
 	r := newRig(t, git)
 	r.prompt.selects = []int{0} // same repository
-	if err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal"}); err != nil {
+	if _, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(r.prompt.asked) == 0 || !strings.Contains(r.prompt.asked[0], "Where should the new catalog live") {
+	if len(r.prompt.asked) == 0 || !strings.Contains(r.prompt.asked[0], "Where should the catalog live") {
 		t.Errorf("asked %v", r.prompt.asked)
 	}
 }
@@ -191,7 +204,7 @@ func TestDecliningLeavesNothingBehind(t *testing.T) {
 	git := &fakeRepos{inRepo: true}
 	r := newRig(t, git)
 	r.prompt.confirms = []bool{false}
-	err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal", Same: true})
+	_, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal", Same: true})
 	if !errors.Is(err, app.ErrCancelled) {
 		t.Fatalf("err = %v, want ErrCancelled", err)
 	}
@@ -207,10 +220,10 @@ func TestCreateCatalogRefusesADuplicateName(t *testing.T) {
 	r := newRig(t, &fakeRepos{})
 	r.Yes = true
 	in := app.CreateCatalogInput{Name: "personal", Same: true, At: "/", AtGiven: true}
-	if err := r.CreateCatalog(context.Background(), in); err != nil {
+	if _, err := r.CreateCatalog(context.Background(), in); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.CreateCatalog(context.Background(), in); err == nil || !strings.Contains(err.Error(), "already exists") {
+	if _, err := r.CreateCatalog(context.Background(), in); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -256,7 +269,7 @@ func TestAddCatalogRefusesAFileThatIsNotACatalog(t *testing.T) {
 func TestRemoveDropsOnlyTheReference(t *testing.T) {
 	r := newRig(t, &fakeRepos{})
 	r.Yes = true
-	if err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal", Same: true}); err != nil {
+	if _, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal", Same: true}); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.Remove(context.Background(), "personal"); err != nil {
@@ -304,7 +317,7 @@ func TestARefusedPushIsReportedAndTheCloneReset(t *testing.T) {
 	git.repos["git@example.test:acme/pay.git"] = repo
 
 	_, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true})
-	if err == nil || !strings.Contains(err.Error(), "refused") {
+	if err == nil || !strings.Contains(err.Error(), "rejected") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(git.fetched) == 0 {
@@ -369,42 +382,6 @@ func TestInitAsksBeforeReplacingTheRoot(t *testing.T) {
 	}
 }
 
-func TestLeavesTakeASubtreeOrOneWorkspace(t *testing.T) {
-	r := newRig(t, &fakeRepos{})
-	tree := domain.Node{Name: "me", Kind: domain.CatalogNode, Children: []domain.Node{
-		{Name: "acme", Path: "acme", Kind: domain.CatalogNode, Children: []domain.Node{
-			{Name: "a", Path: "acme/a", Kind: domain.WorkspaceNode},
-			{Name: "b", Path: "acme/b", Kind: domain.WorkspaceNode},
-		}},
-		{Name: "gone", Path: "gone", Kind: domain.CatalogNode, Unavailable: "no access"},
-	}}
-	got, err := r.Leaves(tree, []string{"acme", "acme/a"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 2 {
-		t.Errorf("got %d leaves, want 2 with the duplicate dropped", len(got))
-	}
-	if _, err := r.Leaves(tree, []string{"gone"}); err == nil {
-		t.Error("an unavailable catalog cannot be installed")
-	}
-	if _, err := r.Leaves(tree, []string{"nope"}); err == nil {
-		t.Error("an unknown path must fail")
-	}
-	if _, err := r.Leaves(tree, nil); !errors.Is(err, app.ErrNotInteractive) {
-		t.Errorf("no paths and no terminal: err = %v", err)
-	}
-	if app.WorkspaceSlug("acme/backend/pay") != "acme-backend-pay" {
-		t.Error("slug")
-	}
-	if app.WorkspaceSlug("fichero/fichero") != "fichero" || app.WorkspacePath("fichero/fichero") != "fichero" {
-		t.Error("a repeated segment should collapse")
-	}
-	if app.WorkspaceSlug("a/b/a") != "a-b-a" {
-		t.Error("only adjacent repeats collapse")
-	}
-}
-
 func manifestRepo(t *testing.T, name string) string {
 	t.Helper()
 	d := t.TempDir()
@@ -413,23 +390,23 @@ func manifestRepo(t *testing.T, name string) string {
 }
 
 func TestAddLinksARepositoryWithACatalogAsACatalog(t *testing.T) {
-	proj := manifestRepo(t, "fichero")
+	proj := manifestRepo(t, "billing")
 	// The project's own index lists its own workspace, in the same repository.
-	out, _ := catalog.Editor{}.AddWorkspaceRef([]byte(catalog.Editor{}.Scaffold("fichero")), domain.WorkspaceRef{Name: "app", Source: domain.Source{Path: "multiverse.yaml"}})
+	out, _ := catalog.Editor{}.AddWorkspaceRef([]byte(catalog.Editor{}.Scaffold("billing")), domain.WorkspaceRef{Name: "app", Source: domain.Source{Path: "multiverse.yaml"}})
 	write(t, proj, "catalog.yaml", string(out))
-	git := &fakeRepos{repos: map[string]string{"https://github.com/fichero-app/multiverse.git": proj}}
+	git := &fakeRepos{repos: map[string]string{"https://github.com/acme-org/multiverse.git": proj}}
 	r := newRig(t, git)
 	r.Yes = true
 
-	node, err := r.Add(context.Background(), app.AddInput{Repo: "fichero-app/multiverse", At: "/", AtGiven: true})
+	node, err := r.Add(context.Background(), app.AddInput{Repo: "acme-org/multiverse", At: "/", AtGiven: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if node != "fichero" {
+	if node != "billing" {
 		t.Errorf("node = %q", node)
 	}
-	leaf, ok := r.tree(t).Find("fichero/app")
-	if !ok || leaf.Source.Repo != "https://github.com/fichero-app/multiverse.git" || leaf.Source.Path != "multiverse.yaml" {
+	leaf, ok := r.tree(t).Find("billing/app")
+	if !ok || leaf.Source.Repo != "https://github.com/acme-org/multiverse.git" || leaf.Source.Path != "multiverse.yaml" {
 		t.Errorf("the project's own workspace should resolve to its repository: %+v", leaf)
 	}
 }
@@ -464,13 +441,13 @@ func TestAddTwiceIsANoOp(t *testing.T) {
 	}
 }
 
-func TestAddSetsUpARootFirstWhenThereIsNone(t *testing.T) {
+func TestAddNeedsARootToWriteTo(t *testing.T) {
 	git := &fakeRepos{repos: map[string]string{"https://github.com/acme/solo.git": manifestRepo(t, "solo")}}
 	r := newRig(t, git)
 	r.cfg.c = app.Config{}
 	_, err := r.Add(context.Background(), app.AddInput{Repo: "acme/solo"})
-	if !errors.Is(err, app.ErrNotInteractive) {
-		t.Fatalf("err = %v; without a terminal init cannot ask where the root lives", err)
+	if err == nil || !strings.Contains(err.Error(), "multiversectl init") {
+		t.Fatalf("err = %v; writing to an index needs one, and the error should say how to make it", err)
 	}
 }
 
@@ -483,17 +460,17 @@ func TestAddNeedsSomethingToAdd(t *testing.T) {
 	}
 }
 
-const wsYAML = "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: fichero\nspec:\n  root: /home/me/fichero\n"
+const wsYAML = "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: billing\nspec:\n  root: /home/me/billing\n"
 
 func TestCreateCatalogWithAManifestMakesTheProjectItsOwnWorkspace(t *testing.T) {
 	src := t.TempDir()
-	write(t, src, "fichero.yaml", wsYAML)
+	write(t, src, "billing.yaml", wsYAML)
 	empty := t.TempDir()
 	git := &fakeRepos{repos: map[string]string{"git@example.test:me/new.git": empty}, emptyRepo: true}
 	r := newRig(t, git)
 	r.Yes = true
-	err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{
-		Name: "fichero", Manifest: filepath.Join(src, "fichero.yaml"), Where: app.RepoChoice{Create: "fichero-app/multiverse"},
+	_, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{
+		Name: "billing", Manifest: filepath.Join(src, "billing.yaml"), Where: app.RepoChoice{Create: "acme-org/multiverse"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -501,7 +478,7 @@ func TestCreateCatalogWithAManifestMakesTheProjectItsOwnWorkspace(t *testing.T) 
 	if len(git.commits) != 1 || !strings.Contains(git.commits[0], "catalog.yaml") || !strings.Contains(git.commits[0], "multiverse.yaml") {
 		t.Errorf("the catalog and the manifest belong in one commit: %v", git.commits)
 	}
-	leaf, ok := r.tree(t).Find("fichero/fichero")
+	leaf, ok := r.tree(t).Find("billing/billing")
 	if !ok || leaf.Source.Path != "multiverse.yaml" || leaf.Source.Repo != "git@example.test:me/new.git" {
 		t.Errorf("the project's workspace should live in its own repository: %+v", leaf)
 	}
@@ -509,31 +486,31 @@ func TestCreateCatalogWithAManifestMakesTheProjectItsOwnWorkspace(t *testing.T) 
 
 func TestCreateCatalogWithAManifestInTheParentsRepository(t *testing.T) {
 	src := t.TempDir()
-	write(t, src, "fichero.yaml", wsYAML)
+	write(t, src, "billing.yaml", wsYAML)
 	r := newRig(t, &fakeRepos{})
 	r.Yes = true
-	if err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "fichero", Same: true, Manifest: filepath.Join(src, "fichero.yaml")}); err != nil {
+	if _, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "billing", Same: true, Manifest: filepath.Join(src, "billing.yaml")}); err != nil {
 		t.Fatal(err)
 	}
-	leaf, ok := r.tree(t).Find("fichero/fichero")
-	if !ok || !strings.HasSuffix(leaf.Source.Path, "/catalogs/fichero/multiverse.yaml") {
+	leaf, ok := r.tree(t).Find("billing/billing")
+	if !ok || !strings.HasSuffix(leaf.Source.Path, "/catalogs/billing/multiverse.yaml") {
 		t.Fatalf("leaf = %+v", leaf)
 	}
-	if _, err := os.Stat(filepath.Join(r.root, "catalogs", "fichero", "multiverse.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(r.root, "catalogs", "billing", "multiverse.yaml")); err != nil {
 		t.Errorf("manifest not copied: %v", err)
 	}
 }
 
 func TestCreateCatalogWithAManifestRefusesARepositoryThatAlreadyHasACatalog(t *testing.T) {
 	src := t.TempDir()
-	write(t, src, "fichero.yaml", wsYAML)
+	write(t, src, "billing.yaml", wsYAML)
 	existing := t.TempDir()
 	write(t, existing, "catalog.yaml", string(catalog.Editor{}.Scaffold("x")))
 	git := &fakeRepos{repos: map[string]string{"git@example.test:me/x.git": existing}}
 	r := newRig(t, git)
 	r.Yes = true
-	err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "fichero", Manifest: filepath.Join(src, "fichero.yaml"), Where: app.RepoChoice{URL: "git@example.test:me/x.git"}})
-	if err == nil || !strings.Contains(err.Error(), "catalog add workspace") {
+	_, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "billing", Manifest: filepath.Join(src, "billing.yaml"), Where: app.RepoChoice{URL: "git@example.test:me/x.git"}})
+	if err == nil || !strings.Contains(err.Error(), "catalog add") {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -568,20 +545,20 @@ func TestAddAPathNeedsSomethingOthersCanFetch(t *testing.T) {
 
 func TestAddAManifestFileCopiesItIntoTheCatalogsRepository(t *testing.T) {
 	src := t.TempDir()
-	write(t, src, "fichero.yaml", wsYAML)
+	write(t, src, "billing.yaml", wsYAML)
 	git := &fakeRepos{inRepo: true}
 	r := newRig(t, git)
 	r.Yes = true
-	in := app.AddInput{Repo: filepath.Join(src, "fichero.yaml"), At: "/", AtGiven: true}
+	in := app.AddInput{Repo: filepath.Join(src, "billing.yaml"), At: "/", AtGiven: true}
 	node, err := r.Add(context.Background(), in)
-	if err != nil || node != "fichero" {
+	if err != nil || node != "billing" {
 		t.Fatalf("node=%q err=%v", node, err)
 	}
-	leaf, ok := r.tree(t).Find("fichero")
-	if !ok || !strings.HasSuffix(leaf.Source.Path, "/workspaces/fichero/multiverse.yaml") {
+	leaf, ok := r.tree(t).Find("billing")
+	if !ok || !strings.HasSuffix(leaf.Source.Path, "/workspaces/billing/multiverse.yaml") {
 		t.Fatalf("leaf = %+v", leaf)
 	}
-	if _, err := os.Stat(filepath.Join(r.root, "workspaces", "fichero", "multiverse.yaml")); err != nil {
+	if _, err := os.Stat(filepath.Join(r.root, "workspaces", "billing", "multiverse.yaml")); err != nil {
 		t.Errorf("manifest not copied: %v", err)
 	}
 	before := len(git.commits)

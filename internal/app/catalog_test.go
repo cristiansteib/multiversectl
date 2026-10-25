@@ -29,6 +29,8 @@ type fakeRepos struct {
 	commits   []string
 	pushed    []string
 	pushErr   error
+	behind    int      // commits origin is ahead by
+	ffed      []string // branches fast-forwarded
 }
 
 func (f *fakeRepos) Clone(_ context.Context, url, dest string) error {
@@ -113,8 +115,8 @@ func TestTreeComposesLocalAndRemoteCatalogs(t *testing.T) {
       source: {repo: git@example.test:acme/index.git, ref: v1}
 `))
 	write(t, local, "catalogs/personal.yaml", cat("personal", `  workspaces:
-    - name: fichero
-      source: {repo: git@example.test:me/fichero.git}
+    - name: billing
+      source: {repo: git@example.test:me/billing.git}
 `))
 	write(t, remote, "catalog.yaml", cat("acme", `  catalogs:
     - name: backend
@@ -139,8 +141,8 @@ func TestTreeComposesLocalAndRemoteCatalogs(t *testing.T) {
 	if got.Source.Repo != "git@example.test:acme/index.git" || got.Source.Ref != "v1" || got.Source.Path != "payments/multiverse.yaml" {
 		t.Errorf("a same-repo workspace must inherit the repository and ref: %+v", got.Source)
 	}
-	if _, ok := root.Find("personal/fichero"); !ok {
-		t.Error("personal/fichero not found")
+	if _, ok := root.Find("personal/billing"); !ok {
+		t.Error("personal/billing not found")
 	}
 	if n := len(root.Leaves()); n != 2 {
 		t.Errorf("leaves = %d, want 2", n)
@@ -163,8 +165,8 @@ func TestTreeKeepsGoingPastAnUnreachableLayer(t *testing.T) {
     - name: missing
       source: {path: nope.yaml}
   workspaces:
-    - name: fichero
-      source: {repo: git@example.test:me/fichero.git}
+    - name: billing
+      source: {repo: git@example.test:me/billing.git}
 `))
 	c, _ := newCatalogs(t, &fakeRepos{})
 	root, err := c.Tree(context.Background(), filepath.Join(local, "catalog.yaml"), false)
@@ -177,7 +179,7 @@ func TestTreeKeepsGoingPastAnUnreachableLayer(t *testing.T) {
 			t.Errorf("%s should be unavailable", name)
 		}
 	}
-	if _, ok := root.Find("fichero"); !ok {
+	if _, ok := root.Find("billing"); !ok {
 		t.Error("the reachable workspace disappeared")
 	}
 }
@@ -220,4 +222,10 @@ func TestRefreshFetchesEachRepositoryOnce(t *testing.T) {
 	if len(git.fetched) != 1 {
 		t.Errorf("fetched %d times, want 1", len(git.fetched))
 	}
+}
+
+func (f *fakeRepos) Behind(context.Context, string, string) (int, error) { return f.behind, nil }
+func (f *fakeRepos) FastForward(_ context.Context, _, branch string) error {
+	f.ffed = append(f.ffed, branch)
+	return nil
 }

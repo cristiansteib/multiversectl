@@ -92,98 +92,6 @@ func exportLine(key, value string) string {
 	return "export " + key + "=" + "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
 }
 
-func (r runner) bootstrapCmd() *cobra.Command {
-	var name string
-	cmd := &cobra.Command{
-		Use:     "bootstrap <manifest-url-or-path>",
-		Short:   "Set up a workspace: record it, clone its repos, run doctor",
-		Example: "  multiversectl bootstrap git@github.com:acme/workspace.git --root ~/acme\n  multiversectl bootstrap ./multiverse.yaml --root ~/acme",
-		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			bare, err := r.f.Bare(*r.g, r.out)
-			if err != nil {
-				return err
-			}
-			source := args[0]
-			if abs, err := filepath.Abs(source); err == nil {
-				if _, err := os.Stat(abs); err == nil {
-					source = abs
-				}
-			}
-			root := firstNonEmpty(r.g.Root, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse")
-			cfg, err := bare.Bootstrap(ctx, app.BootstrapInput{Name: name, Root: root, ManifestSource: source})
-			if err != nil {
-				return err
-			}
-			s, err := r.f.At(*r.g, r.out, cfg.Root, cfg.Manifest)
-			if err != nil {
-				return err
-			}
-			if err := s.CloneRepos(ctx); err != nil {
-				return err
-			}
-			return r.runDoctor(ctx, s, "")
-		},
-	}
-	cmd.Flags().StringVar(&name, "name", "", "name to record the workspace under (default: from the root directory)")
-	return cmd
-}
-
-func (r runner) workspacesCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "workspaces",
-		Short: "List the workspaces bootstrapped on this machine",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			bare, err := r.f.Bare(*r.g, r.out)
-			if err != nil {
-				return err
-			}
-			list, err := bare.Workspaces()
-			if err != nil {
-				return err
-			}
-			if len(list) == 0 {
-				r.out.Info("no workspaces yet; run bootstrap")
-				return nil
-			}
-			for _, w := range list {
-				mark := " "
-				if w.Current {
-					mark = "*"
-				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s %-20s %s\n", mark, w.Name, w.Root)
-			}
-			return nil
-		},
-	}
-}
-
-func (r runner) useCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "use <workspace>",
-		Short: "Make a workspace the one commands act on by default",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			bare, err := r.f.Bare(*r.g, r.out)
-			if err != nil {
-				return err
-			}
-			return bare.Use(args[0])
-		},
-	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}
-
 func (r runner) proxyCmd() *cobra.Command {
 	proxy := &cobra.Command{Use: "proxy", Short: "Manage the shared ingress every universe is reached through"}
 	proxy.AddCommand(
@@ -233,9 +141,9 @@ func (r runner) proxyCmd() *cobra.Command {
 	return proxy
 }
 
-func (r runner) updateCmd() *cobra.Command {
+func (r runner) selfUpdateCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "update",
+		Use:   "self-update",
 		Short: "Replace this binary with the latest release",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -308,4 +216,13 @@ func (r runner) commandIn(name, short string, inRunning bool, example string) *c
 	}
 	cmd.Flags().StringVar(&service, "service", "", "service to run in (default: the app's only service)")
 	return cmd
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

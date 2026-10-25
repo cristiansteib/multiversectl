@@ -155,3 +155,27 @@ func (g Git) Push(ctx context.Context, dir, branch string) error {
 func (g Git) RemoteURL(ctx context.Context, dir string) (string, error) {
 	return g.run(ctx, "-C", dir, "remote", "get-url", "origin")
 }
+
+func (g Git) Behind(ctx context.Context, dir, ref string) (int, error) {
+	branch := ref
+	if branch == "" {
+		var err error
+		if branch, err = g.DefaultBranch(ctx, dir); err != nil {
+			return 0, err
+		}
+	}
+	out, err := g.run(ctx, "-C", dir, "rev-list", "--count", "HEAD..origin/"+branch)
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	if _, err := fmt.Sscanf(out, "%d", &n); err != nil {
+		return 0, fmt.Errorf("git rev-list: unexpected %q", out)
+	}
+	return n, nil
+}
+
+func (g Git) FastForward(ctx context.Context, dir, branch string) error {
+	_, err := g.run(ctx, "-C", dir, "merge", "--ff-only", "--quiet", "origin/"+branch)
+	return err
+}

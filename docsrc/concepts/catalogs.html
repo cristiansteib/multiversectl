@@ -2,6 +2,7 @@
   <h2 id="why"><a href="#why">What a catalog is for</a></h2>
   <p>A workspace manifest describes one project. A <strong>catalog</strong> answers a different question: which projects exist, and which of them should be on this machine. It is a file of pointers, so the manifests stay with the repositories they describe and nobody has to copy them.</p>
   <p>Catalogs nest. A personal catalog can link a catalog that a team keeps in its own repository, which can link another, and each layer is edited by whoever owns that repository. A machine installs only the branches of the tree it wants.</p>
+  <p>You do not need one to use a project. <code>multiversectl install acme/multiverse</code> works on a machine with no catalog at all; the catalog is for keeping your own index of what you work on.</p>
 </section>
 
 <section id="kinds">
@@ -17,8 +18,8 @@
     - <span class="k">name</span>: personal                <span class="c"># no repo: a file in this same repository</span>
       <span class="k">source</span>: {<span class="k">path</span>: catalogs/personal.yaml}
   <span class="k">workspaces</span>:                       <span class="c"># WorkspaceRef: a leaf</span>
-    - <span class="k">name</span>: fichero
-      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:me/fichero-workspace.git}</pre></div>
+    - <span class="k">name</span>: notes
+      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:me/notes-workspace.git}</pre></div>
   <table>
     <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
     <tbody>
@@ -27,20 +28,31 @@
     <tr><td><code>source.path</code></td><td>Relative to the repository root, and it cannot leave it. Defaults to <code>catalog.yaml</code> or <code>multiverse.yaml</code>.</td></tr>
     </tbody>
   </table>
-  <p>A node is addressed by the names that lead to it, for example <code>acme/backend/payments</code>. Names are unique among siblings. The schema is <code>schema/catalog.v1alpha1.yaml</code>.</p>
+  <p>A node is addressed by the names that lead to it, for example <code>acme/backend/billing</code>. Names are unique among siblings. The schema is <code>schema/catalog.v1alpha1.yaml</code>.</p>
 </section>
 
 <section id="split">
   <h2 id="split"><a href="#split">Three separate things</a></h2>
   <ul class="t">
     <li><strong>The catalog</strong> is shared and versioned: what exists. It holds pointers, never definitions.</li>
-    <li><strong>The workspace list</strong> is per machine, in <code>~/.config/multiversectl/config.yaml</code>: what is installed here, and which one is current.</li>
+    <li><strong>The workspace list</strong> is per machine, in <code>~/.config/multiversectl/config.yaml</code>: what is installed here, which one is current, and where each came from.</li>
     <li><strong>Universes</strong> work as before. <code>new</code>, <code>up</code>, <code>ls</code> and the rest act on one workspace and never read a catalog.</li>
   </ul>
-  <p>Only <code>install</code> connects the first two: it bootstraps a workspace from a catalog entry and records it.</p>
+  <p>Only <code>install</code> connects the first two, and it only reads: installing never writes to a catalog. <code>catalog add</code>, <code>create</code> and <code>rm</code> are the commands that edit one.</p>
+</section>
+
+<section id="names">
+  <h2 id="names"><a href="#names">Names</a></h2>
+  <p>A workspace is installed under its own name, <code>billing</code>, in <code>~/multiverse/billing</code>. If that name is taken, the name above it goes in front (<code>payments-billing</code>) and then the next; <code>--name</code> overrides. The name does not change after install, so <code>-w billing</code> in a script keeps working if the catalog is reorganised. Anywhere a workspace name is accepted, the catalog path it was installed from is too: <code>use acme/backend/billing</code>.</p>
+  <p>Each installed workspace records where it came from, which is how <code>status</code> and <code>update</code> know it has drifted.</p>
 </section>
 
 <section id="failure">
   <h2 id="failure"><a href="#failure">When a layer cannot be read</a></h2>
-  <p>A layer you have no access to, or that has a bad file, shows as <em>unavailable</em> in <code>catalog tree</code> and the rest of the tree still resolves. Cycles and chains deeper than eight levels are cut off the same way.</p>
+  <p>A layer you have no access to, or that has a bad file, shows as <em>unavailable</em> in <code>multiversectl catalog</code>, with the reason, and the rest of the tree still resolves. Cycles and chains deeper than eight levels are cut off the same way.</p>
+</section>
+
+<section id="proxy">
+  <h2 id="proxy"><a href="#proxy">Several workspaces, one proxy</a></h2>
+  <p>A machine has one proxy, and starting any workspace rewrites it from that workspace's manifest. Sharing its network and its default <code>web</code> port is therefore normal. What is not is a workspace that needs an entrypoint another one's proxy does not have, or a different network or bind address: starting the second reconfigures the proxy and the first loses it. <code>install</code> and <code>doctor</code> name those differences, by workspace name.</p>
 </section>

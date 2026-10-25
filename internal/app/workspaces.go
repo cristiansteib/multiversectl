@@ -26,9 +26,23 @@ func (c *Config) Normalize() {
 	c.Root, c.Manifest = "", ""
 }
 
+// Resolve finds a workspace by the name it was recorded under or by the
+// catalog path it was installed from, and returns its name either way.
+func (c Config) Resolve(key string) (string, WorkspaceEntry, error) {
+	if e, ok := c.Workspaces[key]; ok {
+		return key, e, nil
+	}
+	for name, e := range c.Workspaces {
+		if e.From != "" && e.From == key {
+			return name, e, nil
+		}
+	}
+	return "", WorkspaceEntry{}, fmt.Errorf("no workspace %q; installed: %s (multiversectl install %s adds it)", key, c.names(), key)
+}
+
 // Select returns the workspace called name, or the current one when name is
 // empty. The boolean is false when nothing is recorded yet, which is the
-// normal state before the first bootstrap.
+// normal state before the first install.
 func (c Config) Select(name string) (WorkspaceEntry, bool, error) {
 	if name == "" {
 		name = c.Current
@@ -36,16 +50,13 @@ func (c Config) Select(name string) (WorkspaceEntry, bool, error) {
 	if name == "" {
 		return WorkspaceEntry{}, false, nil
 	}
-	e, ok := c.Workspaces[name]
-	if !ok {
-		return WorkspaceEntry{}, false, fmt.Errorf("no workspace %q (known: %s)", name, c.names())
-	}
-	return e, true, nil
+	_, e, err := c.Resolve(name)
+	return e, err == nil, err
 }
 
 func (c Config) names() string {
 	if len(c.Workspaces) == 0 {
-		return "none, run bootstrap"
+		return "none"
 	}
 	names := make([]string, 0, len(c.Workspaces))
 	for n := range c.Workspaces {
@@ -72,7 +83,7 @@ type WorkspaceInfo struct {
 	WorkspaceEntry
 }
 
-// Workspaces lists what this machine has bootstrapped, by name.
+// Workspaces lists what is installed on this machine, by name.
 func (s *Service) Workspaces() ([]WorkspaceInfo, error) {
 	cfg, err := s.Config.Load()
 	if err != nil {
@@ -86,16 +97,17 @@ func (s *Service) Workspaces() ([]WorkspaceInfo, error) {
 	return out, nil
 }
 
-// Use makes name the workspace commands act on by default.
-func (s *Service) Use(name string) error {
+// Use makes a workspace the one commands act on by default.
+func (s *Service) Use(key string) error {
 	cfg, err := s.Config.Load()
 	if err != nil {
 		return err
 	}
-	if name == "" {
+	if key == "" {
 		return fmt.Errorf("use: a workspace name is required")
 	}
-	if _, _, err := cfg.Select(name); err != nil {
+	name, _, err := cfg.Resolve(key)
+	if err != nil {
 		return err
 	}
 	cfg.Current = name
@@ -108,21 +120,43 @@ func (s *Service) Use(name string) error {
 
 // Forget removes a workspace from this machine's list. Its files stay where
 // they are; only the tool stops knowing about it.
-func (s *Service) Forget(name string) error {
+func (s *Service) Forget(key string) error {
 	cfg, err := s.Config.Load()
 	if err != nil {
 		return err
 	}
-	if _, _, err := cfg.Select(name); err != nil || name == "" {
-		return firstErr(err, fmt.Errorf("uninstall: a workspace name is required"))
+	if key == "" {
+		return fmt.Errorf("uninstall: a workspace name is required")
+	}
+	name, entry, err := cfg.Resolve(key)
+	if err != nil {
+		return err
 	}
 	delete(cfg.Workspaces, name)
-	if cfg.Current == name {
+	wasCurrent := cfg.Current == name
+	if wasCurrent {
 		cfg.Current = ""
 	}
 	if err := s.Config.Save(cfg); err != nil {
 		return fmt.Errorf("saving the configuration: %w", err)
 	}
-	s.Out.OK("forgot %s; its files are still on disk", name)
+	s.Out.OK("forgot %s; its files are still at %s", name, entry.Root)
+	if wasCurrent && len(cfg.Workspaces) > 0 {
+		s.Out.Info("no current workspace: multiversectl use <name>")
+	}
 	return nil
+}
+
+// WorkspaceNamed finds an installed workspace by name or by the catalog path
+// it came from.
+func (s *Service) WorkspaceNamed(key string) (WorkspaceInfo, error) {
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return WorkspaceInfo{}, err
+	}
+	name, e, err := cfg.Resolve(key)
+	if err != nil {
+		return WorkspaceInfo{}, err
+	}
+	return WorkspaceInfo{Name: name, Current: name == cfg.Current, WorkspaceEntry: e}, nil
 }

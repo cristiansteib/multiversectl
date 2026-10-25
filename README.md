@@ -65,16 +65,38 @@ mise use -g ubi:cristiansteib/multiversectl
 
 A `.deb` is on the [releases page](https://github.com/cristiansteib/multiversectl/releases),
 and `make install` builds from source into `~/.local/bin`. The script and the
-`.deb` also provide a short alias, `mvctl`. Later, `multiversectl update`
+`.deb` also provide a short alias, `mvctl`. Later, `multiversectl self-update`
 replaces the binary with the latest release.
 
 See [Install](https://cristiansteib.github.io/multiversectl/start/install.html)
 for what it needs on the machine.
 
+## Projects and catalogs
+
+A project someone points you at needs one command, with nothing set up first:
+
+```sh
+multiversectl install acme/multiverse   # owner/repo, any git URL, or a path
+multiversectl new 1 && multiversectl up 1
+```
+
+To keep your own index of projects, which can nest other people's, make a
+catalog. It is a git repository of pointers, private if you let `init` create it:
+
+```sh
+multiversectl init                      # asks where it should live
+multiversectl catalog add acme/billing  # asks which node of the tree it goes in
+multiversectl catalog                   # the tree, with what is installed marked
+multiversectl status                    # what is installed here, and what has drifted
+multiversectl update                    # catch up: manifests and new repositories
+```
+
+See [Catalogs](https://cristiansteib.github.io/multiversectl/concepts/catalogs.html).
+
 ## Quick start
 
 ```sh
-multiversectl bootstrap ./multiverse.yaml --root ~/acme
+multiversectl install ./multiverse.yaml --root ~/acme
 multiversectl new 1            # universe 1: a worktree of every repo on branch u1
 multiversectl new fix/login    # or name it after the branch it checks out
 multiversectl up fix/login     # start its containers

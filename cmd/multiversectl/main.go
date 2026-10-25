@@ -117,7 +117,7 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 			}
 		}
 		if path, err = manifest.Locate(start); err != nil {
-			return nil, fmt.Errorf("%w (run bootstrap, or pass --manifest)", err)
+			return nil, fmt.Errorf("no workspace on this machine: multiversectl install <owner/repo>  (or -f <manifest>): %w", err)
 		}
 	}
 	m, err := manifest.Load(path)
@@ -157,15 +157,16 @@ func catalogs(g cli.Globals, out app.Output) (*app.Catalogs, error) {
 	}
 	d := deps(g, out, "", store)
 	return app.NewCatalogs(app.CatalogDeps{
-		Git:      d.Git,
-		Files:    d.Files,
-		Decoder:  catalog.Decoder{},
-		Editor:   catalog.Editor{},
-		Prompt:   prompt.New(),
-		Host:     githost.New(),
-		Config:   store,
-		Out:      out,
-		CacheDir: filepath.Join(filepath.Dir(store.Path()), "catalogs"),
+		Git:       d.Git,
+		Files:     d.Files,
+		Decoder:   catalog.Decoder{},
+		Editor:    catalog.Editor{},
+		Prompt:    prompt.New(),
+		Host:      githost.New(),
+		Config:    store,
+		Manifests: manifestLoader{},
+		Out:       out,
+		CacheDir:  filepath.Join(filepath.Dir(store.Path()), "catalogs"),
 	}), nil
 }
 

@@ -236,22 +236,32 @@ func (m *Manifest) ComposeFiles(appKey, repoDir string) []string {
 	return out
 }
 
-// ProxyClashes says what two workspaces would fight over if both ran their
-// proxy on the same machine: a host port each wants to publish, or a network
-// each wants to own. Naming it at install time is kinder than a bind error
-// the first time the second one starts.
-func ProxyClashes(a, b *Manifest) []string {
+// ProxyClashes says where two workspaces disagree about the proxy. There is
+// one proxy per machine, so sharing its network and its ports is the design:
+// the trouble is that starting a workspace rewrites the proxy from its own
+// manifest, which drops what another workspace needs from it. aName and bName
+// are what the user calls the workspaces, which is not always metadata.name.
+func ProxyClashes(aName string, a *Manifest, bName string, b *Manifest) []string {
 	var out []string
-	if a.Proxy.Network != "" && a.Proxy.Network == b.Proxy.Network {
-		out = append(out, fmt.Sprintf("%s and %s use the same proxy network %q", a.Name, b.Name, a.Proxy.Network))
+	if a.Proxy.Network != "" && b.Proxy.Network != "" && a.Proxy.Network != b.Proxy.Network {
+		out = append(out, fmt.Sprintf("%s and %s want different proxy networks (%s, %s) but a machine has one proxy; only one is reachable",
+			aName, bName, a.Proxy.Network, b.Proxy.Network))
 	}
-	for _, an := range sortedEntrypoints(a.Proxy.Entrypoints) {
-		for _, bn := range sortedEntrypoints(b.Proxy.Entrypoints) {
-			if a.Proxy.Entrypoints[an] == b.Proxy.Entrypoints[bn] {
-				out = append(out, fmt.Sprintf("%s (%s) and %s (%s) both publish proxy port %d",
-					a.Name, an, b.Name, bn, a.Proxy.Entrypoints[an]))
-			}
+	for _, n := range sortedEntrypoints(a.Proxy.Entrypoints) {
+		ap := a.Proxy.Entrypoints[n]
+		if bp, ok := b.Proxy.Entrypoints[n]; !ok {
+			out = append(out, fmt.Sprintf("%s needs proxy entrypoint %q (port %d); starting %s reconfigures the proxy without it", aName, n, ap, bName))
+		} else if bp != ap {
+			out = append(out, fmt.Sprintf("entrypoint %q is port %d for %s and %d for %s; the proxy can only have one", n, ap, aName, bp, bName))
 		}
+	}
+	for _, n := range sortedEntrypoints(b.Proxy.Entrypoints) {
+		if _, ok := a.Proxy.Entrypoints[n]; !ok {
+			out = append(out, fmt.Sprintf("%s needs proxy entrypoint %q (port %d); starting %s reconfigures the proxy without it", bName, n, b.Proxy.Entrypoints[n], aName))
+		}
+	}
+	if x, y := a.BindAddress(), b.BindAddress(); x != y {
+		out = append(out, fmt.Sprintf("%s publishes the proxy on %s and %s on %s; starting either one moves it", aName, x, bName, y))
 	}
 	return out
 }

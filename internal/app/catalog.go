@@ -23,15 +23,16 @@ const defaultCatalogFile = "catalog.yaml"
 // part of Service: browsing what exists never touches a workspace or a
 // universe, and the two should not be able to reach into each other.
 type CatalogDeps struct {
-	Git      Git
-	Files    Files
-	Decoder  CatalogDecoder
-	Editor   CatalogEditor
-	Config   ConfigStore
-	Out      Output
-	Prompt   Prompter
-	Host     RepoHost
-	CacheDir string // where remote repositories are cloned
+	Git       Git
+	Files     Files
+	Decoder   CatalogDecoder
+	Editor    CatalogEditor
+	Config    ConfigStore
+	Manifests ManifestLoader
+	Out       Output
+	Prompt    Prompter
+	Host      RepoHost
+	CacheDir  string // where remote repositories are cloned
 
 	// Yes answers every confirmation with its default, for scripts.
 	Yes bool
@@ -45,7 +46,7 @@ func NewCatalogs(d CatalogDeps) *Catalogs { return &Catalogs{d} }
 // Use records the root catalog for this machine.
 func (c *Catalogs) Use(source string) error {
 	if source == "" {
-		return errors.New("catalog use: a git URL or a file path is required")
+		return errors.New("init: a git URL or a file path is required")
 	}
 	cfg, err := c.Config.Load()
 	if err != nil {
@@ -63,16 +64,26 @@ func (c *Catalogs) Use(source string) error {
 // With refresh, every remote repository is fetched first. A layer that cannot
 // be read is returned as an unavailable node; only the root failing is an error.
 func (c *Catalogs) Tree(ctx context.Context, source string, refresh bool) (domain.Node, error) {
+	return c.tree(ctx, source, refresh, false)
+}
+
+// TreeCached is Tree from what is already on disk, with no network and no
+// cloning; layers not fetched yet come back unavailable.
+func (c *Catalogs) TreeCached(ctx context.Context) (domain.Node, error) {
+	return c.tree(ctx, "", false, true)
+}
+
+func (c *Catalogs) tree(ctx context.Context, source string, refresh, offline bool) (domain.Node, error) {
 	if source == "" {
 		cfg, err := c.Config.Load()
 		if err != nil {
 			return domain.Node{}, err
 		}
 		if source = cfg.Catalog; source == "" {
-			return domain.Node{}, errors.New("no root catalog: run `multiversectl init`, or record one with `catalog use <git-url-or-file>`")
+			return domain.Node{}, errors.New("no root catalog: multiversectl init  (installing a single project does not need one)")
 		}
 	}
-	r := &resolver{Catalogs: c, ctx: ctx, refresh: refresh, fetched: map[string]bool{}}
+	r := &resolver{Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, fetched: map[string]bool{}}
 	root := location{}
 	if isGitURL(source) {
 		root.repo = source
@@ -108,6 +119,9 @@ type resolver struct {
 	*Catalogs
 	ctx     context.Context
 	refresh bool
+	// offline reads only what is already cached: completion must be instant
+	// and must never reach for the network.
+	offline bool
 	fetched map[string]bool
 }
 
@@ -150,7 +164,7 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 		}
 		if err != nil {
 			child.Source = domain.Source{Repo: firstOf(ref.Source.Repo, at.repo), Ref: ref.Source.Ref, Path: ref.Source.Path}
-			child.Unavailable = reason(err)
+			child.Unavailable = reason(err, firstOf(ref.Source.Repo, at.repo))
 		}
 		node.Children = append(node.Children, child)
 	}
@@ -209,6 +223,8 @@ func (r *resolver) ensure(repo, ref string) (dir string, fresh bool, err error) 
 	sum := sha256.Sum256([]byte(repo))
 	dir = filepath.Join(r.CacheDir, hex.EncodeToString(sum[:])[:12], unsafeRE.ReplaceAllString(firstOf(ref, "HEAD"), "_"))
 	switch {
+	case !r.Files.Exists(dir) && r.offline:
+		return "", false, fmt.Errorf("%s is not fetched yet", repo)
 	case !r.Files.Exists(dir):
 		if err := r.Files.MkdirAll(filepath.Dir(dir)); err != nil {
 			return "", false, err
@@ -252,14 +268,43 @@ func firstOf(values ...string) string {
 	return ""
 }
 
-// reason keeps what a person needs from an error: git prints progress lines
-// before the "fatal:" one that says what went wrong.
-func reason(err error) string {
-	lines := strings.Split(strings.TrimSpace(err.Error()), "\n")
-	for i := range lines {
-		if strings.HasPrefix(strings.TrimSpace(lines[i]), "fatal:") {
-			return strings.TrimSpace(lines[i])
+// reason keeps what a person needs from an error. Git prints progress before
+// the "fatal:" line that says what went wrong, and says it in terms of
+// transports; "no access or not found" is what it comes to for the user.
+func reason(err error, repo string) string {
+	text := err.Error()
+	low := strings.ToLower(text)
+	for _, marker := range []string{
+		"repository not found", "could not read from remote", "does not appear to be a git repository",
+		"authentication failed", "permission denied", "terminal prompts disabled", "could not read username", "not found",
+	} {
+		if repo != "" && strings.Contains(low, marker) {
+			return "no access or not found: " + repo
+		}
+	}
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	for _, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), "fatal:") {
+			return strings.TrimSpace(l)
 		}
 	}
 	return strings.TrimSpace(lines[0])
+}
+
+// InstalledIn maps the catalog paths of a tree's workspaces to the names they
+// are installed under here, by the path they were installed from or, failing
+// that, by the source they came from, so one installed straight from its
+// repository is still marked once the catalog lists it.
+func (c *Catalogs) InstalledIn(tree domain.Node) (map[string]string, error) {
+	cfg, err := c.Config.Load()
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]string{}
+	for _, leaf := range tree.Leaves() {
+		if name, ok := installedAs(cfg, leaf.Path, originOf(leaf.Source)); ok {
+			out[leaf.Path] = name
+		}
+	}
+	return out, nil
 }

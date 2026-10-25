@@ -38,58 +38,198 @@ func (c *Catalogs) confirm(label string, def bool) (bool, error) {
 	return ok, err
 }
 
-// pickCatalog chooses the catalog a new entry goes into. A tree with one
-// readable catalog needs no question.
-func (c *Catalogs) pickCatalog(tree domain.Node, label string) (domain.Node, error) {
-	var options []domain.Node
-	var walk func(n domain.Node)
-	walk = func(n domain.Node) {
-		if n.Kind != domain.CatalogNode || n.Unavailable != "" {
-			return
-		}
-		options = append(options, n)
-		for _, ch := range n.Children {
-			walk(ch)
+// catalogsOnly is the tree without its workspaces: where a new entry can go.
+func catalogsOnly(n domain.Node) domain.Node {
+	out := n
+	out.Children = nil
+	for _, ch := range n.Children {
+		if ch.Kind == domain.CatalogNode {
+			out.Children = append(out.Children, catalogsOnly(ch))
 		}
 	}
-	walk(tree)
-	// --yes means the defaults, and the root is the default home for an entry.
-	if len(options) == 1 || c.Yes {
-		return options[0], nil
-	}
-	labels := make([]string, len(options))
-	for i, n := range options {
-		labels[i] = "(root) " + n.Name
-		if n.Path != "" {
-			labels[i] = n.Path
+	return out
+}
+
+// pickCatalog chooses the catalog a new entry goes into, from a drawing of the
+// tree that says which repository each choice writes to. The default is the
+// deepest catalog kept in a repository owned by the same owner as the source,
+// since that is usually where a person would put it; else the root. Layers that
+// could not be read are listed but cannot be chosen.
+func (c *Catalogs) pickCatalog(tree domain.Node, label, sourceRepo string) (domain.Node, error) {
+	rows := catalogsOnly(tree).Rows()
+	usable := 0
+	for _, r := range rows {
+		if r.Node.Unavailable == "" {
+			usable++
 		}
 	}
-	i, err := c.Prompt.Select(label, labels, 0)
+	// --yes means the defaults, and the root is the default home for an entry
+	// in a script: it never writes to a repository nobody named.
+	if usable == 1 || c.Yes {
+		return tree, nil
+	}
+	owner := repoOwner(sourceRepo)
+	opts, def, deepest := make([]Option, len(rows)), 0, -1
+	for i, r := range rows {
+		n := r.Node
+		o := Option{Label: r.Prefix + n.Name}
+		if n.Path == "" {
+			o.Label = n.Name + " (root)"
+		}
+		if n.Unavailable != "" {
+			o.Disabled, o.Note = true, n.Unavailable
+		} else {
+			o.Note = "writes to " + shortRepo(n.Source.Repo)
+			if n.Source.Repo != tree.Source.Repo {
+				o.Note += " · another repository"
+			}
+			if d := strings.Count(n.Path, "/"); owner != "" && repoOwner(n.Source.Repo) == owner && n.Path != "" && d > deepest {
+				def, deepest = i, d
+			}
+		}
+		opts[i] = o
+	}
+	i, err := c.Prompt.Select(label, opts, def)
 	if errors.Is(err, ErrNotInteractive) {
-		return domain.Node{}, fmt.Errorf("%w (--at <path> names the catalog)", err)
+		return domain.Node{}, fmt.Errorf("%w (--at <path> names the catalog, / is the root)", err)
 	}
 	if err != nil {
 		return domain.Node{}, err
 	}
-	return options[i], nil
+	n, _ := tree.Find(rows[i].Node.Path)
+	return n, nil
+}
+
+// repoOwner is the account a GitHub-style URL belongs to; empty for anything
+// else, including a repository on this machine.
+func repoOwner(url string) string {
+	s := strings.TrimSuffix(url, ".git")
+	switch {
+	case strings.HasPrefix(s, "file://"):
+		return ""
+	case strings.Contains(s, "://"):
+		s = s[strings.Index(s, "://")+3:]
+		k := strings.Index(s, "/")
+		if k < 0 {
+			return ""
+		}
+		s = s[k+1:]
+	case strings.Contains(s, "@") && strings.Contains(s, ":"):
+		s = s[strings.Index(s, ":")+1:]
+	default:
+		return ""
+	}
+	if k := strings.Index(s, "/"); k > 0 {
+		return s[:k]
+	}
+	return ""
 }
 
 // parentCatalog finds the catalog node an entry is added to: the one at, or
 // one picked from the tree. "/" is the root.
-func (c *Catalogs) parentCatalog(tree domain.Node, at string, atGiven bool) (domain.Node, error) {
+func (c *Catalogs) parentCatalog(tree domain.Node, at string, atGiven bool, sourceRepo string) (domain.Node, error) {
 	if !atGiven {
-		return c.pickCatalog(tree, "Which catalog should it go in?")
+		return c.pickCatalog(tree, "Where should it go?", sourceRepo)
 	}
 	n, ok := tree.Find(strings.Trim(at, "/"))
 	switch {
 	case !ok:
-		return domain.Node{}, fmt.Errorf("no catalog at %q; see `catalog tree`", at)
+		return domain.Node{}, fmt.Errorf("no catalog at %q; see `multiversectl catalog`", at)
 	case n.Kind != domain.CatalogNode:
 		return domain.Node{}, fmt.Errorf("%q is a workspace, not a catalog", at)
 	case n.Unavailable != "":
 		return domain.Node{}, fmt.Errorf("catalog %q is unavailable: %s", at, n.Unavailable)
 	}
 	return n, nil
+}
+
+// settle makes the entry's name free in parent. The same source already there
+// under that name is returned as existing, so adding twice changes nothing; a
+// different one under that name gets a suggested name, asked about only then.
+// Listing a source somewhere else in the tree is asked about, since it is
+// rarely meant.
+func (c *Catalogs) settle(tree, parent domain.Node, name string, src domain.Source, named bool) (string, string, error) {
+	for _, ch := range parent.Children {
+		if ch.Name != name {
+			continue
+		}
+		if sameSource(parent, ch.Source, src) {
+			return name, ch.Path, nil
+		}
+		if named {
+			return "", "", fmt.Errorf("%q already exists in %s (%s); pick another --name", name, firstOf(parent.Path, "the root catalog"), shortRepo(ch.Source.Repo))
+		}
+		suggestion := name
+		for n := 2; hasChild(parent, suggestion); n++ {
+			suggestion = fmt.Sprintf("%s-%d", name, n)
+		}
+		if c.Yes {
+			c.Out.Info("%s already exists there (%s); using %s", name, shortRepo(ch.Source.Repo), suggestion)
+			name = suggestion
+			break
+		}
+		got, err := c.Prompt.Input(fmt.Sprintf("%q exists here (%s). Name", name, shortRepo(ch.Source.Repo)), suggestion)
+		if errors.Is(err, ErrNotInteractive) {
+			return "", "", fmt.Errorf("%q already exists in %s (%s): --name picks another", name, firstOf(parent.Path, "the root catalog"), shortRepo(ch.Source.Repo))
+		}
+		if err != nil {
+			return "", "", err
+		}
+		if err := domain.ValidateCatalogName(got); err != nil {
+			return "", "", err
+		}
+		if hasChild(parent, got) {
+			return "", "", fmt.Errorf("%q exists here too", got)
+		}
+		name = got
+		break
+	}
+	if at := findSource(tree, src); at != "" && src.Repo != "" {
+		if c.Yes {
+			c.Out.Warn("%s is already listed at %s; adding a second entry", shortRepo(src.Repo), at)
+		} else if ok, err := c.Prompt.Confirm(fmt.Sprintf("%s is already listed at %s. Add a second entry?", shortRepo(src.Repo), at), false); err != nil {
+			if errors.Is(err, ErrNotInteractive) {
+				return "", "", fmt.Errorf("%s is already listed at %s; --yes adds a second entry anyway", shortRepo(src.Repo), at)
+			}
+			return "", "", err
+		} else if !ok {
+			return "", "", ErrCancelled
+		}
+	}
+	return name, "", nil
+}
+
+// sameSource compares a listed entry with a source being added. In a catalog
+// on this machine an entry's path is the absolute file, while the new source
+// is relative to the catalog's repository, so that is worked out first.
+func sameSource(parent domain.Node, listed, adding domain.Source) bool {
+	if listed.Repo != adding.Repo {
+		return false
+	}
+	if listed.Path == adding.Path {
+		return true
+	}
+	return adding.Repo == "" && listed.Path == filepath.Join(parent.Dir, filepath.FromSlash(adding.Path))
+}
+
+func hasChild(n domain.Node, name string) bool {
+	for _, ch := range n.Children {
+		if ch.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// findSource returns the path of a node already pointing at src, or "".
+func findSource(tree domain.Node, src domain.Source) string {
+	for _, r := range tree.Rows() {
+		n := r.Node
+		if n.Path != "" && n.Unavailable == "" && n.Source.Repo == src.Repo && n.Source.Path == src.Path {
+			return n.Path
+		}
+	}
+	return ""
 }
 
 // fileChange is one file an edit writes.
@@ -102,17 +242,9 @@ type fileChange struct {
 // commits it. In a remote repository it then pushes; the user is asked once,
 // before anything is written, so declining leaves no half-made commit behind.
 func (c *Catalogs) edit(ctx context.Context, parent domain.Node, summary string, fn func(data []byte) ([]fileChange, error)) error {
-	data, err := c.Files.ReadFile(parent.File)
-	if err != nil {
-		return err
-	}
-	changes, err := fn(data)
-	if err != nil {
-		return err
-	}
-
 	remote := parent.Source.Repo != ""
 	var branch, where string
+	var err error
 	if remote {
 		if branch, err = c.writableBranch(ctx, parent); err != nil {
 			return err
@@ -120,11 +252,28 @@ func (c *Catalogs) edit(ctx context.Context, parent domain.Node, summary string,
 		if clean, err := c.Git.IsClean(ctx, parent.Dir); err != nil || !clean {
 			return fmt.Errorf("the local copy of %s has uncommitted changes (%s); resolve them first", parent.Source.Repo, parent.Dir)
 		}
-		where = fmt.Sprintf("commit and push to %s (%s)", parent.Source.Repo, branch)
+		// Only the repository being written to is brought up to date: the rest
+		// of the tree is read from what was fetched earlier, so an edit does not
+		// wait on every layer, or fail because one is unreachable.
+		if err := c.Git.Fetch(ctx, parent.Dir); err != nil {
+			return fmt.Errorf("fetch %s: %w", parent.Source.Repo, err)
+		}
+		if err := c.Git.Checkout(ctx, parent.Dir, branch); err != nil {
+			return err
+		}
+		where = fmt.Sprintf("commit and push to %s (%s)", shortRepo(parent.Source.Repo), branch)
 	} else if _, terr := c.Git.Toplevel(ctx, parent.Dir); terr == nil {
 		where = "write and commit in " + parent.Dir
 	} else {
 		where = "write " + parent.File + " (not in a git repository, so nothing is committed)"
+	}
+	data, err := c.Files.ReadFile(parent.File)
+	if err != nil {
+		return err
+	}
+	changes, err := fn(data)
+	if err != nil {
+		return err
 	}
 	if ok, err := c.confirm(fmt.Sprintf("%s: %s?", summary, where), true); err != nil {
 		return err
@@ -166,7 +315,7 @@ func (c *Catalogs) edit(ctx context.Context, parent domain.Node, summary string,
 		// build on a commit that was never accepted.
 		_ = c.Git.Fetch(ctx, parent.Dir)
 		_ = c.Git.Checkout(ctx, parent.Dir, branch)
-		return fmt.Errorf("push to %s was refused (someone else may have pushed first); run the command again: %w", parent.Source.Repo, err)
+		return fmt.Errorf("push to %s (%s) was rejected: %w\n  if someone pushed first, run the command again; if the branch is protected, ask its owner", shortRepo(parent.Source.Repo), branch, err)
 	}
 	c.Out.OK("%s", summary)
 	return nil
@@ -196,7 +345,7 @@ func (c *Catalogs) Clone(ctx context.Context, repo, ref string) (string, error) 
 // Remove drops the entry at nodePath from the catalog that holds it. The
 // repository or file it pointed at is left alone.
 func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
-	tree, err := c.Tree(ctx, "", true)
+	tree, err := c.Tree(ctx, "", false)
 	if err != nil {
 		return err
 	}
@@ -213,10 +362,21 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 		return fmt.Errorf("the catalog that holds %q cannot be read", nodePath)
 	}
 	name := path.Base(nodePath)
-	return c.edit(ctx, parent, fmt.Sprintf("remove %s from the catalog", nodePath), func(data []byte) ([]fileChange, error) {
+	if err := c.edit(ctx, parent, fmt.Sprintf("remove %s from the catalog", nodePath), func(data []byte) ([]fileChange, error) {
 		out, err := c.Editor.RemoveRef(data, name)
 		return []fileChange{{parent.File, out}}, err
-	})
+	}); err != nil {
+		return err
+	}
+	// Removing an entry does not touch what is installed from it.
+	if cfg, err := c.Config.Load(); err == nil {
+		for installed, e := range cfg.Workspaces {
+			if e.From == nodePath || strings.HasPrefix(e.From, nodePath+"/") {
+				c.Out.Info("still installed here: multiversectl uninstall %s", installed)
+			}
+		}
+	}
+	return nil
 }
 
 // AddWorkspaceInput is a repository to list in a catalog.
@@ -234,7 +394,7 @@ func (c *Catalogs) AddWorkspace(ctx context.Context, in AddWorkspaceInput) (stri
 		return "", errors.New("add workspace: a repository URL is required")
 	}
 	in.Repo = c.expand(in.Repo)
-	tree, err := c.Tree(ctx, "", true)
+	tree, err := c.Tree(ctx, "", false)
 	if err != nil {
 		return "", err
 	}
@@ -252,26 +412,23 @@ func (c *Catalogs) AddWorkspace(ctx context.Context, in AddWorkspaceInput) (stri
 	}
 	name := in.Name
 	if name == "" {
-		detected, err := c.Editor.WorkspaceName(data)
-		if err != nil {
+		if name, err = c.Editor.WorkspaceName(data); err != nil {
 			return "", fmt.Errorf("%s in %s: %w", file, in.Repo, err)
 		}
-		name = detected
-		if !c.Yes {
-			if name, err = c.Prompt.Input("Name in the catalog", detected); err != nil {
-				return "", err
-			}
-		}
 	}
-	parent, err := c.parentCatalog(tree, in.At, in.AtGiven)
+	parent, err := c.parentCatalog(tree, in.At, in.AtGiven, in.Repo)
 	if err != nil {
 		return "", err
 	}
-	if p, ok := existingRef(parent, name, in.Repo); ok {
-		c.Out.Info("%s is already in the catalog", p)
-		return p, nil
-	}
 	src := domain.Source{Repo: in.Repo, Ref: in.Ref, Path: file}
+	name, existing, err := c.settle(tree, parent, name, src, in.Name != "")
+	if err != nil {
+		return "", err
+	}
+	if existing != "" {
+		c.Out.Info("%s is already in the catalog", existing)
+		return existing, nil
+	}
 	err = c.edit(ctx, parent, fmt.Sprintf("add workspace %s", name), func(cat []byte) ([]fileChange, error) {
 		out, err := c.Editor.AddWorkspaceRef(cat, domain.WorkspaceRef{Name: name, Source: src})
 		return []fileChange{{parent.File, out}}, err
@@ -309,7 +466,7 @@ func (c *Catalogs) AddCatalog(ctx context.Context, in AddCatalogInput) (string, 
 		return "", errors.New("add catalog: a repository URL is required")
 	}
 	in.Repo = c.expand(in.Repo)
-	tree, err := c.Tree(ctx, "", true)
+	tree, err := c.Tree(ctx, "", false)
 	if err != nil {
 		return "", err
 	}
@@ -326,16 +483,19 @@ func (c *Catalogs) AddCatalog(ctx context.Context, in AddCatalogInput) (string, 
 	if err != nil {
 		return "", fmt.Errorf("%s in %s: %w", file, in.Repo, err)
 	}
-	name := firstOf(in.Name, cat.Name)
-	parent, err := c.parentCatalog(tree, in.At, in.AtGiven)
+	parent, err := c.parentCatalog(tree, in.At, in.AtGiven, in.Repo)
 	if err != nil {
 		return "", err
 	}
-	if p, ok := existingRef(parent, name, in.Repo); ok {
-		c.Out.Info("%s is already in the catalog", p)
-		return p, nil
-	}
 	src := domain.Source{Repo: in.Repo, Ref: in.Ref, Path: file}
+	name, existing, err := c.settle(tree, parent, firstOf(in.Name, cat.Name), src, in.Name != "")
+	if err != nil {
+		return "", err
+	}
+	if existing != "" {
+		c.Out.Info("%s is already in the catalog", existing)
+		return existing, nil
+	}
 	err = c.edit(ctx, parent, fmt.Sprintf("link catalog %s", name), func(raw []byte) ([]fileChange, error) {
 		out, err := c.Editor.AddCatalogRef(raw, domain.CatalogRef{Name: name, Source: src})
 		return []fileChange{{parent.File, out}}, err
@@ -389,7 +549,7 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 			return "", fmt.Errorf("%s in %s exists but is not a catalog: %w", defaultCatalogFile, url, err)
 		}
 		if sd != nil {
-			return "", fmt.Errorf("%s already has a catalog; list the manifest in it with `catalog add workspace` instead", url)
+			return "", fmt.Errorf("%s already has a catalog; list the manifest in it with `catalog add` instead", url)
 		}
 		c.Out.Info("%s already has a catalog; using it", url)
 		return url, nil
@@ -453,33 +613,38 @@ type CreateCatalogInput struct {
 
 // CreateCatalog makes a catalog and links it from a parent: as a file in the
 // parent's own repository, in an existing repository, or in a new one.
-func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) error {
+func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) (string, error) {
 	if err := domain.ValidateCatalogName(in.Name); err != nil {
-		return err
+		return "", err
 	}
 	sd, err := c.loadSeed(in.Manifest)
 	if err != nil {
-		return err
+		return "", err
 	}
-	tree, err := c.Tree(ctx, "", true)
+	tree, err := c.Tree(ctx, "", false)
 	if err != nil {
-		return err
+		return "", err
 	}
-	parent, err := c.parentCatalog(tree, in.At, in.AtGiven)
+	parent, err := c.parentCatalog(tree, in.At, in.AtGiven, in.Where.URL)
 	if err != nil {
-		return err
+		return "", err
 	}
 	for _, ch := range parent.Children {
 		if ch.Name == in.Name {
-			return fmt.Errorf("%q already exists in %s", in.Name, firstOf(parent.Path, "the root catalog"))
+			return "", fmt.Errorf("%q already exists in %s", in.Name, firstOf(parent.Path, "the root catalog"))
 		}
 	}
+	made := domain.ChildPath(parent.Path, in.Name)
 
 	where := in.Where
 	where.URL = c.expand(where.URL)
 	if !in.Same && where.URL == "" && where.Create == "" {
-		if where, in.Same, err = c.askWhere(in.Name); err != nil {
-			return err
+		what := "catalog"
+		if sd != nil {
+			what = "project"
+		}
+		if where, in.Same, err = c.askWhere(in.Name, what); err != nil {
+			return "", err
 		}
 	}
 
@@ -491,9 +656,9 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) err
 		}
 		target := filepath.Join(parent.Dir, filepath.FromSlash(rel))
 		if c.Files.Exists(target) {
-			return fmt.Errorf("%s already exists", rel)
+			return "", fmt.Errorf("%s already exists", rel)
 		}
-		return c.edit(ctx, parent, fmt.Sprintf("add catalog %s", in.Name), func(data []byte) ([]fileChange, error) {
+		return made, c.edit(ctx, parent, fmt.Sprintf("add catalog %s", in.Name), func(data []byte) ([]fileChange, error) {
 			out, err := c.Editor.AddCatalogRef(data, domain.CatalogRef{Name: in.Name, Source: domain.Source{Path: rel}})
 			if err != nil {
 				return nil, err
@@ -513,19 +678,23 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) err
 
 	url, err := c.provision(ctx, where, in.Name, sd)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return c.edit(ctx, parent, fmt.Sprintf("link catalog %s", in.Name), func(data []byte) ([]fileChange, error) {
+	return made, c.edit(ctx, parent, fmt.Sprintf("link catalog %s", in.Name), func(data []byte) ([]fileChange, error) {
 		out, err := c.Editor.AddCatalogRef(data, domain.CatalogRef{Name: in.Name, Source: domain.Source{Repo: url}})
 		return []fileChange{{parent.File, out}}, err
 	})
 }
 
-func (c *Catalogs) askWhere(name string) (RepoChoice, bool, error) {
-	i, err := c.Prompt.Select("Where should the new catalog live?", []string{
-		"In the same repository as its parent",
-		"In an existing repository",
-		"In a new private repository on GitHub",
+func (c *Catalogs) askWhere(name, what string) (RepoChoice, bool, error) {
+	own := "In a new private repository on GitHub"
+	if what == "project" {
+		own += ": a project, its own index and its own workspace"
+	}
+	i, err := c.Prompt.Select(fmt.Sprintf("Where should the %s live?", what), []Option{
+		{Label: "In the same repository as the catalog it goes in"},
+		{Label: "In an existing repository"},
+		{Label: own},
 	}, 0)
 	if errors.Is(err, ErrNotInteractive) {
 		return RepoChoice{}, true, nil // scripts get the same repository, the least surprising place
@@ -558,10 +727,11 @@ func firstErr(errs ...error) error {
 
 // InitInput says where this machine's root catalog comes from.
 type InitInput struct {
-	Name  string
-	Where RepoChoice
-	Local string // a directory or catalog file on this machine
-	Only  bool   // keep it local and git-only, with no remote yet
+	Name   string
+	Source string // a repository (owner/repo or a URL) or a path: whichever it is
+	Where  RepoChoice
+	Local  string // a directory or catalog file on this machine
+	Only   bool   // keep it local and git-only, with no remote yet
 }
 
 // Init sets up the root catalog: an existing repository or file, a new
@@ -571,11 +741,25 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	if err != nil {
 		return err
 	}
+	if in.Source != "" {
+		if c.Files.Exists(in.Source) {
+			in.Local = in.Source
+		} else {
+			in.Where.URL = in.Source
+		}
+	}
 	in.Where.URL = c.expand(in.Where.URL)
 	if in.Where.URL == "" && in.Where.Create == "" && in.Local == "" && !in.Only {
 		if in, err = c.askInit(in); err != nil {
+			if errors.Is(err, ErrNotInteractive) && cfg.Catalog != "" {
+				return fmt.Errorf("already using %s; give a source to replace it: init <repo|path>", cfg.Catalog)
+			}
 			return err
 		}
+	}
+	if cfg.Catalog != "" && c.sameRoot(cfg.Catalog, in) {
+		c.Out.Info("already using %s as the root catalog", cfg.Catalog)
+		return nil
 	}
 	if cfg.Catalog != "" {
 		if ok, err := c.confirm(fmt.Sprintf("This machine already uses %s as its root catalog. Replace it?", cfg.Catalog), false); err != nil {
@@ -604,17 +788,21 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 		}
 		c.Out.Info("to keep it elsewhere: git -C %s remote add origin <url> && git -C %s push -u origin HEAD", dir, dir)
 	}
-	return c.Use(source)
+	if err := c.Use(source); err != nil {
+		return err
+	}
+	c.Out.Info("next: multiversectl catalog add <owner/repo>  ·  multiversectl catalog create <name>")
+	return nil
 }
 
 func (c *Catalogs) askInit(in InitInput) (InitInput, error) {
-	i, err := c.Prompt.Select("Where does your root catalog live?", []string{
-		"In an existing repository or file",
-		"In a new private repository on GitHub",
-		"Only on this machine for now (a local git repository)",
+	i, err := c.Prompt.Select("Where should your root catalog live?", []Option{
+		{Label: "In an existing repository or file"},
+		{Label: "In a new private repository on GitHub"},
+		{Label: "Only on this machine for now", Note: "a local git repository with no remote yet"},
 	}, 1)
 	if errors.Is(err, ErrNotInteractive) {
-		return in, fmt.Errorf("%w: use --repo <url>, --create <name> or --local", err)
+		return in, fmt.Errorf("%w: give a source (init <repo|path>), --create <name> or --local <dir>", err)
 	}
 	if err != nil {
 		return in, err
@@ -719,7 +907,16 @@ type AddInput struct {
 	Repo, Ref, Path, Name string
 	At                    string
 	AtGiven               bool
+
+	// For a manifest file only: where its copy lives. Neither set means ask,
+	// or the catalog's own repository when there is nobody to ask.
+	Where RepoChoice
+	Same  bool
 }
+
+// errNoRoot is what every command that writes to the index says when there is
+// none: reading and installing do not need one, writing does.
+var errNoRoot = errors.New("no root catalog to add to: multiversectl init  (installing a single project does not need one)")
 
 // Add links a source into the catalog: a repository (owner/repo or a URL) or a
 // path on this machine. A catalog.yaml makes it a catalog, otherwise it is a
@@ -744,10 +941,7 @@ func (c *Catalogs) addRemote(ctx context.Context, in AddInput) (string, error) {
 		return "", err
 	}
 	if cfg.Catalog == "" {
-		c.Out.Info("no root catalog on this machine yet; setting one up first")
-		if err := c.Init(ctx, InitInput{}); err != nil {
-			return "", err
-		}
+		return "", errNoRoot
 	}
 	dir, err := c.Clone(ctx, repo, in.Ref)
 	if err != nil {
@@ -830,7 +1024,7 @@ func (c *Catalogs) addLocal(ctx context.Context, in AddInput) (string, error) {
 		if _, err := c.Decoder.Decode(data); err == nil {
 			return c.addCheckout(ctx, in, filepath.Dir(abs), filepath.Base(abs))
 		}
-		return c.vendorManifest(ctx, in, abs)
+		return c.addManifestFile(ctx, in, abs)
 	}
 	return c.addCheckout(ctx, in, abs, "")
 }
@@ -866,9 +1060,10 @@ func (c *Catalogs) addCheckout(ctx context.Context, in AddInput, dir, file strin
 	return c.addRemote(ctx, next)
 }
 
-// vendorManifest lists a manifest file by copying it into the repository of
-// the parent catalog, next to nothing else it may depend on.
-func (c *Catalogs) vendorManifest(ctx context.Context, in AddInput, file string) (string, error) {
+// addManifestFile lists a manifest file. It has no repository to point at, so
+// it goes into one: a copy in the repository of the catalog it is listed in, or
+// a repository of its own that becomes a project, its own index and workspace.
+func (c *Catalogs) addManifestFile(ctx context.Context, in AddInput, file string) (string, error) {
 	sd, err := c.loadSeed(file)
 	if err != nil {
 		return "", fmt.Errorf("%s is neither a catalog nor a workspace manifest: %w", file, err)
@@ -882,26 +1077,40 @@ func (c *Catalogs) vendorManifest(ctx context.Context, in AddInput, file string)
 		return "", err
 	}
 	if cfg.Catalog == "" {
-		c.Out.Info("no root catalog on this machine yet; setting one up first")
-		if err := c.Init(ctx, InitInput{}); err != nil {
+		return "", errNoRoot
+	}
+
+	where, same := in.Where, in.Same
+	where.URL = c.expand(where.URL)
+	if !same && where.URL == "" && where.Create == "" {
+		if where, same, err = c.askWhere(name, "project"); err != nil {
 			return "", err
 		}
 	}
-	tree, err := c.Tree(ctx, "", true)
+	if !same && (where.URL != "" || where.Create != "") {
+		return c.CreateCatalog(ctx, CreateCatalogInput{Name: name, At: in.At, AtGiven: in.AtGiven, Where: where, Manifest: file})
+	}
+
+	tree, err := c.Tree(ctx, "", false)
 	if err != nil {
 		return "", err
 	}
-	parent, err := c.parentCatalog(tree, in.At, in.AtGiven)
+	parent, err := c.parentCatalog(tree, in.At, in.AtGiven, "")
 	if err != nil {
 		return "", err
-	}
-	for _, ch := range parent.Children {
-		if ch.Name == name {
-			c.Out.Info("%s is already in the catalog", ch.Path)
-			return ch.Path, nil
-		}
 	}
 	rel := path.Join("workspaces", name, defaultManifestFile)
+	// A remote catalog's entries carry its repository, so the copy being added
+	// must too, or adding the same file twice would look like two different ones.
+	name, existing, err := c.settle(tree, parent, name, domain.Source{Repo: parent.Source.Repo, Path: rel}, in.Name != "")
+	if err != nil {
+		return "", err
+	}
+	if existing != "" {
+		c.Out.Info("%s is already in the catalog", existing)
+		return existing, nil
+	}
+	rel = path.Join("workspaces", name, defaultManifestFile)
 	target := filepath.Join(parent.Dir, filepath.FromSlash(rel))
 	if c.Files.Exists(target) {
 		return "", fmt.Errorf("%s already exists in the catalog's repository", rel)
@@ -911,4 +1120,23 @@ func (c *Catalogs) vendorManifest(ctx context.Context, in AddInput, file string)
 		return []fileChange{{parent.File, out}, {target, sd.manifest}}, err
 	})
 	return domain.ChildPath(parent.Path, name), err
+}
+
+// sameRoot reports that init was asked for the root already in use, which is
+// nothing to do and nothing to confirm.
+func (c *Catalogs) sameRoot(current string, in InitInput) bool {
+	switch {
+	case in.Where.URL != "":
+		return in.Where.URL == current
+	case in.Local != "":
+		abs, err := filepath.Abs(in.Local)
+		if err != nil {
+			return false
+		}
+		if _, derr := c.Files.ListDirs(abs); derr == nil {
+			abs = filepath.Join(abs, defaultCatalogFile)
+		}
+		return abs == current
+	}
+	return false
 }

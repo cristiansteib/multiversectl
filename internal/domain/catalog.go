@@ -109,3 +109,29 @@ func ValidateCatalogName(name string) error {
 	}
 	return nil
 }
+
+// TreeRow is one line of a tree drawing: a node and the glyphs that put it in
+// place, so every view of the tree (the command, the pickers) draws the same.
+type TreeRow struct {
+	Node   Node
+	Prefix string
+}
+
+// Rows lists the root and everything under it, depth first.
+func (n Node) Rows() []TreeRow {
+	rows := []TreeRow{{Node: n}}
+	var walk func(parent Node, indent string)
+	walk = func(parent Node, indent string) {
+		for i, c := range parent.Children {
+			last := i == len(parent.Children)-1
+			connector, next := "├─ ", indent+"│  "
+			if last {
+				connector, next = "└─ ", indent+"   "
+			}
+			rows = append(rows, TreeRow{Node: c, Prefix: indent + connector})
+			walk(c, next)
+		}
+	}
+	walk(n, "")
+	return rows
+}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -8,21 +9,21 @@ import (
 )
 
 func TestRenderTree(t *testing.T) {
-	root := domain.Node{Name: "me", Kind: domain.CatalogNode, Children: []domain.Node{
-		{Name: "acme", Path: "acme", Kind: domain.CatalogNode, Children: []domain.Node{
+	root := domain.Node{Name: "me", Kind: domain.CatalogNode, Source: domain.Source{Repo: "git@example.test:me/index.git"}, Children: []domain.Node{
+		{Name: "acme", Path: "acme", Kind: domain.CatalogNode, Source: domain.Source{Repo: "git@example.test:acme/index.git"}, Children: []domain.Node{
 			{Name: "payments", Path: "acme/payments", Kind: domain.WorkspaceNode,
 				Source: domain.Source{Repo: "git@example.test:acme/pay.git", Ref: "v1", Path: "multiverse.yaml"}},
 		}},
-		{Name: "private", Path: "private", Kind: domain.CatalogNode, Unavailable: "clone failed"},
+		{Name: "private", Path: "private", Kind: domain.CatalogNode, Unavailable: "no access or not found: acme/private"},
 	}}
-	got := strings.Join(renderTree(root), "\n")
-	for _, want := range []string{"me\n", "acme", "payments", "git@example.test:acme/pay.git@v1 multiverse.yaml", "unavailable: clone failed"} {
+	var buf bytes.Buffer
+	r := runner{out: NewOutput(&buf, false)}
+	got := strings.Join(r.renderTree(root, root.Source.Repo, map[string]string{"acme/payments": "payments"}), "\n")
+	for _, want := range []string{"me  ", "├─ acme", "│  └─ payments", "└─ private",
+		"acme/pay@v1", "✓ installed as payments", "✗ no access or not found: acme/private", "acme/index"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
-	}
-	if bad := unavailable(root); len(bad) != 1 || bad[0].Path != "private" {
-		t.Errorf("unavailable = %+v", bad)
 	}
 }
 
@@ -35,7 +36,7 @@ func TestEveryCommandIsInAGroup(t *testing.T) {
 		known[g.ID] = true
 	}
 	for _, c := range root.Commands() {
-		if c.Hidden || c.Name() == "completion" {
+		if c.Hidden {
 			continue
 		}
 		if !known[c.GroupID] {

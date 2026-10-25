@@ -15,9 +15,9 @@ const (
 )
 
 var commandGroups = map[string]string{
-	"init": groupSetup, "bootstrap": groupSetup, "update": groupSetup, "version": groupSetup,
-	"catalog": groupCatalog, "add": groupCatalog, "install": groupCatalog, "uninstall": groupCatalog,
-	"workspaces": groupCatalog, "use": groupCatalog,
+	"init": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup,
+	"catalog": groupCatalog, "install": groupCatalog, "uninstall": groupCatalog,
+	"use": groupCatalog, "status": groupCatalog, "update": groupCatalog,
 	"new": groupUniverse, "up": groupUniverse, "down": groupUniverse, "rm": groupUniverse,
 	"ls": groupUniverse, "urls": groupUniverse, "env": groupUniverse, "run": groupUniverse,
 	"exec": groupUniverse, "doctor": groupUniverse, "proxy": groupUniverse,

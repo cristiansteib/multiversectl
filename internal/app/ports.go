@@ -47,6 +47,11 @@ type Git interface {
 	Commit(ctx context.Context, dir, message string, paths ...string) error
 	// Push sends HEAD to the named branch of origin.
 	Push(ctx context.Context, dir, branch string) error
+	// Behind counts the commits origin has, as last fetched, that dir's HEAD
+	// lacks; ref is a branch, empty for the default one.
+	Behind(ctx context.Context, dir, ref string) (int, error)
+	// FastForward moves dir's branch to origin's, and refuses anything else.
+	FastForward(ctx context.Context, dir, branch string) error
 }
 
 // RuntimeRequest is one invocation of the container runtime.
@@ -229,10 +234,23 @@ type Releases interface {
 	Download(ctx context.Context, url, dest string) error
 }
 
+// Origin is where a workspace's manifest came from. It is recorded at install
+// so update and status can tell when the manifest or the catalog has moved on.
+type Origin struct {
+	Repo string `yaml:"repo,omitempty"`
+	Ref  string `yaml:"ref,omitempty"`
+	Path string `yaml:"path,omitempty"`
+}
+
 // WorkspaceEntry is one workspace this machine knows how to reach.
 type WorkspaceEntry struct {
 	Root     string `yaml:"root"`
 	Manifest string `yaml:"manifest"`
+
+	// From is the catalog path it was installed from, empty when it was
+	// installed from a repository or file directly.
+	From   string `yaml:"from,omitempty"`
+	Source Origin `yaml:"source,omitempty"`
 }
 
 // Config is where this machine keeps its workspaces, so the tool works from
@@ -266,10 +284,21 @@ var ErrNotInteractive = errors.New("an answer is needed but input is not a termi
 // Prompter asks the user a question. Every use case that prompts also takes the
 // answer as a flag, so scripts never reach it.
 type Prompter interface {
-	Select(label string, options []string, def int) (int, error)
-	MultiSelect(label string, options []string) ([]int, error)
+	Select(label string, options []Option, def int) (int, error)
+	// MultiSelect returns no indexes when the user presses Enter alone: that
+	// is how they back out.
+	MultiSelect(label string, options []Option) ([]int, error)
 	Confirm(label string, def bool) (bool, error)
 	Input(label, def string) (string, error)
+}
+
+// Option is one line of a menu. A Disabled one is shown, with its Note saying
+// why, but cannot be chosen: hiding it would leave the user wondering where it
+// went.
+type Option struct {
+	Label    string
+	Note     string
+	Disabled bool
 }
 
 // RepoHost creates repositories on a hosting service.

@@ -136,8 +136,8 @@ spec:
                 repos:
                   type: array
                   description: >-
-                    The repositories this project is made of. bootstrap
-                    clones them; each universe gets a worktree of every one,
+                    The repositories this project is made of. install clones
+                    them; each universe gets a worktree of every one,
                     sharing the clone's object store.
                   minItems: 1
                   items:

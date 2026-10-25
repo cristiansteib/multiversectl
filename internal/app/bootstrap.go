@@ -20,6 +20,10 @@ type BootstrapInput struct {
 	// out, and where in the repository the manifest is (default multiverse.yaml).
 	Ref          string
 	ManifestPath string
+	// From and Origin are recorded so a later update or status can compare the
+	// workspace with where it came from.
+	From   string
+	Origin Origin
 }
 
 // Bootstrap records this machine's workspace so the tool works from any
@@ -67,11 +71,16 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEn
 	if err != nil {
 		return WorkspaceEntry{}, err
 	}
-	entry := WorkspaceEntry{Root: root, Manifest: manifest}
+	entry := WorkspaceEntry{Root: root, Manifest: manifest, From: in.From, Source: in.Origin}
 	if cfg.Workspaces == nil {
 		cfg.Workspaces = map[string]WorkspaceEntry{}
 	}
-	cfg.Workspaces[name], cfg.Current = entry, name
+	cfg.Workspaces[name] = entry
+	// The first workspace on a machine is the one to work in; later ones are
+	// installed beside it, and switching is an explicit `use`.
+	if cfg.Current == "" {
+		cfg.Current = name
+	}
 	if err := s.Config.Save(cfg); err != nil {
 		return WorkspaceEntry{}, fmt.Errorf("saving the configuration: %w", err)
 	}
@@ -103,6 +112,31 @@ func (s *Service) CloneRepos(ctx context.Context) error {
 			return fmt.Errorf("%s: clone: %w", repoKey, err)
 		}
 		s.Out.OK("%s: cloned", repoKey)
+	}
+	return nil
+}
+
+// CloneMissing clones the repositories of the manifest that are not here yet,
+// and says nothing about the ones that are: what an update reports is what it
+// changed.
+func (s *Service) CloneMissing(ctx context.Context) error {
+	if s.Manifest == nil {
+		return domain.ErrNoManifest
+	}
+	keys := make([]string, 0, len(s.Manifest.Repos))
+	for key := range s.Manifest.Repos {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		dest := s.Manifest.CloneDir(s.Workspace, key)
+		if s.Files.Exists(dest) {
+			continue
+		}
+		if err := s.Git.Clone(ctx, s.Manifest.Repos[key].URL, dest); err != nil {
+			return fmt.Errorf("%s: clone: %w", key, err)
+		}
+		s.Out.OK("%s: cloned", key)
 	}
 	return nil
 }

@@ -3,6 +3,7 @@ package prompt
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -52,14 +53,48 @@ func (c *Console) line(label string) (string, error) {
 	return strings.TrimSpace(text), nil
 }
 
-func (c *Console) Select(label string, options []string, def int) (int, error) {
+// show prints a menu. Every line is numbered by its place so the numbers do not
+// shift; one that cannot be chosen gets a dash and its note, so it is still
+// seen and its absence not a mystery.
+func (c *Console) show(label string, options []app.Option) {
+	fmt.Fprintln(c.out, label)
+	width := 0
+	for _, o := range options {
+		if w := len([]rune(o.Label)); w > width {
+			width = w
+		}
+	}
+	for i, o := range options {
+		num := fmt.Sprintf("%2d", i+1)
+		if o.Disabled {
+			num = " -"
+		}
+		line := fmt.Sprintf("  %s  %s", num, o.Label)
+		if o.Note != "" {
+			line += strings.Repeat(" ", width-len([]rune(o.Label))) + "  " + o.Note
+		}
+		fmt.Fprintln(c.out, strings.TrimRight(line, " "))
+	}
+}
+
+func chooseable(options []app.Option) int {
+	n := 0
+	for _, o := range options {
+		if !o.Disabled {
+			n++
+		}
+	}
+	return n
+}
+
+func (c *Console) Select(label string, options []app.Option, def int) (int, error) {
 	if !c.tty {
 		return 0, app.ErrNotInteractive
 	}
-	fmt.Fprintln(c.out, label)
-	for i, o := range options {
-		fmt.Fprintf(c.out, "  %d) %s\n", i+1, o)
+	if chooseable(options) == 0 {
+		return 0, errors.New("nothing here can be chosen")
 	}
+	c.show(label, options)
 	for {
 		text, err := c.line(fmt.Sprintf("choose [%d]: ", def+1))
 		if err != nil {
@@ -68,49 +103,53 @@ func (c *Console) Select(label string, options []string, def int) (int, error) {
 		if text == "" {
 			return def, nil
 		}
-		if n, err := strconv.Atoi(text); err == nil && n >= 1 && n <= len(options) {
+		if n, err := strconv.Atoi(text); err == nil && n >= 1 && n <= len(options) && !options[n-1].Disabled {
 			return n - 1, nil
 		}
-		fmt.Fprintf(c.out, "enter a number from 1 to %d\n", len(options))
+		fmt.Fprintf(c.out, "enter the number of a line that has one\n")
 	}
 }
 
-func (c *Console) MultiSelect(label string, options []string) ([]int, error) {
+// MultiSelect returns nothing on an empty answer: Enter is how a person backs
+// out, and a menu that can only be left with a valid number is a trap.
+func (c *Console) MultiSelect(label string, options []app.Option) ([]int, error) {
 	if !c.tty {
 		return nil, app.ErrNotInteractive
 	}
-	fmt.Fprintln(c.out, label)
-	for i, o := range options {
-		fmt.Fprintf(c.out, "  %d) %s\n", i+1, o)
+	if chooseable(options) == 0 {
+		return nil, errors.New("nothing here can be chosen")
 	}
+	c.show(label, options)
 	for {
-		text, err := c.line("numbers separated by commas, or all: ")
+		text, err := c.line("numbers separated by commas, all, or Enter for none: ")
 		if err != nil {
 			return nil, err
 		}
-		if picked, ok := parseNumbers(text, len(options)); ok {
+		if strings.TrimSpace(text) == "" {
+			return nil, nil
+		}
+		if picked, ok := parseNumbers(text, options); ok {
 			return picked, nil
 		}
-		fmt.Fprintf(c.out, "enter numbers from 1 to %d, or all\n", len(options))
+		fmt.Fprintf(c.out, "enter numbers of lines that have one, or all\n")
 	}
 }
 
-func parseNumbers(text string, max int) ([]int, bool) {
+func parseNumbers(text string, options []app.Option) ([]int, bool) {
 	text = strings.TrimSpace(text)
-	if text == "" {
-		return nil, false
-	}
 	var out []int
 	if text == "all" {
-		for i := 0; i < max; i++ {
-			out = append(out, i)
+		for i, o := range options {
+			if !o.Disabled {
+				out = append(out, i)
+			}
 		}
 		return out, true
 	}
 	seen := map[int]bool{}
 	for _, part := range strings.Split(text, ",") {
 		n, err := strconv.Atoi(strings.TrimSpace(part))
-		if err != nil || n < 1 || n > max {
+		if err != nil || n < 1 || n > len(options) || options[n-1].Disabled {
 			return nil, false
 		}
 		if !seen[n-1] {

@@ -18,8 +18,8 @@ spec:
     - name: personal
       source: {path: catalogs/personal.yaml}
   workspaces:
-    - name: fichero
-      source: {repo: git@example.test:me/fichero.git}
+    - name: billing
+      source: {repo: git@example.test:me/billing.git}
 `
 
 func TestDecode(t *testing.T) {
@@ -34,7 +34,7 @@ func TestDecode(t *testing.T) {
 		{name: "version", yaml: strings.Replace(valid, "v1alpha1", "v9", 1), wantErr: "unsupported apiVersion"},
 		{name: "unknown field", yaml: strings.Replace(valid, "ref:", "rev:", 1), wantErr: "field rev not found"},
 		{name: "bad name", yaml: strings.Replace(valid, "name: acme", "name: Acme", 1), wantErr: `name "Acme" must match`},
-		{name: "duplicate across lists", yaml: strings.Replace(valid, "name: fichero", "name: acme", 1), wantErr: `"acme" is used twice`},
+		{name: "duplicate across lists", yaml: strings.Replace(valid, "name: billing", "name: acme", 1), wantErr: `"acme" is used twice`},
 		{name: "ref without repo", yaml: strings.Replace(valid, "{path: catalogs/personal.yaml}", "{ref: main}", 1), wantErr: "source.ref needs source.repo"},
 		{name: "escapes repo", yaml: strings.Replace(valid, "catalogs/personal.yaml", "../other.yaml", 1), wantErr: "must stay inside the repository"},
 		{name: "absolute path", yaml: strings.Replace(valid, "catalogs/personal.yaml", "/etc/x.yaml", 1), wantErr: "must stay inside the repository"},
@@ -91,7 +91,7 @@ func TestEditorFillsAnEmptyScaffold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err = e.AddWorkspaceRef(out, domainWS("fichero", "git@example.test:me/fichero.git", "", "multiverse.yaml"))
+	out, err = e.AddWorkspaceRef(out, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestEditorRefusesDuplicatesAndRemoves(t *testing.T) {
 	if _, err := e.AddWorkspaceRef([]byte(valid), domainWS("acme", "git@example.test:x.git", "", "multiverse.yaml")); err == nil {
 		t.Error("a name already used by a catalog entry must be refused")
 	}
-	out, err := e.RemoveRef([]byte(valid), "fichero")
+	out, err := e.RemoveRef([]byte(valid), "billing")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -84,7 +84,7 @@ type Spec struct {
 	// The shared ingress every universe is reached through.
 	Proxy Proxy `yaml:"proxy"`
 
-	// The repositories this project is made of. bootstrap clones them; each
+	// The repositories this project is made of. install clones them; each
 	// universe gets a worktree of every one, sharing the clone's object store.
 	// +minItems=1
 	// +required
