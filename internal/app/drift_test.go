@@ -10,6 +10,7 @@ import (
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/fsx"
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 func statusOf(t *testing.T, r *rig) app.WorkspaceStatus {
@@ -113,5 +114,40 @@ func mkdirAll(t *testing.T, root, name string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestContextSaysWhereTheProjectAndItsPiecesAre(t *testing.T) {
+	r, root := installedRig(t)
+	e := r.cfg.c.Workspaces["acme"]
+	e.From = "acme/billing"
+	e.Source.Ref = "main"
+	r.cfg.c.Workspaces["acme"] = e
+	m := r.loader[e.Manifest]
+	m.Repos = map[string]domain.Repo{"api": {URL: "https://github.com/acme/api.git"}, "docs": {Runtime: domain.RuntimeNone, Dir: "acme-docs"}}
+
+	svc := app.New(app.Deps{Config: r.cfg}, root, m, "test")
+	c := svc.Context()
+	if c.Name != "acme" || !c.Current || c.Root != root || c.Manifest != e.Manifest {
+		t.Errorf("identity: %+v", c)
+	}
+	if c.From != "acme/billing" || c.Source != "github:acme/multiverse@main" {
+		t.Errorf("origin: from=%q source=%q", c.From, c.Source)
+	}
+	if c.UniversesDir != filepath.Join(root, "universes") || c.Config != "/cfg/config.yaml" {
+		t.Errorf("places: %q %q", c.UniversesDir, c.Config)
+	}
+	if len(c.Repos) != 2 || c.Repos[0].Key != "api" || c.Repos[0].Runtime != "compose" ||
+		c.Repos[1].Path != filepath.Join(root, "acme-docs") || c.Repos[1].Runtime != "none" {
+		t.Errorf("repos: %+v", c.Repos)
+	}
+}
+
+func TestContextOfAProjectNotInstalledHereStillHasItsRoot(t *testing.T) {
+	r, root := installedRig(t)
+	svc := app.New(app.Deps{Config: r.cfg}, "/somewhere/else", r.loader[r.cfg.c.Workspaces["acme"].Manifest], "test")
+	c := svc.Context()
+	if c.Root != "/somewhere/else" || c.Manifest != "" || c.Current || c.Name != "acme" || root == c.Root {
+		t.Errorf("%+v", c)
 	}
 }

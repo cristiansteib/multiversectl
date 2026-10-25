@@ -188,6 +188,7 @@ type lsFormat struct {
 	table bool
 	list  bool
 	wide  bool
+	json  bool
 }
 
 // parseLsFormat reads a comma-separated -o value. "wide" on its own means the
@@ -202,11 +203,13 @@ func parseLsFormat(spec string) (lsFormat, error) {
 			f.list = true
 		case "wide":
 			f.wide = true
+		case "json":
+			f.json = true
 		default:
-			return f, fmt.Errorf("unknown output %q: want table, list or wide, combined with commas like table,wide", token)
+			return f, fmt.Errorf("unknown output %q: want table, list, wide or json, combined with commas like table,wide", token)
 		}
 	}
-	if !f.table && !f.list {
+	if !f.table && !f.list && !f.json {
 		f.table = true
 	}
 	return f, nil
@@ -221,20 +224,28 @@ func (r runner) lsCmd() *cobra.Command {
 		Example: "  multiversectl universe ls\n" +
 			"  multiversectl universe ls -o wide        # every service, its state and its volumes\n" +
 			"  multiversectl universe ls -o list        # one line per universe\n" +
-			"  multiversectl universe ls -o list,wide",
+			"  multiversectl universe ls -o list,wide\n" +
+			"  multiversectl universe ls -o json        # the project, every path and every address, for a script or an agent",
 		Args: cobra.NoArgs,
 	}
 	cmd.Flags().StringVarP(&format, "output", "o", "table",
-		"output: table, list, wide, or a combination such as table,wide")
+		"output: table, list, wide, json, or a combination such as table,wide")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		f, err := parseLsFormat(format)
 		if err != nil {
 			return err
 		}
 		return r.withService(func(ctx context.Context, s *app.Service) error {
-			list, err := s.List(ctx, app.ListOptions{Services: f.wide})
+			list, err := s.List(ctx, app.ListOptions{Services: f.wide || f.json})
 			if err != nil {
 				return err
+			}
+			if f.json {
+				return writeJSON(r.out.w, listView(s.Context(), list))
+			}
+			// The header is for a person reading the table; -o list is for piping.
+			if f.table {
+				projectHeader(r.out, s.Context(), f.wide)
 			}
 			if len(list) == 0 {
 				s.Out.Info("no universes yet — create one with: `multiversectl universe new 1`")
@@ -692,6 +703,7 @@ func (r runner) universeStatusCmd() *cobra.Command {
 		if err != nil {
 			return err
 		}
+		projectHeader(r.out, s.Context(), false)
 		if len(list) == 0 {
 			s.Out.Info("no universes yet — create one with: `multiversectl universe new 1`")
 			return nil

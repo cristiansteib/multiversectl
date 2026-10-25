@@ -122,3 +122,17 @@ func TestTheOldWorkspaceFlagStillSelectsAProject(t *testing.T) {
 		t.Errorf("the old flag should be hidden and say what replaced it: %+v", f)
 	}
 }
+
+func TestLsAsksForJSONForScriptsAndAgents(t *testing.T) {
+	f, err := parseLsFormat("json")
+	if err != nil || !f.json || f.table || f.list {
+		t.Errorf("json alone is json only: %+v %v", f, err)
+	}
+	f, err = parseLsFormat("table,wide")
+	if err != nil || f.json || !f.table || !f.wide {
+		t.Errorf("%+v %v", f, err)
+	}
+	if _, err := parseLsFormat("yaml"); err == nil || !strings.Contains(err.Error(), "json") {
+		t.Errorf("the error should list json among the choices: %v", err)
+	}
+}
