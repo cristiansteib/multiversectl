@@ -147,6 +147,13 @@ dialog.modal::backdrop { background: rgba(8, 10, 14, .55); backdrop-filter: blur
 .field small { font-weight: 400; }
 .field input { font: 14px var(--mono); color: var(--text); background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
 .field input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.modes { display: grid; gap: 8px; margin: 10px 0 4px; }
+.radio, .check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.radio:has(input:checked) { border-color: var(--accent); background: var(--sunk); }
+.radio input, .check input { margin-top: 4px; accent-color: var(--accent); }
+.radio span { display: flex; flex-direction: column; }
+.radio small { font-weight: 400; }
+.check { border: 0; padding: 0; font-size: 13px; margin: 6px 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .modal .error { margin-top: 12px; }
 

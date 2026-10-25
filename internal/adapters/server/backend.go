@@ -28,6 +28,11 @@ type Backend interface {
 	// Unsaved names the repositories of a universe whose worktree has uncommitted
 	// work, which removing the universe would discard.
 	Unsaved(ctx context.Context, workspace, universe string) ([]string, error)
+	// NextFree is the number a new universe would get, and the numbers passed
+	// over because a branch of that name is left behind.
+	NextFree(ctx context.Context, workspace string) (nextView, error)
+	// Branches lists the branches across a workspace's repositories.
+	Branches(ctx context.Context, workspace string) ([]branchView, error)
 	// Do carries out an action, reporting to the sink as it goes.
 	Do(ctx context.Context, r opRequest, k Sink) error
 }
@@ -315,8 +320,11 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 		}
 		k.OK("%s removed", r.Universe)
 		return nil
-	case "new":
-		st, err := svc.Create(ctx, app.CreateInput{Name: strings.TrimSpace(r.Name), Branch: strings.TrimSpace(r.Branch), Note: r.Note})
+	case "new", "checkout":
+		st, err := svc.Create(ctx, app.CreateInput{
+			Name: strings.TrimSpace(r.Name), Branch: strings.TrimSpace(r.Branch), Base: strings.TrimSpace(r.Base), Note: r.Note,
+			Checkout: r.Action == "checkout", OnlyExisting: r.OnlyExisting,
+		})
 		if err != nil {
 			return err
 		}
@@ -439,4 +447,40 @@ func wordAt(n int) func(string) string {
 func looksLikeRelease(v string) bool {
 	v = strings.TrimPrefix(v, "v")
 	return v != "" && v[0] >= '0' && v[0] <= '9'
+}
+
+func (s Services) service(workspace string) (*app.Service, error) {
+	w, err := s.Machine.WorkspaceNamed(workspace)
+	if err != nil {
+		return nil, err
+	}
+	return s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+}
+
+func (s Services) NextFree(ctx context.Context, workspace string) (nextView, error) {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return nextView{}, err
+	}
+	n, skipped, err := svc.NextFree(ctx)
+	if err != nil {
+		return nextView{}, err
+	}
+	return nextView{Number: n, Skipped: skipped}, nil
+}
+
+func (s Services) Branches(ctx context.Context, workspace string) ([]branchView, error) {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return nil, err
+	}
+	list, err := svc.Branches(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]branchView, len(list))
+	for i, b := range list {
+		out[i] = branchView{Name: b.Name, Repos: b.Repos}
+	}
+	return out, nil
 }

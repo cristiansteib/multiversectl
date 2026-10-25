@@ -95,6 +95,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/workspaces/", s.workspace)
 	mux.HandleFunc("/api/doctor", s.doctor)
 	mux.HandleFunc("/api/system", s.system)
+	mux.HandleFunc("/api/next", s.next)
+	mux.HandleFunc("/api/branches", s.branches)
 	mux.HandleFunc("/api/ops", s.opsEndpoint)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "no such endpoint") })
 	mux.HandleFunc("/ws", s.ws)
@@ -251,6 +253,28 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 	v.Server = versionInfo{Version: s.o.Version, Commit: s.o.Commit, Date: s.o.Date}
 	v.Listen, v.Started, v.ReadOnly = s.listenAddr(r), s.started.UTC().Format(time.RFC3339), s.o.ReadOnly
 	reply(w, v)
+}
+
+func (s *Server) next(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	v, err := s.b.NextFree(ctx, r.URL.Query().Get("workspace"))
+	if err != nil {
+		fail(w, http.StatusNotFound, err.Error())
+		return
+	}
+	reply(w, v)
+}
+
+func (s *Server) branches(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	v, err := s.b.Branches(ctx, r.URL.Query().Get("workspace"))
+	if err != nil {
+		fail(w, http.StatusNotFound, err.Error())
+		return
+	}
+	reply(w, map[string]any{"branches": v})
 }
 
 func (s *Server) listenAddr(r *http.Request) string { return r.Host }

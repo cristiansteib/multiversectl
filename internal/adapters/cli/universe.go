@@ -33,23 +33,36 @@ func parseBranches(values []string) (all string, byRepo map[string]string, err e
 }
 
 func (r runner) newCmd() *cobra.Command {
-	var branches []string
+	var branches, bases []string
 	var note string
 	cmd := &cobra.Command{
-		Use:     "new <number|name>",
+		Use:     "new [number|name]",
 		Aliases: []string{"create"},
-		Short:   "Create a universe: one worktree per repo, secrets and state",
-		Example: "  multiversectl universe new 3\n" +
-			"  multiversectl universe new fix/login                   # named after the branch it checks out\n" +
-			"  multiversectl universe new 3 --branch feat/invoicing\n" +
-			"  multiversectl universe new 3 --branch feat/invoicing --branch web=main",
+		Short:   "Create a universe on branches of its own: one worktree per repo, secrets and state",
+		Long: "A new universe starts a branch of its own in every repository, from the base\n" +
+			"branch, so it can never land on anyone's work: if the branch already exists, in\n" +
+			"the clone or on origin, nothing is created and every clash is listed. Leave the\n" +
+			"name out and the next free number is used, stepping over a number whose branch a\n" +
+			"removed universe left behind. To work on a branch that already exists, use\n" +
+			"`multiversectl universe checkout`.",
+		Example: "  multiversectl universe new\n" +
+			"  multiversectl universe new 3\n" +
+			"  multiversectl universe new fix/login                   # a new branch of that name\n" +
+			"  multiversectl universe new 3 --base release/1.2        # start from another branch\n" +
+			"  multiversectl universe new 3 --branch feat/invoicing --base api=release/1.2",
 		Args: cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().StringArrayVar(&branches, "branch", nil,
-		"branch to check out in every repo, or repo=branch for one of them (repeatable)")
+		"name of the new branch in every repo, or repo=branch for one of them (repeatable; it must not exist yet)")
+	cmd.Flags().StringArrayVar(&bases, "base", nil,
+		"branch the new ones start from, or repo=branch for one of them (default: each repo's default branch)")
 	cmd.Flags().StringVar(&note, "note", "", "why this universe exists, kept with it and shown by ls")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		all, byRepo, err := parseBranches(branches)
+		if err != nil {
+			return err
+		}
+		baseAll, baseBy, err := parseBranches(bases)
 		if err != nil {
 			return err
 		}
@@ -59,12 +72,68 @@ func (r runner) newCmd() *cobra.Command {
 				return err
 			}
 			st, err := s.Create(ctx, app.CreateInput{
-				Name: args[0], Branch: all, Branches: byRepo, Note: note,
+				Name: args[0], Branch: all, Branches: byRepo, Base: baseAll, Bases: baseBy, Note: note,
 			})
 			if err != nil {
 				return err
 			}
-			s.Out.OK("universe %s ready (%s)", st.Name, st.Project)
+			s.Out.OK("universe `%s` ready (%s)", st.Name, st.Project)
+			return nil
+		})(cmd, args)
+	}
+	return cmd
+}
+
+func (r runner) checkoutCmd() *cobra.Command {
+	var name, note string
+	var perRepo []string
+	var onlyExisting bool
+	cmd := &cobra.Command{
+		Use:     "checkout [branch]",
+		Aliases: []string{"co"},
+		Short:   "Create a universe on a branch that already exists, to work on or review it",
+		Long: "Checks the branch out in every repository that has it, locally or on origin, and\n" +
+			"names the universe after it (--name for another). A repository that lacks it gets\n" +
+			"a new branch of that name from its base, or with --only-existing is left on its\n" +
+			"base, detached. Git allows a branch in one worktree only, so one that is already\n" +
+			"checked out in another universe, or in the shared clone, is refused and its place\n" +
+			"is shown. A branch that does not exist anywhere is refused too, so a typo does not\n" +
+			"become one; `multiversectl universe new` starts a new branch. Removing a checkout\n" +
+			"universe never deletes the branch it checked out.",
+		Example: "  multiversectl universe checkout fix/login\n" +
+			"  multiversectl universe checkout fix/login --name 7\n" +
+			"  multiversectl universe checkout fix/login --repo web=feat/ui --only-existing\n" +
+			"  multiversectl universe checkout                         # pick from the branches there are",
+		Args: cobra.MaximumNArgs(1),
+	}
+	cmd.Flags().StringVar(&name, "name", "", "name the universe (default: the branch)")
+	cmd.Flags().StringArrayVar(&perRepo, "repo", nil, "a different branch for one repository, as repo=branch (repeatable)")
+	cmd.Flags().BoolVar(&onlyExisting, "only-existing", false, "leave repositories without the branch on their base branch, detached, instead of starting one")
+	cmd.Flags().StringVar(&note, "note", "", "why this universe exists, kept with it and shown by ls")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		for _, p := range perRepo {
+			if !strings.Contains(p, "=") {
+				return fmt.Errorf("--repo %q: want repo=branch", p)
+			}
+		}
+		_, byRepo, err := parseBranches(perRepo)
+		if err != nil {
+			return err
+		}
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			branch := ""
+			if len(args) > 0 || len(byRepo) == 0 {
+				if branch, err = r.branchArg(cmd, args, s); err != nil {
+					return err
+				}
+			}
+			st, err := s.Create(ctx, app.CreateInput{
+				Name: name, Checkout: true, Branch: branch, Branches: byRepo, Note: note, OnlyExisting: onlyExisting,
+			})
+			if err != nil {
+				return err
+			}
+			s.Out.OK("universe `%s` ready (%s)", st.Name, st.Project)
 			return nil
 		})(cmd, args)
 	}
@@ -604,7 +673,7 @@ func (r runner) universeCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.newCmd(), r.upCmd(), r.downCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
+	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.downCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
 		r.envCmd(), r.runCmd(), r.execCmd())
 	return cmd
 }

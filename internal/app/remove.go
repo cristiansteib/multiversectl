@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -45,6 +46,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 			return fmt.Errorf("universe %s: %s: remove worktree: %w", st.Name, repoKey, err)
 		}
 		s.Out.OK("%s: worktree removed", repoKey)
+		s.dropBranch(ctx, st, repoKey, clone)
 	}
 
 	if err := s.Files.RemoveAll(u.Dir()); err != nil {
@@ -54,4 +56,34 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		return fmt.Errorf("universe %s: %w", st.Name, err)
 	}
 	return nil
+}
+
+// dropBranch deletes the branch a universe started, so the number can be used
+// again without landing on it, but only when every commit on it is somewhere
+// else: merged into the base branch or already on its own remote copy. A branch
+// the universe merely checked out was never its to delete, and one with work
+// that is on no remote is kept and said so.
+func (s *Service) dropBranch(ctx context.Context, st domain.UniverseState, repoKey, clone string) {
+	owned := false
+	for _, k := range st.CreatedBranches {
+		owned = owned || k == repoKey
+	}
+	branch := st.Branches[repoKey]
+	if !owned || branch == "" || strings.HasPrefix(branch, "origin/") {
+		return
+	}
+	base, err := s.Git.DefaultBranch(ctx, clone)
+	if err != nil {
+		s.Out.Info("%s: kept branch %s (%v)", repoKey, branch, err)
+		return
+	}
+	deleted, why, err := s.Git.DeleteBranchIfSafe(ctx, clone, branch, base)
+	switch {
+	case err != nil:
+		s.Out.Warn("%s: could not delete branch %s: %v", repoKey, branch, err)
+	case deleted:
+		s.Out.OK("%s: branch %s deleted (its commits are elsewhere)", repoKey, branch)
+	case why != "":
+		s.Out.Warn("%s: kept branch %s: %s; push it, or delete it with `git -C %s branch -D %s`", repoKey, branch, why, clone, branch)
+	}
 }

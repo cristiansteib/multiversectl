@@ -22,14 +22,16 @@ import (
 const testToken = "test-token"
 
 type fake struct {
-	status  app.StatusReport
-	catalog catalogView
-	fleet   fleetView
-	ws      workspaceView
-	doctor  doctorView
-	system  systemView
-	dirty   []string
-	err     error
+	status     app.StatusReport
+	catalog    catalogView
+	fleet      fleetView
+	ws         workspaceView
+	doctor     doctorView
+	system     systemView
+	next       nextView
+	branchList []branchView
+	dirty      []string
+	err        error
 
 	mu    sync.Mutex
 	asked []string
@@ -72,6 +74,14 @@ func (f *fake) Doctor(_ context.Context, ws, u string) (doctorView, error) {
 	return f.doctor, f.err
 }
 func (f *fake) System(context.Context) (systemView, error) { return f.system, f.err }
+func (f *fake) NextFree(_ context.Context, ws string) (nextView, error) {
+	f.ask("next:" + ws)
+	return f.next, f.err
+}
+func (f *fake) Branches(_ context.Context, ws string) ([]branchView, error) {
+	f.ask("branches:" + ws)
+	return f.branchList, f.err
+}
 func (f *fake) Unsaved(context.Context, string, string) ([]string, error) {
 	return f.dirty, f.err
 }
@@ -455,10 +465,10 @@ func TestBadActionsAreRefusedBeforeAnythingRuns(t *testing.T) {
 	_, h := serve(t, f, Options{})
 	for body, want := range map[string]string{
 		`{"action":"format-disk","workspace":"acme"}`: "unknown action",
-		`{"action":"up"}`:                     "workspace is required",
-		`{"action":"up","workspace":"acme"}`:  "universe is required",
-		`{"action":"new","workspace":"acme"}`: "number or name",
-		`not json`:                            "not valid JSON",
+		`{"action":"up"}`:                          "workspace is required",
+		`{"action":"up","workspace":"acme"}`:       "universe is required",
+		`{"action":"checkout","workspace":"acme"}`: "branch to check out is required",
+		`not json`: "not valid JSON",
 	} {
 		rec := post(t, h, body)
 		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), want) {
@@ -660,5 +670,39 @@ func TestUniverseViewKeepsWhatThePageNeeds(t *testing.T) {
 	}
 	if b, _ := json.Marshal(toUniverse(app.Summary{Name: "x"})); !strings.Contains(string(b), `"apps":[]`) || !strings.Contains(string(b), `"checkouts":[]`) {
 		t.Errorf("empty lists must be [] for the page, not null: %s", b)
+	}
+}
+
+func TestNewAndCheckoutAreActionsAndTheFormHelpersAreEndpoints(t *testing.T) {
+	f := &fake{next: nextView{Number: 4, Skipped: []string{"3 (branch u3 exists in api)"}}, branchList: []branchView{{Name: "feat/x", Repos: []string{"api"}}}}
+	_, h := serve(t, f, Options{})
+
+	var n nextView
+	if err := json.Unmarshal(get(t, h, "/api/next?workspace=acme", nil).Body.Bytes(), &n); err != nil || n.Number != 4 || len(n.Skipped) != 1 {
+		t.Errorf("next = %+v, %v", n, err)
+	}
+	if body := get(t, h, "/api/branches?workspace=acme", nil).Body.String(); !strings.Contains(body, `"feat/x"`) || !strings.Contains(body, `"api"`) {
+		t.Errorf("branches: %s", body)
+	}
+	if !strings.Contains(f.asks(), "next:acme") || !strings.Contains(f.asks(), "branches:acme") {
+		t.Errorf("asked %s", f.asks())
+	}
+
+	// A new universe may leave its name out: the next free number is used.
+	if rec := post(t, h, `{"action":"new","workspace":"acme"}`); rec.Code != http.StatusAccepted {
+		t.Errorf("new with no name: %d %s", rec.Code, rec.Body)
+	}
+	wait(t, "new", func() bool { o := listOps(t, h); return len(o) == 1 && o[0].State == "done" })
+	if rec := post(t, h, `{"action":"checkout","workspace":"acme","branch":"feat/x","onlyExisting":true}`); rec.Code != http.StatusAccepted {
+		t.Errorf("checkout: %d %s", rec.Code, rec.Body)
+	}
+	wait(t, "checkout", func() bool { o := listOps(t, h); return len(o) == 2 && o[1].State == "done" })
+	if o := listOps(t, h); o[0].Title != "Create a universe in acme" || o[1].Title != "Check out feat/x in acme" {
+		t.Errorf("titles: %q, %q", o[0].Title, o[1].Title)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.did) != 2 || f.did[1].Branch != "feat/x" || !f.did[1].OnlyExisting {
+		t.Errorf("did %+v", f.did)
 	}
 }

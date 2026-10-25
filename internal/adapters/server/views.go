@@ -176,3 +176,14 @@ type latestView struct {
 	Newer   bool   `json:"newer,omitempty"`
 	Error   string `json:"error,omitempty"`
 }
+
+// nextView is the number a new universe would take, and why it passed others.
+type nextView struct {
+	Number  int      `json:"number"`
+	Skipped []string `json:"skipped,omitempty"`
+}
+
+type branchView struct {
+	Name  string   `json:"name"`
+	Repos []string `json:"repos"`
+}

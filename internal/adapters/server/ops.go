@@ -24,12 +24,18 @@ import (
 // opRequest is what a page may ask for. Every action is a use case the command
 // line has too.
 type opRequest struct {
-	Action    string `json:"action"` // up, down, rm, new, update, use
+	Action    string `json:"action"` // up, down, rm, new, checkout, update, use
 	Workspace string `json:"workspace"`
 	Universe  string `json:"universe,omitempty"`
-	Name      string `json:"name,omitempty"` // new: the number or name
+	Name      string `json:"name,omitempty"` // new: the number or name, empty for the next free number
 	Note      string `json:"note,omitempty"`
-	Branch    string `json:"branch,omitempty"`
+	// Branch is, for new, the name of the new branch in every repository (it must
+	// not exist yet) and, for checkout, the existing branch to check out.
+	Branch string `json:"branch,omitempty"`
+	// Base is where new branches start; OnlyExisting leaves repositories without
+	// the branch on their base when checking out.
+	Base         string `json:"base,omitempty"`
+	OnlyExisting bool   `json:"onlyExisting,omitempty"`
 	// Confirm must be the universe's own name to remove it: the page asks for it
 	// to be typed, and the server checks it, so a stray request cannot remove one.
 	Confirm string `json:"confirm,omitempty"`
@@ -121,7 +127,12 @@ func title(r opRequest) string {
 	case "rm":
 		return "Remove " + r.Universe + " from " + r.Workspace
 	case "new":
+		if strings.TrimSpace(r.Name) == "" {
+			return "Create a universe in " + r.Workspace
+		}
 		return "Create " + r.Name + " in " + r.Workspace
+	case "checkout":
+		return "Check out " + r.Branch + " in " + r.Workspace
 	case "update":
 		return "Update " + r.Workspace
 	case "use":
@@ -133,7 +144,7 @@ func title(r opRequest) string {
 // start checks a request and begins it.
 func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	switch r.Action {
-	case "up", "down", "rm", "new", "update", "use":
+	case "up", "down", "rm", "new", "checkout", "update", "use":
 	default:
 		return opView{}, bad(http.StatusBadRequest, fmt.Sprintf("unknown action %q", r.Action))
 	}
@@ -143,8 +154,8 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	if needsUniverse[r.Action] && r.Universe == "" {
 		return opView{}, bad(http.StatusBadRequest, "universe is required")
 	}
-	if r.Action == "new" && strings.TrimSpace(r.Name) == "" {
-		return opView{}, bad(http.StatusBadRequest, "a number or name for the new universe is required")
+	if r.Action == "checkout" && strings.TrimSpace(r.Branch) == "" {
+		return opView{}, bad(http.StatusBadRequest, "the branch to check out is required")
 	}
 	if r.Action == "rm" {
 		if r.Confirm != r.Universe {

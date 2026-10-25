@@ -410,7 +410,7 @@ function wsActions(w, want, fleetEntry) {
   const busy = isBusy(w.name);
   const tip = busy ? 'Another operation is running in ' + w.name : null;
   return h('span', { class: 'actions' },
-    want.create ? h('button', { type: 'button', class: 'btn small primary', disabled: busy, title: tip, onclick: () => newDialog(w, fleetEntry) }, 'New universe') : null,
+    want.create ? h('button', { type: 'button', class: 'btn small primary', disabled: busy, title: tip, onclick: () => newDialog(w) }, 'New universe') : null,
     want.update ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Fetch the manifest and clone what it newly lists', onclick: () => runSafely({ action: 'update', workspace: w.name }) }, 'Update') : null,
     want.use ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Make it the workspace commands act on by default', onclick: () => runSafely({ action: 'use', workspace: w.name }) }, 'Make current') : null);
 }
@@ -468,23 +468,73 @@ function removeDialog(w, u) {
   input.focus();
 }
 
-function newDialog(w, fleetEntry) {
-  const used = new Set(((fleetEntry && fleetEntry.universes) || (state.fleet && (state.fleet.workspaces.find((x) => x.name === w.name) || {}).universes) || []).map((u) => u.name));
-  let next = 1;
-  while (used.has(String(next))) next++;
-  const name = h('input', { type: 'text', name: 'name', value: String(next), autocomplete: 'off', oninput: () => ctl.refresh(), 'aria-label': 'Number or name' });
-  const note = h('input', { type: 'text', name: 'note', autocomplete: 'off', placeholder: 'why it exists, shown beside it', 'aria-label': 'Note' });
-  const branch = h('input', { type: 'text', name: 'branch', autocomplete: 'off', placeholder: 'default: u' + next, 'aria-label': 'Branch' });
+function newDialog(w) {
+  // Two ways to make a universe, and they never mix: a fresh one starts branches
+  // that exist nowhere, so it cannot land on anyone's work; a checkout one works
+  // on a branch that already exists.
+  let mode = 'new';
+  const mk = (name, value, extra) => h('input', { type: 'text', name, value: value || '', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', ...extra });
+  const name = mk('name', '', { placeholder: 'next free number', 'aria-label': 'Number or name', oninput: () => ctl.refresh() });
+  const base = mk('base', '', { placeholder: 'default: each repository’s default branch', 'aria-label': 'Base branch' });
+  const newBranch = mk('branch', '', { placeholder: 'default: the number or name', 'aria-label': 'Name of the new branch' });
+  const pick = mk('pick', '', { list: 'branch-list', placeholder: 'start typing a branch', 'aria-label': 'Branch to check out', oninput: () => { hint(); ctl.refresh(); } });
+  const pickName = mk('pickname', '', { placeholder: 'default: the branch', 'aria-label': 'Universe name' });
+  const only = h('input', { type: 'checkbox', name: 'only', 'aria-label': 'Leave repositories without the branch on their base' });
+  const note = mk('note', '', { placeholder: 'why it exists, shown beside it', 'aria-label': 'Note' });
+  const list = h('datalist', { id: 'branch-list' });
+  const skipped = h('small', { class: 'muted' });
+  const where = h('small', { class: 'muted' });
+  let branches = [];
+
+  const radio = (value, label, hint) => h('label', { class: 'radio' },
+    h('input', { type: 'radio', name: 'mode', value, checked: value === mode, onchange: () => { mode = value; swap(); } }),
+    h('span', null, h('b', null, label), h('small', { class: 'muted' }, hint)));
+  const fresh = h('div', null,
+    h('label', { class: 'field' }, h('span', null, 'Number or name'), name, skipped),
+    h('label', { class: 'field' }, h('span', null, 'Start from (optional)'), base),
+    h('label', { class: 'field' }, h('span', null, 'Name of the new branch (optional)'), newBranch));
+  const existing = h('div', { hidden: true },
+    h('label', { class: 'field' }, h('span', null, 'Branch to check out'), pick, list, where),
+    h('label', { class: 'field' }, h('span', null, 'Name the universe (optional)'), pickName),
+    h('label', { class: 'check' }, only, h('span', null, 'Leave repositories that lack it on their base branch, detached, instead of starting a branch there')));
+
+  function swap() { fresh.hidden = mode !== 'new'; existing.hidden = mode !== 'checkout'; ctl.refresh(); (mode === 'new' ? name : pick).focus(); }
+  function hint() {
+    const b = branches.find((x) => x.name === pick.value.trim());
+    where.textContent = !pick.value.trim() ? '' : b ? 'exists in ' + b.repos.join(', ') : 'no repository has this branch';
+  }
+
   const ctl = modal({
-    title: 'New universe in ' + w.name, confirm: 'Create', ready: () => name.value.trim() !== '',
+    title: 'New universe in ' + w.name, confirm: 'Create',
+    ready: () => mode === 'new' || pick.value.trim() !== '',
     body: [
-      h('label', { class: 'field' }, h('span', null, 'Number or name'), name,
-        h('small', { class: 'muted' }, 'A name such as fix/login is also the branch it checks out.')),
-      h('label', { class: 'field' }, h('span', null, 'Branch in every repository (optional)'), branch),
+      h('div', { class: 'modes', role: 'radiogroup', 'aria-label': 'How to start' },
+        radio('new', 'A fresh branch', 'Starts branches that do not exist yet, so it cannot clash with any'),
+        radio('checkout', 'An existing branch', 'Checks out a branch that is already there, to work on or review it')),
+      fresh, existing,
       h('label', { class: 'field' }, h('span', null, 'Note (optional)'), note),
     ],
-    async submit() { await run({ action: 'new', workspace: w.name, name: name.value.trim(), branch: branch.value.trim(), note: note.value.trim() }); },
+    async submit() {
+      if (mode === 'new') {
+        await run({ action: 'new', workspace: w.name, name: name.value.trim(), base: base.value.trim(), branch: newBranch.value.trim(), note: note.value.trim() });
+      } else {
+        await run({ action: 'checkout', workspace: w.name, branch: pick.value.trim(), name: pickName.value.trim(), onlyExisting: only.checked, note: note.value.trim() });
+      }
+    },
   });
+
+  // What the server knows that a form cannot: the number that is free (not just
+  // one no universe has) and the branches there are.
+  api('next?workspace=' + encodeURIComponent(w.name)).then((n) => {
+    if (!name.value) name.value = String(n.number);
+    if (n.skipped && n.skipped.length) skipped.textContent = 'Skipped ' + n.skipped.join('; ') + '.';
+    ctl.refresh();
+  }).catch(() => {});
+  api('branches?workspace=' + encodeURIComponent(w.name)).then((r) => {
+    branches = r.branches || [];
+    list.replaceChildren(...branches.map((b) => h('option', { value: b.name }, b.repos.join(', '))));
+    hint();
+  }).catch(() => {});
   name.select();
 }
 

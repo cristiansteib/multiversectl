@@ -31,6 +31,18 @@ type Git interface {
 	CurrentBranch(ctx context.Context, dir string) (string, error)
 	RefExists(ctx context.Context, repoDir, ref string) (RefKind, error)
 	DefaultBranch(ctx context.Context, repoDir string) (string, error)
+	// Branches lists a repository's branches by short name: its own, and those
+	// origin had when last fetched.
+	Branches(ctx context.Context, repoDir string) ([]string, error)
+	// CheckedOutAt is the worktree a branch is checked out in, "" when none is.
+	// Git allows a branch in one worktree only.
+	CheckedOutAt(ctx context.Context, repoDir, branch string) (string, error)
+	// AddWorktreeDetached checks ref out without a branch of its own.
+	AddWorktreeDetached(ctx context.Context, repoDir, dest, ref string) error
+	// DeleteBranchIfSafe removes a local branch only when nothing is lost by it:
+	// every commit is already on origin's base branch or on the branch's own
+	// remote counterpart. It says whether it did, and why not when it did not.
+	DeleteBranchIfSafe(ctx context.Context, repoDir, branch, base string) (deleted bool, why string, err error)
 	// Checkout detaches HEAD at ref, a branch (as of origin), tag or commit.
 	Checkout(ctx context.Context, repoDir, ref string) error
 

@@ -51,32 +51,58 @@ func (r runner) universeArgs(cmd *cobra.Command, args []string, s *app.Service) 
 	return []string{states[i].Name}, nil
 }
 
-// newName is the universe to create: the argument, or a number the person can
-// accept or change, which is the first one not taken.
+// newName is the universe to create: the argument, or the next number that is
+// free, which steps over a number whose branch a removed universe left behind.
+// A person can accept or change it; a script takes it.
 func (r runner) newName(cmd *cobra.Command, args []string, s *app.Service) ([]string, error) {
 	if len(args) > 0 {
 		return args, nil
 	}
-	taken := map[int]bool{}
-	if states, err := s.Store.List(); err == nil {
-		for _, st := range states {
-			if n, err := strconv.Atoi(st.Name); err == nil {
-				taken[n] = true
-			}
-		}
+	n, skipped, err := s.NextFree(cmd.Context())
+	if err != nil {
+		return nil, err
 	}
-	next := 1
-	for taken[next] {
-		next++
+	for _, sk := range skipped {
+		r.out.Info("skipped %s", sk)
 	}
-	name, err := r.f.Prompter().Input("Universe number or name  (a name becomes the branch it checks out)", strconv.Itoa(next))
-	if err = asked(cmd, args, err); err != nil {
+	next := strconv.Itoa(n)
+	name, err := r.f.Prompter().Input("Universe number or name  (a name becomes the new branch)", next)
+	if errors.Is(err, app.ErrNotInteractive) {
+		return []string{next}, nil
+	}
+	if err != nil {
 		return nil, err
 	}
 	if name == "" {
-		return nil, argError(cmd, args)
+		name = next
 	}
 	return []string{name}, nil
+}
+
+// branchArg is the branch to check out: the argument, or one picked from the
+// branches the workspace's repositories have.
+func (r runner) branchArg(cmd *cobra.Command, args []string, s *app.Service) (string, error) {
+	if len(args) > 0 {
+		return args[0], nil
+	}
+	list, err := s.Branches(cmd.Context())
+	if err != nil {
+		return "", err
+	}
+	opts := make([]app.Option, 0, len(list))
+	var names []string
+	for _, b := range list {
+		opts = append(opts, app.Option{Label: b.Name, Note: strings.Join(b.Repos, ", ")})
+		names = append(names, b.Name)
+	}
+	if len(opts) == 0 {
+		return "", errors.New("the repositories have no branches to check out")
+	}
+	i, err := r.f.Prompter().Select("Which branch should the universe check out?", opts, 0)
+	if err = asked(cmd, args, err); err != nil {
+		return "", err
+	}
+	return names[i], nil
 }
 
 // textArg is a value the command needs: the argument, or what the person types.
