@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Explore and run it in a browser &middot; multiversectl</title>
-<meta name="description" content="A live web view of the catalog, the projects and the fleet of universes, with versions and buttons to start, stop, create and remove universes, behind a token.">
+<meta name="description" content="A live web view of the catalog, the projects and the fleet of universes, with versions and buttons to start, stop, create and remove universes, behind a token. Coding agents connect to the same server over MCP.">
 <meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
@@ -79,7 +79,7 @@
   <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Tasks</span>
   </nav>
   <h1>Explore and run it in a browser</h1>
-  <p class="lede">A live web view of the catalog, the projects and the fleet of universes, with versions and buttons to start, stop, create and remove universes, behind a token.</p>
+  <p class="lede">A live web view of the catalog, the projects and the fleet of universes, with versions and buttons to start, stop, create and remove universes, behind a token. Coding agents connect to the same server over MCP.</p>
 <section id="hw-server">
   <h2 id="hw-server"><a href="#hw-server">See and run the whole setup in a page</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl server start --open
@@ -105,6 +105,23 @@
   <p>Removing is the one that cannot be undone, so it is slower on purpose. The dialog asks for the universe's name to be typed, and the server checks it again. If a worktree has uncommitted work the server refuses and says where; only a second press, now labelled <em>Remove anyway</em>, discards it. <code>--read-only</code> removes every button and makes the server refuse every action.</p>
 </section>
 
+<section id="hw-agents">
+  <h2 id="hw-agents"><a href="#hw-agents">Let a coding agent work with it</a></h2>
+  <p>The same server speaks MCP, the protocol coding agents use to call tools, at <code>/mcp</code>. It is another way to drive the tool, over the same operations the page and the command line use, so an agent and a person see each other's work live. Several agents can each have a universe of their own, running at once.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl server start
+<span class="p">$ </span>multiversectl server mcp
+<span class="c"># prints the address and the token, ready to paste:</span>
+claude mcp add --transport http multiversectl http://127.0.0.1:7777/mcp --header "Authorization: Bearer &lt;token&gt;"</pre></div>
+  <p><code>server mcp</code> also prints the same as JSON for any other client. The agent signs in with the server's token as a <code>Bearer</code> header; the token is the one in <code>server.token</code>, which stays the same across restarts, so the setup survives an update. Treat it like a password: with it an agent can start and remove this machine's universes. A server started with <code>--read-only</code> offers the reading tools only.</p>
+  <p>What it offers:</p>
+  <ul class="t">
+    <li><strong>Find its way</strong>: <code>project_context</code> (where the project lives, its definition file, where it came from, the shared clones and what each runs), <code>universe_list</code>, <code>branches</code>, <code>universe_next_number</code>, <code>doctor</code>, <code>catalog</code>.</li>
+    <li><strong>Work in isolation</strong>: <code>universe_open</code> creates a universe and starts it in one call, and returns the worktree of every repository (<code>checkouts[].path</code>, where to edit) and every address. <code>universe_new</code>, <code>universe_checkout</code> (an existing branch), <code>universe_up</code>, <code>universe_down</code> and <code>universe_rm</code> are the steps on their own. Removing needs the universe's name again as <code>confirm</code> and refuses uncommitted work unless <code>force</code> is set, as the page does.</li>
+    <li><strong>Keep up</strong>: <code>project_update</code> and <code>project_use</code>, and <code>operation_status</code> for anything still running. A start can take minutes and an agent's client gives up on a call sooner, so a tool waits up to <code>wait_seconds</code> (45 by default), then returns the running operation and how to follow it.</li>
+  </ul>
+  <p>Universes do not wait for each other. Starting, stopping or removing one holds only that universe, so agents work on different ones at the same time; creating takes the next number and new branches, so creations take turns, and an update waits for everything in its project. A call that has to wait for one of these queues behind it instead of failing.</p>
+</section>
+
 <section id="hw-safe">
   <h2 id="hw-safe"><a href="#hw-safe">Who can use it</a></h2>
   <p>A page that can remove a universe must not be open to whoever can reach the port, so the server makes up a token the first time it starts, keeps it in <code>server.token</code> beside the configuration (readable by you only), and serves nothing without it. The token is kept so that a restart does not end the link; delete the file and restart to change it. The link <code>start</code>, <code>status</code> and <code>--open</code> print carries the token; opening it trades it for a cookie and redirects to an address without it, so it does not stay in the address bar or the history. The cookie is <code>HttpOnly</code> and <code>SameSite=Strict</code>, which stops a page on another site from using it. Without the cookie every request is refused, including the websocket, with a page that says how to get the link again.</p>
@@ -122,6 +139,7 @@
     <ul>
       <li><a href="#hw-server">See and run the whole setup in a page</a></li>
       <li><a href="#hw-act">Act from the page</a></li>
+      <li><a href="#hw-agents">Let a coding agent work with it</a></li>
       <li><a href="#hw-safe">Who can use it</a></li>
     </ul>
   </aside>

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -148,6 +149,19 @@ func hostnames(rules map[string]domain.RouteRule) map[string]string {
 
 // EnsureProxy makes sure the shared network and ingress are running.
 func (s *Service) EnsureProxy(ctx context.Context, dom string) error {
+	// Universes are started side by side, by the web view and by agents, and
+	// the first of them to need the shared proxy must not race the others to
+	// create it: one makes the network and the container, the rest find them.
+	proxyMu.Lock()
+	defer proxyMu.Unlock()
+	return s.ensureProxy(ctx, dom)
+}
+
+// proxyMu serialises the checks and the start of the one proxy a machine has,
+// across every universe started from this process.
+var proxyMu sync.Mutex
+
+func (s *Service) ensureProxy(ctx context.Context, dom string) error {
 	network := s.Manifest.Proxy.Network
 	if network == "" {
 		network = "multiversenet"

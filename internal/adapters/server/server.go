@@ -98,6 +98,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/next", s.next)
 	mux.HandleFunc("/api/branches", s.branches)
 	mux.HandleFunc("/api/ops", s.opsEndpoint)
+	mux.HandleFunc(mcpPath, s.mcpEndpoint)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "no such endpoint") })
 	mux.HandleFunc("/ws", s.ws)
 
@@ -125,6 +126,16 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		}
 		if r.Header.Get("Sec-Fetch-Site") == "cross-site" || !sameOrigin(r) {
 			fail(w, http.StatusForbidden, "cross-site requests are refused")
+			return
+		}
+		// An agent's MCP client presents the token as a header, not a cookie.
+		if r.URL.Path == mcpPath {
+			if !bearer(r, s.o.Token) {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="multiversectl"`)
+				fail(w, http.StatusUnauthorized, "send the server's token as 'Authorization: Bearer <token>'; `multiversectl server mcp` prints the setup")
+				return
+			}
+			next.ServeHTTP(w, r)
 			return
 		}
 		if exchange(w, r, s.o.Token) {

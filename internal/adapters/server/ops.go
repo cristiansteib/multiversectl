@@ -71,6 +71,7 @@ const (
 
 type op struct {
 	mu    sync.Mutex
+	key   string // what it holds in the busy table
 	view  opView
 	lines []opLine
 }
@@ -94,6 +95,39 @@ type ops struct {
 }
 
 func newOps(s *Server) *ops { return &ops{s: s, busy: map[string]string{}} }
+
+// byID is the operation with that id, nil when it is unknown or has been
+// dropped from the last few kept.
+func (m *ops) byID(id string) *op {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, o := range m.all {
+		if o.view.ID == id {
+			return o
+		}
+	}
+	return nil
+}
+
+// await waits for an operation to end, up to d or until ctx is done.
+func (m *ops) await(ctx context.Context, o *op, d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	end := time.NewTimer(d)
+	defer end.Stop()
+	tick := time.NewTicker(200 * time.Millisecond)
+	defer tick.Stop()
+	for o.snapshot(false).State == "running" {
+		select {
+		case <-ctx.Done():
+			return
+		case <-end.C:
+			return
+		case <-tick.C:
+		}
+	}
+}
 
 func (m *ops) list() []opView {
 	m.mu.Lock()
@@ -142,6 +176,39 @@ func title(r opRequest) string {
 	return r.Action
 }
 
+// What an operation holds while it runs. Universes are meant to run side by
+// side, so starting, stopping or removing one does not wait for another's: each
+// holds only its own universe. Creating a universe takes the next number and
+// new branches in every repository, so creations take turns. Updating or
+// switching a project changes the project itself, so it waits for everything
+// in it, and everything waits for it.
+func scopeOf(r opRequest) string {
+	switch r.Action {
+	case "up", "down", "rm":
+		return r.Workspace + "/" + r.Universe
+	case "new", "checkout":
+		return r.Workspace + "#create"
+	}
+	return r.Workspace
+}
+
+// conflict says which running operation stops this one from starting. The
+// caller holds m.mu.
+func (m *ops) conflict(r opRequest, key string) (string, bool) {
+	if id, ok := m.busy[r.Workspace]; ok {
+		return id, true // the project itself is being changed
+	}
+	if key == r.Workspace { // this one changes the project: nothing else may be running in it
+		for k, id := range m.busy {
+			if strings.HasPrefix(k, r.Workspace+"/") || strings.HasPrefix(k, r.Workspace+"#") {
+				return id, true
+			}
+		}
+	}
+	id, ok := m.busy[key]
+	return id, ok
+}
+
 // start checks a request and begins it.
 func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	switch r.Action {
@@ -179,16 +246,17 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	}
 
 	m.mu.Lock()
-	if id, busy := m.busy[r.Workspace]; busy {
+	key := scopeOf(r)
+	if id, busy := m.conflict(r, key); busy {
 		m.mu.Unlock()
 		return opView{}, bad(http.StatusConflict, "another operation ("+id+") is running in "+r.Workspace+"; wait for it to finish")
 	}
 	m.seq++
-	o := &op{view: opView{
+	o := &op{key: key, view: opView{
 		ID: "op" + strconv.Itoa(m.seq), Action: r.Action, Title: title(r), Workspace: r.Workspace, Universe: r.Universe,
 		State: "running", Started: time.Now().UTC().Format(time.RFC3339),
 	}}
-	m.busy[r.Workspace] = o.view.ID
+	m.busy[key] = o.view.ID
 	m.all = append(m.all, o)
 	if len(m.all) > keepOps {
 		m.all = m.all[len(m.all)-keepOps:]
@@ -215,7 +283,7 @@ func (m *ops) run(o *op, r opRequest) {
 	o.mu.Unlock()
 
 	m.mu.Lock()
-	delete(m.busy, r.Workspace)
+	delete(m.busy, o.key)
 	m.mu.Unlock()
 	m.s.hub.publish("", event{Type: "op", Data: o.snapshot(false)})
 	m.s.refresh() // what it did is on the page in a moment, not at the next look

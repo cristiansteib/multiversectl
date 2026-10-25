@@ -181,11 +181,13 @@ func (s Services) Workspace(ctx context.Context, name string) (workspaceView, er
 		return workspaceView{}, err
 	}
 	m := svc.Manifest
-	v := workspaceView{Name: w.Name, Current: w.Current, Root: w.Root, Domain: m.Domain, Expose: string(m.Expose),
+	ctxInfo := svc.Context()
+	v := workspaceView{Name: w.Name, Current: w.Current, Root: w.Root, Manifest: ctxInfo.Manifest, From: ctxInfo.From, Source: ctxInfo.Source,
+		UniversesDir: ctxInfo.UniversesDir, Domain: m.Domain, Expose: string(m.Expose),
 		Network: m.Proxy.Network, Proxy: m.Proxy.Entrypoints, Env: m.Env, Repos: []repoView{}, Apps: []appDefView{}}
 	for _, key := range sortedKeys(m.Repos) {
 		r := m.Repos[key]
-		v.Repos = append(v.Repos, repoView{Key: key, Loc: locOf(domain.Locate(r.URL, "")), URL: r.URL, Dir: r.Dir, Runtime: string(r.Runtime),
+		v.Repos = append(v.Repos, repoView{Key: key, Clone: m.CloneDir(w.Root, key), Loc: locOf(domain.Locate(r.URL, "")), URL: r.URL, Dir: r.Dir, Runtime: string(r.Runtime),
 			Cloned: svc.Files.Exists(m.CloneDir(w.Root, key))})
 	}
 	for _, key := range sortedKeys(m.Apps) {
