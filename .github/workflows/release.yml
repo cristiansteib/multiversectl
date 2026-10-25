@@ -47,15 +47,22 @@ jobs:
         run: git fetch --tags --force
 
       - if: steps.semantic.outputs.new_release_published == 'true'
+        name: Deploy key for the Homebrew tap
+        env:
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          test -n "$HOMEBREW_TAP_DEPLOY_KEY" || { echo "::error::the HOMEBREW_TAP_DEPLOY_KEY secret is not set"; exit 1; }
+          umask 077
+          printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > "$RUNNER_TEMP/tap_key"
+          echo "HOMEBREW_TAP_KEY_FILE=$RUNNER_TEMP/tap_key" >> "$GITHUB_ENV"
+
+      - if: steps.semantic.outputs.new_release_published == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Writing the Homebrew formula means pushing to another repository,
-          # which the workflow's own token may not do.
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: v${{ steps.semantic.outputs.new_release_version }}
 
   from-tag:
@@ -69,10 +76,18 @@ jobs:
         with:
           go-version: "1.27"
           cache: true
+      - name: Deploy key for the Homebrew tap
+        env:
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          test -n "$HOMEBREW_TAP_DEPLOY_KEY" || { echo "::error::the HOMEBREW_TAP_DEPLOY_KEY secret is not set"; exit 1; }
+          umask 077
+          printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > "$RUNNER_TEMP/tap_key"
+          echo "HOMEBREW_TAP_KEY_FILE=$RUNNER_TEMP/tap_key" >> "$GITHUB_ENV"
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
