@@ -48,6 +48,29 @@ nfpms:
         dst: /usr/bin/mvctl
         type: symlink
 
+brews:
+  - name: multiversectl
+    # The tap is a separate repository, so the workflow's own token cannot
+    # write to it: HOMEBREW_TAP_TOKEN is a fine-grained token with contents
+    # write on cristiansteib/homebrew-tap and nothing else.
+    repository:
+      owner: cristiansteib
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://cristiansteib.github.io/multiversectl/
+    description: Run several complete copies of a multi-repository project side by side on one machine.
+    license: Apache-2.0
+    commit_author:
+      name: Cristian Steib
+      email: cristiansteib@gmail.com
+    install: |
+      bin.install "multiversectl"
+      bin.install_symlink bin/"multiversectl" => "mvctl"
+    test: |
+      assert_match "multiversectl", shell_output("#{bin}/multiversectl version")
+
 release:
   mode: append
   # A tag can be pushed again at the same version — after a history rewrite,
