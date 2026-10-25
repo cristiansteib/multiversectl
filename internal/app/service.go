@@ -120,6 +120,10 @@ func (s *Service) runtimeEnv(u domain.Universe, st domain.UniverseState) map[str
 		"UNIVERSE_SLUG":     u.Slug(),
 		"UNIVERSE_DIR":      u.Dir(),
 		"MULTIVERSE_DOMAIN": st.Domain,
+		// Where the project is, for a script or an agent that has only the
+		// environment to go on.
+		"MULTIVERSE_ROOT":    s.Workspace,
+		"MULTIVERSE_PROJECT": s.Manifest.Name,
 	}
 	for hostKey, hostname := range st.Hosts {
 		env[domain.EnvVarName(hostKey)] = hostname

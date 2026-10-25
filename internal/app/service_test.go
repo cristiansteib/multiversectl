@@ -87,6 +87,8 @@ func TestEnv(t *testing.T) {
 		"ADMIN_UI_URL":         "http://admin-ui-u3.example.test",
 		"MULTIVERSE_HOSTS":     "admin-ui-u3.example.test,api-u3.example.test",
 		"MULTIVERSE_ORIGINS":   "http://admin-ui-u3.example.test,http://api-u3.example.test",
+		"MULTIVERSE_PROJECT":   "acme",
+		"MULTIVERSE_ROOT":      "/ws",
 		"API_DIR":              "/ws/universes/3/api",
 		"HOST_UID":             "1000",
 		"HOST_GID":             "1001",
