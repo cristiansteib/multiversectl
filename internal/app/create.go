@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -482,19 +483,62 @@ func baseRef(base string, kind RefKind) string {
 func (s *Service) copySecrets(u domain.Universe) error {
 	for appKey := range s.Manifest.Apps {
 		for _, pair := range s.SecretPaths(u, appKey) {
-			src, dst := pair[0], pair[1]
-			if s.Files.Exists(dst) {
-				continue
-			}
-			if !s.Files.Exists(src) {
-				s.Out.Warn("%s: missing %s — the universe will not start until it exists", appKey, src)
-				continue
-			}
-			if err := s.Files.CopyFile(src, dst); err != nil {
+			if _, err := s.provideSecret(appKey, pair[0], pair[1]); err != nil {
 				return err
 			}
-			s.Out.OK("%s: copied %s", appKey, src)
 		}
+	}
+	return nil
+}
+
+// provideSecret puts one secret file in the universe (dst), taking it from the
+// shared clone (src). When the clone has none, it does what the repositories
+// themselves do on first run, `cp .env.example .env`: a tracked <name>.example
+// beside it is copied to src, once, so the credentials are filled in one place
+// and every universe copies them from there. found is false only when there is
+// neither the file nor an example, which the caller reports.
+func (s *Service) provideSecret(appKey, src, dst string) (found bool, err error) {
+	if s.Files.Exists(dst) {
+		return true, nil
+	}
+	if !s.Files.Exists(src) {
+		example := src + ".example"
+		if !s.Files.Exists(example) {
+			return false, nil
+		}
+		if err := s.Files.CopyFile(example, src); err != nil {
+			return false, err
+		}
+		s.Out.Warn("%s: there was no `%s`, so it was made from %s: put your own credentials in it, and every universe copies it from there", appKey, src, filepath.Base(example))
+	}
+	if err := s.Files.CopyFile(src, dst); err != nil {
+		return false, err
+	}
+	s.Out.OK("%s: copied %s", appKey, filepath.Base(dst))
+	return true, nil
+}
+
+// PrepareSecrets makes sure the secret files of the apps about to start are in
+// the universe, so one put in the clone after the universe was created is
+// picked up. A file that exists nowhere, and has no example to start from,
+// stops the start and names each one and where it belongs. Without this the
+// compose files are the first to notice (an env_file that does not exist makes
+// them unreadable) and say nothing of where the file should come from.
+func (s *Service) PrepareSecrets(u domain.Universe, apps []string) error {
+	var missing []string
+	for _, appKey := range apps {
+		for _, pair := range s.SecretPaths(u, appKey) {
+			found, err := s.provideSecret(appKey, pair[0], pair[1])
+			if err != nil {
+				return err
+			}
+			if !found {
+				missing = append(missing, fmt.Sprintf("  %s needs %s\n      put your copy at `%s`", appKey, filepath.Base(pair[1]), pair[0]))
+			}
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("a secret file is missing, and it is not in any repository because git ignores it:\n%s\nthen run this again: it copies the file into the universe", strings.Join(missing, "\n"))
 	}
 	return nil
 }

@@ -28,11 +28,21 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if err != nil {
 		return err
 	}
+	u := s.Universe(st.Name)
+
+	// Before the proxy is touched, so a missing file leaves nothing half started.
+	var runnable []string
+	for _, appKey := range apps {
+		if !s.NothingToRun(u, appKey) {
+			runnable = append(runnable, appKey)
+		}
+	}
+	if err := s.PrepareSecrets(u, runnable); err != nil {
+		return err
+	}
 	if err := s.EnsureProxy(ctx, st.Domain); err != nil {
 		return err
 	}
-
-	u := s.Universe(st.Name)
 
 	// Addresses may come from the compose files' labels, which can have
 	// changed since the universe was created, so resolve them again and keep
