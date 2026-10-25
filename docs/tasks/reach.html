@@ -46,12 +46,15 @@
         <li><a href="../concepts/storage.html">Storage and data</a></li>
         <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
         <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
       </ul>
       <p class="nav-h">Tasks</p>
       <ul>
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html" aria-current="page">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -66,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -79,7 +82,7 @@
   <p class="lede">From another device, from a domain you own, from a shell, and from a database client.</p>
 <section id="hw-network">
   <h2 id="hw-network"><a href="#hw-network">Reach a universe from your phone</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl urls 3
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe urls 3
 http://app-u3.192-168-1-20.traefik.me
 http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
   <p>Open a printed URL on any device on the same network. With <code>expose: lan</code> (the default) and <code>domain: auto</code> the hostnames are <code>&lt;host&gt;-u3.&lt;dashed-lan-ip&gt;.traefik.me</code>, a public wildcard DNS name that resolves to this machine, so nothing is installed on the device. If a name does not resolve, see <a href="../reference/troubleshooting.html#ts-dns">Troubleshooting</a>.</p>
@@ -87,7 +90,7 @@ http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
 </section>
 
 <section id="hw-domain">
-  <h2 id="hw-domain"><a href="#hw-domain">Point a workspace at a domain you own</a></h2>
+  <h2 id="hw-domain"><a href="#hw-domain">Point a project at a domain you own</a></h2>
   <p>Create a wildcard DNS record, <code>*.dev.example.test</code>, pointing at this machine, then replace <code>domain: auto</code>:</p>
   <div class="code"><pre><span class="c"># multiverse.yaml</span>
 <span class="k">spec</span>:
@@ -99,10 +102,10 @@ http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
   <h2 id="hw-db"><a href="#hw-db">Reach a universe's database</a></h2>
   <p>No universe publishes a host port, so reach the database inside its own container. <code>exec</code> lands in the running one and streams straight to your terminal:</p>
   <div class="code"><pre><span class="c"># a client in universe 3's api database</span>
-<span class="p">$ </span>multiversectl exec 3 api --service db -- psql -U postgres
+<span class="p">$ </span>multiversectl universe exec 3 api --service db -- psql -U postgres
 <span class="c"># a one-off container instead, when the app itself need not be up</span>
-<span class="p">$ </span>multiversectl run 3 api -- python manage.py migrate</pre></div>
-  <p class="muted">Each app is its own compose project, named <code>&lt;workspace&gt;-u&lt;universe&gt;-&lt;app&gt;</code>, so <code>docker compose -p acme-u3-api ps</code> works too.</p>
+<span class="p">$ </span>multiversectl universe run 3 api -- python manage.py migrate</pre></div>
+  <p class="muted">Each app is its own compose project, named <code>&lt;project&gt;-u&lt;universe&gt;-&lt;app&gt;</code>, so <code>docker compose -p acme-u3-api ps</code> works too.</p>
   <p class="muted">Need a host port anyway? See <a href="services.html#hw-publish">Keep a service's published port</a>.</p>
 </section>
 
@@ -115,7 +118,7 @@ http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
     <p class="toc-h" id="toch">On this page</p>
     <ul>
       <li><a href="#hw-network">Reach a universe from your phone</a></li>
-      <li><a href="#hw-domain">Point a workspace at a domain you own</a></li>
+      <li><a href="#hw-domain">Point a project at a domain you own</a></li>
       <li><a href="#hw-db">Reach a universe&#39;s database</a></li>
     </ul>
   </aside>

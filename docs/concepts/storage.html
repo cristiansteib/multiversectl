@@ -46,12 +46,15 @@
         <li><a href="../concepts/storage.html" aria-current="page">Storage and data</a></li>
         <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
         <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
       </ul>
       <p class="nav-h">Tasks</p>
       <ul>
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -66,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -82,7 +85,7 @@
   <div class="tw"><table>
   <thead><tr><th scope="col">Thing</th><th scope="col">Per universe</th><th scope="col">Shared</th></tr></thead><tbody>
   <tr><td data-l="Thing">Checkouts</td><td data-l="Per universe">One worktree per repository</td><td data-l="Shared">The clone's git object store</td></tr>
-  <tr><td data-l="Thing">Containers</td><td data-l="Per universe">One runtime project per app</td><td data-l="Shared">The container runtime and its image cache</td></tr>
+  <tr><td data-l="Thing">Containers</td><td data-l="Per universe">One compose project per app</td><td data-l="Shared">The container runtime and its image cache</td></tr>
   <tr><td data-l="Thing">Volumes</td><td data-l="Per universe">Named after the app's project</td><td data-l="Shared">Nothing</td></tr>
   <tr><td data-l="Thing">Networks</td><td data-l="Per universe">One per app, plus the proxy network</td><td data-l="Shared">The proxy network</td></tr>
   <tr><td data-l="Thing">Secrets</td><td data-l="Per universe">Copied into each checkout</td><td data-l="Shared">The originals in the clone</td></tr>
@@ -93,7 +96,7 @@
 
 <section id="worktrees">
   <h2 id="worktrees"><a href="#worktrees">Code: one clone, many worktrees</a></h2>
-  <p>Each repository is cloned once, under the workspace root. Every universe gets a <code>git worktree</code> of that clone:</p>
+  <p>Each repository is cloned once, under the project root. Every universe gets a <code>git worktree</code> of that clone:</p>
   <div class="code"><pre>~/acme/
 ├── api/                  <span class="c"># the clone: history, remotes, objects</span>
 ├── web/
@@ -113,7 +116,7 @@
 
 <section id="volumes">
   <h2 id="volumes"><a href="#volumes">Data: a volume per app, per universe</a></h2>
-  <p>Volumes are namespaced by the runtime project, and each app of each universe has its own project. So a database volume declared once in a compose file becomes a different volume in every universe, with no change to the file:</p>
+  <p>Volumes are namespaced by the compose project, and each app of each universe has its own compose project. So a database volume declared once in a compose file becomes a different volume in every universe, with no change to the file:</p>
   <div class="code"><pre><span class="p">$ </span>docker volume ls | grep acme-u3
 acme-u3-api_postgres_data
 acme-u3-web_node_modules
@@ -122,7 +125,7 @@ acme-fix-login-api_postgres_data   <span class="c"># a different database entire
 acme-fix-login-web_node_modules</pre></div>
   <p>Universe 3 can be migrated, seeded or dropped without touching <code>fix/login</code>. That independence is the main reason to run a second universe at all: a destructive migration on a review branch cannot reach the data you were working with this morning.</p>
   <p><code>ls -o wide</code> names them, which is how you check the claim rather than taking it on trust:</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl ls -o wide
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe ls -o wide
 <span class="c">...</span>
 <span class="c">on disk</span>
 <span class="c">REPO  WORKTREE                    PROJECT      VOLUMES</span>

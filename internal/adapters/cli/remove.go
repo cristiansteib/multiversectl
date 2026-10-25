@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -18,12 +17,16 @@ func (r runner) rmCmd() *cobra.Command {
 		Use:     "rm <universe>",
 		Aliases: []string{"remove", "destroy"},
 		Short:   "Destroy a universe: worktrees, containers, volumes and state (asks first)",
-		Example: "  multiversectl rm 3\n  multiversectl rm fix/login --yes",
-		Args:    cobra.ExactArgs(1),
+		Example: "  multiversectl universe rm 3\n  multiversectl universe rm fix/login --yes",
+		Args:    cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "skip the confirmation prompt")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
+			args, err := r.universeArgs(cmd, args, s)
+			if err != nil {
+				return err
+			}
 			if !yes {
 				if err := r.confirm(ctx, s, args[0]); err != nil {
 					return err
@@ -65,8 +68,12 @@ func (r runner) confirm(ctx context.Context, s *app.Service, arg string) error {
 	out.Plain("")
 
 	fmt.Fprintf(os.Stdout, "Type %s to confirm, anything else aborts: ", out.Bold(st.Name))
-	answer, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-	if strings.TrimSpace(answer) != st.Name {
+	answer, err := readLine(ctx)
+	if ctx.Err() != nil {
+		fmt.Fprintln(os.Stdout)
+		return ctx.Err()
+	}
+	if err != nil || strings.TrimSpace(answer) != st.Name {
 		fmt.Fprintln(os.Stdout)
 		return fmt.Errorf("aborted: nothing was removed")
 	}

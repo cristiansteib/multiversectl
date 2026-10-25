@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install multiversectl (and the mvctl alias).
+# Install multiversectl (with the mvctl alias and the web view, multiversectl-server).
 #   curl -fsSL https://multiversectl.dev/install.sh | sh
 # Env: MULTIVERSECTL_VERSION (e.g. v0.0.1), MULTIVERSECTL_BIN_DIR, MULTIVERSECTL_SKIP_CHECKSUM=1
 set -eu
@@ -42,10 +42,8 @@ fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
-asset="${BIN}_${os}_${arch}"
+SERVER="multiversectl-server"
 base="https://github.com/$REPO/releases/download/$version"
-say "Downloading $BIN $version ($os/$arch)"
-fetch "$base/$asset" "$tmp/$asset" || die "download failed: $base/$asset"
 
 if have sha256sum; then
   sum() { sha256sum "$1" | cut -d ' ' -f 1; }
@@ -54,18 +52,38 @@ elif have shasum; then
 else
   sum=""
 fi
-if [ -n "${sum:-}" ] || have sha256sum || have shasum; then
-  fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "could not download checksums.txt"
-  want=$(awk -v f="$asset" '$2 == f || $2 == "*" f { print $1 }' "$tmp/checksums.txt" | head -n 1)
-  [ -n "$want" ] || die "no checksum listed for $asset"
-  got=$(sum "$tmp/$asset")
-  [ "$want" = "$got" ] || die "checksum mismatch for $asset"
-elif [ "${MULTIVERSECTL_SKIP_CHECKSUM:-}" = 1 ]; then
-  say "warning: no sha256sum or shasum found; skipping checksum verification"
-else
-  die "no sha256sum or shasum found; install one, or set MULTIVERSECTL_SKIP_CHECKSUM=1 to continue unverified"
+verify=1
+if ! have sha256sum && ! have shasum; then
+  if [ "${MULTIVERSECTL_SKIP_CHECKSUM:-}" = 1 ]; then
+    say "warning: no sha256sum or shasum found; skipping checksum verification"
+    verify=0
+  else
+    die "no sha256sum or shasum found; install one, or set MULTIVERSECTL_SKIP_CHECKSUM=1 to continue unverified"
+  fi
 fi
-chmod +x "$tmp/$asset"
+if [ "$verify" = 1 ]; then
+  fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "could not download checksums.txt"
+fi
+
+# get downloads one release asset into $tmp, checks it, and makes it executable.
+get() {
+  fetch "$base/$1" "$tmp/$1" || return 1
+  if [ "$verify" = 1 ]; then
+    want=$(awk -v f="$1" '$2 == f || $2 == "*" f { print $1 }' "$tmp/checksums.txt" | head -n 1)
+    [ -n "$want" ] || die "no checksum listed for $1"
+    [ "$want" = "$(sum "$tmp/$1")" ] || die "checksum mismatch for $1"
+  fi
+  chmod +x "$tmp/$1"
+}
+
+asset="${BIN}_${os}_${arch}"
+say "Downloading $BIN $version ($os/$arch)"
+get "$asset" || die "download failed: $base/$asset"
+# The web view (multiversectl server) is a separate program that has to sit
+# beside the command line. A release that predates it is not a failure.
+server_asset="${SERVER}_${os}_${arch}"
+have_server=1
+get "$server_asset" || { have_server=0; say "warning: $version has no $server_asset; 'multiversectl server' will not work"; }
 
 dir="${MULTIVERSECTL_BIN_DIR:-}"
 sudo_cmd=""
@@ -86,9 +104,11 @@ fi
 
 $sudo_cmd mkdir -p "$dir"
 $sudo_cmd mv "$tmp/$asset" "$dir/$BIN"
+[ "$have_server" = 1 ] && $sudo_cmd mv "$tmp/$server_asset" "$dir/$SERVER"
 $sudo_cmd ln -sfn "$BIN" "$dir/mvctl"
 
 say "Installed $dir/$BIN (alias: mvctl)"
+[ "$have_server" = 1 ] && say "Installed $dir/$SERVER (the web view: multiversectl server start)"
 "$dir/$BIN" version 2>/dev/null || "$dir/$BIN" --version 2>/dev/null || true
 
 case ":$PATH:" in

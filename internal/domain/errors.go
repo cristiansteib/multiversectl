@@ -16,7 +16,7 @@ func (e *ValidationError) Error() string {
 var (
 	ErrNotFound     = errors.New("not found")
 	ErrExists       = errors.New("already exists")
-	ErrNoManifest   = errors.New("no manifest in this workspace")
+	ErrNoManifest   = errors.New("no manifest in this project")
 	ErrUnsupported  = errors.New("unsupported")
 	ErrPrerequisite = errors.New("prerequisite not met")
 )

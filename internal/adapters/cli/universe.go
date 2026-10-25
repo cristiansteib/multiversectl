@@ -33,34 +33,107 @@ func parseBranches(values []string) (all string, byRepo map[string]string, err e
 }
 
 func (r runner) newCmd() *cobra.Command {
-	var branches []string
+	var branches, bases []string
 	var note string
 	cmd := &cobra.Command{
-		Use:     "new <number|name>",
+		Use:     "new [number|name]",
 		Aliases: []string{"create"},
-		Short:   "Create a universe: one worktree per repo, secrets and state",
-		Example: "  multiversectl new 3\n" +
-			"  multiversectl new fix/login                   # named after the branch it checks out\n" +
-			"  multiversectl new 3 --branch feat/invoicing\n" +
-			"  multiversectl new 3 --branch feat/invoicing --branch web=main",
-		Args: cobra.ExactArgs(1),
+		Short:   "Create a universe on branches of its own: one worktree per repo, secrets and state",
+		Long: "A new universe starts a branch of its own in every repository, from the base\n" +
+			"branch, so it can never land on anyone's work: if the branch already exists, in\n" +
+			"the clone or on origin, nothing is created and every clash is listed. Leave the\n" +
+			"name out and the next free number is used, stepping over a number whose branch a\n" +
+			"removed universe left behind. To work on a branch that already exists, use\n" +
+			"`multiversectl universe checkout`.",
+		Example: "  multiversectl universe new\n" +
+			"  multiversectl universe new 3\n" +
+			"  multiversectl universe new fix/login                   # a new branch of that name\n" +
+			"  multiversectl universe new 3 --base release/1.2        # start from another branch\n" +
+			"  multiversectl universe new 3 --branch feat/invoicing --base api=release/1.2",
+		Args: cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().StringArrayVar(&branches, "branch", nil,
-		"branch to check out in every repo, or repo=branch for one of them (repeatable)")
+		"name of the new branch in every repo, or repo=branch for one of them (repeatable; it must not exist yet)")
+	cmd.Flags().StringArrayVar(&bases, "base", nil,
+		"branch the new ones start from, or repo=branch for one of them (default: each repo's default branch)")
 	cmd.Flags().StringVar(&note, "note", "", "why this universe exists, kept with it and shown by ls")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		all, byRepo, err := parseBranches(branches)
 		if err != nil {
 			return err
 		}
+		baseAll, baseBy, err := parseBranches(bases)
+		if err != nil {
+			return err
+		}
 		return r.withService(func(ctx context.Context, s *app.Service) error {
+			args, err := r.newName(cmd, args, s)
+			if err != nil {
+				return err
+			}
 			st, err := s.Create(ctx, app.CreateInput{
-				Name: args[0], Branch: all, Branches: byRepo, Note: note,
+				Name: args[0], Branch: all, Branches: byRepo, Base: baseAll, Bases: baseBy, Note: note,
 			})
 			if err != nil {
 				return err
 			}
-			s.Out.OK("universe %s ready (%s)", st.Name, st.Project)
+			s.Out.OK("universe `%s` ready (%s)", st.Name, st.Project)
+			return nil
+		})(cmd, args)
+	}
+	return cmd
+}
+
+func (r runner) checkoutCmd() *cobra.Command {
+	var name, note string
+	var perRepo []string
+	var onlyExisting bool
+	cmd := &cobra.Command{
+		Use:     "checkout [branch]",
+		Aliases: []string{"co"},
+		Short:   "Create a universe on a branch that already exists, to work on or review it",
+		Long: "Checks the branch out in every repository that has it, locally or on origin, and\n" +
+			"names the universe after it (--name for another). A repository that lacks it gets\n" +
+			"a new branch of that name from its base, or with --only-existing is left on its\n" +
+			"base, detached. Git allows a branch in one worktree only, so one that is already\n" +
+			"checked out in another universe, or in the shared clone, is refused and its place\n" +
+			"is shown. A branch that does not exist anywhere is refused too, so a typo does not\n" +
+			"become one; `multiversectl universe new` starts a new branch. Removing a checkout\n" +
+			"universe never deletes the branch it checked out.",
+		Example: "  multiversectl universe checkout fix/login\n" +
+			"  multiversectl universe checkout fix/login --name 7\n" +
+			"  multiversectl universe checkout fix/login --repo web=feat/ui --only-existing\n" +
+			"  multiversectl universe checkout                         # pick from the branches there are",
+		Args: cobra.MaximumNArgs(1),
+	}
+	cmd.Flags().StringVar(&name, "name", "", "name the universe (default: the branch)")
+	cmd.Flags().StringArrayVar(&perRepo, "repo", nil, "a different branch for one repository, as repo=branch (repeatable)")
+	cmd.Flags().BoolVar(&onlyExisting, "only-existing", false, "leave repositories without the branch on their base branch, detached, instead of starting one")
+	cmd.Flags().StringVar(&note, "note", "", "why this universe exists, kept with it and shown by ls")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		for _, p := range perRepo {
+			if !strings.Contains(p, "=") {
+				return fmt.Errorf("--repo %q: want repo=branch", p)
+			}
+		}
+		_, byRepo, err := parseBranches(perRepo)
+		if err != nil {
+			return err
+		}
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			branch := ""
+			if len(args) > 0 || len(byRepo) == 0 {
+				if branch, err = r.branchArg(cmd, args, s); err != nil {
+					return err
+				}
+			}
+			st, err := s.Create(ctx, app.CreateInput{
+				Name: name, Checkout: true, Branch: branch, Branches: byRepo, Note: note, OnlyExisting: onlyExisting,
+			})
+			if err != nil {
+				return err
+			}
+			s.Out.OK("universe `%s` ready (%s)", st.Name, st.Project)
 			return nil
 		})(cmd, args)
 	}
@@ -73,12 +146,16 @@ func (r runner) upCmd() *cobra.Command {
 		Use:     "up <universe> [app ...]",
 		Aliases: []string{"start"},
 		Short:   "Start a universe (all apps, or only those named)",
-		Example: "  multiversectl up 3\n  multiversectl up fix/login api --with workers",
-		Args:    cobra.MinimumNArgs(1),
+		Example: "  multiversectl universe up 3\n  multiversectl universe up fix/login api --with workers",
+		Args:    cobra.ArbitraryArgs,
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
+			args, err := r.universeArgs(cmd, args, s)
+			if err != nil {
+				return err
+			}
 			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with})
 		})(cmd, args)
 	}
@@ -90,10 +167,14 @@ func (r runner) downCmd() *cobra.Command {
 		Use:     "down <universe> [app ...]",
 		Aliases: []string{"stop"},
 		Short:   "Stop a universe (all apps, or only those named); keeps data and checkouts",
-		Example: "  multiversectl down 3\n  multiversectl down fix/login",
-		Args:    cobra.MinimumNArgs(1),
+		Example: "  multiversectl universe down 3\n  multiversectl universe down fix/login",
+		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
+				args, err := r.universeArgs(cmd, args, s)
+				if err != nil {
+					return err
+				}
 				return s.Stop(ctx, app.StopInput{Universe: args[0], Apps: args[1:]})
 			})(cmd, args)
 		},
@@ -137,10 +218,10 @@ func (r runner) lsCmd() *cobra.Command {
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List universes",
-		Example: "  multiversectl ls\n" +
-			"  multiversectl ls -o wide        # every service, its state and its volumes\n" +
-			"  multiversectl ls -o list        # one line per universe\n" +
-			"  multiversectl ls -o list,wide",
+		Example: "  multiversectl universe ls\n" +
+			"  multiversectl universe ls -o wide        # every service, its state and its volumes\n" +
+			"  multiversectl universe ls -o list        # one line per universe\n" +
+			"  multiversectl universe ls -o list,wide",
 		Args: cobra.NoArgs,
 	}
 	cmd.Flags().StringVarP(&format, "output", "o", "table",
@@ -156,7 +237,7 @@ func (r runner) lsCmd() *cobra.Command {
 				return err
 			}
 			if len(list) == 0 {
-				s.Out.Info("no universes yet — create one with: multiversectl new 1")
+				s.Out.Info("no universes yet — create one with: `multiversectl universe new 1`")
 				return nil
 			}
 			if f.table {
@@ -177,9 +258,9 @@ func (r runner) lsCmd() *cobra.Command {
 // lsList is one line per universe, for a quick look at what exists or for
 // piping into something else.
 func lsList(o *Output, list []app.Summary, wide bool) {
-	headers := []string{"UNIVERSE", "PROJECT", "RUNNING", "HOSTS", "BRANCHES"}
+	headers := []string{"UNIVERSE", "COMPOSE", "RUNNING", "HOSTS", "BRANCHES"}
 	if wide {
-		headers = []string{"UNIVERSE", "PROJECT", "DIR", "CREATED", "RUNNING", "SERVICES", "VOLUMES", "HOSTS", "BRANCHES"}
+		headers = []string{"UNIVERSE", "COMPOSE", "DIR", "CREATED", "RUNNING", "SERVICES", "VOLUMES", "HOSTS", "BRANCHES"}
 	}
 	rows := make([][]string, 0, len(list))
 	for _, u := range list {
@@ -232,7 +313,7 @@ func lsTable(o *Output, list []app.Summary, wide bool) {
 			o.Plain("%s", o.Dim(metaLine(u)))
 			o.Plain("")
 			o.Block(o.Dim("on disk"),
-				[]string{"REPO", "WORKTREE", "PROJECT", "VOLUMES"}, diskRows(u))
+				[]string{"REPO", "WORKTREE", "COMPOSE", "VOLUMES"}, diskRows(u))
 		}
 	}
 }
@@ -267,7 +348,7 @@ func diskRows(u app.Summary) [][]Cell {
 }
 
 // universeTitle heads a universe's block: which universe, why it exists if
-// anyone said, its runtime project, whether anything is up, and the domain its
+// anyone said, its compose project, whether anything is up, and the domain its
 // hostnames sit under.
 func universeTitle(o *Output, u app.Summary) string {
 	state := o.Green(fmt.Sprintf("%d running", u.Running))
@@ -526,10 +607,14 @@ func (r runner) urlsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "urls <universe>",
 		Short:   "Print a universe's URLs, one per line",
-		Example: "  multiversectl urls 3\n  multiversectl urls fix/login",
-		Args:    cobra.ExactArgs(1),
+		Example: "  multiversectl universe urls 3\n  multiversectl universe urls fix/login",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
+				args, err := r.universeArgs(cmd, args, s)
+				if err != nil {
+					return err
+				}
 				st, err := s.Resolve(args[0])
 				if err != nil {
 					return err
@@ -575,4 +660,73 @@ func joinPairs(m map[string]string) string {
 		pairs = append(pairs, k+"="+m[k])
 	}
 	return strings.Join(pairs, " ")
+}
+
+// universeCmd holds what a person does with universes, so the top level stays
+// for the tool itself and for the catalog.
+func (r runner) universeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "universe",
+		Aliases: []string{"u"},
+		Short:   "Create, start, inspect and remove universes",
+		Example: "  multiversectl universe new 3\n  multiversectl u up 3\n  multiversectl u ls",
+		Args:    cobra.NoArgs,
+		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+	}
+	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.proxyCmd(), r.pruneCmd(), r.downCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
+		r.envCmd(), r.runCmd(), r.execCmd())
+	return cmd
+}
+
+// universeStatusCmd is the glance: one line per universe saying whether it is
+// running, where ls says what each app is doing.
+func (r runner) universeStatusCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "status",
+		Short:   "One line per universe: whether it is running, how many services are up, and since when",
+		Example: "  multiversectl universe status",
+		Args:    cobra.NoArgs,
+	}
+	cmd.RunE = r.withService(func(ctx context.Context, s *app.Service) error {
+		list, err := s.List(ctx, app.ListOptions{Services: true})
+		if err != nil {
+			return err
+		}
+		if len(list) == 0 {
+			s.Out.Info("no universes yet — create one with: `multiversectl universe new 1`")
+			return nil
+		}
+		rows := make([][]Cell, 0, len(list))
+		for _, u := range list {
+			state, style, up := standing(u)
+			started := "never"
+			if !u.LastStarted.IsZero() {
+				started = age(u.LastStarted)
+			}
+			rows = append(rows, []Cell{{Text: u.Name}, {Text: state, Style: style}, {Text: up}, {Text: started},
+				{Text: joinPairs(u.Branches)}, {Text: u.Note, Style: dim}})
+		}
+		r.out.Cells([]string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCHES", "NOTE"}, rows)
+		return nil
+	})
+	return cmd
+}
+
+// standing reduces a universe to the one word a glance wants. Optional services
+// that are off on purpose are not counted against it.
+func standing(u app.Summary) (state, style, up string) {
+	n, expected, _ := totals(u)
+	up = fmt.Sprint(u.Running)
+	if expected > 0 {
+		up = fmt.Sprintf("%d/%d", n, expected)
+	}
+	switch {
+	case n > 0 && n >= expected:
+		return "running", green, up
+	case n > 0:
+		return "partial", yellow, up
+	case u.LastStarted.IsZero() && u.Running == 0:
+		return "created", dim, up
+	}
+	return "stopped", dim, up
 }

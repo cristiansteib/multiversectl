@@ -13,9 +13,20 @@ var (
 	nonNameRE       = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
-// Normalize folds a config written before multiple workspaces existed into
-// the current shape, so callers only ever see Workspaces.
+// Normalize folds a config written before multiple projects existed into
+// the current shape, so callers only ever see Projects.
 func (c *Config) Normalize() {
+	if len(c.LegacyWorkspaces) > 0 {
+		if c.Workspaces == nil {
+			c.Workspaces = map[string]WorkspaceEntry{}
+		}
+		for name, e := range c.LegacyWorkspaces {
+			if _, taken := c.Workspaces[name]; !taken {
+				c.Workspaces[name] = e
+			}
+		}
+		c.LegacyWorkspaces = nil
+	}
 	if c.Root != "" && c.Manifest != "" && len(c.Workspaces) == 0 {
 		name := WorkspaceNameFor(c.Root)
 		c.Workspaces = map[string]WorkspaceEntry{name: {Root: c.Root, Manifest: c.Manifest}}
@@ -26,9 +37,23 @@ func (c *Config) Normalize() {
 	c.Root, c.Manifest = "", ""
 }
 
-// Select returns the workspace called name, or the current one when name is
+// Resolve finds a project by the name it was recorded under or by the
+// catalog path it was installed from, and returns its name either way.
+func (c Config) Resolve(key string) (string, WorkspaceEntry, error) {
+	if e, ok := c.Workspaces[key]; ok {
+		return key, e, nil
+	}
+	for name, e := range c.Workspaces {
+		if e.From != "" && e.From == key {
+			return name, e, nil
+		}
+	}
+	return "", WorkspaceEntry{}, fmt.Errorf("no project %q; installed: %s (`multiversectl project install %s` adds it)", key, c.names(), key)
+}
+
+// Select returns the project called name, or the current one when name is
 // empty. The boolean is false when nothing is recorded yet, which is the
-// normal state before the first bootstrap.
+// normal state before the first install.
 func (c Config) Select(name string) (WorkspaceEntry, bool, error) {
 	if name == "" {
 		name = c.Current
@@ -36,16 +61,13 @@ func (c Config) Select(name string) (WorkspaceEntry, bool, error) {
 	if name == "" {
 		return WorkspaceEntry{}, false, nil
 	}
-	e, ok := c.Workspaces[name]
-	if !ok {
-		return WorkspaceEntry{}, false, fmt.Errorf("no workspace %q (known: %s)", name, c.names())
-	}
-	return e, true, nil
+	_, e, err := c.Resolve(name)
+	return e, err == nil, err
 }
 
 func (c Config) names() string {
 	if len(c.Workspaces) == 0 {
-		return "none, run bootstrap"
+		return "none"
 	}
 	names := make([]string, 0, len(c.Workspaces))
 	for n := range c.Workspaces {
@@ -65,14 +87,14 @@ func WorkspaceNameFor(root string) string {
 	return strings.TrimSuffix(n, "-")
 }
 
-// WorkspaceInfo is one row of the workspaces listing.
+// WorkspaceInfo is one row of the projects listing.
 type WorkspaceInfo struct {
 	Name    string
 	Current bool
 	WorkspaceEntry
 }
 
-// Workspaces lists what this machine has bootstrapped, by name.
+// Projects lists what is installed on this machine, by name.
 func (s *Service) Workspaces() ([]WorkspaceInfo, error) {
 	cfg, err := s.Config.Load()
 	if err != nil {
@@ -86,16 +108,17 @@ func (s *Service) Workspaces() ([]WorkspaceInfo, error) {
 	return out, nil
 }
 
-// Use makes name the workspace commands act on by default.
-func (s *Service) Use(name string) error {
+// Use makes a project the one commands act on by default.
+func (s *Service) Use(key string) error {
 	cfg, err := s.Config.Load()
 	if err != nil {
 		return err
 	}
-	if name == "" {
-		return fmt.Errorf("use: a workspace name is required")
+	if key == "" {
+		return fmt.Errorf("use: a project name is required")
 	}
-	if _, _, err := cfg.Select(name); err != nil {
+	name, _, err := cfg.Resolve(key)
+	if err != nil {
 		return err
 	}
 	cfg.Current = name
@@ -104,4 +127,47 @@ func (s *Service) Use(name string) error {
 	}
 	s.Out.OK("now using %s", name)
 	return nil
+}
+
+// Forget removes a project from this machine's list. Its files stay where
+// they are; only the tool stops knowing about it.
+func (s *Service) Forget(key string) error {
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return err
+	}
+	if key == "" {
+		return fmt.Errorf("uninstall: a project name is required")
+	}
+	name, entry, err := cfg.Resolve(key)
+	if err != nil {
+		return err
+	}
+	delete(cfg.Workspaces, name)
+	wasCurrent := cfg.Current == name
+	if wasCurrent {
+		cfg.Current = ""
+	}
+	if err := s.Config.Save(cfg); err != nil {
+		return fmt.Errorf("saving the configuration: %w", err)
+	}
+	s.Out.OK("forgot %s; its files are still at %s", name, entry.Root)
+	if wasCurrent && len(cfg.Workspaces) > 0 {
+		s.Out.Info("no current project: `multiversectl project use <name>`")
+	}
+	return nil
+}
+
+// WorkspaceNamed finds an installed project by name or by the catalog path
+// it came from.
+func (s *Service) WorkspaceNamed(key string) (WorkspaceInfo, error) {
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return WorkspaceInfo{}, err
+	}
+	name, e, err := cfg.Resolve(key)
+	if err != nil {
+		return WorkspaceInfo{}, err
+	}
+	return WorkspaceInfo{Name: name, Current: name == cfg.Current, WorkspaceEntry: e}, nil
 }

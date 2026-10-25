@@ -53,7 +53,7 @@ type AppSummary struct {
 	Repo    string
 	Branch  string
 	Path    string // its repository's worktree in this universe
-	Project string // the app's own runtime project, e.g. acme-u3-api
+	Project string // the app's own compose project, e.g. acme-u3-api
 	Running int
 	URLs    []HostURL
 

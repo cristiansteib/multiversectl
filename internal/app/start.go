@@ -151,22 +151,22 @@ func (s *Service) EnsureProxy(ctx context.Context, dom string) error {
 		Network:     network,
 		Bind:        s.Manifest.BindAddress(),
 	}
-	// One machine has one shared proxy, so a second workspace with different
+	// One machine has one shared proxy, so a second project with different
 	// entrypoints or a different exposure takes it over. Say so: the other
-	// workspace's universes stop answering, and nothing else would tell you.
+	// project's universes stop answering, and nothing else would tell you.
 	if status, err := s.Proxy.Status(ctx); err == nil && status.Running {
 		if status.Bind == "" {
 			// No address in front of a published port means every interface.
 			status.Bind = "0.0.0.0"
 		}
 		if change := proxyChange(status, want); change != "" {
-			s.Out.Warn("the shared proxy is being reconfigured: %s — universes of any other workspace on this machine stop answering until it is started from there again", change)
+			s.Out.Warn("the shared proxy is being reconfigured: %s — universes of any other project on this machine stop answering until it is started from there again", change)
 		}
 	}
 	return s.Proxy.EnsureUp(ctx, want)
 }
 
-// proxyChange describes how a running proxy differs from what this workspace
+// proxyChange describes how a running proxy differs from what this project
 // needs, or "" when it already matches.
 func proxyChange(status ProxyStatus, want ProxyRequest) string {
 	var changes []string

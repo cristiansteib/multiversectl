@@ -26,7 +26,7 @@ func TestSelect(t *testing.T) {
 		t.Fatalf("current ignored: %+v", e)
 	}
 	if _, _, err := c.Select("zzz"); err == nil {
-		t.Fatal("unknown workspace must fail, not fall back to current")
+		t.Fatal("unknown project must fail, not fall back to current")
 	}
 	if _, ok, err := (Config{}).Select(""); ok || err != nil {
 		t.Fatalf("empty config: ok=%v err=%v", ok, err)

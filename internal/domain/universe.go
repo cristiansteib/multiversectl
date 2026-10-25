@@ -8,8 +8,8 @@ import (
 	"strings"
 )
 
-// Universe is one self-contained instance of a workspace: a checkout of every
-// repository, one container-runtime project per app and one set of hostnames.
+// Universe is one self-contained instance of a project: a checkout of every
+// repository, one compose project per app and one set of hostnames.
 //
 // A universe is identified by the name the caller gave it — a number, or a
 // branch-like name such as "fix/login". Everything else about its identity is
@@ -29,7 +29,7 @@ var (
 	slugLimit = 40 // keeps <host>-<slug> inside a 63-character DNS label
 )
 
-// Slugify reduces a name to what DNS labels and runtime project names both
+// Slugify reduces a name to what DNS labels and compose project names both
 // accept: lowercase letters, digits and single dashes. "fix/My Login" becomes
 // "fix-my-login".
 func Slugify(name string) string {
@@ -104,13 +104,13 @@ func (u Universe) Slug() string {
 	return Slugify(u.Name)
 }
 
-// Project is the container-runtime project name; it namespaces containers,
+// Project is the compose project name; it namespaces containers,
 // networks and volumes, which is what keeps universes from colliding.
 func (u Universe) Project() string {
 	return fmt.Sprintf("%s-%s", u.Manifest.Name, u.Slug())
 }
 
-// ProjectFor is the runtime project of one app. Apps of a universe get a
+// ProjectFor is the compose project of one app. Apps of a universe get a
 // project each: two repositories may both call a service "app", and inside one
 // project that is the same container.
 func (u Universe) ProjectFor(appKey string) string {
@@ -157,7 +157,7 @@ func envPrefix(hostKey string) string {
 // DefaultBranch is the branch a universe's worktrees are checked out on when
 // the caller names none. A universe named after a branch is that branch —
 // which is the point of naming it so — and a numbered one follows the
-// workspace's own template.
+// project's own template.
 func (u Universe) DefaultBranch() string {
 	if n := u.Number(); n > 0 {
 		if u.Manifest == nil {

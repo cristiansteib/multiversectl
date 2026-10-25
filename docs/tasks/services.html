@@ -46,12 +46,15 @@
         <li><a href="../concepts/storage.html">Storage and data</a></li>
         <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
         <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
       </ul>
       <p class="nav-h">Tasks</p>
       <ul>
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html" aria-current="page">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -66,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -104,7 +107,7 @@
 <span class="k">optional</span>:
   - <span class="k">name</span>: celery
     <span class="k">services</span>: [worker, beat]</pre></div>
-  <div class="code"><pre><span class="p">$ </span>multiversectl up 3 api --with celery</pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe up 3 api --with celery</pre></div>
   <p class="muted">The group name is also activated as a compose profile. Comma-separate several: <code>--with celery,mail</code>.</p>
 </section>
 
@@ -128,12 +131,12 @@
           <span class="k">environment</span>:
             <span class="k">DJANGO_CSRF_TRUSTED_ORIGINS</span>: <span class="s">"${MULTIVERSE_ORIGINS}"</span>
             <span class="k">DJANGO_ALLOWED_HOSTS</span>: <span class="s">"${MULTIVERSE_HOSTS}"</span></pre></div>
-  <p class="muted">Prefer the aggregates to listing hostnames one at a time: they follow the manifest, so adding a host key or an app leaves no settings list behind. There is also <code>&lt;HOST&gt;_HOST</code> and <code>&lt;HOST&gt;_URL</code> per host key, <code>&lt;REPO&gt;_DIR</code> per checkout, and <code>UNIVERSE</code>, <code>UNIVERSE_SLUG</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, <code>COMPOSE_PROJECT_NAME</code>, <code>HOST_UID</code>, <code>HOST_GID</code>. <code>multiversectl env &lt;universe&gt;</code> prints the lot.</p>
+  <p class="muted">Prefer the aggregates to listing hostnames one at a time: they follow the manifest, so adding a host key or an app leaves no settings list behind. There is also <code>&lt;HOST&gt;_HOST</code> and <code>&lt;HOST&gt;_URL</code> per host key, <code>&lt;REPO&gt;_DIR</code> per checkout, and <code>UNIVERSE</code>, <code>UNIVERSE_SLUG</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, <code>COMPOSE_PROJECT_NAME</code>, <code>HOST_UID</code>, <code>HOST_GID</code>. <code>multiversectl universe env &lt;universe&gt;</code> prints the lot.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">
     <a class="prev" href="../tasks/reach.html"><span>Previous</span>Reach a universe</a>
-    <a class="next" href="../reference/cli.html"><span>Next</span>Commands</a>
+    <a class="next" href="../tasks/catalog.html"><span>Next</span>Manage many projects from one index</a>
   </nav>
 </main>
   <aside class="toc" aria-labelledby="toch">

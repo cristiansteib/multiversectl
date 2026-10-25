@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manifest &middot; multiversectl</title>
-<meta name="description" content="Every field of a workspace manifest, with its default.">
+<meta name="description" content="Every field of a project manifest, with its default.">
 <meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
@@ -46,12 +46,15 @@
         <li><a href="../concepts/storage.html">Storage and data</a></li>
         <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
         <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
       </ul>
       <p class="nav-h">Tasks</p>
       <ul>
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -66,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -76,11 +79,27 @@
   <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Reference</span>
   </nav>
   <h1>Manifest</h1>
-  <p class="lede">Every field of a workspace manifest, with its default.</p>
+  <p class="lede">Every field of a project manifest, with its default.</p>
+<section id="older-names">
+  <h2 id="older-names"><a href="#older-names">Older names</a></h2>
+  <p>A project used to be called a workspace. Files and settings that say so are still read, and what multiversectl writes uses the new name:</p>
+  <div class="tw"><table>
+    <thead><tr><th scope="col">Older</th><th scope="col">Now</th></tr></thead>
+    <tbody>
+      <tr><td data-l="Older"><code>kind: Workspace</code> in <code>multiverse.yaml</code></td><td data-l="Now"><code>kind: Project</code></td></tr>
+      <tr><td data-l="Older"><code>spec.workspaces</code> in a catalog</td><td data-l="Now"><code>spec.projects</code>; an edit adds to whichever list a file already has, so a file is never half moved</td></tr>
+      <tr><td data-l="Older"><code>workspaces:</code> in the configuration</td><td data-l="Now"><code>projects:</code>, rewritten the next time the configuration is saved</td></tr>
+      <tr><td data-l="Older"><code>-w, --workspace</code></td><td data-l="Now"><code>-p, --project</code>; the old flag still works and says what replaced it</td></tr>
+      <tr><td data-l="Older"><code>catalog install</code>, <code>use</code>, <code>update</code>, <code>status</code>, <code>uninstall</code></td><td data-l="Now"><code>project install</code>, <code>use</code>, <code>update</code>, <code>status</code>, <code>uninstall</code></td></tr>
+      <tr><td data-l="Older"><code>PROJECT</code> in <code>universe ls</code></td><td data-l="Now"><code>COMPOSE</code>, the compose project name: <em>project</em> now means one thing</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
 <section id="manifest">
-  <p>One <code>multiverse.yaml</code> lists the repositories and how a universe is addressed. It never describes containers; those stay in each repository's own compose files. The format is versioned, Kubernetes-style: <code>apiVersion: multiverse/v1alpha1</code>, <code>kind: Workspace</code>.</p>
+  <p>One <code>multiverse.yaml</code> lists the repositories and how a universe is addressed. It never describes containers; those stay in each repository's own compose files. The format is versioned, Kubernetes-style: <code>apiVersion: multiverse/v1alpha1</code>, <code>kind: Project</code>.</p>
   <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
-<span class="k">kind</span>: Workspace
+<span class="k">kind</span>: Project
 <span class="k">metadata</span>:
   <span class="k">name</span>: acme
 <span class="k">spec</span>:
@@ -91,11 +110,11 @@
       <span class="k">url</span>: git@github.com:acme/api.git
     - <span class="k">name</span>: web
       <span class="k">url</span>: git@github.com:acme/web.git</pre></div>
-  <p class="muted">That is a complete workspace. A repository no <code>apps</code> entry names gets an app of its own name, so <code>apps:</code> is only for changing a default or splitting one repository into several apps.</p>
-  <p>Every field, with its meaning and default, is in <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">schema/workspace.v1alpha1.yaml</a>. That file is generated from the Go types by <code>make schema</code>; see also the commented <a href="https://github.com/cristiansteib/multiversectl/blob/main/examples/multiverse.yaml">examples/multiverse.yaml</a>. The main keys:</p>
+  <p class="muted">That is a complete project. A repository no <code>apps</code> entry names gets an app of its own name, so <code>apps:</code> is only for changing a default or splitting one repository into several apps.</p>
+  <p>Every field, with its meaning and default, is in <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">schema/project.v1alpha1.yaml</a>. That file is generated from the Go types by <code>make schema</code>; see also the commented <a href="https://github.com/cristiansteib/multiversectl/blob/main/examples/multiverse.yaml">examples/multiverse.yaml</a>. The main keys:</p>
   <div class="tw"><table>
   <thead><tr><th scope="col">Key</th><th scope="col">Meaning</th></tr></thead><tbody>
-  <tr><td data-l="Key"><code>metadata.name</code></td><td data-l="Meaning">Names the workspace; prefixes every runtime project (<code>acme-u3-api</code>).</td></tr><tr><td data-l="Key"><code>spec.root</code></td><td data-l="Meaning">Where clones and universes live. <code>--root</code> and <code>$MULTIVERSECTL_ROOT</code> override it.</td></tr><tr><td data-l="Key"><code>spec.expose</code></td><td data-l="Meaning">Who can reach a universe: <code>lan</code> (default) or <code>local</code>. Decides both the interface the proxy publishes on and what <code>auto</code> derives &mdash; see <a href="../concepts/networking.html#expose">Networking</a>.</td></tr><tr><td data-l="Key"><code>spec.domain</code></td><td data-l="Meaning">Wildcard domain for hostnames. Default <code>auto</code>, which follows <code>expose</code>.</td></tr><tr><td data-l="Key"><code>spec.branch</code></td><td data-l="Meaning">Branch template for a numbered universe; <code>{{universe}}</code> expands to the number. Default <code>u{{universe}}</code>. A named universe uses its own name.</td></tr><tr><td data-l="Key"><code>spec.proxy</code></td><td data-l="Meaning">Proxy <code>network</code> and named <code>entrypoints</code> (<code>web</code> on 80 by default).</td></tr><tr><td data-l="Key"><code>spec.repos[]</code></td><td data-l="Meaning"><code>name</code>, <code>url</code>, <code>dir</code>, <code>runtime</code> (<code>compose</code> or <code>none</code>).</td></tr><tr><td data-l="Key"><code>spec.apps[]</code></td><td data-l="Meaning"><code>name</code>, <code>repo</code>, <code>compose</code>, <code>profiles</code>, <code>services</code>, <code>optional</code>, <code>secrets</code>, <code>publish</code>, <code>overlay</code>, <code>hosts</code>, <code>build</code>.</td></tr><tr><td data-l="Key"><code>spec.env[]</code></td><td data-l="Meaning">Variables exported into every runtime call; <code>{{uid}}</code>, <code>{{gid}}</code> and <code>${VAR}</code> expand.</td></tr>
+  <tr><td data-l="Key"><code>metadata.name</code></td><td data-l="Meaning">Names the project; prefixes every compose project (<code>acme-u3-api</code>).</td></tr><tr><td data-l="Key"><code>spec.root</code></td><td data-l="Meaning">Where clones and universes live. <code>--root</code> and <code>$MULTIVERSECTL_ROOT</code> override it.</td></tr><tr><td data-l="Key"><code>spec.expose</code></td><td data-l="Meaning">Who can reach a universe: <code>lan</code> (default) or <code>local</code>. Decides both the interface the proxy publishes on and what <code>auto</code> derives &mdash; see <a href="../concepts/networking.html#expose">Networking</a>.</td></tr><tr><td data-l="Key"><code>spec.domain</code></td><td data-l="Meaning">Wildcard domain for hostnames. Default <code>auto</code>, which follows <code>expose</code>.</td></tr><tr><td data-l="Key"><code>spec.branch</code></td><td data-l="Meaning">Branch template for a numbered universe; <code>{{universe}}</code> expands to the number. Default <code>u{{universe}}</code>. A named universe uses its own name.</td></tr><tr><td data-l="Key"><code>spec.proxy</code></td><td data-l="Meaning">Proxy <code>network</code> and named <code>entrypoints</code> (<code>web</code> on 80 by default).</td></tr><tr><td data-l="Key"><code>spec.repos[]</code></td><td data-l="Meaning"><code>name</code>, <code>url</code>, <code>dir</code>, <code>runtime</code> (<code>compose</code> or <code>none</code>).</td></tr><tr><td data-l="Key"><code>spec.apps[]</code></td><td data-l="Meaning"><code>name</code>, <code>repo</code>, <code>compose</code>, <code>profiles</code>, <code>services</code>, <code>optional</code>, <code>secrets</code>, <code>publish</code>, <code>overlay</code>, <code>hosts</code>, <code>build</code>.</td></tr><tr><td data-l="Key"><code>spec.env[]</code></td><td data-l="Meaning">Variables exported into every runtime call; <code>{{uid}}</code>, <code>{{gid}}</code> and <code>${VAR}</code> expand.</td></tr>
   </tbody></table></div>
   <h2 id="hosts"><a href="#hosts">hosts: for repositories you cannot change</a></h2>
   <p>Labels are the better place to say how a service is reached. <code>hosts:</code> on an app wins over them and exists for repositories you cannot edit:</p>
@@ -115,6 +134,7 @@
   <aside class="toc" aria-labelledby="toch">
     <p class="toc-h" id="toch">On this page</p>
     <ul>
+      <li><a href="#older-names">Older names</a></li>
       <li><a href="#hosts">hosts: for repositories you cannot change</a></li>
     </ul>
   </aside>

@@ -46,12 +46,15 @@
         <li><a href="../concepts/storage.html">Storage and data</a></li>
         <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
         <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
       </ul>
       <p class="nav-h">Tasks</p>
       <ul>
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -66,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -81,7 +84,7 @@
   <h2 id="all"><a href="#all">What is written where</a></h2>
   <div class="tw"><table>
   <thead><tr><th scope="col">Path</th><th scope="col">What it is</th></tr></thead><tbody>
-  <tr><td data-l="Key"><code>&lt;root&gt;/&lt;repo&gt;/</code></td><td data-l="Meaning">The shared clone of each repository (set <code>dir</code> to rename it).</td></tr><tr><td data-l="Key"><code>&lt;root&gt;/universes/&lt;universe&gt;/</code></td><td data-l="Meaning">A universe: one worktree per repository, plus its state file <code>universe.yaml</code>.</td></tr><tr><td data-l="Key"><code>&lt;root&gt;/universes/&lt;universe&gt;/.multiverse-routes-&lt;app&gt;.yml</code></td><td data-l="Meaning">Generated on <code>up</code>: proxy labels, the proxy network, and dropped published ports.</td></tr><tr><td data-l="Key"><code>&lt;root&gt;/universes/&lt;universe&gt;/.multiverse-overlay-&lt;app&gt;.yml</code></td><td data-l="Meaning">Written from the app's inline <code>overlay:</code>, if it has one.</td></tr><tr><td data-l="Key"><code>~/.config/multiversectl/config.yaml</code></td><td data-l="Meaning">The saved workspaces (root and manifest path each) and which is current (under <code>$XDG_CONFIG_HOME</code> if set).</td></tr>
+  <tr><td data-l="Key"><code>&lt;root&gt;/&lt;repo&gt;/</code></td><td data-l="Meaning">The shared clone of each repository (set <code>dir</code> to rename it).</td></tr><tr><td data-l="Key"><code>&lt;root&gt;/universes/&lt;universe&gt;/</code></td><td data-l="Meaning">A universe: one worktree per repository, plus its state file <code>universe.yaml</code>.</td></tr><tr><td data-l="Key"><code>&lt;root&gt;/universes/&lt;universe&gt;/.multiverse-routes-&lt;app&gt;.yml</code></td><td data-l="Meaning">Generated on <code>up</code>: proxy labels, the proxy network, and dropped published ports.</td></tr><tr><td data-l="Key"><code>&lt;root&gt;/universes/&lt;universe&gt;/.multiverse-overlay-&lt;app&gt;.yml</code></td><td data-l="Meaning">Written from the app's inline <code>overlay:</code>, if it has one.</td></tr><tr><td data-l="Key"><code>~/.config/multiversectl/config.yaml</code></td><td data-l="Meaning">The saved projects (root and manifest path each) and which is current, and the root catalog (under <code>$XDG_CONFIG_HOME</code> if set).</td></tr><tr><td data-l="Key"><code>~/.config/multiversectl/catalogs/</code></td><td data-l="Meaning">Clones of the repositories that catalogs refer to, one directory per repository and ref.</td></tr>
   </tbody></table></div>
   <p class="muted">The generated files are rewritten on every <code>up</code>; edit the manifest or the compose files, not them.</p>
 </section>
@@ -90,9 +93,9 @@
   <h2 id="how"><a href="#how">How it works</a></h2>
   <ol class="how">
     <li><strong>Worktrees share one object store</strong>Each universe is a git worktree of every repository, so ten universes cost working files, not ten clones.</li>
-    <li><strong>One runtime project per app, per universe</strong>Containers, networks and volumes are namespaced by the runtime itself, so databases and caches never leak between universes.</li>
+    <li><strong>One compose project per app, per universe</strong>Containers, networks and volumes are namespaced by the runtime itself, so databases and caches never leak between universes.</li>
     <li><strong>Routing by hostname, not by port</strong>Nothing publishes host ports. One shared reverse proxy sends <code>app-u3</code> and <code>api-u3</code> to universe 3.</li>
-    <li><strong>One manifest, versioned</strong>The <code>apiVersion</code> field lets the format evolve without breaking workspaces already written.</li>
+    <li><strong>One manifest, versioned</strong>The <code>apiVersion</code> field lets the format evolve without breaking projects already written.</li>
   </ol>
 </section>
 

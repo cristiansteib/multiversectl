@@ -46,12 +46,15 @@
         <li><a href="../concepts/storage.html">Storage and data</a></li>
         <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
         <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
       </ul>
       <p class="nav-h">Tasks</p>
       <ul>
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -66,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -94,7 +97,7 @@
   <p>Available to compose files and inline overlays:</p>
   <div class="tw"><table>
   <thead><tr><th scope="col">Variable</th><th scope="col">Value</th></tr></thead><tbody>
-  <tr><td data-l="Key"><code>UNIVERSE, UNIVERSE_SLUG, UNIVERSE_DIR</code></td><td data-l="Meaning">The number (<code>3</code>), the slug (<code>u3</code>), and the universe's directory.</td></tr><tr><td data-l="Key"><code>MULTIVERSE_DOMAIN</code></td><td data-l="Meaning">The wildcard domain in use.</td></tr><tr><td data-l="Key"><code>COMPOSE_PROJECT_NAME</code></td><td data-l="Meaning">The universe's runtime project.</td></tr><tr><td data-l="Key"><code>&lt;HOST&gt;_HOST</code></td><td data-l="Meaning">One per host key, e.g. <code>APP_HOST</code> is <code>app-u3.&lt;domain&gt;</code>.</td></tr><tr><td data-l="Key"><code>&lt;REPO&gt;_DIR</code></td><td data-l="Meaning">One per repository: that repository's checkout in the universe.</td></tr><tr><td data-l="Key"><code>HOST_UID, HOST_GID</code></td><td data-l="Meaning">The current user; a <code>spec.env</code> entry overrides them.</td></tr>
+  <tr><td data-l="Key"><code>UNIVERSE, UNIVERSE_SLUG, UNIVERSE_DIR</code></td><td data-l="Meaning">The number (<code>3</code>), the slug (<code>u3</code>), and the universe's directory.</td></tr><tr><td data-l="Key"><code>MULTIVERSE_DOMAIN</code></td><td data-l="Meaning">The wildcard domain in use.</td></tr><tr><td data-l="Key"><code>COMPOSE_PROJECT_NAME</code></td><td data-l="Meaning">The universe's compose project.</td></tr><tr><td data-l="Key"><code>&lt;HOST&gt;_HOST</code></td><td data-l="Meaning">One per host key, e.g. <code>APP_HOST</code> is <code>app-u3.&lt;domain&gt;</code>.</td></tr><tr><td data-l="Key"><code>&lt;REPO&gt;_DIR</code></td><td data-l="Meaning">One per repository: that repository's checkout in the universe.</td></tr><tr><td data-l="Key"><code>HOST_UID, HOST_GID</code></td><td data-l="Meaning">The current user; a <code>spec.env</code> entry overrides them.</td></tr>
   </tbody></table></div>
 </section>
 

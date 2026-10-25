@@ -121,7 +121,7 @@ func TestLsWideShowsEveryServiceAndItsVolumes(t *testing.T) {
 		"0.0.0.0:5432->5432/tcp",    // and one that does
 		"on disk",                   // the block naming what the universe owns
 		"/w/universes/1/api",        // the worktree the code is in
-		"acme-u1-api",               // the app's own runtime project
+		"acme-u1-api",               // the app's own compose project
 		"acme-u1-api_postgres_data", // the volume, named in full
 	} {
 		if !strings.Contains(out, want) {

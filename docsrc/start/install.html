@@ -11,7 +11,7 @@
   <div role="tabpanel" id="p-brew" aria-labelledby="t-brew" tabindex="0" hidden><div class="code"><pre><span class="p">$ </span>brew install cristiansteib/tap/multiversectl</pre></div><p class="muted">Or <code>brew tap cristiansteib/tap</code> once, then <code>brew install multiversectl</code>.</p></div>
   <div role="tabpanel" id="p-mise" aria-labelledby="t-mise" tabindex="0" hidden><div class="code"><pre><span class="p">$ </span>mise use -g ubi:cristiansteib/multiversectl</pre></div></div>
   <div role="tabpanel" id="p-deb" aria-labelledby="t-deb" tabindex="0" hidden><p class="muted">Download the <code>.deb</code> from the <a href="https://github.com/cristiansteib/multiversectl/releases">releases page</a>, then:</p><div class="code"><pre><span class="p">$ </span>sudo dpkg -i multiversectl_*.deb</pre></div></div>
-  <p>The script and the <code>.deb</code> also install a short alias, <code>mvctl</code>. Later: <code>multiversectl update</code> replaces the binary with the latest release.</p>
+  <p>The script, Homebrew and the <code>.deb</code> also install a short alias, <code>mvctl</code>, and the web view, <code>multiversectl-server</code>, beside the command (see <a href="../tasks/server.html">the web view</a>). <code>mise</code> installs the command line only: <code>multiversectl server</code> needs the other program on the <code>PATH</code>, so use the script if you want it. Later: <code>multiversectl self-update</code> replaces both with the latest release.</p>
 </section>
 
 <section id="build">
@@ -22,12 +22,32 @@
   <p><code>make install</code> honours <code>PREFIX</code>, so <code>make install PREFIX=/usr/local/bin</code> puts it on the system path instead.</p>
 </section>
 
+<section id="remove">
+  <h2 id="remove"><a href="#remove">Remove it, completely</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl cleanup</pre></div>
+  <p>It lists everything multiversectl has put on the machine and removes none of it: the web server and shared proxy if they are running, each universe with the containers, volumes and worktrees it owns, the clones of your repositories, branches left by universes that are gone, the configuration and caches, shell completions, and the programs. Each item has its size and its removal command, and what would lose work that exists nowhere else, such as uncommitted changes, commits on no remote or a volume's data, is marked. The commands come last, in the order that is safe: stop what is running, remove the universes, then the clones and the configuration, and the programs at the end. <code>--script</code> prints only the commands, to read and run.</p>
+  <p>Run it before <code>reset</code>: once a project is forgotten the tool no longer knows its folder, so the clones and universes of a project you already reset are not listed. The root catalog's repository on GitHub or GitLab is not touched; delete it yourself if you want it gone.</p>
+</section>
+
+<section id="completion">
+  <h2 id="completion"><a href="#completion">Shell completions</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl completion</pre></div>
+  <p>It finds your shell from <code>$SHELL</code>, says which files it will write, and asks. <code>--yes</code> answers for you, which is what a setup script wants. Everything goes under your home directory; nothing needs root.</p>
+  <ul class="t">
+    <li><strong>bash</strong>: <code>~/.local/share/bash-completion/completions/multiversectl</code>, loaded on demand by the bash-completion package.</li>
+    <li><strong>fish</strong>: <code>~/.config/fish/completions/multiversectl.fish</code>, which fish loads by itself.</li>
+    <li><strong>zsh</strong>: <code>~/.local/share/multiversectl/completions/multiversectl.zsh</code>, plus a block between two marker comments in <code>~/.zshrc</code> that sources it. Nothing puts a user directory on zsh's <code>$fpath</code>, so the startup file has to.</li>
+  </ul>
+  <p>The first line of the installed file records the version that wrote it. After an upgrade, whether by <code>self-update</code>, a package or <code>make install</code>, the next run of any command rewrites a script written by another version, so completions follow the binary. It only updates a script that is already there; it never installs one you did not ask for. <code>multiversectl completion --uninstall</code> removes the file and the block.</p>
+</section>
+
 <section id="needs">
   <h2 id="needs"><a href="#needs">What it needs on the machine</a></h2>
   <ul class="t">
-    <li>A container runtime with <code>docker compose</code> v2.</li>
+    <li>A container runtime with <code>docker compose</code> v2. On macOS that is Docker Desktop, OrbStack or Colima; on Linux, Docker Engine or Podman.</li>
     <li><code>git</code>, new enough for <code>git worktree</code>.</li>
     <li>Nothing else. multiversectl runs no daemon of its own; the only long-lived process it starts is the shared proxy, and that is a container.</li>
   </ul>
-  <p><code>multiversectl doctor</code> checks all of it and names what is missing.</p>
+  <p><code>multiversectl universe doctor</code> checks all of it and names what is missing.</p>
+  <p>Releases are built for Linux and macOS, on Intel (<code>amd64</code>) and Apple silicon or ARM (<code>arm64</code>). The script puts the programs in <code>~/.local/bin</code>, which macOS does not have on its <code>PATH</code> by default: it warns when that is so. Shell completions work for zsh, the macOS default, and fish; bash on macOS is version 3.2 and has no <code>bash-completion</code> to load them.</p>
 </section>

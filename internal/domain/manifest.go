@@ -17,7 +17,7 @@ const (
 	RuntimeNone    Runtime = "none"
 )
 
-// Manifest is the workspace description: which repositories make up the
+// Manifest is the project description: which repositories make up the
 // project, how to run them and how a universe is addressed. It never
 // describes containers — that stays in the runtime's own files.
 //
@@ -78,7 +78,7 @@ func (m *Manifest) BindAddress() string {
 	return "0.0.0.0"
 }
 
-// DefaultBranchFor renders the workspace's branch template for a universe.
+// DefaultBranchFor renders the project's branch template for a universe.
 func (m *Manifest) DefaultBranchFor(number int) string {
 	template := m.Branch
 	if template == "" {
@@ -87,7 +87,7 @@ func (m *Manifest) DefaultBranchFor(number int) string {
 	return strings.ReplaceAll(template, "{{universe}}", strconv.Itoa(number))
 }
 
-// Repo is one source repository of the workspace.
+// Repo is one source repository of the project.
 type Repo struct {
 	URL     string
 	Dir     string // clone directory name, defaults to the repo key
@@ -234,4 +234,43 @@ func (m *Manifest) ComposeFiles(appKey, repoDir string) []string {
 		out = append(out, filepath.Join(repoDir, file))
 	}
 	return out
+}
+
+// ProxyClashes says where two projects disagree about the proxy. There is
+// one proxy per machine, so sharing its network and its ports is the design:
+// the trouble is that starting a project rewrites the proxy from its own
+// manifest, which drops what another project needs from it. aName and bName
+// are what the user calls the projects, which is not always metadata.name.
+func ProxyClashes(aName string, a *Manifest, bName string, b *Manifest) []string {
+	var out []string
+	if a.Proxy.Network != "" && b.Proxy.Network != "" && a.Proxy.Network != b.Proxy.Network {
+		out = append(out, fmt.Sprintf("%s and %s want different proxy networks (%s, %s) but a machine has one proxy; only one is reachable",
+			aName, bName, a.Proxy.Network, b.Proxy.Network))
+	}
+	for _, n := range sortedEntrypoints(a.Proxy.Entrypoints) {
+		ap := a.Proxy.Entrypoints[n]
+		if bp, ok := b.Proxy.Entrypoints[n]; !ok {
+			out = append(out, fmt.Sprintf("%s needs proxy entrypoint %q (port %d); starting %s reconfigures the proxy without it", aName, n, ap, bName))
+		} else if bp != ap {
+			out = append(out, fmt.Sprintf("entrypoint %q is port %d for %s and %d for %s; the proxy can only have one", n, ap, aName, bp, bName))
+		}
+	}
+	for _, n := range sortedEntrypoints(b.Proxy.Entrypoints) {
+		if _, ok := a.Proxy.Entrypoints[n]; !ok {
+			out = append(out, fmt.Sprintf("%s needs proxy entrypoint %q (port %d); starting %s reconfigures the proxy without it", bName, n, b.Proxy.Entrypoints[n], aName))
+		}
+	}
+	if x, y := a.BindAddress(), b.BindAddress(); x != y {
+		out = append(out, fmt.Sprintf("%s publishes the proxy on %s and %s on %s; starting either one moves it", aName, x, bName, y))
+	}
+	return out
+}
+
+func sortedEntrypoints(m map[string]int) []string {
+	names := make([]string, 0, len(m))
+	for n := range m {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }

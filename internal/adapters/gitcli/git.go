@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
@@ -51,6 +53,112 @@ func (g Git) AddWorktree(ctx context.Context, repoDir, dest, branch, base string
 	}
 	_, err := g.run(ctx, args...)
 	return err
+}
+
+func (g Git) AddWorktreeDetached(ctx context.Context, repoDir, dest, ref string) error {
+	_, err := g.run(ctx, "-C", repoDir, "worktree", "add", "--detach", dest, ref)
+	return err
+}
+
+func (g Git) Branches(ctx context.Context, repoDir string) ([]string, error) {
+	out, err := g.run(ctx, "-C", repoDir, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes/origin")
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var names []string
+	for _, ref := range strings.Fields(out) {
+		name := strings.TrimPrefix(strings.TrimPrefix(ref, "refs/heads/"), "refs/remotes/origin/")
+		if name == "HEAD" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// CheckedOutAt reads `git worktree list --porcelain`, whose blocks are a
+// worktree line, a HEAD line and a branch line.
+func (g Git) CheckedOutAt(ctx context.Context, repoDir, branch string) (string, error) {
+	out, err := g.run(ctx, "-C", repoDir, "worktree", "list", "--porcelain")
+	if err != nil {
+		return "", err
+	}
+	path := ""
+	for _, line := range strings.Split(out, "\n") {
+		switch {
+		case strings.HasPrefix(line, "worktree "):
+			path = strings.TrimPrefix(line, "worktree ")
+		case line == "branch refs/heads/"+branch:
+			return path, nil
+		}
+	}
+	return "", nil
+}
+
+// ancestor is `git merge-base --is-ancestor a b`: exit 1 is the answer "no".
+func (g Git) ancestor(ctx context.Context, repoDir, a, b string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "merge-base", "--is-ancestor", a, b)
+	err := cmd.Run()
+	if err == nil {
+		return true, nil
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) && exit.ExitCode() == 1 && ctx.Err() == nil {
+		return false, nil
+	}
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+	return false, fmt.Errorf("git merge-base: %w", err)
+}
+
+func (g Git) DeleteBranchIfSafe(ctx context.Context, repoDir, branch, base string) (bool, string, error) {
+	local, err := g.refPresent(ctx, repoDir, "refs/heads/"+branch)
+	if err != nil || !local {
+		return false, "", err
+	}
+	if at, err := g.CheckedOutAt(ctx, repoDir, branch); err != nil {
+		return false, "", err
+	} else if at != "" {
+		return false, "it is checked out at " + at, nil
+	}
+	// Merged into the base branch, or already on the branch's own remote copy:
+	// either way the commits are somewhere else, and the name is all that goes.
+	for _, into := range []string{"refs/remotes/origin/" + base, "refs/remotes/origin/" + branch} {
+		if ok, err := g.refPresent(ctx, repoDir, into); err != nil {
+			return false, "", err
+		} else if !ok {
+			continue
+		}
+		if safe, err := g.ancestor(ctx, repoDir, "refs/heads/"+branch, into); err != nil {
+			return false, "", err
+		} else if safe {
+			if _, err := g.run(ctx, "-C", repoDir, "branch", "-D", branch); err != nil {
+				return false, "", err
+			}
+			return true, "", nil
+		}
+	}
+	n, err := g.run(ctx, "-C", repoDir, "rev-list", "--count", "refs/heads/"+branch, "--not", "--remotes")
+	if err != nil {
+		return false, "", err
+	}
+	return false, n + " commits that are on no remote", nil
+}
+
+func (g Git) Unpushed(ctx context.Context, repoDir string) (int, error) {
+	out, err := g.run(ctx, "-C", repoDir, "rev-list", "--count", "--branches", "--not", "--remotes")
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, fmt.Errorf("git rev-list: %w", err)
+	}
+	return n, nil
 }
 
 func (g Git) RemoveWorktree(ctx context.Context, repoDir, dest string) error {
@@ -107,4 +215,80 @@ func (g Git) DefaultBranch(ctx context.Context, repoDir string) (string, error) 
 		}
 	}
 	return "", errors.New("cannot determine the default branch of origin")
+}
+
+// Checkout prefers origin/<ref> so a branch name lands on what was last
+// fetched and not on a stale local branch from the first clone.
+func (g Git) Checkout(ctx context.Context, repoDir, ref string) error {
+	target := ref
+	if _, err := g.run(ctx, "-C", repoDir, "rev-parse", "--verify", "--quiet", "origin/"+ref); err == nil {
+		target = "origin/" + ref
+	}
+	_, err := g.run(ctx, "-C", repoDir, "checkout", "--quiet", "--detach", target)
+	return err
+}
+
+func (g Git) Init(ctx context.Context, dir string) error {
+	_, err := g.run(ctx, "init", "--quiet", "--initial-branch=main", dir)
+	return err
+}
+
+func (g Git) Toplevel(ctx context.Context, dir string) (string, error) {
+	return g.run(ctx, "-C", dir, "rev-parse", "--show-toplevel")
+}
+
+func (g Git) IsClean(ctx context.Context, dir string) (bool, error) {
+	out, err := g.run(ctx, "-C", dir, "status", "--porcelain")
+	return out == "", err
+}
+
+func (g Git) HasRemote(ctx context.Context, dir string) bool {
+	out, err := g.run(ctx, "-C", dir, "remote")
+	return err == nil && out != ""
+}
+
+func (g Git) Commit(ctx context.Context, dir, message string, paths ...string) error {
+	if _, err := g.run(ctx, append([]string{"-C", dir, "add", "--"}, paths...)...); err != nil {
+		return err
+	}
+	_, err := g.run(ctx, append([]string{"-C", dir, "commit", "--quiet", "-m", message, "--"}, paths...)...)
+	return err
+}
+
+func (g Git) AddRemote(ctx context.Context, dir, name, url string) error {
+	_, err := g.run(ctx, "-C", dir, "remote", "add", name, url)
+	return err
+}
+
+func (g Git) Push(ctx context.Context, dir, branch string) error {
+	_, err := g.run(ctx, "-C", dir, "push", "--quiet", "origin", "HEAD:refs/heads/"+branch)
+	return err
+}
+
+func (g Git) RemoteURL(ctx context.Context, dir string) (string, error) {
+	return g.run(ctx, "-C", dir, "remote", "get-url", "origin")
+}
+
+func (g Git) Behind(ctx context.Context, dir, ref string) (int, error) {
+	branch := ref
+	if branch == "" {
+		var err error
+		if branch, err = g.DefaultBranch(ctx, dir); err != nil {
+			return 0, err
+		}
+	}
+	out, err := g.run(ctx, "-C", dir, "rev-list", "--count", "HEAD..origin/"+branch)
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	if _, err := fmt.Sscanf(out, "%d", &n); err != nil {
+		return 0, fmt.Errorf("git rev-list: unexpected %q", out)
+	}
+	return n, nil
+}
+
+func (g Git) FastForward(ctx context.Context, dir, branch string) error {
+	_, err := g.run(ctx, "-C", dir, "merge", "--ff-only", "--quiet", "origin/"+branch)
+	return err
 }

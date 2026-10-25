@@ -15,19 +15,22 @@ import (
 
 // Deps are the ports a Service needs. Adapters are wired in main.
 type Deps struct {
-	Git      Git
-	Runtime  Runtime
-	Proxy    Proxy
-	Files    Files
-	System   System
-	Store    Store
-	Config   ConfigStore
-	Releases Releases
-	Router   Router
-	Out      Output
+	Git       Git
+	Runtime   Runtime
+	Proxy     Proxy
+	Files     Files
+	System    System
+	Store     Store
+	Config    ConfigStore
+	Manifests ManifestLoader
+	Releases  Releases
+	Router    Router
+	Out       Output
+	// Progress draws slow work; nil runs it without drawing.
+	Progress Progress
 }
 
-// Service carries out the use cases against one workspace.
+// Service carries out the use cases against one project.
 type Service struct {
 	Deps
 	Workspace string
@@ -35,7 +38,7 @@ type Service struct {
 	Version   string
 }
 
-// New builds a Service for a workspace whose manifest is already parsed.
+// New builds a Service for a project whose manifest is already parsed.
 func New(deps Deps, workspace string, manifest *domain.Manifest, version string) *Service {
 	return &Service{Deps: deps, Workspace: workspace, Manifest: manifest, Version: version}
 }
@@ -72,7 +75,7 @@ func (s *Service) Resolve(arg string) (domain.UniverseState, error) {
 		}
 	}
 	if len(all) == 0 {
-		return st, fmt.Errorf("universe %q: %w — there are none yet; create one with: multiversectl new %s",
+		return st, fmt.Errorf("universe %q: %w — there are none yet; create one with: `multiversectl universe new %s`",
 			arg, domain.ErrNotFound, arg)
 	}
 	names := make([]string, 0, len(all))
@@ -84,7 +87,7 @@ func (s *Service) Resolve(arg string) (domain.UniverseState, error) {
 }
 
 // ResolveDomain turns a manifest domain of "auto" into one that suits how the
-// workspace is exposed: a public wildcard name resolving to this machine when
+// project is exposed: a public wildcard name resolving to this machine when
 // another device has to reach it, and .localhost when nothing should.
 func (s *Service) ResolveDomain(ctx context.Context) (string, error) {
 	if s.Manifest.Domain != "auto" {

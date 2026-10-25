@@ -1,8 +1,8 @@
-# Workspace manifest: the repositories a project is made of and the hostnames
+# Project manifest: the repositories a project is made of and the hostnames
 # its universes answer on. It does not describe containers — the repositories'
 # own compose files already do, and this asks them rather than repeating them.
 apiVersion: multiverse/v1alpha1
-kind: Workspace
+kind: Project
 metadata:
   name: acme
 spec:

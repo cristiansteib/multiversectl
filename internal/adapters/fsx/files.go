@@ -88,3 +88,28 @@ func (Files) TempFile(pattern string) (string, error) {
 	name := f.Name()
 	return name, f.Close()
 }
+
+// Size sums the files under path, or is the size of path if it is a file. It
+// does not follow links, so a link out of the tree is not counted as its target,
+// and what it cannot read counts as nothing: the number is for deciding what is
+// worth deleting, not for accounting.
+func (Files) Size(path string) (int64, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return 0, err
+	}
+	if !info.IsDir() {
+		return info.Size(), nil
+	}
+	var total int64
+	_ = filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+		if fi, err := d.Info(); err == nil {
+			total += fi.Size()
+		}
+		return nil
+	})
+	return total, nil
+}

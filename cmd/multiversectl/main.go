@@ -2,24 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/cli"
-	"github.com/cristiansteib/multiversectl/internal/adapters/compose"
-	"github.com/cristiansteib/multiversectl/internal/adapters/config"
-	"github.com/cristiansteib/multiversectl/internal/adapters/fsx"
-	"github.com/cristiansteib/multiversectl/internal/adapters/gitcli"
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest"
-	"github.com/cristiansteib/multiversectl/internal/adapters/release"
-	"github.com/cristiansteib/multiversectl/internal/adapters/statestore"
-	"github.com/cristiansteib/multiversectl/internal/adapters/system"
-	"github.com/cristiansteib/multiversectl/internal/adapters/traefik"
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/wire"
 )
 
 var (
@@ -29,8 +22,7 @@ var (
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	ctx := interruptible()
 
 	cmd, globals := cli.New(cli.Factory{
 		Version:   version,
@@ -39,13 +31,49 @@ func main() {
 		Workspace: workspace,
 		Bare:      bare,
 		At:        at,
+		Catalogs:  catalogs,
+		Server:    wire.Server,
+		Progress:  func() app.Progress { return wire.Machine{Ctx: interrupted}.Progress() },
+		Prompter:  func() app.Prompter { return wire.Machine{Ctx: interrupted}.Prompter() },
+		Completions: func(out app.Output) *app.Completions {
+			return wire.Machine{Version: version, Ctx: interrupted}.Completions(out)
+		},
 	})
 	if err := cmd.ExecuteContext(ctx); err != nil {
+		if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+			// Whatever the operation reported on its way out is a symptom of
+			// being stopped; saying so is what the person needs.
+			fmt.Fprintln(os.Stderr, "interrupted")
+			os.Exit(130)
+		}
 		if !cli.IsSilent(err) {
-			fmt.Fprintln(os.Stderr, errorPrefix(globals.NoColor)+err.Error())
+			fmt.Fprintln(os.Stderr, errorPrefix(globals.NoColor)+cli.Markup(err.Error(), cli.ColorEnabled(os.Stderr, globals.NoColor)))
 		}
 		os.Exit(1)
 	}
+}
+
+// interrupted ends the operations and the questions that are waiting. It is a
+// package variable because the factory functions below are called by the
+// command line without a context of their own.
+var interrupted = context.Background()
+
+// interruptible cancels the returned context on the first Ctrl+C, which lets
+// the operation stop what it started, and exits on the second, for the one that
+// does not.
+func interruptible() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	sig := make(chan os.Signal, 2)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sig
+		cancel()
+		<-sig
+		fmt.Fprintln(os.Stderr, "\nforced exit")
+		os.Exit(130)
+	}()
+	interrupted = ctx
+	return ctx
 }
 
 func errorPrefix(noColor bool) string {
@@ -55,42 +83,15 @@ func errorPrefix(noColor bool) string {
 	return "error: "
 }
 
-// deps wires every adapter. Child-process stdout is shown only with -v;
-// stderr, where the runtime reports progress and failures, always is.
-func deps(g cli.Globals, out app.Output, root string, cfg app.ConfigStore) app.Deps {
-	var childOut io.Writer = io.Discard
-	if g.Verbose {
-		childOut = os.Stdout
-	}
-	proxy := traefik.New(childOut, os.Stderr)
-	return app.Deps{
-		Git:      gitcli.New(),
-		Runtime:  compose.New(childOut, os.Stderr),
-		Proxy:    proxy,
-		Router:   proxy,
-		Files:    fsx.New(),
-		System:   system.New(),
-		Store:    statestore.New(root),
-		Config:   cfg,
-		Releases: release.New(),
-		Out:      out,
-	}
+func machine(g cli.Globals) wire.Machine {
+	return wire.Machine{Version: version, Verbose: g.Verbose, Ctx: interrupted}
 }
 
-func loadConfig() (app.ConfigStore, app.Config, error) {
-	store, err := config.New()
-	if err != nil {
-		return nil, app.Config{}, err
-	}
-	cfg, err := store.Load()
-	return store, cfg, err
-}
-
-// workspace resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the
-// manifest's own spec.root, the config file's workspace (-w, else the current
+// project resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the
+// manifest's own spec.root, the config file's project (-w, else the current
 // one), then the manifest found upwards from the current directory.
 func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
-	store, cfg, err := loadConfig()
+	store, cfg, err := wire.LoadConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +99,7 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	root := first(g.Root, os.Getenv("MULTIVERSECTL_ROOT"), saved.Root)
+	root := wire.First(g.Root, os.Getenv("MULTIVERSECTL_ROOT"), saved.Root)
 	path := g.Manifest
 	if path == "" && saved.Manifest != "" && (root == "" || root == saved.Root) {
 		path = saved.Manifest
@@ -110,8 +111,8 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 				return nil, err
 			}
 		}
-		if path, err = manifest.Locate(start); err != nil {
-			return nil, fmt.Errorf("%w (run bootstrap, or pass --manifest)", err)
+		if path, err = wire.Locate(start); err != nil {
+			return nil, fmt.Errorf("no project on this machine: `multiversectl project install <owner/repo>`  (or -f <manifest>): %w", err)
 		}
 	}
 	m, err := manifest.Load(path)
@@ -119,44 +120,22 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 		return nil, err
 	}
 	// spec.root is what lets one directory hold a manifest per project and
-	// still be usable from anywhere: multiversectl -f acme.yaml up 3.
+	// still be usable from anywhere: multiversectl -f acme.yaml universe up 3.
 	if root == "" {
-		root = first(m.Root, filepath.Dir(path))
+		root = wire.First(m.Root, filepath.Dir(path))
 	}
-	return app.New(deps(g, out, root, store), root, m, version), nil
+	return app.New(machine(g).Deps(out, root, store), root, m, version), nil
 }
 
 func at(g cli.Globals, out app.Output, root, manifestPath string) (*app.Service, error) {
-	store, _, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
-	return build(g, out, store, root, manifestPath)
+	return machine(g).At(out, root, manifestPath)
 }
 
 // bare is for commands that must work before any manifest exists.
 func bare(g cli.Globals, out app.Output) (*app.Service, error) {
-	store, _, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
-	root := first(g.Root, os.Getenv("MULTIVERSECTL_ROOT"))
-	return app.New(deps(g, out, root, store), root, nil, version), nil
+	return machine(g).Bare(out, wire.First(g.Root, os.Getenv("MULTIVERSECTL_ROOT")))
 }
 
-func build(g cli.Globals, out app.Output, store app.ConfigStore, root, path string) (*app.Service, error) {
-	m, err := manifest.Load(path)
-	if err != nil {
-		return nil, err
-	}
-	return app.New(deps(g, out, root, store), root, m, version), nil
-}
-
-func first(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
+func catalogs(g cli.Globals, out app.Output) (*app.Catalogs, error) {
+	return machine(g).Catalogs(out)
 }

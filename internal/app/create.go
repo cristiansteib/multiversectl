@@ -2,28 +2,296 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// CreateInput asks for a universe. Name is a number or a branch-like name;
-// Branch is checked out in every repository and Branches overrides it per
-// repository key. A repository named by neither gets the universe's own
-// branch, which for a named universe is its name.
+// CreateInput asks for a universe, in one of two ways that never mix.
+//
+// A new universe starts branches of its own: in every repository a branch that
+// exists nowhere yet, from the base branch, so it can never land on someone
+// else's work. Name is a number or a branch-like name, and empty means the next
+// free number; Branch names the new branch in every repository and Branches
+// overrides it per repository key. Base is where the new branches start, the
+// repository's default branch when empty, and Bases overrides it per key.
+//
+// A checkout universe (Checkout) works on branches that already exist: Branch
+// is the one to check out, Branches overrides it per key, and Name defaults to
+// the branch. A repository that lacks the branch gets a new one of that name
+// from its base, or with OnlyExisting is left at its base, detached.
 type CreateInput struct {
 	Name     string
 	Branch   string
 	Branches map[string]string
+	Base     string
+	Bases    map[string]string
 	Note     string
+
+	Checkout     bool
+	OnlyExisting bool
+}
+
+// How one repository's worktree comes about.
+type how int
+
+const (
+	keep     how = iota // the universe already has this checkout
+	fresh               // a new branch from the base
+	existing            // an existing branch, as it is
+	detached            // the base itself, with no branch
+)
+
+type repoPlan struct {
+	key, clone, dest string
+	branch, base     string
+	how              how
+	// kind is what the branch is now: only meaningful for checkouts.
+	kind RefKind
+}
+
+// created says the plan starts a branch of its own.
+func (p repoPlan) created() bool { return p.how == fresh }
+
+func (s *Service) repoKeys() []string {
+	keys := make([]string, 0, len(s.Manifest.Repos))
+	for key := range s.Manifest.Repos {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// refresh brings a clone up to date with origin, once, so a branch someone
+// pushed an hour ago counts as existing and the base is not stale.
+func (s *Service) refresh(ctx context.Context, clone string, done map[string]bool) {
+	if done[clone] {
+		return
+	}
+	done[clone] = true
+	if err := s.Git.Fetch(ctx, clone); err != nil {
+		s.Out.Warn("fetch %s: %v (continuing with what is already here)", clone, err)
+	}
+}
+
+// NextFree is the number a new universe would get: the smallest that no universe
+// has and whose branch exists in no repository, with the numbers it passed over
+// and why. A leftover branch from a universe that was removed is the usual reason.
+func (s *Service) NextFree(ctx context.Context) (int, []string, error) {
+	states, err := s.Store.List()
+	if err != nil {
+		return 0, nil, err
+	}
+	taken := map[int]bool{}
+	for _, st := range states {
+		taken[st.Number] = true
+	}
+	fetched := map[string]bool{}
+	var clones []struct{ key, dir string }
+	for _, key := range s.repoKeys() {
+		if dir := s.Manifest.CloneDir(s.Workspace, key); s.Files.Exists(dir) {
+			s.refresh(ctx, dir, fetched)
+			clones = append(clones, struct{ key, dir string }{key, dir})
+		}
+	}
+	var skipped []string
+	for n := 1; n < 100000; n++ {
+		if taken[n] || s.Files.Exists(s.Universe(strconv.Itoa(n)).Dir()) {
+			continue
+		}
+		branch := s.Manifest.DefaultBranchFor(n)
+		var where []string
+		for _, c := range clones {
+			if kind, err := s.Git.RefExists(ctx, c.dir, branch); err != nil {
+				return 0, nil, err
+			} else if kind != RefNone {
+				where = append(where, c.key)
+			}
+		}
+		if len(where) > 0 {
+			skipped = append(skipped, fmt.Sprintf("%d (branch %s exists in %s)", n, branch, strings.Join(where, ", ")))
+			continue
+		}
+		return n, skipped, nil
+	}
+	return 0, skipped, errors.New("no free universe number")
+}
+
+// BranchInfo is a branch name and the repositories that have it.
+type BranchInfo struct {
+	Name  string
+	Repos []string
+}
+
+// Branches lists the branches across the project's clones, as last fetched,
+// for choosing one to check out.
+func (s *Service) Branches(ctx context.Context) ([]BranchInfo, error) {
+	where := map[string][]string{}
+	for _, key := range s.repoKeys() {
+		dir := s.Manifest.CloneDir(s.Workspace, key)
+		if !s.Files.Exists(dir) {
+			continue
+		}
+		names, err := s.Git.Branches(ctx, dir)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
+		}
+		for _, n := range names {
+			where[n] = append(where[n], key)
+		}
+	}
+	out := make([]BranchInfo, 0, len(where))
+	for n, repos := range where {
+		out = append(out, BranchInfo{Name: n, Repos: repos})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+// plan decides what each repository gets and finds every clash before anything
+// is created, so a refusal leaves nothing behind and says everything at once.
+func (s *Service) plan(ctx context.Context, u domain.Universe, in CreateInput) ([]repoPlan, error) {
+	var plans []repoPlan
+	var problems []string
+	fetched := map[string]bool{}
+	anyHas := false
+
+	for _, key := range s.repoKeys() {
+		clone := s.Manifest.CloneDir(s.Workspace, key)
+		if !s.Files.Exists(clone) {
+			return nil, fmt.Errorf("clone `%s`: %w — run `multiversectl project update` to clone it", clone, domain.ErrNotFound)
+		}
+		p := repoPlan{key: key, clone: clone, dest: u.RepoDir(key)}
+		if s.Files.Exists(p.dest) {
+			p.how = keep
+			plans = append(plans, p)
+			continue
+		}
+		s.refresh(ctx, clone, fetched)
+
+		base := firstNonEmpty(in.Bases[key], in.Base)
+		if base == "" {
+			def, err := s.Git.DefaultBranch(ctx, clone)
+			if err != nil {
+				return nil, fmt.Errorf("%s: %w", key, err)
+			}
+			base = def
+		}
+		if kind, err := s.Git.RefExists(ctx, clone, base); err != nil {
+			return nil, err
+		} else if kind == RefNone {
+			problems = append(problems, fmt.Sprintf("%s: the base %q does not exist", key, base))
+			continue
+		}
+		p.base = base
+
+		if in.Checkout {
+			p.branch = firstNonEmpty(in.Branches[key], in.Branch)
+			if p.branch == "" {
+				// Named for another repository only: this one stays on its base.
+				p.how = detached
+				plans = append(plans, p)
+				continue
+			}
+			kind, err := s.Git.RefExists(ctx, clone, p.branch)
+			if err != nil {
+				return nil, err
+			}
+			p.kind = kind
+			switch {
+			case kind == RefNone && in.OnlyExisting:
+				p.how = detached
+			case kind == RefNone:
+				p.how = fresh
+			default:
+				anyHas = true
+				p.how = existing
+				if at, err := s.Git.CheckedOutAt(ctx, clone, p.branch); err != nil {
+					return nil, err
+				} else if at != "" {
+					problems = append(problems, fmt.Sprintf("%s: branch %q is already checked out at %s", key, p.branch, at))
+				}
+			}
+		} else {
+			p.how = fresh
+			p.branch = firstNonEmpty(in.Branches[key], in.Branch, u.DefaultBranch())
+			kind, err := s.Git.RefExists(ctx, clone, p.branch)
+			if err != nil {
+				return nil, err
+			}
+			if kind != RefNone {
+				where := "in the clone"
+				if kind == RefRemote {
+					where = "on origin"
+				}
+				problems = append(problems, fmt.Sprintf("%s: branch %q already exists (%s)", key, p.branch, where))
+			}
+		}
+		plans = append(plans, p)
+	}
+
+	if in.Checkout && !anyHas && len(problems) == 0 {
+		problems = append(problems, fmt.Sprintf("the branch %q exists in no repository", firstNonEmpty(in.Branch)))
+	}
+	if len(problems) == 0 {
+		return plans, nil
+	}
+	return nil, &ClashError{Checkout: in.Checkout, Problems: problems}
+}
+
+// ClashError is a universe that cannot be created without landing on work that
+// is not its own, with every place that happens and what to do about it.
+type ClashError struct {
+	Checkout bool
+	Problems []string
+}
+
+func (e *ClashError) Error() string {
+	var b strings.Builder
+	b.WriteString("nothing was created:")
+	for _, p := range e.Problems {
+		b.WriteString("\n  - " + p)
+	}
+	if e.Checkout {
+		b.WriteString("\n  git allows a branch in one worktree only: remove the universe that has it, or check out another branch")
+		b.WriteString("\n  to start a branch that does not exist yet, use `multiversectl universe new`")
+	} else {
+		b.WriteString("\n  a new universe never reuses a branch, so it cannot land on anyone's work:")
+		b.WriteString("\n  - leave the name out and the next free number is used")
+		b.WriteString("\n  - or work on the existing branch with `multiversectl universe checkout <branch>`")
+		b.WriteString("\n  - or delete the leftover branch yourself if it is not needed: `git branch -d <branch>` in its clone")
+	}
+	return b.String()
 }
 
 // Create scaffolds a universe: one worktree per repository, its secrets and
-// its state. It is safe to run again — existing checkouts are kept.
+// its state. It is safe to run again: existing checkouts are kept.
 func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseState, error) {
+	if in.Checkout && in.Branch == "" && len(in.Branches) == 0 {
+		return domain.UniverseState{}, errors.New("a checkout universe needs the branch to check out")
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		if in.Checkout {
+			if in.Branch == "" {
+				return domain.UniverseState{}, errors.New("a checkout universe named only by per-repository branches needs a name of its own (--name)")
+			}
+			in.Name = in.Branch
+		} else {
+			n, skipped, err := s.NextFree(ctx)
+			if err != nil {
+				return domain.UniverseState{}, err
+			}
+			for _, sk := range skipped {
+				s.Out.Info("skipped %s", sk)
+			}
+			in.Name = strconv.Itoa(n)
+		}
+	}
 	if err := domain.ValidateUniverseName(in.Name); err != nil {
 		return domain.UniverseState{}, err
 	}
@@ -33,56 +301,68 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 	if err != nil {
 		return domain.UniverseState{}, err
 	}
+	plans, err := s.plan(ctx, u, in)
+	if err != nil {
+		return domain.UniverseState{}, err
+	}
+
+	dirExisted := s.Files.Exists(u.Dir())
 	if err := s.Files.MkdirAll(u.Dir()); err != nil {
 		return domain.UniverseState{}, err
 	}
-
-	repoKeys := make([]string, 0, len(s.Manifest.Repos))
-	for key := range s.Manifest.Repos {
-		repoKeys = append(repoKeys, key)
-	}
-	sort.Strings(repoKeys)
-
 	branches := map[string]string{}
-	for _, repoKey := range repoKeys {
-		clone := s.Manifest.CloneDir(s.Workspace, repoKey)
-		if !s.Files.Exists(clone) {
-			return domain.UniverseState{}, fmt.Errorf("clone %s: %w — run bootstrap first", clone, domain.ErrNotFound)
-		}
-		branch := firstNonEmpty(in.Branches[repoKey], in.Branch, u.DefaultBranch())
-		dest := u.RepoDir(repoKey)
-		if s.Files.Exists(dest) {
-			current, err := s.Git.CurrentBranch(ctx, dest)
+	var made []repoPlan // worktrees this call added, to take back if a later one fails
+	var createdKeys []string
+	for _, p := range plans {
+		if p.how == keep {
+			current, err := s.Git.CurrentBranch(ctx, p.dest)
 			if err != nil {
-				return domain.UniverseState{}, err
+				return domain.UniverseState{}, s.rollback(ctx, made, u, dirExisted, err)
 			}
-			branches[repoKey] = current
-			s.Out.OK("%s: checkout exists on %s", repoKey, current)
+			branches[p.key] = current
+			s.Out.OK("%s: checkout exists on %s", p.key, current)
 			continue
 		}
-		if err := s.addWorktree(ctx, clone, dest, branch); err != nil {
-			return domain.UniverseState{}, fmt.Errorf("%s: %w", repoKey, err)
+		if err := s.addWorktree(ctx, p); err != nil {
+			return domain.UniverseState{}, s.rollback(ctx, made, u, dirExisted, fmt.Errorf("%s: %w", p.key, err))
 		}
-		branches[repoKey] = branch
-		s.Out.OK("%s: worktree on %s", repoKey, branch)
+		made = append(made, p)
+		switch p.how {
+		case detached:
+			branches[p.key] = "origin/" + p.base
+			s.Out.OK("%s: has no %s; checked out origin/%s, detached", p.key, p.branch, p.base)
+		case fresh:
+			branches[p.key] = p.branch
+			createdKeys = append(createdKeys, p.key)
+			s.Out.OK("%s: new branch %s from origin/%s", p.key, p.branch, p.base)
+		default:
+			branches[p.key] = p.branch
+			s.Out.OK("%s: worktree on %s", p.key, p.branch)
+		}
 	}
 
 	if err := s.copySecrets(u); err != nil {
-		return domain.UniverseState{}, err
+		return domain.UniverseState{}, s.rollback(ctx, made, u, dirExisted, err)
 	}
 
 	st := domain.UniverseState{
-		Name:     u.Name,
-		ID:       u.ID(),
-		Slug:     u.Slug(),
-		Number:   u.Number(),
-		Domain:   dom,
-		Project:  u.Project(),
-		Branches: branches,
-		Created:  time.Now().UTC(),
-		Note:     in.Note,
-		Manifest: s.Manifest.Path,
-		Version:  s.Version,
+		Name:            u.Name,
+		ID:              u.ID(),
+		Slug:            u.Slug(),
+		Number:          u.Number(),
+		Domain:          dom,
+		Project:         u.Project(),
+		Branches:        branches,
+		CreatedBranches: createdKeys,
+		Created:         time.Now().UTC(),
+		Note:            in.Note,
+		Manifest:        s.Manifest.Path,
+		Version:         s.Version,
+	}
+	// Running it again must not forget which branches the universe started:
+	// removing it later depends on knowing.
+	if old, err := s.Store.Load(u.ID()); err == nil {
+		st.CreatedBranches = mergeKeys(old.CreatedBranches, createdKeys)
 	}
 	// The checkouts exist now, so their compose files can be read for the
 	// labels that say which addresses this universe answers on.
@@ -92,9 +372,39 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 	}
 	st.Rules, st.Hosts = rules, hostnames(rules)
 	if err := s.Store.Save(st); err != nil {
-		return domain.UniverseState{}, err
+		return domain.UniverseState{}, s.rollback(ctx, made, u, dirExisted, err)
 	}
 	return st, nil
+}
+
+func mergeKeys(a, b []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, k := range append(append([]string{}, a...), b...) {
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// rollback takes back the worktrees and branches a failed Create added, so a
+// universe that could not be made does not leave half of one behind, and returns
+// the error it was given.
+func (s *Service) rollback(ctx context.Context, made []repoPlan, u domain.Universe, dirExisted bool, cause error) error {
+	for i := len(made) - 1; i >= 0; i-- {
+		p := made[i]
+		_ = s.Git.RemoveWorktree(ctx, p.clone, p.dest)
+		if p.created() {
+			_, _, _ = s.Git.DeleteBranchIfSafe(ctx, p.clone, p.branch, p.base)
+		}
+	}
+	if !dirExisted {
+		_ = s.Files.RemoveAll(u.Dir())
+	}
+	return cause
 }
 
 func firstNonEmpty(values ...string) string {
@@ -106,32 +416,32 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// addWorktree checks out an existing branch when there is one and otherwise
-// starts it from the clone's default branch.
-func (s *Service) addWorktree(ctx context.Context, clone, dest, branch string) error {
-	if err := s.Git.Fetch(ctx, clone); err != nil {
-		s.Out.Warn("fetch %s: %v (continuing with what is already here)", clone, err)
-	}
-	kind, err := s.Git.RefExists(ctx, clone, branch)
-	if err != nil {
-		return err
-	}
-	switch kind {
-	case RefLocal:
-		return s.Git.AddWorktree(ctx, clone, dest, branch, "")
-	case RefRemote:
-		return s.Git.AddWorktree(ctx, clone, dest, branch, "origin/"+branch)
-	default:
-		base, err := s.Git.DefaultBranch(ctx, clone)
-		if err != nil {
-			return err
+// addWorktree makes one repository's checkout as planned. Starting a branch
+// from the remote-tracking ref that the plan's fetch has just updated, not from
+// the clone's own copy of the base, is deliberate: that copy is left wherever it
+// last was and is routinely behind, which would start the universe on stale code
+// without saying so.
+func (s *Service) addWorktree(ctx context.Context, p repoPlan) error {
+	switch p.how {
+	case detached:
+		return s.Git.AddWorktreeDetached(ctx, p.clone, p.dest, "origin/"+p.base)
+	case existing:
+		if p.kind == RefRemote {
+			return s.Git.AddWorktree(ctx, p.clone, p.dest, p.branch, "origin/"+p.branch)
 		}
-		// Branch from the remote-tracking ref that Fetch has just updated,
-		// not from the clone's own copy of it: that one is left wherever it
-		// last was and is routinely behind, which would start the universe on
-		// stale code without saying so.
-		return s.Git.AddWorktree(ctx, clone, dest, branch, "origin/"+base)
+		return s.Git.AddWorktree(ctx, p.clone, p.dest, p.branch, "")
+	default:
+		return s.Git.AddWorktree(ctx, p.clone, p.dest, p.branch, baseRef(p.base))
 	}
+}
+
+// baseRef is the ref a new branch starts from: origin's copy of a branch name,
+// or the ref as given when it is already a tag, a commit or origin/<branch>.
+func baseRef(base string) string {
+	if strings.HasPrefix(base, "origin/") {
+		return base
+	}
+	return "origin/" + base
 }
 
 // copySecrets brings the files that are deliberately not in git — credentials

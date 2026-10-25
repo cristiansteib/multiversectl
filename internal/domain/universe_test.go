@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // A universe is identified by the name the user typed; everything else about
 // its identity is derived from it, and the derivations are what hostnames,
@@ -70,5 +73,37 @@ func TestValidateUniverseName(t *testing.T) {
 	long := "feat/" + string(make([]byte, 0)) + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	if err := ValidateUniverseName(long); err == nil {
 		t.Error("want an error for a name too long for a hostname")
+	}
+}
+
+func TestProxyClashes(t *testing.T) {
+	web := map[string]int{"web": 80}
+	a := &Manifest{Name: "acme", Proxy: Proxy{Network: "multiversenet", Entrypoints: map[string]int{"web": 80, "devapi": 8001}}}
+	b := &Manifest{Name: "beta", Proxy: Proxy{Network: "multiversenet", Entrypoints: web}}
+
+	got := strings.Join(ProxyClashes("acme", a, "beta", b), "\n")
+	if !strings.Contains(got, `acme needs proxy entrypoint "devapi" (port 8001); starting beta reconfigures`) {
+		t.Errorf("a missing entrypoint is the real clash: %q", got)
+	}
+	if strings.Contains(got, "network") || strings.Contains(got, "(port 80)") {
+		t.Errorf("sharing the default network and port 80 is the design, not a clash: %q", got)
+	}
+
+	same := &Manifest{Name: "gamma", Proxy: Proxy{Network: "multiversenet", Entrypoints: web}}
+	if c := ProxyClashes("beta", b, "gamma", same); len(c) != 0 {
+		t.Errorf("two default projects must not warn: %v", c)
+	}
+
+	other := &Manifest{Name: "delta", Proxy: Proxy{Network: "edge", Entrypoints: map[string]int{"web": 8080}}}
+	got = strings.Join(ProxyClashes("beta", b, "delta", other), "\n")
+	for _, want := range []string{"different proxy networks (multiversenet, edge)", `entrypoint "web" is port 80 for beta and 8080 for delta`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+
+	local := &Manifest{Name: "eps", Expose: ExposeLocal, Proxy: Proxy{Network: "multiversenet", Entrypoints: web}}
+	if c := strings.Join(ProxyClashes("beta", b, "eps", local), "\n"); !strings.Contains(c, "moves it") {
+		t.Errorf("a different bind address moves the proxy: %q", c)
 	}
 }

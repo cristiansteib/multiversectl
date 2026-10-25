@@ -1,0 +1,91 @@
+<section id="why">
+  <h2 id="why"><a href="#why">What a catalog is for</a></h2>
+  <p>A project manifest describes one project. A <strong>catalog</strong> answers a different question: which projects exist, and which of them should be on this machine. It is a file of pointers, so the manifests stay with the repositories they describe and nobody has to copy them.</p>
+  <p>Catalogs nest. A personal catalog can link a catalog that a team keeps in its own repository, which can link another, and each layer is edited by whoever owns that repository. A machine installs only the branches of the tree it wants.</p>
+  <p>You do not need one to use a project. <code>multiversectl project install acme/multiverse</code> works on a machine with no catalog at all; the catalog is for keeping your own index of what you work on.</p>
+</section>
+
+<section id="kinds">
+  <h2 id="kinds"><a href="#kinds">Catalog, CatalogRef and ProjectRef</a></h2>
+  <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
+<span class="k">kind</span>: Catalog
+<span class="k">metadata</span>:
+  <span class="k">name</span>: me
+<span class="k">spec</span>:
+  <span class="k">catalogs</span>:                         <span class="c"># CatalogRef: descend into another Catalog</span>
+    - <span class="k">name</span>: acme
+      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:acme/multiverse-index.git, <span class="k">ref</span>: main}
+    - <span class="k">name</span>: personal                <span class="c"># no repo: a file in this same repository</span>
+      <span class="k">source</span>: {<span class="k">path</span>: catalogs/personal.yaml}
+  <span class="k">projects</span>:                       <span class="c"># ProjectRef: a leaf</span>
+    - <span class="k">name</span>: notes
+      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:me/notes-project.git}</pre></div>
+  <table>
+    <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
+    <tbody>
+    <tr><td><code>source.repo</code></td><td>A git URL. Leave it out to mean the repository the reference is written in.</td></tr>
+    <tr><td><code>source.ref</code></td><td>Branch, tag or commit. Needs <code>repo</code>. A tag or commit makes that layer read-only.</td></tr>
+    <tr><td><code>source.path</code></td><td>Relative to the repository root, and it cannot leave it. Defaults to <code>catalog.yaml</code> or <code>multiverse.yaml</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>A node is addressed by the names that lead to it, for example <code>acme/backend/billing</code>. Names are unique among siblings. The schema is <code>schema/catalog.v1alpha1.yaml</code>.</p>
+</section>
+
+<section id="places">
+  <h2 id="places"><a href="#places">Where a node lives</a></h2>
+  <p>A repository is written as a URL, which says how it was typed and not where it is, so every place the tool shows one uses a notation that names the platform first:</p>
+  <div class="tw"><table>
+    <thead><tr><th scope="col">You see</th><th scope="col">It is</th></tr></thead>
+    <tbody>
+      <tr><td data-l="You see"><code>github:acme/api</code></td><td data-l="It is">a repository on GitHub, however its URL was written (https, ssh or <code>owner/repo</code>)</td></tr>
+      <tr><td data-l="You see"><code>gitlab:acme/team/api</code></td><td data-l="It is">a project on GitLab, groups and subgroups included</td></tr>
+      <tr><td data-l="You see"><code>git:git.example.test/acme/api</code></td><td data-l="It is">a repository on any other host, with the host named</td></tr>
+      <tr><td data-l="You see"><code>file:~/code/index/catalog.yaml</code></td><td data-l="It is">a file or directory on this machine, with <code>~</code> for your home</td></tr>
+    </tbody>
+  </table></div>
+  <p>A branch, tag or commit follows as <code>@ref</code>. Self-hosted GitHub and GitLab servers keep their host: <code>gitlab:gitlab.example.test/acme/api</code>. The tree says what each node is, as well as where it lives, whether each project is installed here (<code>✓ installed as billing</code> or <code>○ not installed</code>) and, on each catalog, how many of the projects under it are, and when a catalog shares its repository with another, which a personal catalog kept in the root's repository does, the file inside it follows:</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl catalog
+index     <span class="c">root</span>       github:me/index                              1/2 installed
+├─ personal  <span class="c">catalog</span>    github:me/index <span class="c">catalogs/personal.yaml</span>  0/1 installed
+│  └─ notes     <span class="c">project</span>  file:~/notes/multiverse.yaml           ○ not installed
+└─ acme      <span class="c">catalog</span>    gitlab:acme/index                            1/1 installed
+   └─ billing  <span class="c">project</span>  gitlab:acme/billing                        ✓ installed as billing</pre></div>
+  <p>The web page draws the same: each platform's mark beside its name, a badge for <em>root</em>, <em>catalog</em> or <em>project</em>, and the file as a chip. Hovering a location shows the URL as written. <code>status</code>, <code>project list</code> and the messages the tool prints use the notation too.</p>
+</section>
+
+<section id="root">
+  <h2 id="root"><a href="#root">The root, and how a new machine finds it</a></h2>
+  <p>Every machine starts from one catalog, its <em>root</em>, and the root has its own kind so it can be told from the catalogs of the projects hanging under it:</p>
+  <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
+<span class="k">kind</span>: CatalogRoot
+<span class="k">metadata</span>:
+  <span class="k">name</span>: me</pre></div>
+  <p>A <code>CatalogRoot</code> is a <code>Catalog</code> in every other respect: the same <code>spec</code>, and anything that reads catalogs reads it. One listed under another catalog is just a catalog there. What the kind adds is that <code>init</code> knows which one is the starting point.</p>
+  <p>On a hosting service the root's repository also carries the topic <code>multiversectl-root</code>. <code>init</code> sets it, and on a machine with nothing it searches your repositories, across your organizations too, for that topic, without cloning anything. A root made before the kind existed is a plain <code>Catalog</code>; <code>init</code> offers to mark it, which changes that one line.</p>
+</section>
+
+<section id="split">
+  <h2 id="split"><a href="#split">Three separate things</a></h2>
+  <ul class="t">
+    <li><strong>The catalog</strong> is shared and versioned: what exists. It holds pointers, never definitions.</li>
+    <li><strong>The project list</strong> is per machine, in <code>~/.config/multiversectl/config.yaml</code>: what is installed here, which one is current, and where each came from.</li>
+    <li><strong>Universes</strong> work as before. <code>new</code>, <code>up</code>, <code>ls</code> and the rest act on one project and never read a catalog.</li>
+  </ul>
+  <p>Only <code>install</code> connects the first two, and it only reads: installing never writes to a catalog. <code>catalog add</code>, <code>create</code> and <code>rm</code> are the commands that edit one.</p>
+</section>
+
+<section id="names">
+  <h2 id="names"><a href="#names">Names</a></h2>
+  <p>A project is installed under its own name, <code>billing</code>, in <code>~/multiverse/billing</code>. If that name is taken, the name above it goes in front (<code>payments-billing</code>) and then the next; <code>--name</code> overrides. The name does not change after install, so <code>-w billing</code> in a script keeps working if the catalog is reorganised. Anywhere a project name is accepted, the catalog path it was installed from is too: <code>use acme/backend/billing</code>.</p>
+  <p>Each installed project records where it came from, which is how <code>status</code> and <code>update</code> know it has drifted.</p>
+</section>
+
+<section id="failure">
+  <h2 id="failure"><a href="#failure">When a layer cannot be read</a></h2>
+  <p>A layer you have no access to, or that has a bad file, shows as <em>unavailable</em> in <code>multiversectl catalog</code>, with the reason, and the rest of the tree still resolves. Cycles and chains deeper than eight levels are cut off the same way.</p>
+</section>
+
+<section id="proxy">
+  <h2 id="proxy"><a href="#proxy">Several projects, one proxy</a></h2>
+  <p>A machine has one proxy, and starting any project rewrites it from that project's manifest. Sharing its network and its default <code>web</code> port is therefore normal. What is not is a project that needs an entrypoint another one's proxy does not have, or a different network or bind address: starting the second reconfigures the proxy and the first loses it. <code>install</code> and <code>doctor</code> name those differences, by project name.</p>
+</section>

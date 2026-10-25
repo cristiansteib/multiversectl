@@ -1,12 +1,12 @@
 <section id="what">
   <h2 id="what"><a href="#what">What it is</a></h2>
-  <p>multiversectl runs several complete copies of a multi-repository project, called <em>universes</em>, on one machine &mdash; numbered, or named after the branch they check out &mdash; so each branch or agent gets a whole environment without port collisions. It namespaces instead of virtualizing: one git worktree per repository, one container-runtime project per app, and one shared reverse proxy that routes by hostname. A new universe is a worktree and a <code>compose up</code>, seconds on the daemon and image cache you already use.</p>
+  <p>multiversectl runs several complete copies of a multi-repository project, called <em>universes</em>, on one machine &mdash; numbered, or named after the branch they check out &mdash; so each branch or agent gets a whole environment without port collisions. It namespaces instead of virtualizing: one git worktree per repository, one compose project per app, and one shared reverse proxy that routes by hostname. A new universe is a worktree and a <code>compose up</code>, seconds on the daemon and image cache you already use.</p>
   <figure class="fig">
     <svg viewBox="0 0 360 440" role="img" aria-labelledby="dt dd">
-      <title id="dt">One workspace fanning out into three universes behind one proxy</title>
-      <desc id="dd">A workspace manifest on top. Three universes below it, numbered 1 to 3, each with its own app and api hostnames. A single shared reverse proxy at the bottom routes every hostname to its universe.</desc>
+      <title id="dt">One project fanning out into three universes behind one proxy</title>
+      <desc id="dd">A project manifest on top. Three universes below it, numbered 1 to 3, each with its own app and api hostnames. A single shared reverse proxy at the bottom routes every hostname to its universe.</desc>
       <rect class="d-box" x="90" y="8" width="180" height="56" rx="8"/>
-      <text class="d-h" x="180" y="32" text-anchor="middle">workspace</text>
+      <text class="d-h" x="180" y="32" text-anchor="middle">project</text>
       <text class="d-m" x="180" y="50" text-anchor="middle">multiverse.yaml</text>
       <path class="d-line" d="M180 64V92M60 92H300M60 92V112M180 92V112M300 92V112"/>
       <g>
@@ -51,7 +51,7 @@
   <div class="cards">
     <a class="card" href="start/quickstart.html">
       <strong>Quick start</strong>
-      <span>Describe a workspace, create a universe, open it. Ten minutes from nothing.</span>
+      <span>Describe a project, create a universe, open it. Ten minutes from nothing.</span>
     </a>
     <a class="card" href="concepts/networking.html">
       <strong>Networking</strong>
@@ -71,7 +71,7 @@
     </a>
     <a class="card" href="reference/manifest.html">
       <strong>Manifest</strong>
-      <span>Every field of a workspace, with its default.</span>
+      <span>Every field of a project, with its default.</span>
     </a>
   </div>
 </section>

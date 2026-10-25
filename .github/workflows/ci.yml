@@ -10,7 +10,15 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # macOS is a release target, so it is built and tested, not only cross-compiled.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    # Branch protection requires a check named exactly "test", so the Linux job
+    # keeps that name; macOS reports beside it as "test-macos".
+    name: ${{ matrix.os == 'ubuntu-latest' && 'test' || 'test-macos' }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

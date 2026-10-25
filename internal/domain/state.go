@@ -28,11 +28,15 @@ type UniverseState struct {
 	// written before universes could be named still loads.
 	Number int `yaml:"number,omitempty"`
 
-	Domain   string               `yaml:"domain"`
-	Project  string               `yaml:"project"`
-	Branches map[string]string    `yaml:"branches"`
-	Hosts    map[string]string    `yaml:"hosts"`
-	Rules    map[string]RouteRule `yaml:"rules"`
+	Domain   string            `yaml:"domain"`
+	Project  string            `yaml:"project"`
+	Branches map[string]string `yaml:"branches"`
+	// CreatedBranches are the repositories whose branch this universe made, as
+	// against one it checked out, so removing it deletes only what it started
+	// (and only when nothing is lost) and never someone's own branch.
+	CreatedBranches []string             `yaml:"createdBranches,omitempty"`
+	Hosts           map[string]string    `yaml:"hosts"`
+	Rules           map[string]RouteRule `yaml:"rules"`
 
 	// What a universe sitting there for a week needs to be identifiable
 	// again: when it appeared, when it last ran, why it exists, and what
