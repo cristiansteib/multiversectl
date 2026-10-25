@@ -32,11 +32,26 @@ else
   die "curl or wget is required"
 fi
 
+asset="${BIN}_${os}_${arch}"
+
+# The newest release is created before its binaries are attached, so for a
+# minute or so "latest" names a tag with nothing to download. Take the newest
+# release that already carries this platform's binary and the checksums.
+latest_complete() {
+  urls=$(fetch_stdout "https://api.github.com/repos/$REPO/releases?per_page=10" |
+    sed -n 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p') || return 0
+  for tag in $(printf '%s\n' "$urls" | sed -n "s|.*/download/\([^/]*\)/$asset\$|\1|p"); do
+    if printf '%s\n' "$urls" | grep -q "/download/$tag/checksums.txt\$"; then
+      printf '%s\n' "$tag"
+      return 0
+    fi
+  done
+}
+
 version="${MULTIVERSECTL_VERSION:-}"
 if [ -z "$version" ]; then
-  version=$(fetch_stdout "https://api.github.com/repos/$REPO/releases/latest" |
-    sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
-  [ -n "$version" ] || die "could not resolve the latest release; set MULTIVERSECTL_VERSION"
+  version=$(latest_complete)
+  [ -n "$version" ] || die "could not find a release with $asset (GitHub API rate limit, or none published yet); set MULTIVERSECTL_VERSION"
 fi
 
 tmp=$(mktemp -d)
@@ -76,7 +91,6 @@ get() {
   chmod +x "$tmp/$1"
 }
 
-asset="${BIN}_${os}_${arch}"
 say "Downloading $BIN $version ($os/$arch)"
 get "$asset" || die "download failed: $base/$asset"
 # The web view (multiversectl server) is a separate program that has to sit
