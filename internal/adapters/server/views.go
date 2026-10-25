@@ -112,20 +112,28 @@ type checkoutView struct {
 }
 
 type workspaceView struct {
-	Name    string            `json:"name"`
-	Current bool              `json:"current,omitempty"`
-	Root    string            `json:"root"`
-	Domain  string            `json:"domain"`
-	Expose  string            `json:"expose"`
-	Network string            `json:"network"`
-	Proxy   map[string]int    `json:"entrypoints"`
-	Repos   []repoView        `json:"repos"`
-	Apps    []appDefView      `json:"apps"`
-	Env     map[string]string `json:"env,omitempty"`
+	Name    string `json:"name"`
+	Current bool   `json:"current,omitempty"`
+	Root    string `json:"root"`
+	// Where its pieces are, so nobody has to go looking: the definition file, where
+	// it was installed from and the folder of the universes.
+	Manifest     string            `json:"manifest,omitempty"`
+	From         string            `json:"from,omitempty"`
+	Source       string            `json:"source,omitempty"`
+	UniversesDir string            `json:"universesDir,omitempty"`
+	Domain       string            `json:"domain"`
+	Expose       string            `json:"expose"`
+	Network      string            `json:"network"`
+	Proxy        map[string]int    `json:"entrypoints"`
+	Repos        []repoView        `json:"repos"`
+	Apps         []appDefView      `json:"apps"`
+	Env          map[string]string `json:"env,omitempty"`
 }
 
 type repoView struct {
-	Key     string   `json:"key"`
+	Key string `json:"key"`
+	// Clone is the shared clone's path: where secrets go and every universe branches from.
+	Clone   string   `json:"clone,omitempty"`
 	Loc     *locView `json:"loc,omitempty"`
 	URL     string   `json:"url"`
 	Dir     string   `json:"dir"`

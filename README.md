@@ -104,6 +104,7 @@ create and remove universes from it:
 ```sh
 multiversectl server start --open   # a live page: versions, and start/stop/create/remove, behind a token
 multiversectl server stop
+multiversectl server mcp           # connect a coding agent: it speaks MCP too, several agents can each have a universe
 ```
 
 ## Quick start

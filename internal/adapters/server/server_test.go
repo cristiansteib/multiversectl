@@ -92,6 +92,9 @@ func (f *fake) Do(ctx context.Context, r opRequest, k Sink) error {
 	hold := f.hold
 	f.mu.Unlock()
 	k.Info("starting %s", r.Action)
+	if r.Action == "new" {
+		k.OK("universe 7 ready (acme-u7)") // as the real one reports the number it picked
+	}
 	_, _ = io.WriteString(k.Stdout(), "compose says hello\nsecond line")
 	if hold != nil {
 		select {
@@ -496,20 +499,37 @@ func TestRemovingNeedsTheNameTypedAndRefusesUncommittedWork(t *testing.T) {
 	}
 }
 
-func TestOnlyOneActionRunsAtATimeInAWorkspace(t *testing.T) {
+func TestUniversesRunSideBySideButAUniverseHasOneActionAtATime(t *testing.T) {
 	f := &fake{hold: make(chan struct{})}
 	_, h := serve(t, f, Options{})
 	if rec := post(t, h, `{"action":"up","project":"acme","universe":"1"}`); rec.Code != http.StatusAccepted {
 		t.Fatalf("first: %d", rec.Code)
 	}
-	if rec := post(t, h, `{"action":"up","project":"acme","universe":"2"}`); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "another operation") {
-		t.Errorf("second in the same project: %d %s", rec.Code, rec.Body)
+	// Another universe of the same project does not wait for it.
+	if rec := post(t, h, `{"action":"up","project":"acme","universe":"2"}`); rec.Code != http.StatusAccepted {
+		t.Errorf("a second universe in the same project: %d %s", rec.Code, rec.Body)
 	}
+	// The same universe does.
+	if rec := post(t, h, `{"action":"down","project":"acme","universe":"1"}`); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "another operation") {
+		t.Errorf("the same universe twice: %d %s", rec.Code, rec.Body)
+	}
+	// Creating takes the next number, so creations take turns; with nothing creating, it starts.
+	if rec := post(t, h, `{"action":"new","project":"acme"}`); rec.Code != http.StatusAccepted {
+		t.Errorf("creating while others start: %d %s", rec.Code, rec.Body)
+	}
+	if rec := post(t, h, `{"action":"new","project":"acme","name":"fix/login"}`); rec.Code != http.StatusConflict {
+		t.Errorf("two creations at once: %d %s", rec.Code, rec.Body)
+	}
+	// Changing the project waits for everything in it.
+	if rec := post(t, h, `{"action":"update","project":"acme"}`); rec.Code != http.StatusConflict {
+		t.Errorf("an update while universes are busy: %d %s", rec.Code, rec.Body)
+	}
+	// Another project is free.
 	if rec := post(t, h, `{"action":"up","project":"other","universe":"2"}`); rec.Code != http.StatusAccepted {
 		t.Errorf("another project is free: %d", rec.Code)
 	}
 	close(f.hold)
-	wait(t, "both to finish", func() bool {
+	wait(t, "everything to finish", func() bool {
 		for _, o := range listOps(t, h) {
 			if o.State == "running" {
 				return false
@@ -517,9 +537,19 @@ func TestOnlyOneActionRunsAtATimeInAWorkspace(t *testing.T) {
 		}
 		return true
 	})
-	if rec := post(t, h, `{"action":"up","project":"acme","universe":"2"}`); rec.Code != http.StatusAccepted {
-		t.Errorf("after it finished: %d", rec.Code)
+	if rec := post(t, h, `{"action":"update","project":"acme"}`); rec.Code != http.StatusAccepted {
+		t.Errorf("an update when nothing runs: %d %s", rec.Code, rec.Body)
 	}
+	// And while it runs, nothing else in the project may start.
+	f2 := &fake{hold: make(chan struct{})}
+	_, h2 := serve(t, f2, Options{})
+	if rec := post(t, h2, `{"action":"update","project":"acme"}`); rec.Code != http.StatusAccepted {
+		t.Fatalf("update: %d", rec.Code)
+	}
+	if rec := post(t, h2, `{"action":"up","project":"acme","universe":"1"}`); rec.Code != http.StatusConflict {
+		t.Errorf("a start during an update: %d %s", rec.Code, rec.Body)
+	}
+	close(f2.hold)
 }
 
 func TestBadActionsAreRefusedBeforeAnythingRuns(t *testing.T) {
