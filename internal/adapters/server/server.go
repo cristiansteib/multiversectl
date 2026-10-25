@@ -284,6 +284,14 @@ func reply(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
+// replyWith is reply with a status of its own. WriteHeader freezes the header
+// map, so the content type has to be set before it and not by reply after.
+func replyWith(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
 func fail(w http.ResponseWriter, code int, msg string) {
 	failWith(w, code, map[string]any{"error": msg})
 }

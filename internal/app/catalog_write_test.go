@@ -608,3 +608,41 @@ func TestAddAFileThatIsNeitherIsRefused(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestAddReadsCatalogYamlRatherThanTrustingItsName(t *testing.T) {
+	// A project whose repository also holds a catalog.yaml of someone else's
+	// kind. It is a project, and reading the name alone sent it down the
+	// catalog path, where it could never be added at all.
+	proj := manifestRepo(t, "billing")
+	write(t, proj, "catalog.yaml", "apiVersion: backstage.io/v1alpha1\nkind: Component\nmetadata:\n  name: billing\n")
+	git := &fakeRepos{repos: map[string]string{"https://github.com/acme/billing.git": proj}}
+	r := newRig(t, git)
+	r.Yes = true
+
+	if _, err := r.Add(context.Background(), app.AddInput{Repo: "acme/billing", At: "/", AtGiven: true}); err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := r.tree(t).Find("billing"); !ok || n.Kind != domain.WorkspaceNode || n.Source.Path != "multiverse.yaml" {
+		t.Errorf("it should be listed as a project: %+v", n)
+	}
+}
+
+func TestAddTakesTheDirectoryTheManifestIsIn(t *testing.T) {
+	repo := t.TempDir()
+	write(t, repo, filepath.Join("services", "billing", "multiverse.yaml"),
+		"apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: billing\n")
+	git := &fakeRepos{repos: map[string]string{"https://github.com/acme/mono.git": repo}}
+	r := newRig(t, git)
+	r.Yes = true
+
+	node, err := r.Add(context.Background(), app.AddInput{Repo: "acme/mono", Path: "services/billing", At: "/", AtGiven: true})
+	if err != nil {
+		t.Fatalf("--path may name the directory the manifest sits in: %v", err)
+	}
+	if node != "billing" {
+		t.Errorf("node = %q", node)
+	}
+	if n, ok := r.tree(t).Find("billing"); !ok || n.Source.Path != "services/billing/multiverse.yaml" {
+		t.Errorf("the entry should point at the manifest inside the directory: %+v", n)
+	}
+}

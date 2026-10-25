@@ -249,6 +249,67 @@ func TestActionsNeedTheHeaderTheOriginAndAWritableServer(t *testing.T) {
 	}
 }
 
+// guard puts GET and HEAD together as reads, and applies the read-only refusal
+// and the CSRF header to POST alone. A HEAD carrying a body therefore reached
+// the ops endpoint having passed neither, and it started the operation.
+func TestOnlyAPostStartsAnOperation(t *testing.T) {
+	const body = `{"action":"rm","project":"acme","universe":"1","confirm":"1","force":true}`
+	for _, method := range []string{"HEAD", "GET"} {
+		f := &fake{}
+		_, ro := serve(t, f, Options{ReadOnly: true})
+		if rec := do(t, ro, method, "/api/ops", body, nil); rec.Code != 200 {
+			t.Errorf("%s on a read-only server: %d %s", method, rec.Code, rec.Body)
+		}
+		f.mu.Lock()
+		did := len(f.did)
+		f.mu.Unlock()
+		if did != 0 {
+			t.Errorf("%s started %d operations on a read-only server", method, did)
+		}
+
+		// Not read-only either: without the CSRF header nothing may start.
+		g := &fake{}
+		_, rw := serve(t, g, Options{})
+		if rec := do(t, rw, method, "/api/ops", body, nil); rec.Code != 200 {
+			t.Errorf("%s: %d %s", method, rec.Code, rec.Body)
+		}
+		g.mu.Lock()
+		did = len(g.did)
+		g.mu.Unlock()
+		if did != 0 {
+			t.Errorf("%s without %s started %d operations", method, csrfHeader, did)
+		}
+	}
+}
+
+// WriteHeader freezes the header map, so a 202 has to carry its content type
+// before it and not from reply afterwards. Over a real connection, not a
+// recorder: a ResponseRecorder hands back the live map and cannot show it.
+func TestAnAcceptedOperationSaysItIsJSON(t *testing.T) {
+	s, _ := serve(t, &fake{}, Options{})
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	req, err := http.NewRequest("POST", ts.URL+"/api/ops", strings.NewReader(`{"action":"up","project":"acme","universe":"1"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+	req.Header.Set(csrfHeader, csrfValue)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		t.Fatalf("%d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "application/json") {
+		t.Errorf("Content-Type %q; nosniff then tells the client to read JSON as text", got)
+	}
+}
+
 func TestOnlyThisMachineMayAskUnlessExposed(t *testing.T) {
 	_, closed := serve(t, &fake{}, Options{})
 	_, open := serve(t, &fake{}, Options{Expose: true})

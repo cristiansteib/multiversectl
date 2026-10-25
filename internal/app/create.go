@@ -53,6 +53,9 @@ type repoPlan struct {
 	how              how
 	// kind is what the branch is now: only meaningful for checkouts.
 	kind RefKind
+	// baseKind is where the base was found, which decides the ref a new
+	// branch starts from.
+	baseKind RefKind
 }
 
 // created says the plan starts a branch of its own.
@@ -77,6 +80,19 @@ func (s *Service) refresh(ctx context.Context, clone string, done map[string]boo
 	if err := s.Git.Fetch(ctx, clone); err != nil {
 		s.Out.Warn("fetch %s: %v (continuing with what is already here)", clone, err)
 	}
+}
+
+// hasBranch says whether a clone knows a branch, its own or origin's copy.
+// No name is no branch, and so not found.
+func (s *Service) hasBranch(ctx context.Context, clone, branch string) (bool, error) {
+	if branch == "" {
+		return false, nil
+	}
+	kind, err := s.Git.RefExists(ctx, clone, branch)
+	if err != nil {
+		return false, err
+	}
+	return kind != RefNone, nil
 }
 
 // NextFree is the number a new universe would get: the smallest that no universe
@@ -169,6 +185,17 @@ func (s *Service) plan(ctx context.Context, u domain.Universe, in CreateInput) (
 		p := repoPlan{key: key, clone: clone, dest: u.RepoDir(key)}
 		if s.Files.Exists(p.dest) {
 			p.how = keep
+			// The worktree is kept as it is, but it still answers the question
+			// the guard below asks: a checkout whose worktrees are all here
+			// already is a re-run, and asking none of them left it reporting
+			// that the branch existed in no repository.
+			if in.Checkout {
+				has, err := s.hasBranch(ctx, clone, firstNonEmpty(in.Branches[key], in.Branch))
+				if err != nil {
+					return nil, err
+				}
+				anyHas = anyHas || has
+			}
 			plans = append(plans, p)
 			continue
 		}
@@ -182,13 +209,15 @@ func (s *Service) plan(ctx context.Context, u domain.Universe, in CreateInput) (
 			}
 			base = def
 		}
-		if kind, err := s.Git.RefExists(ctx, clone, base); err != nil {
+		baseKind, err := s.Git.RefExists(ctx, clone, base)
+		if err != nil {
 			return nil, err
-		} else if kind == RefNone {
+		}
+		if baseKind == RefNone {
 			problems = append(problems, fmt.Sprintf("%s: the base %q does not exist", key, base))
 			continue
 		}
-		p.base = base
+		p.base, p.baseKind = base, baseKind
 
 		if in.Checkout {
 			p.branch = firstNonEmpty(in.Branches[key], in.Branch)
@@ -424,21 +453,25 @@ func firstNonEmpty(values ...string) string {
 func (s *Service) addWorktree(ctx context.Context, p repoPlan) error {
 	switch p.how {
 	case detached:
-		return s.Git.AddWorktreeDetached(ctx, p.clone, p.dest, "origin/"+p.base)
+		return s.Git.AddWorktreeDetached(ctx, p.clone, p.dest, baseRef(p.base, p.baseKind))
 	case existing:
 		if p.kind == RefRemote {
 			return s.Git.AddWorktree(ctx, p.clone, p.dest, p.branch, "origin/"+p.branch)
 		}
 		return s.Git.AddWorktree(ctx, p.clone, p.dest, p.branch, "")
 	default:
-		return s.Git.AddWorktree(ctx, p.clone, p.dest, p.branch, baseRef(p.base))
+		return s.Git.AddWorktree(ctx, p.clone, p.dest, p.branch, baseRef(p.base, p.baseKind))
 	}
 }
 
-// baseRef is the ref a new branch starts from: origin's copy of a branch name,
-// or the ref as given when it is already a tag, a commit or origin/<branch>.
-func baseRef(base string) string {
-	if strings.HasPrefix(base, "origin/") {
+// baseRef is the ref a new branch starts from: origin's copy of the base when
+// origin has it, and the clone's own branch when that is where the plan found
+// it. Preferring origin's copy is deliberate — see addWorktree — but a base
+// that exists in the clone alone has no copy there, and asking for one made
+// git fail on a base the plan had just accepted. Only the two kinds RefExists
+// resolves can get this far: a tag or a commit is refused as a base before it.
+func baseRef(base string, kind RefKind) string {
+	if kind == RefLocal {
 		return base
 	}
 	return "origin/" + base

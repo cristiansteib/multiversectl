@@ -159,7 +159,10 @@ func (s *Service) checkWorkspaces(add addCheck) {
 	mine := s.Manifest.Name
 	for _, name := range names {
 		path := cfg.Workspaces[name].Manifest
-		if path == s.Manifest.Path {
+		// Not a string comparison: -f takes a relative path, while the config
+		// records an absolute one, and this project would then be counted and
+		// compared as another one.
+		if samePath(path, s.Manifest.Path) {
 			continue
 		}
 		other, err := s.Manifests.Load(path)

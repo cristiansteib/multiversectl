@@ -157,7 +157,9 @@ func (r runner) programItems(bare *app.Service) []app.Item {
 	}
 	items := make([]app.Item, 0, len(paths))
 	for _, p := range paths {
-		it := app.Item{Kind: "program", What: filepath.Base(p), Path: p, Size: -1, Remove: "rm " + p}
+		// Quoted, because --script writes these out to be run: a binary under a
+		// path with a space in it would otherwise become two arguments to rm.
+		it := app.Item{Kind: "program", What: filepath.Base(p), Path: p, Size: -1, Remove: "rm " + shellQuote(p)}
 		if n, err := bare.Files.Size(p); err == nil {
 			it.Size = n
 		}

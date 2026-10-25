@@ -150,7 +150,17 @@ func gh(ctx context.Context, args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
-		return "", errors.New(strings.TrimSpace(stderr.String()))
+		// gh usually explains itself on stderr. When it says nothing at all,
+		// the exit status is all there is, and an error whose message is empty
+		// reaches the user as a bare "error:".
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = strings.TrimSpace(stdout.String())
+		}
+		if msg == "" {
+			return "", fmt.Errorf("gh %s: %w", strings.Join(args, " "), err)
+		}
+		return "", errors.New(msg)
 	}
 	return stdout.String(), nil
 }

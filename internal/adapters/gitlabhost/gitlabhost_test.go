@@ -81,3 +81,43 @@ func TestRootsAreFoundByTopicAndTaggedWithoutLosingTopics(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The API addresses a project by its escaped path, which has to come from the
+// URL's platform and path and not from trimming the text of an https URL.
+func TestProjectIDIsThePathWhateverTheURLLooksLike(t *testing.T) {
+	for _, tc := range []struct{ url, want string }{
+		{"https://gitlab.com/me/index.git", "me%2Findex"},
+		{"https://gitlab.com/me/index", "me%2Findex"},
+		{"git@gitlab.com:me/index.git", "me%2Findex"},
+		{"ssh://git@gitlab.com/me/index.git", "me%2Findex"},
+		{"git@gitlab.com:grp/sub/index.git", "grp%2Fsub%2Findex"},
+		{"https://gitlab.example.test/grp/index.git", "grp%2Findex"},
+	} {
+		got, err := projectID(tc.url)
+		if err != nil || got != tc.want {
+			t.Errorf("projectID(%q) = %q, %v; want %q", tc.url, got, err, tc.want)
+		}
+	}
+	for _, bad := range []string{"https://github.com/me/index.git", "git@git.acme.test:infra/gitlab-runner-config.git", ""} {
+		if _, err := projectID(bad); err == nil {
+			t.Errorf("projectID(%q) must refuse a URL that is not a GitLab project", bad)
+		}
+	}
+}
+
+func TestOwnsAsksThePlatformNotTheText(t *testing.T) {
+	for _, tc := range []struct {
+		url  string
+		want bool
+	}{
+		{"https://gitlab.com/me/index.git", true},
+		{"git@gitlab.com:me/index.git", true},
+		{"https://gitlab.example.test/grp/index.git", true},
+		{"https://github.com/acme/gitlab-exporter.git", false},
+		{"https://git.acme.test/infra/gitlab-runner-config.git", false},
+	} {
+		if got := (Host{}).Owns(tc.url); got != tc.want {
+			t.Errorf("Owns(%q) = %v, want %v", tc.url, got, tc.want)
+		}
+	}
+}

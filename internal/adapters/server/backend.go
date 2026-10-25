@@ -336,9 +336,20 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 	return fmt.Errorf("unknown action %q", r.Action)
 }
 
+// refreshCatalog is the part of update that works in the catalog clone, under
+// the lock Status and Catalog hold while they read it: two git processes in one
+// clone contend, and this one was taking none. The lock covers this call alone
+// — the cloning that may follow takes minutes, and holding it across that would
+// stall every read the page makes.
+func (s Services) refreshCatalog(ctx context.Context, w app.WorkspaceInfo) (app.UpdateResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Catalogs.RefreshWorkspace(ctx, w.Name, w.WorkspaceEntry)
+}
+
 // update is what `catalog update` does for one project.
 func (s Services) update(ctx context.Context, w app.WorkspaceInfo, svc *app.Service, k Sink) error {
-	res, err := s.Catalogs.RefreshWorkspace(ctx, w.Name, w.WorkspaceEntry)
+	res, err := s.refreshCatalog(ctx, w)
 	if err != nil {
 		return err
 	}

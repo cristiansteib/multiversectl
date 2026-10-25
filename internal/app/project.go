@@ -380,6 +380,35 @@ func repoBase(url string) string {
 // written: the ssh and https forms of one repository are one.
 func sameRepo(a, b string) bool { return canonical(a) == canonical(b) }
 
+// samePath says two paths name the same directory. git reports a work tree's
+// top level with symbolic links resolved, while a path from filepath.Abs is
+// resolved logically, so comparing the text alone makes a directory reached
+// through a link — macOS's /tmp, a symlinked home or work directory — look
+// like a directory nested inside another repository.
+func samePath(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	ra, erra := filepath.EvalSymlinks(a)
+	rb, errb := filepath.EvalSymlinks(b)
+	return erra == nil && errb == nil && ra == rb
+}
+
+// relWithin is dir's path inside top, for the same reason: comparing the two
+// forms directly would answer with a ../ path that leaves the repository.
+func relWithin(top, dir string) (string, error) {
+	rel, err := filepath.Rel(top, dir)
+	if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return rel, nil
+	}
+	rt, terr := filepath.EvalSymlinks(top)
+	rd, derr := filepath.EvalSymlinks(dir)
+	if terr != nil || derr != nil {
+		return rel, err
+	}
+	return filepath.Rel(rt, rd)
+}
+
 func canonical(url string) string {
 	u := strings.ToLower(strings.TrimSpace(url))
 	for _, p := range []string{"https://", "http://", "ssh://", "git://"} {
@@ -580,7 +609,7 @@ func (c *Catalogs) projectTarget(ctx context.Context, hosts *hostChecks, in Proj
 	}
 
 	origin := ""
-	if top, err := c.Git.Toplevel(ctx, dir); err == nil && filepath.Clean(top) == dir {
+	if top, err := c.Git.Toplevel(ctx, dir); err == nil && samePath(top, dir) {
 		origin, _ = c.Git.RemoteURL(ctx, dir)
 	}
 	var opts []Option
@@ -670,7 +699,7 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 		if err := c.Git.Init(ctx, dir); err != nil {
 			return "", err
 		}
-	} else if filepath.Clean(top) != dir {
+	} else if !samePath(top, dir) {
 		return "", fmt.Errorf("%s is inside the git repository %s; a project's repository is its own directory", dir, top)
 	}
 	if url != "" {
