@@ -20,7 +20,7 @@ var commandGroups = map[string]string{
 	"use": groupCatalog, "status": groupCatalog, "update": groupCatalog,
 	"new": groupUniverse, "up": groupUniverse, "down": groupUniverse, "rm": groupUniverse,
 	"ls": groupUniverse, "urls": groupUniverse, "env": groupUniverse, "run": groupUniverse,
-	"exec": groupUniverse, "doctor": groupUniverse, "proxy": groupUniverse, "server": groupUniverse,
+	"exec": groupUniverse, "doctor": groupUniverse, "proxy": groupUniverse,
 }
 
 // groupCommands sorts the help into those groups and colours it. Each group

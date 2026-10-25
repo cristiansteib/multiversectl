@@ -82,8 +82,9 @@
   <p class="lede">A read-only web view of the catalog tree, the workspaces installed here and the fleet of universes, with doctor on demand.</p>
 <section id="hw-server">
   <h2 id="hw-server"><a href="#hw-server">See the whole setup in a page</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl server --open
-✓ serving http://127.0.0.1:7777 (read-only; Ctrl-C stops it)</pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl-server --open
+serving http://127.0.0.1:7777 (read-only; Ctrl-C stops it)</pre></div>
+  <p><code>multiversectl-server</code> is a separate program from <code>multiversectl</code>, built from the same project: the command line carries no web server, and you install the server only where you want it. <code>make install</code> and the release archives and the <code>.deb</code> include both; the release also publishes a raw <code>multiversectl-server_&lt;os&gt;_&lt;arch&gt;</code> binary. It reads the same configuration, so it shows whatever <code>multiversectl</code> has installed.</p>
   <p>One page, three views, refreshed every ten seconds while it is open:</p>
   <ul class="t">
     <li><strong>Overview</strong>: the root catalog, the workspaces installed here, and where each has drifted, as <code>status</code> shows it. <em>Fetch remotes and compare</em> is <code>status --fetch</code>.</li>

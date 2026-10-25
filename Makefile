@@ -1,5 +1,6 @@
 GO ?= go
 BIN ?= dist/multiversectl
+SERVER_BIN ?= dist/multiversectl-server
 PREFIX ?= $(HOME)/.local/bin
 SCHEMA = schema/workspace.v1alpha1.yaml
 TYPES = internal/adapters/manifest/v1alpha1/types.go
@@ -13,12 +14,14 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-build: ## Build the binary into dist/
+build: ## Build both binaries into dist/
 	$(GO) build -o $(BIN) ./cmd/multiversectl
+	$(GO) build -o $(SERVER_BIN) ./cmd/multiversectl-server
 
 install: ## Build and install into $(PREFIX) (default ~/.local/bin)
 	$(GO) build -o $(PREFIX)/multiversectl ./cmd/multiversectl
-	@echo "installed $(PREFIX)/multiversectl"
+	$(GO) build -o $(PREFIX)/multiversectl-server ./cmd/multiversectl-server
+	@echo "installed $(PREFIX)/multiversectl and $(PREFIX)/multiversectl-server"
 
 test: ## Run the tests
 	$(GO) test ./...

@@ -3,28 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
-	"github.com/cristiansteib/multiversectl/internal/adapters/catalog"
 	"github.com/cristiansteib/multiversectl/internal/adapters/cli"
-	"github.com/cristiansteib/multiversectl/internal/adapters/compose"
-	"github.com/cristiansteib/multiversectl/internal/adapters/config"
-	"github.com/cristiansteib/multiversectl/internal/adapters/fsx"
-	"github.com/cristiansteib/multiversectl/internal/adapters/gitcli"
-	"github.com/cristiansteib/multiversectl/internal/adapters/githost"
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest"
-	"github.com/cristiansteib/multiversectl/internal/adapters/prompt"
-	"github.com/cristiansteib/multiversectl/internal/adapters/release"
-	"github.com/cristiansteib/multiversectl/internal/adapters/server"
-	"github.com/cristiansteib/multiversectl/internal/adapters/statestore"
-	"github.com/cristiansteib/multiversectl/internal/adapters/system"
-	"github.com/cristiansteib/multiversectl/internal/adapters/traefik"
 	"github.com/cristiansteib/multiversectl/internal/app"
-	"github.com/cristiansteib/multiversectl/internal/domain"
+	"github.com/cristiansteib/multiversectl/internal/wire"
 )
 
 var (
@@ -45,7 +32,6 @@ func main() {
 		Bare:      bare,
 		At:        at,
 		Catalogs:  catalogs,
-		Serve:     serve,
 	})
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		if !cli.IsSilent(err) {
@@ -62,43 +48,15 @@ func errorPrefix(noColor bool) string {
 	return "error: "
 }
 
-// deps wires every adapter. Child-process stdout is shown only with -v;
-// stderr, where the runtime reports progress and failures, always is.
-func deps(g cli.Globals, out app.Output, root string, cfg app.ConfigStore) app.Deps {
-	var childOut io.Writer = io.Discard
-	if g.Verbose {
-		childOut = os.Stdout
-	}
-	proxy := traefik.New(childOut, os.Stderr)
-	return app.Deps{
-		Git:       gitcli.New(),
-		Runtime:   compose.New(childOut, os.Stderr),
-		Proxy:     proxy,
-		Router:    proxy,
-		Files:     fsx.New(),
-		System:    system.New(),
-		Store:     statestore.New(root),
-		Config:    cfg,
-		Manifests: manifestLoader{},
-		Releases:  release.New(),
-		Out:       out,
-	}
-}
-
-func loadConfig() (app.ConfigStore, app.Config, error) {
-	store, err := config.New()
-	if err != nil {
-		return nil, app.Config{}, err
-	}
-	cfg, err := store.Load()
-	return store, cfg, err
+func machine(g cli.Globals) wire.Machine {
+	return wire.Machine{Version: version, Verbose: g.Verbose}
 }
 
 // workspace resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the
 // manifest's own spec.root, the config file's workspace (-w, else the current
 // one), then the manifest found upwards from the current directory.
 func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
-	store, cfg, err := loadConfig()
+	store, cfg, err := wire.LoadConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +64,7 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	root := first(g.Root, os.Getenv("MULTIVERSECTL_ROOT"), saved.Root)
+	root := wire.First(g.Root, os.Getenv("MULTIVERSECTL_ROOT"), saved.Root)
 	path := g.Manifest
 	if path == "" && saved.Manifest != "" && (root == "" || root == saved.Root) {
 		path = saved.Manifest
@@ -118,7 +76,7 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 				return nil, err
 			}
 		}
-		if path, err = manifest.Locate(start); err != nil {
+		if path, err = wire.Locate(start); err != nil {
 			return nil, fmt.Errorf("no workspace on this machine: multiversectl install <owner/repo>  (or -f <manifest>): %w", err)
 		}
 	}
@@ -129,86 +87,20 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 	// spec.root is what lets one directory hold a manifest per project and
 	// still be usable from anywhere: multiversectl -f acme.yaml up 3.
 	if root == "" {
-		root = first(m.Root, filepath.Dir(path))
+		root = wire.First(m.Root, filepath.Dir(path))
 	}
-	return app.New(deps(g, out, root, store), root, m, version), nil
+	return app.New(machine(g).Deps(out, root, store), root, m, version), nil
 }
 
 func at(g cli.Globals, out app.Output, root, manifestPath string) (*app.Service, error) {
-	store, _, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
-	return build(g, out, store, root, manifestPath)
+	return machine(g).At(out, root, manifestPath)
 }
 
 // bare is for commands that must work before any manifest exists.
 func bare(g cli.Globals, out app.Output) (*app.Service, error) {
-	store, _, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
-	root := first(g.Root, os.Getenv("MULTIVERSECTL_ROOT"))
-	return app.New(deps(g, out, root, store), root, nil, version), nil
+	return machine(g).Bare(out, wire.First(g.Root, os.Getenv("MULTIVERSECTL_ROOT")))
 }
 
 func catalogs(g cli.Globals, out app.Output) (*app.Catalogs, error) {
-	store, _, err := loadConfig()
-	if err != nil {
-		return nil, err
-	}
-	d := deps(g, out, "", store)
-	return app.NewCatalogs(app.CatalogDeps{
-		Git:       d.Git,
-		Files:     d.Files,
-		Decoder:   catalog.Decoder{},
-		Editor:    catalog.Editor{},
-		Prompt:    prompt.New(),
-		Host:      githost.New(),
-		Config:    store,
-		Manifests: manifestLoader{},
-		Out:       out,
-		CacheDir:  filepath.Join(filepath.Dir(store.Path()), "catalogs"),
-	}), nil
-}
-
-func build(g cli.Globals, out app.Output, store app.ConfigStore, root, path string) (*app.Service, error) {
-	m, err := manifest.Load(path)
-	if err != nil {
-		return nil, err
-	}
-	return app.New(deps(g, out, root, store), root, m, version), nil
-}
-
-func first(values ...string) string {
-	for _, v := range values {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
-}
-
-// manifestLoader adapts manifest.Load to the app.ManifestLoader port.
-type manifestLoader struct{}
-
-func (manifestLoader) Load(path string) (*domain.Manifest, error) { return manifest.Load(path) }
-
-// serve wires the web view. The services it reads are built with a quiet
-// output: a server has no terminal, and a request that wants a service's
-// warnings collects them itself.
-func serve(ctx context.Context, g cli.Globals, _ app.Output, o cli.ServeOptions, ready func(url string)) error {
-	quiet := server.Quiet()
-	cats, err := catalogs(g, quiet)
-	if err != nil {
-		return err
-	}
-	machine, err := bare(g, quiet)
-	if err != nil {
-		return err
-	}
-	backend := server.NewServices(cats, machine, func(out app.Output, root, manifestPath string) (*app.Service, error) {
-		return at(g, out, root, manifestPath)
-	})
-	return server.Serve(ctx, backend, server.Options{Addr: o.Addr, Version: version, Expose: o.Expose}, ready)
+	return machine(g).Catalogs(out)
 }
