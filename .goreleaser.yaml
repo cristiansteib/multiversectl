@@ -59,7 +59,7 @@ brews:
       branch: main
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     directory: Formula
-    homepage: https://cristiansteib.github.io/multiversectl/
+    homepage: https://multiversectl.dev/
     description: Run several complete copies of a multi-repository project side by side on one machine.
     license: Apache-2.0
     commit_author:

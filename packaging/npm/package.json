@@ -3,7 +3,7 @@
   "version": "0.0.2",
   "description": "Run several complete copies of a multi-repository project side by side on one machine",
   "keywords": ["docker", "compose", "git-worktree", "development", "traefik", "cli"],
-  "homepage": "https://cristiansteib.github.io/multiversectl/",
+  "homepage": "https://multiversectl.dev/",
   "bugs": "https://github.com/cristiansteib/multiversectl/issues",
   "license": "Apache-2.0",
   "author": "Cristian Steib",
