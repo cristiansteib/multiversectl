@@ -73,14 +73,14 @@ func TestACheckedOutBranchIsFoundWhereItIs(t *testing.T) {
 		t.Fatal(err)
 	}
 	at, err := g.CheckedOutAt(context.Background(), clone, "u3")
-	if err != nil || filepath.Clean(at) != filepath.Clean(dest) {
+	if err != nil || !samePath(at, dest) {
 		t.Errorf("u3 is at %q (%v), want %q", at, err, dest)
 	}
 	if at, _ := g.CheckedOutAt(context.Background(), clone, "nowhere"); at != "" {
 		t.Errorf("a branch that is not checked out is at %q", at)
 	}
 	// The branch of the shared clone itself counts too.
-	if at, _ := g.CheckedOutAt(context.Background(), clone, "main"); filepath.Clean(at) != filepath.Clean(clone) {
+	if at, _ := g.CheckedOutAt(context.Background(), clone, "main"); !samePath(at, clone) {
 		t.Errorf("main is at %q, want the clone %q", at, clone)
 	}
 }
@@ -94,7 +94,7 @@ func TestADetachedWorktreeTakesNoBranch(t *testing.T) {
 	if head := git(t, dest, "rev-parse", "--abbrev-ref", "HEAD"); head != "HEAD" {
 		t.Errorf("HEAD = %q, want detached", head)
 	}
-	if at, _ := (Git{}).CheckedOutAt(context.Background(), clone, "main"); filepath.Clean(at) != filepath.Clean(clone) {
+	if at, _ := (Git{}).CheckedOutAt(context.Background(), clone, "main"); !samePath(at, clone) {
 		t.Errorf("a detached worktree must not take main from the clone: %q", at)
 	}
 }
@@ -158,4 +158,15 @@ func TestABranchIsDeletedOnlyWhenNothingIsLost(t *testing.T) {
 			t.Errorf("deleted %v, why %q, err %v", deleted, why, err)
 		}
 	})
+}
+
+// samePath compares real locations: git reports the resolved path, and on macOS
+// the temp directory is reached through a symlink (/var -> /private/var).
+func samePath(a, b string) bool {
+	ra, errA := filepath.EvalSymlinks(a)
+	rb, errB := filepath.EvalSymlinks(b)
+	if errA != nil || errB != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
 }
