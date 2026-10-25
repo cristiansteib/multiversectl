@@ -1,0 +1,44 @@
+<section id="hw-init">
+  <h2 id="hw-init"><a href="#hw-init">Set up your root catalog</a></h2>
+  <div class="code"><pre><span class="c"># asks: an existing repository, a new private one, or local only</span>
+<span class="p">$ </span>multiversectl init
+<span class="c"># or say it with flags</span>
+<span class="p">$ </span>multiversectl init --create multiverse-index
+<span class="p">$ </span>multiversectl init --repo git@example.test:me/multiverse-index.git
+<span class="p">$ </span>multiversectl init --local ~/multiverse-index</pre></div>
+  <p><code>--create</code> uses the GitHub CLI and makes the repository <strong>private</strong>; <code>--public</code> is the only way to make it public. Without <code>gh</code> installed and logged in, create the repository yourself and pass <code>--repo</code>. A repository that already holds a <code>catalog.yaml</code> is used as it is. Creating a repository and pushing both ask first; <code>--yes</code> accepts them for scripts.</p>
+</section>
+
+<section id="hw-nest">
+  <h2 id="hw-nest"><a href="#hw-nest">Nest another catalog</a></h2>
+  <div class="code"><pre><span class="c"># asks which catalog it goes in, and whether it gets a repository of its own</span>
+<span class="p">$ </span>multiversectl catalog create acme
+<span class="c"># or decide up front</span>
+<span class="p">$ </span>multiversectl catalog create acme --new-repo acme-index --at /
+<span class="p">$ </span>multiversectl catalog create personal --same-repo --at /
+<span class="c"># link a catalog someone else already keeps</span>
+<span class="p">$ </span>multiversectl catalog add catalog git@example.test:acme/multiverse-index.git --at /</pre></div>
+  <p>The new catalog can live as a file in its parent's repository, in a repository you already have, or in a new private one.</p>
+</section>
+
+<section id="hw-add">
+  <h2 id="hw-add"><a href="#hw-add">List a workspace</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl catalog add workspace git@example.test:acme/api-workspace.git --at acme
+<span class="p">$ </span>multiversectl catalog tree
+index
+  acme                     catalog
+    api                    workspace  git@example.test:acme/api-workspace.git multiverse.yaml</pre></div>
+  <p>The name comes from the manifest's <code>metadata.name</code> unless <code>--name</code> says otherwise. Writes go to the file that owns the catalog you picked, are committed, and, in a remote repository, pushed after you confirm. If someone pushed first the command says so and leaves your copy clean. <code>catalog rm &lt;path&gt;</code> takes an entry out; what it pointed at is untouched.</p>
+</section>
+
+<section id="hw-install">
+  <h2 id="hw-install"><a href="#hw-install">Install only what this machine needs</a></h2>
+  <div class="code"><pre><span class="c"># one workspace, or everything under a catalog</span>
+<span class="p">$ </span>multiversectl install acme/api
+<span class="p">$ </span>multiversectl install acme personal/fichero
+<span class="c"># no path: pick from a list</span>
+<span class="p">$ </span>multiversectl install
+<span class="p">$ </span>multiversectl workspaces
+<span class="p">$ </span>multiversectl use acme-api</pre></div>
+  <p>Each workspace is cloned under <code>~/multiverse/&lt;catalog path&gt;</code> (<code>--base</code> changes it) and recorded as <code>acme-api</code>. Installing does not switch the current workspace, and one that is already installed is skipped. If two installed workspaces would publish the same proxy port or share a proxy network, <code>install</code> says so, because only one proxy can bind it. <code>catalog sync</code> fetches every catalog repository again; <code>uninstall &lt;name&gt;</code> forgets a workspace and leaves its files.</p>
+</section>

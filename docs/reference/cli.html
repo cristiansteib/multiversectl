@@ -46,12 +46,14 @@
         <li><a href="../concepts/storage.html">Storage and data</a></li>
         <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
         <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
       </ul>
       <p class="nav-h">Tasks</p>
       <ul>
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -85,9 +87,16 @@
   <tr><td data-l="Command"><code>bootstrap &lt;manifest&gt;</code></td><td data-l="What it does">Set up a workspace: record it, clone its repos, run <code>doctor</code>. Takes a path or a git URL. <code>--name</code> sets the name it is recorded under (default: from the root directory); other recorded workspaces are kept.</td><td data-l="Example"><code>multiversectl bootstrap ./multiverse.yaml --root ~/acme</code></td></tr>
   <tr><td data-l="Command"><code>workspaces</code></td><td data-l="What it does">List the workspaces bootstrapped on this machine; <code>*</code> marks the current one.</td><td data-l="Example"><code>multiversectl workspaces</code></td></tr>
   <tr><td data-l="Command"><code>use &lt;workspace&gt;</code></td><td data-l="What it does">Make a workspace the one commands act on by default. <code>-w</code> overrides it for a single command.</td><td data-l="Example"><code>multiversectl use acme</code></td></tr>
+  <tr><td data-l="Command"><code>init</code></td><td data-l="What it does">Set up this machine's root catalog in an existing repository, a new <strong>private</strong> one (via <code>gh</code>), or locally. <code>--repo</code>, <code>--create</code>, <code>--local</code>, <code>--public</code>, <code>--name</code>, <code>--yes</code>.</td><td data-l="Example"><code>multiversectl init --create multiverse-index</code></td></tr>
+  <tr><td data-l="Command"><code>install [path ...]</code></td><td data-l="What it does">Set up workspaces from the catalog: a workspace, or everything under a catalog. Asks when no path is given. <code>--base</code>, <code>--sync</code>, <code>--yes</code>.</td><td data-l="Example"><code>multiversectl install acme</code></td></tr>
+  <tr><td data-l="Command"><code>uninstall &lt;workspace&gt;</code></td><td data-l="What it does">Forget a workspace; its files stay on disk.</td><td data-l="Example"><code>multiversectl uninstall acme-api</code></td></tr>
   <tr><td data-l="Command"><code>catalog use &lt;git-url-or-file&gt;</code></td><td data-l="What it does">Record this machine's root catalog: an index of workspaces and of other catalogs, kept in a git repository or a file.</td><td data-l="Example"><code>multiversectl catalog use git@github.com:me/multiverse-index.git</code></td></tr>
   <tr><td data-l="Command"><code>catalog tree [source]</code></td><td data-l="What it does">Show the catalog as a tree. A layer that cannot be read (no access, a bad file) is listed as unavailable and the rest still shows.</td><td data-l="Example"><code>multiversectl catalog tree</code></td></tr>
   <tr><td data-l="Command"><code>catalog sync</code></td><td data-l="What it does">Fetch every repository the root catalog refers to and report what is unavailable.</td><td data-l="Example"><code>multiversectl catalog sync</code></td></tr>
+  <tr><td data-l="Command"><code>catalog create &lt;name&gt;</code></td><td data-l="What it does">Create a catalog inside another: in the parent's repository (<code>--same-repo</code>), an existing one (<code>--repo</code>) or a new private one (<code>--new-repo</code>). <code>--at</code> names the parent, <code>/</code> is the root; asked when omitted.</td><td data-l="Example"><code>multiversectl catalog create acme --new-repo acme-index</code></td></tr>
+  <tr><td data-l="Command"><code>catalog add workspace &lt;repo&gt;</code></td><td data-l="What it does">List a repository's manifest in a catalog. <code>--at</code>, <code>--name</code>, <code>--ref</code>, <code>--path</code>.</td><td data-l="Example"><code>multiversectl catalog add workspace git@example.test:acme/api.git --at acme</code></td></tr>
+  <tr><td data-l="Command"><code>catalog add catalog &lt;repo&gt;</code></td><td data-l="What it does">Link a catalog kept in another repository. It is checked first.</td><td data-l="Example"><code>multiversectl catalog add catalog git@example.test:acme/index.git --at /</code></td></tr>
+  <tr><td data-l="Command"><code>catalog rm &lt;path&gt;</code></td><td data-l="What it does">Remove an entry from the catalog that holds it; what it pointed at is untouched.</td><td data-l="Example"><code>multiversectl catalog rm acme/api</code></td></tr>
   <tr><td data-l="Command"><code>new &lt;number|name&gt;</code></td><td data-l="What it does">Create a universe: one worktree per repo, secrets and state. Alias <code>create</code>. A universe is numbered or named after a branch. <code>--branch</code> (repeatable) overrides the branch: a bare name for every repo, <code>repo=branch</code> for one. <code>--note</code> records why it exists.</td><td data-l="Example"><code>multiversectl new fix/login</code></td></tr>
   <tr><td data-l="Command"><code>up &lt;universe&gt; [app ...]</code></td><td data-l="What it does">Start a universe, all apps or only those named. <code>--with</code> adds optional service groups. Alias <code>start</code>.</td><td data-l="Example"><code>multiversectl up 3 api --with workers</code></td></tr>
   <tr><td data-l="Command"><code>down &lt;universe&gt; [app ...]</code></td><td data-l="What it does">Stop a universe; keeps data and checkouts. Alias <code>stop</code>.</td><td data-l="Example"><code>multiversectl down 3</code></td></tr>
@@ -106,7 +115,7 @@
 </section>
 
   <nav class="pager" aria-label="Pages">
-    <a class="prev" href="../tasks/services.html"><span>Previous</span>Control which services run</a>
+    <a class="prev" href="../tasks/catalog.html"><span>Previous</span>Manage many projects from one index</a>
     <a class="next" href="../reference/manifest.html"><span>Next</span>Manifest</a>
   </nav>
 </main>

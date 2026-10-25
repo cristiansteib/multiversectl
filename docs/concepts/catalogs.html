@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalogs &middot; multiversectl</title>
+<meta name="description" content="An index of workspaces and of other indexes, kept in git, that says what exists and leaves what is installed to each machine.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html">Start</a>
+      <a href="../concepts/universes.html" aria-current="true">Concepts</a>
+      <a href="../tasks/branches.html">Tasks</a>
+      <a href="../reference/cli.html">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html" aria-current="page">Catalogs</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Concepts</span>
+  </nav>
+  <h1>Catalogs</h1>
+  <p class="lede">An index of workspaces and of other indexes, kept in git, that says what exists and leaves what is installed to each machine.</p>
+<section id="why">
+  <h2 id="why"><a href="#why">What a catalog is for</a></h2>
+  <p>A workspace manifest describes one project. A <strong>catalog</strong> answers a different question: which projects exist, and which of them should be on this machine. It is a file of pointers, so the manifests stay with the repositories they describe and nobody has to copy them.</p>
+  <p>Catalogs nest. A personal catalog can link a catalog that a team keeps in its own repository, which can link another, and each layer is edited by whoever owns that repository. A machine installs only the branches of the tree it wants.</p>
+</section>
+
+<section id="kinds">
+  <h2 id="kinds"><a href="#kinds">Catalog, CatalogRef and WorkspaceRef</a></h2>
+  <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
+<span class="k">kind</span>: Catalog
+<span class="k">metadata</span>:
+  <span class="k">name</span>: me
+<span class="k">spec</span>:
+  <span class="k">catalogs</span>:                         <span class="c"># CatalogRef: descend into another Catalog</span>
+    - <span class="k">name</span>: acme
+      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:acme/multiverse-index.git, <span class="k">ref</span>: main}
+    - <span class="k">name</span>: personal                <span class="c"># no repo: a file in this same repository</span>
+      <span class="k">source</span>: {<span class="k">path</span>: catalogs/personal.yaml}
+  <span class="k">workspaces</span>:                       <span class="c"># WorkspaceRef: a leaf</span>
+    - <span class="k">name</span>: fichero
+      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:me/fichero-workspace.git}</pre></div>
+  <table>
+    <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
+    <tbody>
+    <tr><td><code>source.repo</code></td><td>A git URL. Leave it out to mean the repository the reference is written in.</td></tr>
+    <tr><td><code>source.ref</code></td><td>Branch, tag or commit. Needs <code>repo</code>. A tag or commit makes that layer read-only.</td></tr>
+    <tr><td><code>source.path</code></td><td>Relative to the repository root, and it cannot leave it. Defaults to <code>catalog.yaml</code> or <code>multiverse.yaml</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>A node is addressed by the names that lead to it, for example <code>acme/backend/payments</code>. Names are unique among siblings. The schema is <code>schema/catalog.v1alpha1.yaml</code>.</p>
+</section>
+
+<section id="split">
+  <h2 id="split"><a href="#split">Three separate things</a></h2>
+  <ul class="t">
+    <li><strong>The catalog</strong> is shared and versioned: what exists. It holds pointers, never definitions.</li>
+    <li><strong>The workspace list</strong> is per machine, in <code>~/.config/multiversectl/config.yaml</code>: what is installed here, and which one is current.</li>
+    <li><strong>Universes</strong> work as before. <code>new</code>, <code>up</code>, <code>ls</code> and the rest act on one workspace and never read a catalog.</li>
+  </ul>
+  <p>Only <code>install</code> connects the first two: it bootstraps a workspace from a catalog entry and records it.</p>
+</section>
+
+<section id="failure">
+  <h2 id="failure"><a href="#failure">When a layer cannot be read</a></h2>
+  <p>A layer you have no access to, or that has a bad file, shows as <em>unavailable</em> in <code>catalog tree</code> and the rest of the tree still resolves. Cycles and chains deeper than eight levels are cut off the same way.</p>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../concepts/labels.html"><span>Previous</span>Labels</a>
+    <a class="next" href="../tasks/branches.html"><span>Next</span>Work across branches</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#why">What a catalog is for</a></li>
+      <li><a href="#kinds">Catalog, CatalogRef and WorkspaceRef</a></li>
+      <li><a href="#split">Three separate things</a></li>
+      <li><a href="#failure">When a layer cannot be read</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>

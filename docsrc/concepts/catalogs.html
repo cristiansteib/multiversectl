@@ -1,0 +1,46 @@
+<section id="why">
+  <h2 id="why"><a href="#why">What a catalog is for</a></h2>
+  <p>A workspace manifest describes one project. A <strong>catalog</strong> answers a different question: which projects exist, and which of them should be on this machine. It is a file of pointers, so the manifests stay with the repositories they describe and nobody has to copy them.</p>
+  <p>Catalogs nest. A personal catalog can link a catalog that a team keeps in its own repository, which can link another, and each layer is edited by whoever owns that repository. A machine installs only the branches of the tree it wants.</p>
+</section>
+
+<section id="kinds">
+  <h2 id="kinds"><a href="#kinds">Catalog, CatalogRef and WorkspaceRef</a></h2>
+  <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
+<span class="k">kind</span>: Catalog
+<span class="k">metadata</span>:
+  <span class="k">name</span>: me
+<span class="k">spec</span>:
+  <span class="k">catalogs</span>:                         <span class="c"># CatalogRef: descend into another Catalog</span>
+    - <span class="k">name</span>: acme
+      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:acme/multiverse-index.git, <span class="k">ref</span>: main}
+    - <span class="k">name</span>: personal                <span class="c"># no repo: a file in this same repository</span>
+      <span class="k">source</span>: {<span class="k">path</span>: catalogs/personal.yaml}
+  <span class="k">workspaces</span>:                       <span class="c"># WorkspaceRef: a leaf</span>
+    - <span class="k">name</span>: fichero
+      <span class="k">source</span>: {<span class="k">repo</span>: git@example.test:me/fichero-workspace.git}</pre></div>
+  <table>
+    <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
+    <tbody>
+    <tr><td><code>source.repo</code></td><td>A git URL. Leave it out to mean the repository the reference is written in.</td></tr>
+    <tr><td><code>source.ref</code></td><td>Branch, tag or commit. Needs <code>repo</code>. A tag or commit makes that layer read-only.</td></tr>
+    <tr><td><code>source.path</code></td><td>Relative to the repository root, and it cannot leave it. Defaults to <code>catalog.yaml</code> or <code>multiverse.yaml</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>A node is addressed by the names that lead to it, for example <code>acme/backend/payments</code>. Names are unique among siblings. The schema is <code>schema/catalog.v1alpha1.yaml</code>.</p>
+</section>
+
+<section id="split">
+  <h2 id="split"><a href="#split">Three separate things</a></h2>
+  <ul class="t">
+    <li><strong>The catalog</strong> is shared and versioned: what exists. It holds pointers, never definitions.</li>
+    <li><strong>The workspace list</strong> is per machine, in <code>~/.config/multiversectl/config.yaml</code>: what is installed here, and which one is current.</li>
+    <li><strong>Universes</strong> work as before. <code>new</code>, <code>up</code>, <code>ls</code> and the rest act on one workspace and never read a catalog.</li>
+  </ul>
+  <p>Only <code>install</code> connects the first two: it bootstraps a workspace from a catalog entry and records it.</p>
+</section>
+
+<section id="failure">
+  <h2 id="failure"><a href="#failure">When a layer cannot be read</a></h2>
+  <p>A layer you have no access to, or that has a bad file, shows as <em>unavailable</em> in <code>catalog tree</code> and the rest of the tree still resolves. Cycles and chains deeper than eight levels are cut off the same way.</p>
+</section>

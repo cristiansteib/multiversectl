@@ -53,6 +53,11 @@ groups:
         summary: >-
           How a compose file describes itself: the addresses it answers on, the
           ports it must keep, and the values it needs from its universe.
+      - path: concepts/catalogs
+        title: Catalogs
+        summary: >-
+          An index of workspaces and of other indexes, kept in git, that says
+          what exists and leaves what is installed to each machine.
   - title: Tasks
     pages:
       - path: tasks/branches
@@ -70,6 +75,11 @@ groups:
         summary: >-
           Start optional services on demand, keep a published port, and give a
           service its own hostname.
+      - path: tasks/catalog
+        title: Manage many projects from one index
+        summary: >-
+          Set up a root catalog, nest another one under it, list workspaces in
+          it, and install only the ones this machine needs.
   - title: Reference
     pages:
       - path: reference/cli

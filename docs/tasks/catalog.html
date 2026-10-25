@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manage many projects from one index &middot; multiversectl</title>
+<meta name="description" content="Set up a root catalog, nest another one under it, list workspaces in it, and install only the ones this machine needs.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html">Start</a>
+      <a href="../concepts/universes.html">Concepts</a>
+      <a href="../tasks/branches.html" aria-current="true">Tasks</a>
+      <a href="../reference/cli.html">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html" aria-current="page">Manage many projects from one index</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Tasks</span>
+  </nav>
+  <h1>Manage many projects from one index</h1>
+  <p class="lede">Set up a root catalog, nest another one under it, list workspaces in it, and install only the ones this machine needs.</p>
+<section id="hw-init">
+  <h2 id="hw-init"><a href="#hw-init">Set up your root catalog</a></h2>
+  <div class="code"><pre><span class="c"># asks: an existing repository, a new private one, or local only</span>
+<span class="p">$ </span>multiversectl init
+<span class="c"># or say it with flags</span>
+<span class="p">$ </span>multiversectl init --create multiverse-index
+<span class="p">$ </span>multiversectl init --repo git@example.test:me/multiverse-index.git
+<span class="p">$ </span>multiversectl init --local ~/multiverse-index</pre></div>
+  <p><code>--create</code> uses the GitHub CLI and makes the repository <strong>private</strong>; <code>--public</code> is the only way to make it public. Without <code>gh</code> installed and logged in, create the repository yourself and pass <code>--repo</code>. A repository that already holds a <code>catalog.yaml</code> is used as it is. Creating a repository and pushing both ask first; <code>--yes</code> accepts them for scripts.</p>
+</section>
+
+<section id="hw-nest">
+  <h2 id="hw-nest"><a href="#hw-nest">Nest another catalog</a></h2>
+  <div class="code"><pre><span class="c"># asks which catalog it goes in, and whether it gets a repository of its own</span>
+<span class="p">$ </span>multiversectl catalog create acme
+<span class="c"># or decide up front</span>
+<span class="p">$ </span>multiversectl catalog create acme --new-repo acme-index --at /
+<span class="p">$ </span>multiversectl catalog create personal --same-repo --at /
+<span class="c"># link a catalog someone else already keeps</span>
+<span class="p">$ </span>multiversectl catalog add catalog git@example.test:acme/multiverse-index.git --at /</pre></div>
+  <p>The new catalog can live as a file in its parent's repository, in a repository you already have, or in a new private one.</p>
+</section>
+
+<section id="hw-add">
+  <h2 id="hw-add"><a href="#hw-add">List a workspace</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl catalog add workspace git@example.test:acme/api-workspace.git --at acme
+<span class="p">$ </span>multiversectl catalog tree
+index
+  acme                     catalog
+    api                    workspace  git@example.test:acme/api-workspace.git multiverse.yaml</pre></div>
+  <p>The name comes from the manifest's <code>metadata.name</code> unless <code>--name</code> says otherwise. Writes go to the file that owns the catalog you picked, are committed, and, in a remote repository, pushed after you confirm. If someone pushed first the command says so and leaves your copy clean. <code>catalog rm &lt;path&gt;</code> takes an entry out; what it pointed at is untouched.</p>
+</section>
+
+<section id="hw-install">
+  <h2 id="hw-install"><a href="#hw-install">Install only what this machine needs</a></h2>
+  <div class="code"><pre><span class="c"># one workspace, or everything under a catalog</span>
+<span class="p">$ </span>multiversectl install acme/api
+<span class="p">$ </span>multiversectl install acme personal/fichero
+<span class="c"># no path: pick from a list</span>
+<span class="p">$ </span>multiversectl install
+<span class="p">$ </span>multiversectl workspaces
+<span class="p">$ </span>multiversectl use acme-api</pre></div>
+  <p>Each workspace is cloned under <code>~/multiverse/&lt;catalog path&gt;</code> (<code>--base</code> changes it) and recorded as <code>acme-api</code>. Installing does not switch the current workspace, and one that is already installed is skipped. If two installed workspaces would publish the same proxy port or share a proxy network, <code>install</code> says so, because only one proxy can bind it. <code>catalog sync</code> fetches every catalog repository again; <code>uninstall &lt;name&gt;</code> forgets a workspace and leaves its files.</p>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../tasks/services.html"><span>Previous</span>Control which services run</a>
+    <a class="next" href="../reference/cli.html"><span>Next</span>Commands</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#hw-init">Set up your root catalog</a></li>
+      <li><a href="#hw-nest">Nest another catalog</a></li>
+      <li><a href="#hw-add">List a workspace</a></li>
+      <li><a href="#hw-install">Install only what this machine needs</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>
