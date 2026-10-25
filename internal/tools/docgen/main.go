@@ -176,6 +176,21 @@ func render(src, out string) error {
 			return err
 		}
 	}
+	// The install script is served from the site as well, so the one-liner
+	// can name the project's own domain. It is copied rather than linked so
+	// the published copy always matches the committed one.
+	if script, err := os.ReadFile(filepath.Join(src, "..", "install.sh")); err == nil {
+		if err := os.WriteFile(filepath.Join(out, "install.sh"), script, 0o755); err != nil {
+			return err
+		}
+	}
+	// GitHub Pages reads the custom domain from a CNAME file at the site's
+	// root; it lives with the sources so a regenerate cannot drop it.
+	if cname, err := os.ReadFile(filepath.Join(src, "_CNAME")); err == nil {
+		if err := os.WriteFile(filepath.Join(out, "CNAME"), cname, 0o644); err != nil {
+			return err
+		}
+	}
 	fmt.Fprintf(os.Stderr, "wrote %d pages to %s\n", len(flat), out)
 	return nil
 }

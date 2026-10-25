@@ -6,7 +6,7 @@
     <button role="tab" id="t-mise" aria-selected="false" aria-controls="p-mise" tabindex="-1" type="button">mise</button>
     <button role="tab" id="t-deb" aria-selected="false" aria-controls="p-deb" tabindex="-1" type="button">.deb</button>
   </div>
-  <div role="tabpanel" id="p-curl" aria-labelledby="t-curl" tabindex="0"><div class="code"><pre><span class="p">$ </span>curl -fsSL https://raw.githubusercontent.com/cristiansteib/multiversectl/main/install.sh | sh
+  <div role="tabpanel" id="p-curl" aria-labelledby="t-curl" tabindex="0"><div class="code"><pre><span class="p">$ </span>curl -fsSL https://multiversectl.dev/install.sh | sh
 <span class="c"># linux/darwin, amd64/arm64; set MULTIVERSECTL_VERSION to pin a release</span></pre></div></div>
   <div role="tabpanel" id="p-brew" aria-labelledby="t-brew" tabindex="0" hidden><div class="code"><pre><span class="p">$ </span>brew install cristiansteib/tap/multiversectl</pre></div><p class="muted">Or <code>brew tap cristiansteib/tap</code> once, then <code>brew install multiversectl</code>.</p></div>
   <div role="tabpanel" id="p-mise" aria-labelledby="t-mise" tabindex="0" hidden><div class="code"><pre><span class="p">$ </span>mise use -g ubi:cristiansteib/multiversectl</pre></div></div>
