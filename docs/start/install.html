@@ -102,6 +102,13 @@
   <p><code>make install</code> honours <code>PREFIX</code>, so <code>make install PREFIX=/usr/local/bin</code> puts it on the system path instead.</p>
 </section>
 
+<section id="remove">
+  <h2 id="remove"><a href="#remove">Remove it, completely</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl cleanup</pre></div>
+  <p>It lists everything multiversectl has put on the machine and removes none of it: the web server and shared proxy if they are running, each universe with the containers, volumes and worktrees it owns, the clones of your repositories, branches left by universes that are gone, the configuration and caches, shell completions, and the programs. Each item has its size and its removal command, and what would lose work that exists nowhere else, such as uncommitted changes, commits on no remote or a volume's data, is marked. The commands come last, in the order that is safe: stop what is running, remove the universes, then the clones and the configuration, and the programs at the end. <code>--script</code> prints only the commands, to read and run.</p>
+  <p>Run it before <code>reset</code>: once a project is forgotten the tool no longer knows its folder, so the clones and universes of a project you already reset are not listed. The root catalog's repository on GitHub or GitLab is not touched; delete it yourself if you want it gone.</p>
+</section>
+
 <section id="completion">
   <h2 id="completion"><a href="#completion">Shell completions</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl completion</pre></div>
@@ -134,6 +141,7 @@
     <ul>
       <li><a href="#binary">Ready-made binaries</a></li>
       <li><a href="#build">From source</a></li>
+      <li><a href="#remove">Remove it, completely</a></li>
       <li><a href="#completion">Shell completions</a></li>
       <li><a href="#needs">What it needs on the machine</a></li>
     </ul>

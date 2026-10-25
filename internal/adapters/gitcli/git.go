@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
@@ -146,6 +147,18 @@ func (g Git) DeleteBranchIfSafe(ctx context.Context, repoDir, branch, base strin
 		return false, "", err
 	}
 	return false, n + " commits that are on no remote", nil
+}
+
+func (g Git) Unpushed(ctx context.Context, repoDir string) (int, error) {
+	out, err := g.run(ctx, "-C", repoDir, "rev-list", "--count", "--branches", "--not", "--remotes")
+	if err != nil {
+		return 0, err
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0, fmt.Errorf("git rev-list: %w", err)
+	}
+	return n, nil
 }
 
 func (g Git) RemoveWorktree(ctx context.Context, repoDir, dest string) error {

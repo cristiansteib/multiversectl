@@ -16,7 +16,9 @@ func (r runner) resetCmd() *cobra.Command {
 			"stays, unmanaged, and can be installed again (install reuses checkouts with\n" +
 			"--root). Use it to switch to another root: init refuses to while projects\n" +
 			"installed from the old one exist. Remove universes first with\n" +
-			"`multiversectl universe prune` if you want them gone.",
+			"`multiversectl universe prune` if you want them gone. To see everything this tool\n" +
+			"has put on the machine, and what to delete for a clean sweep, run\n" +
+			"`multiversectl cleanup` first: once the projects are forgotten, it cannot find them.",
 		Example: "  multiversectl reset\n  multiversectl reset --yes",
 		Args:    cobra.NoArgs,
 	}

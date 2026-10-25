@@ -43,6 +43,9 @@ type Git interface {
 	// every commit is already on origin's base branch or on the branch's own
 	// remote counterpart. It says whether it did, and why not when it did not.
 	DeleteBranchIfSafe(ctx context.Context, repoDir, branch, base string) (deleted bool, why string, err error)
+	// Unpushed counts the commits on local branches that are on no remote: work
+	// that exists only in this clone.
+	Unpushed(ctx context.Context, repoDir string) (int, error)
 	// Checkout detaches HEAD at ref, a branch (as of origin), tag or commit.
 	Checkout(ctx context.Context, repoDir, ref string) error
 
@@ -224,6 +227,8 @@ type Files interface {
 	Rename(oldPath, newPath string) error
 	Chmod(path string, perm fs.FileMode) error
 	TempFile(pattern string) (string, error)
+	// Size is the bytes a file or directory takes, links not followed.
+	Size(path string) (int64, error)
 }
 
 // System is the host port: identity, network facts and tool lookup.

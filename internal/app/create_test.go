@@ -55,6 +55,21 @@ func (noRuntime) Inspect(context.Context, app.RuntimeRequest) (app.ProjectConfig
 	return app.ProjectConfig{}, errors.New("no runtime in a test")
 }
 
+// Universe 1 has two containers, one of them up, and a volume.
+func (noRuntime) Containers(_ context.Context, prefix string) ([]app.Container, error) {
+	if prefix != "acme-u1" {
+		return nil, nil
+	}
+	return []app.Container{{Name: "acme-u1-api-web-1", Status: "Up 2 hours"}, {Name: "acme-u1-api-db-1", Status: "Exited (0) 1 hour ago"}}, nil
+}
+
+func (noRuntime) Volumes(_ context.Context, prefix string) ([]app.Volume, error) {
+	if prefix != "acme-u1-" {
+		return nil, nil
+	}
+	return []app.Volume{{Name: "acme-u1-api_pgdata"}}, nil
+}
+
 // bench is a project of two repositories (api and web), each a clone of its
 // own origin, with a Service over them.
 type bench struct {
