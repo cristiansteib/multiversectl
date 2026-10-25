@@ -7,10 +7,10 @@ Run several complete copies — **universes** — of a multi-repository project 
 one machine, so you can work on branches in parallel without port collisions or
 stepping on your own checkouts.
 
-**[Documentation](https://cristiansteib.github.io/multiversectl/)** ·
-[Quick start](https://cristiansteib.github.io/multiversectl/start/quickstart.html) ·
-[Manifest reference](https://cristiansteib.github.io/multiversectl/reference/manifest.html) ·
-[Commands](https://cristiansteib.github.io/multiversectl/reference/cli.html)
+**[Documentation](https://multiversectl.dev/)** ·
+[Quick start](https://multiversectl.dev/start/quickstart.html) ·
+[Manifest reference](https://multiversectl.dev/reference/manifest.html) ·
+[Commands](https://multiversectl.dev/reference/cli.html)
 
 ## What it solves
 
@@ -57,7 +57,10 @@ tool is for when you trust your own code and want many copies of it, cheaply.
 
 ```sh
 # Script (linux/darwin, amd64/arm64). Set MULTIVERSECTL_VERSION to pin a release.
-curl -fsSL https://raw.githubusercontent.com/cristiansteib/multiversectl/main/install.sh | sh
+curl -fsSL https://multiversectl.dev/install.sh | sh
+
+# Homebrew
+brew install cristiansteib/tap/multiversectl
 
 # mise
 mise use -g ubi:cristiansteib/multiversectl
@@ -68,7 +71,7 @@ and `make install` builds from source into `~/.local/bin`. The script and the
 `.deb` also provide a short alias, `mvctl`. Later, `multiversectl self-update`
 replaces the binary with the latest release.
 
-See [Install](https://cristiansteib.github.io/multiversectl/start/install.html)
+See [Install](https://multiversectl.dev/start/install.html)
 for what it needs on the machine.
 
 ## Projects and catalogs
@@ -92,7 +95,7 @@ multiversectl project status                    # what is installed here, and wh
 multiversectl project update                    # catch up: manifests and new repositories
 ```
 
-See [Catalogs](https://cristiansteib.github.io/multiversectl/concepts/catalogs.html).
+See [Catalogs](https://multiversectl.dev/concepts/catalogs.html).
 
 To see all of it in a live page (the tree, what is installed, every universe and
 what runs in it, and the versions of what it all runs on), and to start, stop,
@@ -117,7 +120,7 @@ multiversectl universe doctor           # check prerequisites and common problem
 multiversectl universe rm fix/login     # stop and delete it
 ```
 
-The [quick start](https://cristiansteib.github.io/multiversectl/start/quickstart.html)
+The [quick start](https://multiversectl.dev/start/quickstart.html)
 walks through the same thing with a manifest to copy.
 
 ## Manifest
@@ -146,7 +149,7 @@ That is a working project: each repository gets an app of its own name, its
 compose files are found by convention, and its addresses come from their labels.
 [examples/multiverse.yaml](examples/multiverse.yaml) is a commented example with
 the rest, and every field is documented in the
-[manifest reference](https://cristiansteib.github.io/multiversectl/reference/manifest.html)
+[manifest reference](https://multiversectl.dev/reference/manifest.html)
 and in the generated [schema](schema/project.v1alpha1.yaml).
 
 ## How it works
@@ -158,10 +161,10 @@ network and the dropping of published ports are generated per universe — your
 compose files stay the ones you already run.
 
 The documentation goes into
-[networking](https://cristiansteib.github.io/multiversectl/concepts/networking.html),
-[storage and data](https://cristiansteib.github.io/multiversectl/concepts/storage.html),
-[overlays and merge order](https://cristiansteib.github.io/multiversectl/concepts/overlays.html)
-and [labels](https://cristiansteib.github.io/multiversectl/concepts/labels.html).
+[networking](https://multiversectl.dev/concepts/networking.html),
+[storage and data](https://multiversectl.dev/concepts/storage.html),
+[overlays and merge order](https://multiversectl.dev/concepts/overlays.html)
+and [labels](https://multiversectl.dev/concepts/labels.html).
 
 ## Contributing
 
