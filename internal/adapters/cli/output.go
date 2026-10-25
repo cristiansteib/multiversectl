@@ -147,3 +147,10 @@ func (o *Output) tableLines(headers []string, rows [][]Cell) []string {
 	}
 	return lines
 }
+
+// Cells prints a column-aligned table whose cells carry their own colour.
+func (o *Output) Cells(headers []string, rows [][]Cell) {
+	for _, line := range o.tableLines(headers, rows) {
+		fmt.Fprintln(o.w, line)
+	}
+}

@@ -118,6 +118,17 @@ http://api-fix-login.10-0-0-5.traefik.me
   <p>The shared clones are not touched. To stop a universe and keep everything, use <code>multiversectl universe down 3</code>.</p>
 </section>
 
+<section id="hw-prune">
+  <h2 id="hw-prune"><a href="#hw-prune">Clear out every universe on the machine</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl system                    <span class="c"># what each workspace holds</span>
+<span class="p">$ </span>multiversectl system --prune            <span class="c"># remove the idle ones, asking first</span>
+<span class="p">$ </span>multiversectl system --prune --all --yes <span class="c"># everything, running ones included, no question</span></pre></div>
+  <p><code>--prune</code> does to each universe what <code>universe rm</code> does, in every installed workspace, or only the one you name with <code>-w</code>: the containers and <strong>volumes</strong>, the worktrees, the directory and the state file. It is deliberately not a way to stop containers and keep the data; that is <code>universe down</code>.</p>
+  <p>Two kinds of universe are kept unless you say otherwise, and each is listed with the reason:</p>
+  <ul class="t"><li>one with containers running, until you add <code>--all</code>;</li><li>one with uncommitted work in a worktree, until you add <code>--force</code>. <code>--yes</code> only skips the question; it never discards work.</li></ul>
+  <p>What it does not touch: the shared clones and the branches in them, so committed work survives and the universe can be created again; the shared proxy; and the installed workspaces and catalogs.</p>
+</section>
+
   <nav class="pager" aria-label="Pages">
     <a class="prev" href="../concepts/catalogs.html"><span>Previous</span>Catalogs</a>
     <a class="next" href="../tasks/reach.html"><span>Next</span>Reach a universe</a>
@@ -129,6 +140,7 @@ http://api-fix-login.10-0-0-5.traefik.me
       <li><a href="#hw-branches">Work on two branches at once</a></li>
       <li><a href="#hw-repo">Add a repository to a workspace</a></li>
       <li><a href="#hw-rm">Remove a universe and its data</a></li>
+      <li><a href="#hw-prune">Clear out every universe on the machine</a></li>
     </ul>
   </aside>
 </div>

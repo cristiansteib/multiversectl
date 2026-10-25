@@ -588,7 +588,60 @@ func (r runner) universeCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.newCmd(), r.upCmd(), r.downCmd(), r.rmCmd(), r.lsCmd(), r.urlsCmd(),
+	cmd.AddCommand(r.newCmd(), r.upCmd(), r.downCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
 		r.envCmd(), r.runCmd(), r.execCmd())
 	return cmd
+}
+
+// universeStatusCmd is the glance: one line per universe saying whether it is
+// running, where ls says what each app is doing.
+func (r runner) universeStatusCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "status",
+		Short:   "One line per universe: whether it is running, how many services are up, and since when",
+		Example: "  multiversectl universe status",
+		Args:    cobra.NoArgs,
+	}
+	cmd.RunE = r.withService(func(ctx context.Context, s *app.Service) error {
+		list, err := s.List(ctx, app.ListOptions{Services: true})
+		if err != nil {
+			return err
+		}
+		if len(list) == 0 {
+			s.Out.Info("no universes yet — create one with: multiversectl universe new 1")
+			return nil
+		}
+		rows := make([][]Cell, 0, len(list))
+		for _, u := range list {
+			state, style, up := standing(u)
+			started := "never"
+			if !u.LastStarted.IsZero() {
+				started = age(u.LastStarted)
+			}
+			rows = append(rows, []Cell{{Text: u.Name}, {Text: state, Style: style}, {Text: up}, {Text: started},
+				{Text: joinPairs(u.Branches)}, {Text: u.Note, Style: dim}})
+		}
+		r.out.Cells([]string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCHES", "NOTE"}, rows)
+		return nil
+	})
+	return cmd
+}
+
+// standing reduces a universe to the one word a glance wants. Optional services
+// that are off on purpose are not counted against it.
+func standing(u app.Summary) (state, style, up string) {
+	n, expected, _ := totals(u)
+	up = fmt.Sprint(u.Running)
+	if expected > 0 {
+		up = fmt.Sprintf("%d/%d", n, expected)
+	}
+	switch {
+	case n > 0 && n >= expected:
+		return "running", green, up
+	case n > 0:
+		return "partial", yellow, up
+	case u.LastStarted.IsZero() && u.Running == 0:
+		return "created", dim, up
+	}
+	return "stopped", dim, up
 }
