@@ -59,6 +59,9 @@ tool is for when you trust your own code and want many copies of it, cheaply.
 # Script (linux/darwin, amd64/arm64). Set MULTIVERSECTL_VERSION to pin a release.
 curl -fsSL https://raw.githubusercontent.com/cristiansteib/multiversectl/main/install.sh | sh
 
+# Homebrew
+brew install cristiansteib/tap/multiversectl
+
 # mise
 mise use -g ubi:cristiansteib/multiversectl
 ```
