@@ -133,15 +133,44 @@ func (c *Catalogs) parentCatalog(tree domain.Node, at string, atGiven bool, sour
 		return c.pickCatalog(tree, "Where should it go?", sourceRepo)
 	}
 	n, ok := tree.Find(strings.Trim(at, "/"))
+	var problem string
 	switch {
 	case !ok:
-		return domain.Node{}, fmt.Errorf("no catalog at %q; see `multiversectl catalog list`", at)
+		problem = fmt.Sprintf("no catalog at %q", at)
 	case n.Kind != domain.CatalogNode:
-		return domain.Node{}, fmt.Errorf("%q is a project, not a catalog", at)
+		problem = fmt.Sprintf("%q is a project, not a catalog", at)
 	case n.Unavailable != "":
-		return domain.Node{}, fmt.Errorf("catalog %q is unavailable: %s", at, n.Unavailable)
+		problem = fmt.Sprintf("catalog %q is unavailable: %s", at, n.Unavailable)
+	default:
+		return n, nil
 	}
-	return n, nil
+	// A place that does not exist is the moment to show the ones that do. With
+	// someone to ask, say what was wrong and let them choose; in a script, or with
+	// --yes, which must never guess where to write, fail and name the choices.
+	if !c.Yes {
+		picked, err := c.pickCatalog(tree, problem+". Where should it go?", sourceRepo)
+		if !errors.Is(err, ErrNotInteractive) {
+			return picked, err
+		}
+	}
+	return domain.Node{}, fmt.Errorf("%s; the places are: %s", problem, Places(tree))
+}
+
+// Places lists the catalogs an entry can go in, by the path --at takes: / is the
+// root. A layer that cannot be read is left out, since nothing can be written there.
+func Places(tree domain.Node) string {
+	var out []string
+	for _, r := range catalogsOnly(tree).Rows() {
+		switch {
+		case r.Node.Unavailable != "":
+			continue
+		case r.Node.Path == "":
+			out = append(out, "/ (the root)")
+		default:
+			out = append(out, r.Node.Path)
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 // settle makes the entry's name free in parent. The same source already there

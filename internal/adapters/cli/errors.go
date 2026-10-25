@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
 var (
@@ -86,7 +89,25 @@ func firstExample(cmd *cobra.Command) string {
 	return ""
 }
 
-// flagError says where the flags of a command are listed.
-func flagError(cmd *cobra.Command, err error) error {
-	return fmt.Errorf("%v\n  flags: `%s --help`", err, cmd.CommandPath())
+// flagError says where the flags of a command are listed. A bare --at is the one
+// that gets more: what it wanted was a place, so the places are listed.
+func (r runner) flagError(cmd *cobra.Command, err error) error {
+	msg := fmt.Sprintf("%v\n  flags: `%s --help`", err, cmd.CommandPath())
+	if strings.Contains(err.Error(), "flag needs an argument: --at") {
+		msg = "--at needs the path of a catalog to put it in, and / for the root"
+		if r.f.Catalogs == nil {
+			return fmt.Errorf("%s\n  leave --at out to choose from a list", msg)
+		}
+		if c, cerr := r.catalogs(false); cerr == nil {
+			ctx := cmd.Context()
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			if tree, terr := c.TreeCached(ctx); terr == nil {
+				msg += "\n  the places are: " + app.Places(tree)
+			}
+		}
+		msg += "\n  leave --at out to choose from a list"
+	}
+	return fmt.Errorf("%s", msg)
 }

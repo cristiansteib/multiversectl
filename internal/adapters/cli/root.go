@@ -78,7 +78,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	root.Args = cobra.NoArgs
 	root.RunE = run.welcome
 	explainArgs(root)
-	root.SetFlagErrorFunc(flagError)
+	root.SetFlagErrorFunc(run.flagError)
 	groupCommands(root, g)
 	return root, g
 }
