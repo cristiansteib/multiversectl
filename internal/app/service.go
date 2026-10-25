@@ -26,6 +26,8 @@ type Deps struct {
 	Releases  Releases
 	Router    Router
 	Out       Output
+	// Progress draws slow work; nil runs it without drawing.
+	Progress Progress
 }
 
 // Service carries out the use cases against one project.

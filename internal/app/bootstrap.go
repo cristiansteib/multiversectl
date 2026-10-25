@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -88,38 +89,23 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEn
 	return entry, nil
 }
 
+// cloneLimit is how many clones run at once: enough to hide the latency of each,
+// few enough not to be throttled by the host.
+const cloneLimit = 4
+
 // CloneRepos clones every repository of the manifest that is not here yet.
 func (s *Service) CloneRepos(ctx context.Context) error {
-	if s.Manifest == nil {
-		return domain.ErrNoManifest
-	}
-	repoKeys := make([]string, 0, len(s.Manifest.Repos))
-	for key := range s.Manifest.Repos {
-		repoKeys = append(repoKeys, key)
-	}
-	sort.Strings(repoKeys)
-
-	if err := s.Files.MkdirAll(s.Workspace); err != nil {
-		return err
-	}
-	for _, repoKey := range repoKeys {
-		dest := s.Manifest.CloneDir(s.Workspace, repoKey)
-		if s.Files.Exists(dest) {
-			s.Out.OK("%s: already cloned", repoKey)
-			continue
-		}
-		if err := s.Git.Clone(ctx, s.Manifest.Repos[repoKey].URL, dest); err != nil {
-			return fmt.Errorf("%s: clone: %w", repoKey, err)
-		}
-		s.Out.OK("%s: cloned", repoKey)
-	}
-	return nil
+	return s.clone(ctx, true)
 }
 
 // CloneMissing clones the repositories of the manifest that are not here yet,
 // and says nothing about the ones that are: what an update reports is what it
 // changed.
 func (s *Service) CloneMissing(ctx context.Context) error {
+	return s.clone(ctx, false)
+}
+
+func (s *Service) clone(ctx context.Context, sayPresent bool) error {
 	if s.Manifest == nil {
 		return domain.ErrNoManifest
 	}
@@ -128,15 +114,48 @@ func (s *Service) CloneMissing(ctx context.Context) error {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
+	if err := s.Files.MkdirAll(s.Workspace); err != nil {
+		return err
+	}
+
+	var jobs []Job
 	for _, key := range keys {
-		dest := s.Manifest.CloneDir(s.Workspace, key)
+		key, dest := key, s.Manifest.CloneDir(s.Workspace, key)
 		if s.Files.Exists(dest) {
+			if sayPresent {
+				s.Out.OK("%s: already cloned", key)
+			}
 			continue
 		}
-		if err := s.Git.Clone(ctx, s.Manifest.Repos[key].URL, dest); err != nil {
-			return fmt.Errorf("%s: clone: %w", key, err)
+		url := s.Manifest.Repos[key].URL
+		jobs = append(jobs, Job{Name: key, Run: func(ctx context.Context) error {
+			return s.Git.Clone(ctx, url, dest)
+		}})
+	}
+	if len(jobs) == 0 {
+		return nil
+	}
+	var progress Progress = noProgress{}
+	if s.Progress != nil {
+		progress = s.Progress
+	}
+	errs := progress.Parallel(fmt.Sprintf("Cloning %s", plural(len(jobs), "repository")), cloneLimit, jobs)
+
+	// Reported after the lines are gone, in the manifest's order, and every
+	// failure is named: one bad URL does not hide the others.
+	var failed []string
+	for i, j := range jobs {
+		if errs[i] != nil {
+			failed = append(failed, fmt.Sprintf("%s: clone: %v", j.Name, errs[i]))
+			continue
 		}
-		s.Out.OK("%s: cloned", key)
+		s.Out.OK("%s: cloned", j.Name)
+	}
+	if len(failed) > 0 {
+		if len(failed) == 1 {
+			return errors.New(failed[0])
+		}
+		return fmt.Errorf("%d repositories could not be cloned:\n  %s", len(failed), strings.Join(failed, "\n  "))
 	}
 	return nil
 }

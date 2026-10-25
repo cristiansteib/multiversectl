@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -60,6 +61,43 @@ func NewCatalogs(d CatalogDeps) *Catalogs {
 type noProgress struct{}
 
 func (noProgress) Do(_ string, fn func(context.Context) error) error { return fn(context.Background()) }
+
+func (noProgress) Parallel(_ string, limit int, jobs []Job) []error {
+	return RunJobs(context.Background(), limit, jobs, nil)
+}
+
+// RunJobs runs jobs with at most limit at a time and returns one error each, in
+// order. started and finished, when set, are told as each job begins and ends,
+// from the goroutine running it, so a caller can draw them.
+func RunJobs(ctx context.Context, limit int, jobs []Job, event func(i int, done bool, err error)) []error {
+	if limit < 1 {
+		limit = 1
+	}
+	errs := make([]error, len(jobs))
+	slots := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for i := range jobs {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			if event != nil {
+				event(i, false, nil)
+			}
+			if ctx.Err() != nil {
+				errs[i] = ctx.Err()
+			} else {
+				errs[i] = jobs[i].Run(ctx)
+			}
+			if event != nil {
+				event(i, true, errs[i])
+			}
+		}(i)
+	}
+	wg.Wait()
+	return errs
+}
 
 // Use records the root catalog for this machine.
 func (c *Catalogs) Use(source string) error {

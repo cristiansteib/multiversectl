@@ -84,6 +84,7 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 		Manifests: ManifestLoader{},
 		Releases:  release.New(),
 		Out:       out,
+		Progress:  m.Progress(),
 	}
 }
 

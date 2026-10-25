@@ -484,4 +484,14 @@ func (e *HostUnavailable) Error() string { return e.Reason }
 // nothing behind. Without a terminal it just runs fn.
 type Progress interface {
 	Do(label string, fn func(ctx context.Context) error) error
+	// Parallel runs the jobs, at most limit at a time, drawing one line for each
+	// (waiting, running, done, failed). It returns one error per job, in order.
+	// A job must not print.
+	Parallel(label string, limit int, jobs []Job) []error
+}
+
+// Job is one named piece of work for Progress.Parallel.
+type Job struct {
+	Name string
+	Run  func(ctx context.Context) error
 }
