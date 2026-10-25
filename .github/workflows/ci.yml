@@ -15,6 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+    # Branch protection requires a check named exactly "test", so the Linux job
+    # keeps that name; macOS reports beside it as "test-macos".
+    name: ${{ matrix.os == 'ubuntu-latest' && 'test' || 'test-macos' }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
