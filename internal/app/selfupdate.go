@@ -16,13 +16,18 @@ type SelfUpdateInput struct {
 	OS             string
 	Arch           string
 	BinaryPath     string
+	// ServerPath is where the web view's program goes, beside this one; empty
+	// leaves it alone. A release without it (an older one) is not an error.
+	ServerPath string
 }
 
 // SelfUpdateResult says whether the binary was replaced.
 type SelfUpdateResult struct {
 	Updated bool
-	From    string
-	To      string
+	// Server is set when the web view's program was installed or replaced too.
+	Server bool
+	From   string
+	To     string
 }
 
 // SelfUpdate replaces the binary with the latest release when it is newer.
@@ -48,6 +53,15 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 		return result, err
 	}
 	result.Updated = true
+
+	// The web view is a separate program that `server start` looks for beside
+	// this one, so it has to move with it or the page runs an older release.
+	if server, ok := latest.Assets[fmt.Sprintf("multiversectl-server_%s_%s", in.OS, in.Arch)]; ok && in.ServerPath != "" {
+		if err := s.install(ctx, server, in.ServerPath); err != nil {
+			return result, fmt.Errorf("multiversectl is updated, but the web view is not: %w", err)
+		}
+		result.Server = true
+	}
 	return result, nil
 }
 

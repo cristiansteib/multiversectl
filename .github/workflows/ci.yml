@@ -10,7 +10,12 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # macOS is a release target, so it is built and tested, not only cross-compiled.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5

@@ -91,7 +91,7 @@
 <span class="c"># linux/darwin, amd64/arm64; set MULTIVERSECTL_VERSION to pin a release</span></pre></div></div>
   <div role="tabpanel" id="p-mise" aria-labelledby="t-mise" tabindex="0" hidden><div class="code"><pre><span class="p">$ </span>mise use -g ubi:cristiansteib/multiversectl</pre></div></div>
   <div role="tabpanel" id="p-deb" aria-labelledby="t-deb" tabindex="0" hidden><p class="muted">Download the <code>.deb</code> from the <a href="https://github.com/cristiansteib/multiversectl/releases">releases page</a>, then:</p><div class="code"><pre><span class="p">$ </span>sudo dpkg -i multiversectl_*.deb</pre></div></div>
-  <p>The script and the <code>.deb</code> also install a short alias, <code>mvctl</code>. Later: <code>multiversectl self-update</code> replaces the binary with the latest release.</p>
+  <p>The script and the <code>.deb</code> also install a short alias, <code>mvctl</code>, and the web view, <code>multiversectl-server</code>, beside the command (see <a href="../tasks/server.html">the web view</a>). <code>mise</code> installs the command line only: <code>multiversectl server</code> needs the other program on the <code>PATH</code>, so use the script if you want it. Later: <code>multiversectl self-update</code> replaces both with the latest release.</p>
 </section>
 
 <section id="build">
@@ -124,11 +124,12 @@
 <section id="needs">
   <h2 id="needs"><a href="#needs">What it needs on the machine</a></h2>
   <ul class="t">
-    <li>A container runtime with <code>docker compose</code> v2.</li>
+    <li>A container runtime with <code>docker compose</code> v2. On macOS that is Docker Desktop, OrbStack or Colima; on Linux, Docker Engine or Podman.</li>
     <li><code>git</code>, new enough for <code>git worktree</code>.</li>
     <li>Nothing else. multiversectl runs no daemon of its own; the only long-lived process it starts is the shared proxy, and that is a container.</li>
   </ul>
   <p><code>multiversectl universe doctor</code> checks all of it and names what is missing.</p>
+  <p>Releases are built for Linux and macOS, on Intel (<code>amd64</code>) and Apple silicon or ARM (<code>arm64</code>). The script puts the programs in <code>~/.local/bin</code>, which macOS does not have on its <code>PATH</code> by default: it warns when that is so. Shell completions work for zsh, the macOS default, and fish; bash on macOS is version 3.2 and has no <code>bash-completion</code> to load them.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">

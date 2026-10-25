@@ -164,12 +164,13 @@ func (r runner) selfUpdateCmd() *cobra.Command {
 			}
 			res, err := s.SelfUpdate(cmd.Context(), app.SelfUpdateInput{
 				CurrentVersion: r.f.Version, OS: runtime.GOOS, Arch: runtime.GOARCH, BinaryPath: path,
+				ServerPath: filepath.Join(filepath.Dir(path), "multiversectl-server"),
 			})
 			if err != nil {
 				return err
 			}
 			if res.Updated {
-				s.Out.OK("updated %s -> %s", res.From, res.To)
+				s.Out.OK("updated %s -> %s%s", res.From, res.To, map[bool]string{true: ", with the web view", false: ""}[res.Server])
 			} else {
 				s.Out.OK("already up to date (%s)", res.From)
 			}
