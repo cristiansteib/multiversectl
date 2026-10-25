@@ -21,7 +21,9 @@ type RemoveInput struct {
 func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 	st, err := s.Resolve(in.Universe)
 	if err != nil {
-		return fmt.Errorf("universe %s: %w", st.Name, err)
+		// Resolve names the universe it could not find, and returns a zero
+		// state, so wrapping with st.Name would prefix an empty one.
+		return err
 	}
 	u := s.Universe(st.Name)
 

@@ -35,7 +35,7 @@ spec:
               enum: ["multiverse/v1alpha1"]
             kind:
               type: string
-              enum: ["Catalog"]
+              enum: ["CatalogRoot"]
             metadata:
               type: object
               required: [name]

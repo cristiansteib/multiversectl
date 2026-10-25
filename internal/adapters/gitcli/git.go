@@ -170,7 +170,10 @@ func (g Git) CurrentBranch(ctx context.Context, dir string) (string, error) {
 	return g.run(ctx, "-C", dir, "rev-parse", "--abbrev-ref", "HEAD")
 }
 
-// show-ref exits non-zero when the ref is missing; that is an answer.
+// show-ref exits 1 when the ref is missing; that is an answer. Anything else
+// (128 for a malformed name or a repository it cannot read) is a failure, and
+// must not be reported as "the ref is not there": DeleteBranchIfSafe returns
+// early on a missing branch, so an error read as absence skips its guards.
 func (g Git) refPresent(ctx context.Context, repoDir, full string) (bool, error) {
 	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "show-ref", "--verify", "--quiet", full)
 	err := cmd.Run()
@@ -178,7 +181,7 @@ func (g Git) refPresent(ctx context.Context, repoDir, full string) (bool, error)
 		return true, nil
 	}
 	var exit *exec.ExitError
-	if errors.As(err, &exit) && ctx.Err() == nil {
+	if errors.As(err, &exit) && exit.ExitCode() == 1 && ctx.Err() == nil {
 		return false, nil
 	}
 	if ctx.Err() != nil {

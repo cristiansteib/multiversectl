@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 type Host struct{}
@@ -162,11 +163,24 @@ func (Host) ReposWithTopic(ctx context.Context, topic string) ([]app.RemoteRepo,
 	return parseProjects(out, "")
 }
 
+// projectID is how the API addresses a project: its group-and-name path, with
+// the slashes escaped. Reading it off the URL by hand only worked for an
+// https one; an scp-style `git@gitlab.com:me/index.git`, the form GitLab
+// offers for cloning, came out as the bare `index`, which addresses either
+// nothing or somebody else's project.
+func projectID(repoURL string) (string, error) {
+	l := domain.Locate(repoURL, "")
+	if l.Platform != domain.PlatformGitLab || l.Path == "" {
+		return "", fmt.Errorf("%s is not a GitLab project", repoURL)
+	}
+	return url.PathEscape(l.Path), nil
+}
+
 // AddTopic keeps the topics the project has: setting them replaces the list.
 func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
-	id := url.PathEscape(strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(repoURL, "https://"), "http://"), ".git"))
-	if i := strings.Index(id, "%2F"); i >= 0 {
-		id = id[i+3:] // drop the host: the API addresses a project by its path
+	id, err := projectID(repoURL)
+	if err != nil {
+		return err
 	}
 	out, err := glab(ctx, "api", "projects/"+id)
 	if err != nil {
@@ -191,7 +205,12 @@ func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
 	return err
 }
 
-func (Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "gitlab") }
+// Owns asks which platform the URL names, rather than looking for "gitlab"
+// anywhere in it: a repository called gitlab-runner-config on a third-party
+// host is not a GitLab project.
+func (Host) Owns(repoURL string) bool {
+	return domain.Locate(repoURL, "").Platform == domain.PlatformGitLab
+}
 
 func glab(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "glab", args...)

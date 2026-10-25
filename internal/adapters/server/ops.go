@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -280,7 +281,10 @@ func (w *lineWriter) Write(p []byte) (int, error) {
 	defer w.mu.Unlock()
 	w.buf = append(w.buf, p...)
 	for {
-		i := strings.IndexAny(string(w.buf), "\r\n")
+		// On the bytes, not a copy of them: a build tool can write 32 KiB of
+		// log in one call, and converting the rest of the buffer to a string
+		// on every line would copy it once per line.
+		i := bytes.IndexAny(w.buf, "\r\n")
 		if i < 0 {
 			break
 		}
@@ -302,7 +306,11 @@ func (w *lineWriter) flush() {
 var ansi = regexp.MustCompile("\x1b\\[[0-9;?]*[ -/]*[@-~]")
 
 func (s *Server) opsEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
+	// Only a POST starts an operation. guard puts GET and HEAD together as
+	// reads, and applies the read-only refusal and the CSRF header to POST
+	// alone, so anything that is not a POST has to be answered as a read here
+	// or it would pass through both checks.
+	if r.Method != http.MethodPost {
 		reply(w, map[string]any{"ops": s.ops.list()})
 		return
 	}
@@ -317,8 +325,7 @@ func (s *Server) opsEndpoint(w http.ResponseWriter, r *http.Request) {
 		failWith(w, oerr.code, oerr.body)
 		return
 	}
-	w.WriteHeader(http.StatusAccepted)
-	reply(w, v)
+	replyWith(w, http.StatusAccepted, v)
 }
 
 var _ = app.Output(nil)

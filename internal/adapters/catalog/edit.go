@@ -140,6 +140,16 @@ func addRef(data []byte, keys []string, name string, src domain.Source, defaultP
 		spec.Content = append(spec.Content, scalar(list), &yaml.Node{Kind: yaml.SequenceNode})
 		seq = spec.Content[len(spec.Content)-1]
 	}
+	// `projects:` with nothing under it parses as a null scalar, not as an
+	// empty sequence. The encoder ignores Content on a scalar, so appending to
+	// it would drop the entry and report success; make it a sequence first, as
+	// parse does for spec.
+	if seq.Kind != yaml.SequenceNode {
+		if !isNull(seq) {
+			return nil, fmt.Errorf("spec.%s is not a list", list)
+		}
+		seq.Kind, seq.Tag, seq.Value, seq.Content = yaml.SequenceNode, "", "", nil
+	}
 	// A scaffolded `[]` or `{}` is flow style; leaving it would write the
 	// first entry inline.
 	seq.Style = 0
@@ -180,6 +190,12 @@ func parse(data []byte) (doc, spec *yaml.Node, err error) {
 	}
 	spec.Style = 0
 	return doc, spec, nil
+}
+
+// isNull says a node carries no value: a key written with nothing after it, or
+// with an explicit null. Either is an empty list waiting for its first entry.
+func isNull(n *yaml.Node) bool {
+	return n.Kind == 0 || (n.Kind == yaml.ScalarNode && (n.Tag == "!!null" || n.Value == ""))
 }
 
 func mapValue(m *yaml.Node, key string) *yaml.Node {

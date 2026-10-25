@@ -175,3 +175,51 @@ func TestMarkRootChangesTheKindAndKeepsEverythingElse(t *testing.T) {
 		t.Error("the root scaffold must differ from the plain one")
 	}
 }
+
+// A key written with nothing under it parses as a null scalar, not as an empty
+// sequence. Appending to that silently dropped the entry and reported success.
+func TestEditorFillsAListThatIsPresentButEmpty(t *testing.T) {
+	for _, tc := range []struct {
+		name, empty string
+		add         func(Editor, []byte) ([]byte, error)
+		count       func(*domain.Catalog) int
+	}{
+		{"projects", "  projects:\n",
+			func(e Editor, b []byte) ([]byte, error) {
+				return e.AddWorkspaceRef(b, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
+			},
+			func(c *domain.Catalog) int { return len(c.Workspaces) }},
+		{"projects-explicit-null", "  projects: null\n",
+			func(e Editor, b []byte) ([]byte, error) {
+				return e.AddWorkspaceRef(b, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
+			},
+			func(c *domain.Catalog) int { return len(c.Workspaces) }},
+		{"catalogs", "  catalogs:\n",
+			func(e Editor, b []byte) ([]byte, error) {
+				return e.AddCatalogRef(b, domainCat("personal", "", "", "catalogs/personal.yaml"))
+			},
+			func(c *domain.Catalog) int { return len(c.Catalogs) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			in := []byte("apiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata:\n  name: me\nspec:\n" + tc.empty)
+			out, err := tc.add(Editor{}, in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c, err := Decoder{}.Decode(out)
+			if err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			if tc.count(c) != 1 {
+				t.Errorf("the entry was dropped:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestEditorRefusesAListThatIsNotAList(t *testing.T) {
+	in := []byte("apiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata:\n  name: me\nspec:\n  projects: nonsense\n")
+	if _, err := (Editor{}).AddWorkspaceRef(in, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml")); err == nil {
+		t.Error("a scalar where a list belongs must be refused, not overwritten")
+	}
+}

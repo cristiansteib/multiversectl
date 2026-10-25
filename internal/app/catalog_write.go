@@ -279,7 +279,13 @@ func (c *Catalogs) edit(ctx context.Context, parent domain.Node, summary string,
 		if branch, err = c.writableBranch(ctx, parent); err != nil {
 			return err
 		}
-		if clean, err := c.Git.IsClean(ctx, parent.Dir); err != nil || !clean {
+		clean, err := c.Git.IsClean(ctx, parent.Dir)
+		if err != nil {
+			// Not the same thing as "it has changes": saying so sends the user
+			// looking for edits that are not there, with the real cause gone.
+			return fmt.Errorf("read the local copy of %s (%s): %w", parent.Source.Repo, parent.Dir, err)
+		}
+		if !clean {
 			return fmt.Errorf("the local copy of %s has uncommitted changes (%s); resolve them first", parent.Source.Repo, parent.Dir)
 		}
 		// Only the repository being written to is brought up to date: the rest
@@ -600,6 +606,7 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 		scaffold = c.Editor.ScaffoldRoot
 	}
 	data, paths, what := scaffold(catalogName), []string{file}, defaultCatalogFile
+	var writes []fileChange
 	if sd != nil {
 		manifestFile := filepath.Join(dir, defaultManifestFile)
 		if c.Files.Exists(manifestFile) {
@@ -609,9 +616,7 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 		if data, err = c.Editor.AddWorkspaceRef(data, domain.WorkspaceRef{Name: sd.name, Source: domain.Source{Path: defaultManifestFile}}); err != nil {
 			return "", err
 		}
-		if err := c.Files.WriteFile(manifestFile, sd.manifest, 0o644); err != nil {
-			return "", err
-		}
+		writes = append(writes, fileChange{manifestFile, sd.manifest})
 		paths, what = append(paths, manifestFile), defaultCatalogFile+" and "+defaultManifestFile
 	}
 	if ok, err := c.confirm(fmt.Sprintf("Add %s to %s and push it to %s?", what, url, branch), true); err != nil {
@@ -619,8 +624,17 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 	} else if !ok {
 		return "", ErrCancelled
 	}
+	// Written only now. Declining has to leave nothing behind: an untracked
+	// multiverse.yaml in the cached clone survives every later refresh, which
+	// made this command claim the repository "already has a multiverse.yaml"
+	// for good and failed the clean-checkout gate of every later edit.
 	if err := c.Files.WriteFile(file, data, 0o644); err != nil {
 		return "", err
+	}
+	for _, w := range writes {
+		if err := c.Files.WriteFile(w.File, w.Data, 0o644); err != nil {
+			return "", err
+		}
 	}
 	if err := c.Git.Commit(ctx, dir, "fix: start a catalog", paths...); err != nil {
 		return "", err
@@ -1344,7 +1358,7 @@ func (c *Catalogs) addCheckout(ctx context.Context, in AddInput, dir, file strin
 	if clean, err := c.Git.IsClean(ctx, top); err == nil && !clean {
 		c.Out.Warn("%s has uncommitted changes; the catalog points at what is pushed to %s", top, url)
 	}
-	rel, err := filepath.Rel(top, dir)
+	rel, err := relWithin(top, dir)
 	if err != nil {
 		return "", err
 	}
@@ -1428,7 +1442,10 @@ func (c *Catalogs) addManifestFile(ctx context.Context, in AddInput, file string
 func (c *Catalogs) sameRoot(current string, in InitInput) bool {
 	switch {
 	case in.Where.URL != "":
-		return in.Where.URL == current
+		// The same repository written another way is the same root: ssh and
+		// https, with and without .git. Comparing the text instead told people
+		// to `reset` their whole machine to re-init the root they had.
+		return sameRepo(in.Where.URL, current)
 	case in.Local != "":
 		abs, err := filepath.Abs(in.Local)
 		if err != nil {

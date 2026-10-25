@@ -182,6 +182,11 @@ func plural(n int, noun string) string {
 	if n == 1 {
 		return "1 " + noun
 	}
+	// A bare "s" turns repository into repositorys, which is what the clone
+	// progress line used to say.
+	if len(noun) > 1 && strings.HasSuffix(noun, "y") && !strings.ContainsRune("aeiou", rune(noun[len(noun)-2])) {
+		return fmt.Sprintf("%d %sies", n, noun[:len(noun)-1])
+	}
 	return fmt.Sprintf("%d %ss", n, noun)
 }
 
