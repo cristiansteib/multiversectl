@@ -56,6 +56,8 @@ type proxyLine struct {
 type serverLine struct {
 	Running bool   `json:"running"`
 	URL     string `json:"url,omitempty"`
+	// Outdated is a server that started before the installed program was replaced.
+	Outdated bool `json:"outdated,omitempty"`
 }
 
 func (r runner) machineStatusCmd() *cobra.Command {
@@ -154,7 +156,10 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 	}
 	if p, err := r.f.Server(); err == nil {
 		if info, err := p.Status(ctx); err == nil {
-			ms.Server = serverLine{Running: true, URL: info.URL}
+			ms.Server = serverLine{Running: true, URL: info.URL, Outdated: info.Outdated}
+			if info.Outdated {
+				ms.Attention = append(ms.Attention, "the server is running an older build than the one installed: `multiversectl server restart`")
+			}
 		}
 	}
 

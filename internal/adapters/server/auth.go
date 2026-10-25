@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -86,3 +88,37 @@ const unauthorizedPage = `<!doctype html><meta charset="utf-8"><title>multiverse
 <h1>This needs the link</h1>
 <p>The page changes things on this machine, so it only opens from the link the server prints when it starts. Get it again with:</p>
 <p><code>multiversectl server status</code></p>`
+
+// TokenPath is where the token is kept: beside the configuration, with the
+// other files of the server.
+func TokenPath() (string, error) {
+	base := os.Getenv("XDG_CONFIG_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		base = filepath.Join(home, ".config")
+	}
+	return filepath.Join(base, "multiversectl", "server.token"), nil
+}
+
+// PersistentToken is the token kept at path, made and kept (readable by this
+// user only) when there is none. A token that lived only as long as one start
+// would end every link, and every tool configured with it, each time the
+// server is restarted for an update. Deleting the file is how it is changed.
+func PersistentToken(path string) (string, error) {
+	if data, err := os.ReadFile(path); err == nil {
+		if t := strings.TrimSpace(string(data)); t != "" {
+			return t, nil
+		}
+	}
+	token := newToken()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+		return "", err
+	}
+	return token, nil
+}

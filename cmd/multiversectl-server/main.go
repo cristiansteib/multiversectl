@@ -34,8 +34,9 @@ project with what is running in it, the versions of what it all runs on, and
 buttons to start, stop, create and remove universes and to update a project.
 What changes is pushed to the page as it happens.
 
-Because the page can act, it is opened with a link that carries a token made
-when the server starts; without it nothing is served. It listens on the
+Because the page can act, it is opened with a link that carries a token, kept in
+server.token beside the configuration so it survives a restart (delete the file
+to change it); without it nothing is served. It listens on the
 loopback address only: --expose is the decision to reach it from the network,
 and the token still applies. --read-only removes every action.
 
@@ -95,7 +96,17 @@ func run(ctx context.Context, args []string) error {
 		// What an action's commands print goes to the page, not to this process.
 		return wire.Machine{Version: version, Stdout: stdout, Stderr: stderr}.At(out, root, manifestPath)
 	})
-	opts := server.Options{Addr: *addr, Version: version, Commit: commit, Date: date, Expose: *expose, ReadOnly: *readOnly}
+	// The same token across restarts, so the link and any tool configured with it
+	// survive an update.
+	tokenPath, err := server.TokenPath()
+	if err != nil {
+		return err
+	}
+	token, err := server.PersistentToken(tokenPath)
+	if err != nil {
+		return fmt.Errorf("keeping the token: %w", err)
+	}
+	opts := server.Options{Addr: *addr, Version: version, Commit: commit, Date: date, Expose: *expose, ReadOnly: *readOnly, Token: token}
 	return server.Serve(ctx, backend, opts, func(url string) {
 		mode := "it can start, stop, create and remove universes"
 		if *readOnly {

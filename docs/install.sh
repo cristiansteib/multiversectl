@@ -125,6 +125,10 @@ say "Installed $dir/$BIN (alias: mvctl)"
 [ "$have_server" = 1 ] && say "Installed $dir/$SERVER (the web view: multiversectl server start)"
 "$dir/$BIN" version 2>/dev/null || "$dir/$BIN" --version 2>/dev/null || true
 
+# A web view that was already running still holds the old build; this makes it
+# take the new one, and says nothing when there is none.
+"$dir/$BIN" server restart --if-running 2>/dev/null || true
+
 case ":$PATH:" in
   *":$dir:"*) ;;
   *) say "warning: $dir is not on your PATH; add it to your shell profile." ;;
