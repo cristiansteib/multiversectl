@@ -108,3 +108,14 @@ func (g Git) DefaultBranch(ctx context.Context, repoDir string) (string, error) 
 	}
 	return "", errors.New("cannot determine the default branch of origin")
 }
+
+// Checkout prefers origin/<ref> so a branch name lands on what was last
+// fetched and not on a stale local branch from the first clone.
+func (g Git) Checkout(ctx context.Context, repoDir, ref string) error {
+	target := ref
+	if _, err := g.run(ctx, "-C", repoDir, "rev-parse", "--verify", "--quiet", "origin/"+ref); err == nil {
+		target = "origin/" + ref
+	}
+	_, err := g.run(ctx, "-C", repoDir, "checkout", "--quiet", "--detach", target)
+	return err
+}

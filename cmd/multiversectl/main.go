@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/cristiansteib/multiversectl/internal/adapters/catalog"
 	"github.com/cristiansteib/multiversectl/internal/adapters/cli"
 	"github.com/cristiansteib/multiversectl/internal/adapters/compose"
 	"github.com/cristiansteib/multiversectl/internal/adapters/config"
@@ -39,6 +40,7 @@ func main() {
 		Workspace: workspace,
 		Bare:      bare,
 		At:        at,
+		Catalogs:  catalogs,
 	})
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		if !cli.IsSilent(err) {
@@ -142,6 +144,22 @@ func bare(g cli.Globals, out app.Output) (*app.Service, error) {
 	}
 	root := first(g.Root, os.Getenv("MULTIVERSECTL_ROOT"))
 	return app.New(deps(g, out, root, store), root, nil, version), nil
+}
+
+func catalogs(g cli.Globals, out app.Output) (*app.Catalogs, error) {
+	store, _, err := loadConfig()
+	if err != nil {
+		return nil, err
+	}
+	d := deps(g, out, "", store)
+	return app.NewCatalogs(app.CatalogDeps{
+		Git:      d.Git,
+		Files:    d.Files,
+		Decoder:  catalog.Decoder{},
+		Config:   store,
+		Out:      out,
+		CacheDir: filepath.Join(filepath.Dir(store.Path()), "catalogs"),
+	}), nil
 }
 
 func build(g cli.Globals, out app.Output, store app.ConfigStore, root, path string) (*app.Service, error) {

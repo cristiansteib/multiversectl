@@ -29,6 +29,8 @@ type Git interface {
 	CurrentBranch(ctx context.Context, dir string) (string, error)
 	RefExists(ctx context.Context, repoDir, ref string) (RefKind, error)
 	DefaultBranch(ctx context.Context, repoDir string) (string, error)
+	// Checkout detaches HEAD at ref, a branch (as of origin), tag or commit.
+	Checkout(ctx context.Context, repoDir, ref string) error
 }
 
 // RuntimeRequest is one invocation of the container runtime.
@@ -224,6 +226,10 @@ type Config struct {
 	Current    string                    `yaml:"current,omitempty"`
 	Workspaces map[string]WorkspaceEntry `yaml:"workspaces,omitempty"`
 
+	// Catalog is where this machine's root catalog lives: a git URL or a
+	// local file. Empty until one is chosen.
+	Catalog string `yaml:"catalog,omitempty"`
+
 	// Root and Manifest are what releases before multiple workspaces wrote.
 	// Normalize folds them into Workspaces; nothing writes them any more.
 	Root     string `yaml:"root,omitempty"`
@@ -235,6 +241,12 @@ type ConfigStore interface {
 	Load() (Config, error)
 	Save(c Config) error
 	Path() string
+}
+
+// CatalogDecoder turns a catalog file into the domain model; the app stays
+// ignorant of the file format.
+type CatalogDecoder interface {
+	Decode(data []byte) (*domain.Catalog, error)
 }
 
 // Store persists universe state.

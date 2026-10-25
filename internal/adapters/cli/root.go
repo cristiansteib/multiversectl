@@ -28,6 +28,8 @@ type Factory struct {
 	Bare func(g Globals, out app.Output) (*app.Service, error)
 	// At builds a service for an explicit root and manifest file.
 	At func(g Globals, out app.Output, root, manifestPath string) (*app.Service, error)
+	// Catalogs builds the catalog service, which never needs a workspace.
+	Catalogs func(g Globals, out app.Output) (*app.Catalogs, error)
 }
 
 // New returns the root command and the globals its flags fill in.
@@ -54,7 +56,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run := runner{g: g, out: out, f: f}
 	root.AddCommand(
 		run.newCmd(), run.upCmd(), run.downCmd(), run.rmCmd(), run.lsCmd(), run.urlsCmd(),
-		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.bootstrapCmd(), run.workspacesCmd(), run.useCmd(), run.proxyCmd(),
+		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.bootstrapCmd(), run.workspacesCmd(), run.useCmd(), run.catalogCmd(), run.proxyCmd(),
 		run.updateCmd(), run.versionCmd(),
 	)
 	return root, g
