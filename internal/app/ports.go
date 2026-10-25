@@ -68,6 +68,11 @@ type Git interface {
 	// Behind counts the commits origin has, as last fetched, that dir's HEAD
 	// lacks; ref is a branch, empty for the default one.
 	Behind(ctx context.Context, dir, ref string) (int, error)
+	// Ahead counts the commits dir's HEAD has that origin, as last fetched, lacks;
+	// ref is a branch, empty for the default one.
+	Ahead(ctx context.Context, dir, ref string) (int, error)
+	// LastFetch is when dir last fetched from origin, the zero time if never.
+	LastFetch(ctx context.Context, dir string) time.Time
 	// FastForward moves dir's branch to origin's, and refuses anything else.
 	FastForward(ctx context.Context, dir, branch string) error
 }

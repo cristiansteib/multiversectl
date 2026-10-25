@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/catalog"
 	"github.com/cristiansteib/multiversectl/internal/adapters/fsx"
@@ -29,8 +30,11 @@ type fakeRepos struct {
 	commits   []string
 	pushed    []string
 	pushErr   error
-	behind    int      // commits origin is ahead by
-	ffed      []string // branches fast-forwarded
+	behind    int       // commits origin is ahead by
+	ahead     int       // commits here that origin lacks
+	dirty     bool      // the working tree has uncommitted changes
+	lastFetch time.Time // when dir last fetched; zero is never
+	ffed      []string  // branches fast-forwarded
 }
 
 func (f *fakeRepos) Clone(_ context.Context, url, dest string) error {
@@ -57,8 +61,10 @@ func (f *fakeRepos) Toplevel(_ context.Context, dir string) (string, error) {
 	}
 	return dir, nil
 }
-func (f *fakeRepos) IsClean(context.Context, string) (bool, error) { return true, nil }
-func (f *fakeRepos) HasRemote(context.Context, string) bool        { return false }
+func (f *fakeRepos) IsClean(context.Context, string) (bool, error)      { return !f.dirty, nil }
+func (f *fakeRepos) Ahead(context.Context, string, string) (int, error) { return f.ahead, nil }
+func (f *fakeRepos) LastFetch(context.Context, string) time.Time        { return f.lastFetch }
+func (f *fakeRepos) HasRemote(context.Context, string) bool             { return false }
 func (f *fakeRepos) RemoteURL(_ context.Context, dir string) (string, error) {
 	if u, ok := f.remotes[dir]; ok {
 		return u, nil

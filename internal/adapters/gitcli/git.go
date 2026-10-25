@@ -5,10 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
@@ -289,6 +292,39 @@ func (g Git) Behind(ctx context.Context, dir, ref string) (int, error) {
 		return 0, fmt.Errorf("git rev-list: unexpected %q", out)
 	}
 	return n, nil
+}
+
+func (g Git) Ahead(ctx context.Context, dir, ref string) (int, error) {
+	branch := ref
+	if branch == "" {
+		var err error
+		if branch, err = g.DefaultBranch(ctx, dir); err != nil {
+			return 0, err
+		}
+	}
+	out, err := g.run(ctx, "-C", dir, "rev-list", "--count", "origin/"+branch+"..HEAD")
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	if _, err := fmt.Sscanf(out, "%d", &n); err != nil {
+		return 0, fmt.Errorf("git rev-list: unexpected %q", out)
+	}
+	return n, nil
+}
+
+// LastFetch reads the modification time of FETCH_HEAD, which git rewrites on
+// every fetch, so no file of our own is needed to know when one last happened.
+func (g Git) LastFetch(ctx context.Context, dir string) time.Time {
+	gitDir, err := g.run(ctx, "-C", dir, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return time.Time{}
+	}
+	info, err := os.Stat(filepath.Join(gitDir, "FETCH_HEAD"))
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }
 
 func (g Git) FastForward(ctx context.Context, dir, branch string) error {

@@ -34,7 +34,15 @@ type WorkspaceStatus struct {
 	RepoURL string   `json:"repoUrl,omitempty"`
 	Ref     string   `json:"ref,omitempty"`
 	Notes   []string `json:"notes,omitempty"`
-	Stale   bool     `json:"stale,omitempty"`
+	// Stale is when `project update` would bring the manifest forward.
+	Stale bool `json:"stale,omitempty"`
+	// Dirty, Diverged, Ahead and Behind say how the manifest compares with its
+	// remote; Advice is what to do about it, empty when nothing is pending.
+	Dirty    bool   `json:"manifestEdited,omitempty"`
+	Diverged bool   `json:"manifestDiverged,omitempty"`
+	Ahead    int    `json:"manifestAhead,omitempty"`
+	Behind   int    `json:"manifestBehind,omitempty"`
+	Advice   string `json:"advice,omitempty"`
 }
 
 // StatusReport is what `status` shows.
@@ -95,9 +103,17 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 		rep.Workspaces = append(rep.Workspaces, w)
 	}
 
+	var advised string
+	for _, w := range rep.Workspaces {
+		if w.Advice != "" && !w.Stale && advised == "" {
+			advised = fmt.Sprintf("`%s`: %s", w.Name, w.Advice)
+		}
+	}
 	switch {
 	case len(stale) > 0:
 		rep.Next = "multiversectl project update " + strings.Join(stale, " ")
+	case advised != "":
+		rep.Next = advised
 	case len(rep.Workspaces) == 0 && cfg.Catalog == "":
 		rep.Next = "multiversectl project install <owner/repo>  ·  multiversectl init"
 	case len(rep.Workspaces) == 0:
@@ -119,12 +135,13 @@ func (c *Catalogs) drift(ctx context.Context, w *WorkspaceStatus, e WorkspaceEnt
 				fetched = false
 			}
 		}
-		if n, err := c.Git.Behind(ctx, dir, e.Source.Ref); err == nil && n > 0 {
-			when := ""
-			if !fetched || !fetch {
-				when = " (as of the last fetch)"
+		if d, ok := manifestDrift(ctx, c.Git, c.Files, e); ok {
+			w.Dirty, w.Diverged, w.Ahead, w.Behind = d.Dirty, d.Diverged(), d.Ahead, d.Behind
+			w.Advice = d.Advice(w.Name)
+			for _, n := range d.Notes(!fetched || !fetch) {
+				w.Notes = append(w.Notes, n)
 			}
-			note(true, "manifest behind %d%s", n, when)
+			w.Stale = w.Stale || d.Updatable()
 		}
 	}
 	if c.Manifests != nil {
@@ -182,7 +199,7 @@ func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e Workspac
 		return res, nil
 	}
 	if clean, err := c.Git.IsClean(ctx, dir); err != nil || !clean {
-		return res, fmt.Errorf("%s: local changes in `%s`; commit or stash them, then `multiversectl project update %s`", name, dir, name)
+		return res, fmt.Errorf("%s: local changes in `%s`, which an update never overwrites; commit or stash them, then `multiversectl project update %s`", name, dir, name)
 	}
 	if err := c.Git.Fetch(ctx, dir); err != nil {
 		return res, fmt.Errorf("%s: fetch %s: %s", name, shortRepo(e.Source.Repo), reason(err, e.Source.Repo))
@@ -203,6 +220,10 @@ func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e Workspac
 		if branch, err = c.Git.DefaultBranch(ctx, dir); err != nil {
 			return res, err
 		}
+	}
+	if ahead, aerr := c.Git.Ahead(ctx, dir, e.Source.Ref); aerr == nil && ahead > 0 {
+		d := ManifestDrift{Dir: dir, Ahead: ahead, Behind: behind}
+		return res, fmt.Errorf("%s: %s", name, d.Advice(name))
 	}
 	if err := c.Git.FastForward(ctx, dir, branch); err != nil {
 		return res, fmt.Errorf("%s: cannot fast-forward the manifest (%w); it has diverged from %s", name, err, shortRepo(e.Source.Repo))

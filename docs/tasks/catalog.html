@@ -151,6 +151,18 @@ PROJECT    FROM            STATE
 ✓ billing-api: cloned
 ✓ acme: manifest moved forward 1 · billing-api cloned</pre></div>
   <p><code>status</code> compares each project with where it was installed from, offline unless you pass <code>--fetch</code>. <code>update</code> fetches, moves each manifest forward, and clones the repositories the new manifest lists. It refuses a manifest with local changes and leaves a pinned one (a tag or commit) alone. <code>uninstall &lt;name&gt;</code> forgets a project and leaves its files.</p>
+  <h3 id="hw-news">Hearing about changes while you work</h3>
+  <p>Nothing updates a project by itself. You are told instead: any command that acts on a project (everything under <code>universe</code>) opens with a line when the project's manifest has moved upstream, and <code>status</code> and <code>project status</code> show the same. To make that news arrive without asking, the command looks at the remote itself when the last look is more than six hours old, for at most four seconds and without a word if it fails. <code>MULTIVERSECTL_NO_FETCH=1</code> turns that off, and then it only knows what was last fetched.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe ls
+! acme: 2 upstream changes to its manifest: multiversectl project update acme</pre></div>
+  <h3 id="hw-edit">Editing the manifest here</h3>
+  <p>The manifest of a project installed from a repository is a git checkout under <code>&lt;root&gt;/.multiverse/workspace</code>. Edit it there and keep working: <code>update</code> never overwrites an edit, and <code>status</code> says so.</p>
+  <ul class="t">
+    <li><strong>Edited, nothing new upstream</strong>: <code>manifest edited here</code>, and nothing else. It is a choice, not news.</li>
+    <li><strong>Edited, and upstream moved</strong>: <code>manifest edited here · manifest behind 2</code>, and the advice to keep working or to stash the edit, run <code>update</code> and <code>git stash pop</code>.</li>
+    <li><strong>Committed here, and upstream moved</strong>: <code>manifest diverged (1 local, 2 upstream)</code>. <code>update</code> cannot fast-forward it; run <code>git pull --rebase</code> in that folder.</li>
+  </ul>
+  <p>A project installed from a file is never updated and has nothing to compare with.</p>
 </section>
 
 <section id="hw-share">

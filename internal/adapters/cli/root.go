@@ -96,6 +96,11 @@ func (r runner) withService(fn func(ctx context.Context, s *app.Service) error) 
 		if err != nil {
 			return err
 		}
+		// News about the project's manifest, on the way in: the commands that
+		// act on a project are where someone would otherwise never look.
+		if msg := s.ManifestNotice(cmd.Context()); msg != "" {
+			r.out.Warn("%s", msg)
+		}
 		return fn(cmd.Context(), s)
 	}
 }
