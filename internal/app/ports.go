@@ -357,6 +357,10 @@ type DraftRepo struct {
 // ManifestWriter turns a draft into a multiverse.yaml.
 type ManifestWriter interface {
 	Workspace(d ProjectDraft) ([]byte, error)
+	// Agents is a short AGENTS.md for the project's repository: what it is and
+	// how to work with it and with the tool. source is how someone installs
+	// the project, the repository's URL or, before it has one, a path.
+	Agents(d ProjectDraft, source string) ([]byte, error)
 }
 
 // CatalogEditor changes catalog files while keeping the comments and layout

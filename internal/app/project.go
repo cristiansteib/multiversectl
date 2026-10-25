@@ -258,7 +258,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 	}
 
 	res := ProjectResult{Name: name, Dir: dir, Root: root}
-	if res.URL, err = c.publishProject(ctx, dir, name, data, target); err != nil {
+	if res.URL, err = c.publishProject(ctx, dir, name, data, draft, target); err != nil {
 		return res, err
 	}
 	if res.URL == "" || in.NoLink {
@@ -559,11 +559,11 @@ func (t projectHome) describe() string {
 func (t projectHome) question(dir string) string {
 	switch {
 	case t.local:
-		return fmt.Sprintf("Write multiverse.yaml and catalog.yaml in %s and commit them?", dir)
+		return fmt.Sprintf("Write multiverse.yaml, catalog.yaml and AGENTS.md in %s and commit them?", dir)
 	case t.create != "":
-		return fmt.Sprintf("Create %s on %s, write multiverse.yaml and catalog.yaml in %s, commit and push them?", t.create, t.host.Name(), dir)
+		return fmt.Sprintf("Create %s on %s, write multiverse.yaml, catalog.yaml and AGENTS.md in %s, commit and push them?", t.create, t.host.Name(), dir)
 	}
-	return fmt.Sprintf("Write multiverse.yaml and catalog.yaml in %s, commit them and push to %s?", dir, t.url)
+	return fmt.Sprintf("Write multiverse.yaml, catalog.yaml and AGENTS.md in %s, commit them and push to %s?", dir, t.url)
 }
 
 // projectTarget decides where the project's repository lives, from what was
@@ -647,7 +647,7 @@ func (c *Catalogs) hostNamed(name string) (RepoHost, error) {
 
 // publishProject makes the repository if asked, writes the two files, commits
 // them and pushes. It returns the repository's URL, "" for a local-only one.
-func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifest []byte, t projectHome) (string, error) {
+func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifest []byte, draft ProjectDraft, t projectHome) (string, error) {
 	url := t.url
 	if t.create != "" {
 		if err := t.host.Available(ctx); err != nil {
@@ -698,10 +698,24 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 	if err := c.Files.WriteFile(catalogFile, catalogData, 0o644); err != nil {
 		return "", err
 	}
-	if err := c.Git.Commit(ctx, dir, "Start the "+name+" project with multiversectl", manifestFile, catalogFile); err != nil {
+	files := []string{manifestFile, catalogFile}
+	agentsFile := filepath.Join(dir, "AGENTS.md")
+	if c.Files.Exists(agentsFile) {
+		c.Out.Info("AGENTS.md is already here; it is kept as it is")
+	} else {
+		agents, err := c.Writer.Agents(draft, firstOf(url, dir))
+		if err != nil {
+			return "", err
+		}
+		if err := c.Files.WriteFile(agentsFile, agents, 0o644); err != nil {
+			return "", err
+		}
+		files = append(files, agentsFile)
+	}
+	if err := c.Git.Commit(ctx, dir, "Start the "+name+" project with multiversectl", files...); err != nil {
 		return "", fmt.Errorf("the files are written in %s but could not be committed; commit and push them yourself: %w", dir, err)
 	}
-	c.Out.OK("wrote %s and %s", defaultManifestFile, defaultCatalogFile)
+	c.Out.OK("wrote %s, %s and AGENTS.md", defaultManifestFile, defaultCatalogFile)
 	if url == "" {
 		c.Out.Info("only on this machine: git -C %s remote add origin <url> && git -C %s push -u origin HEAD", dir, dir)
 		return "", nil

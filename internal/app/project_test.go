@@ -67,6 +67,15 @@ func TestProjectInitCreatesTheRepositoryPushesAndLinksIt(t *testing.T) {
 	if got := read1(t, filepath.Join(dir, "catalog.yaml")); !strings.Contains(got, "kind: Catalog") || !strings.Contains(got, "- name: acme") {
 		t.Errorf("the catalog does not list the project's own workspace:\n%s", got)
 	}
+	agents := read1(t, filepath.Join(dir, "AGENTS.md"))
+	for _, want := range []string{"**acme**", "multiverse.yaml", "catalog install " + r.host.url, "universe up", "acme-api"} {
+		if !strings.Contains(agents, want) {
+			t.Errorf("AGENTS.md lacks %q:\n%s", want, agents)
+		}
+	}
+	if len(git.commits) < 1 || !strings.Contains(git.commits[0], "AGENTS.md") {
+		t.Errorf("AGENTS.md must be committed with the rest: %v", git.commits)
+	}
 	if git.remotes[dir] != r.host.url || len(git.pushed) != 1 || len(git.commits) < 1 {
 		t.Errorf("origin %q, pushed %v, commits %v", git.remotes[dir], git.pushed, git.commits)
 	}
@@ -218,5 +227,22 @@ func TestProjectInitGuideSignsInWhenTheServiceNeedsIt(t *testing.T) {
 	}
 	if _, err := manifest.Load(filepath.Join(dir, "multiverse.yaml")); err != nil {
 		t.Error(err)
+	}
+}
+
+func TestProjectInitKeepsAnAGENTSFileThatIsAlreadyThere(t *testing.T) {
+	git := &fakeRepos{inRepo: true}
+	r := projectRig(t, git)
+	r.Yes = true
+	dir := filepath.Join(t.TempDir(), "multiverse")
+	write(t, dir, "AGENTS.md", "mine\n")
+	if _, err := r.InitProject(context.Background(), app.ProjectInput{Dir: dir, Name: "acme", Local: true, Repos: []string{"acme/api"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read1(t, filepath.Join(dir, "AGENTS.md")); got != "mine\n" {
+		t.Errorf("AGENTS.md was overwritten: %q", got)
+	}
+	if strings.Contains(git.commits[0], "AGENTS.md") {
+		t.Errorf("a file that was not written must not be swept into the commit: %v", git.commits)
 	}
 }
