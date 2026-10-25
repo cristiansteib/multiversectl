@@ -32,7 +32,11 @@ type SelfUpdateResult struct {
 
 // SelfUpdate replaces the binary with the latest release when it is newer.
 func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdateResult, error) {
-	latest, err := s.Releases.Latest(ctx)
+	var latest Release
+	err := s.progress().Do("Looking for the latest release", func(ctx context.Context) (err error) {
+		latest, err = s.Releases.Latest(ctx)
+		return err
+	})
 	if err != nil {
 		return SelfUpdateResult{}, fmt.Errorf("looking up the latest release: %w", err)
 	}
@@ -49,7 +53,7 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 	if !ok {
 		return result, fmt.Errorf("release %s has no asset %s: %w", latest.Version, name, domain.ErrNotFound)
 	}
-	if err := s.install(ctx, url, in.BinaryPath); err != nil {
+	if err := s.install(ctx, "Downloading multiversectl "+latest.Version, url, in.BinaryPath); err != nil {
 		return result, err
 	}
 	result.Updated = true
@@ -57,7 +61,7 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 	// The web view is a separate program that `server start` looks for beside
 	// this one, so it has to move with it or the page runs an older release.
 	if server, ok := latest.Assets[fmt.Sprintf("multiversectl-server_%s_%s", in.OS, in.Arch)]; ok && in.ServerPath != "" {
-		if err := s.install(ctx, server, in.ServerPath); err != nil {
+		if err := s.install(ctx, "Downloading the web view", server, in.ServerPath); err != nil {
 			return result, fmt.Errorf("multiversectl is updated, but the web view is not: %w", err)
 		}
 		result.Server = true
@@ -67,14 +71,15 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 
 // install downloads to a temp file and only then swaps it in, so the binary
 // is never left half-written.
-func (s *Service) install(ctx context.Context, url, binaryPath string) error {
+func (s *Service) install(ctx context.Context, label, url, binaryPath string) error {
 	tmp, err := s.Files.TempFile("multiversectl-*")
 	if err != nil {
 		return err
 	}
 	defer s.Files.RemoveAll(tmp)
 
-	if err := s.Releases.Download(ctx, url, tmp); err != nil {
+	err = s.progress().Do(label, func(ctx context.Context) error { return s.Releases.Download(ctx, url, tmp) })
+	if err != nil {
 		return fmt.Errorf("downloading %s: %w", url, err)
 	}
 	if err := s.Files.Chmod(tmp, 0o755); err != nil {
@@ -142,4 +147,12 @@ func parseSemver(v string) ([3]int, bool) {
 		out[i] = n
 	}
 	return out, true
+}
+
+// progress is the spinner, or a no-op where there is no terminal to draw on.
+func (s *Service) progress() Progress {
+	if s.Progress == nil {
+		return noProgress{}
+	}
+	return s.Progress
 }
