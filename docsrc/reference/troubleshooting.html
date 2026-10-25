@@ -16,9 +16,9 @@
 
 <section id="ts-secret">
   <h2 id="ts-secret"><a href="#ts-secret">A secret file is missing</a></h2>
-  <p><code>new</code> warns, and <code>doctor 3</code> fails with <em>secret &lt;app&gt;: missing &lt;path&gt;</em>. Secrets listed under an app's <code>secrets:</code> are copied from the shared clone into each universe. Put the file in the clone, then run <code>new</code> again (existing checkouts are kept):</p>
+  <p><code>up</code> stops with <em>a secret file is missing</em> and names each file and where it belongs, <code>new</code> warns, and <code>doctor 3</code> fails with <em>secret &lt;app&gt;: missing &lt;path&gt;</em>. Secrets listed under an app's <code>secrets:</code> are copied from the shared clone into each universe, and a tracked <code>.env.example</code> beside one is used when the clone has none. Otherwise put the file in the clone and start again; <code>up</code> copies it into the universe:</p>
   <div class="code"><pre><span class="p">$ </span>cp .env ~/acme/api/.env
-<span class="p">$ </span>multiversectl universe new 3
+<span class="p">$ </span>multiversectl universe up 3
 <span class="p">$ </span>multiversectl universe doctor 3</pre></div>
 </section>
 
