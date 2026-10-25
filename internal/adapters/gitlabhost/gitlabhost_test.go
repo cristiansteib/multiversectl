@@ -121,3 +121,25 @@ func TestOwnsAsksThePlatformNotTheText(t *testing.T) {
 		}
 	}
 }
+
+// A glab that fails saying nothing at all: the exit status is all there is,
+// and an error whose message is empty reaches the user as a bare "error:".
+func silentGlab(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "glab"), []byte("#!/bin/sh\nexit 3\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestAGlabThatSaysNothingStillGivesAnError(t *testing.T) {
+	silentGlab(t)
+	_, err := Host{}.Accounts(context.Background())
+	if err == nil {
+		t.Fatal("a failing glab must be an error")
+	}
+	if msg := err.Error(); msg == "" || !strings.Contains(msg, "glab api user") {
+		t.Errorf("the error should name what was run: %q", msg)
+	}
+}
