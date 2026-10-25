@@ -15,6 +15,7 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/adapters/fsx"
 	"github.com/cristiansteib/multiversectl/internal/adapters/gitcli"
 	"github.com/cristiansteib/multiversectl/internal/adapters/githost"
+	"github.com/cristiansteib/multiversectl/internal/adapters/gitlabhost"
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest"
 	"github.com/cristiansteib/multiversectl/internal/adapters/prompt"
 	"github.com/cristiansteib/multiversectl/internal/adapters/release"
@@ -117,6 +118,8 @@ func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 		Editor:    catalog.Editor{},
 		Prompt:    prompt.New(m.ctx()),
 		Host:      githost.New(),
+		Hosts:     []app.RepoHost{githost.New(), gitlabhost.New()},
+		Writer:    manifest.Writer{},
 		Config:    store,
 		Manifests: ManifestLoader{},
 		Out:       out,

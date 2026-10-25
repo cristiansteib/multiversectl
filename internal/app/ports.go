@@ -46,6 +46,8 @@ type Git interface {
 	// Commit records only paths, so unrelated changes in a user's own
 	// repository are never swept into it.
 	Commit(ctx context.Context, dir, message string, paths ...string) error
+	// AddRemote points a new repository's origin at url.
+	AddRemote(ctx context.Context, dir, name, url string) error
 	// Push sends HEAD to the named branch of origin.
 	Push(ctx context.Context, dir, branch string) error
 	// Behind counts the commits origin has, as last fetched, that dir's HEAD
@@ -304,9 +306,51 @@ type Option struct {
 
 // RepoHost creates repositories on a hosting service.
 type RepoHost interface {
+	// Name is the service's own name, such as GitHub.
+	Name() string
 	// Available says why repositories cannot be created, nil when they can.
 	Available(ctx context.Context) error
+	// Create makes a repository; name is owner/name, or just a name for the
+	// signed-in account's own.
 	Create(ctx context.Context, name string, private bool) (url string, err error)
+	// Accounts are the places a repository can be made or listed: the signed-in
+	// user first, then the organizations or groups they belong to.
+	Accounts(ctx context.Context) ([]Account, error)
+	// Repos lists an account's repositories, for searching through them.
+	Repos(ctx context.Context, account string) ([]RemoteRepo, error)
+}
+
+// Account is a user, organization or group on a hosting service.
+type Account struct {
+	Name string
+	Org  bool
+}
+
+// RemoteRepo is a repository on a hosting service.
+type RemoteRepo struct {
+	Name        string // owner/name
+	URL         string
+	Description string
+	Private     bool
+}
+
+// ProjectDraft is what a new project's manifest is written from.
+type ProjectDraft struct {
+	Name  string
+	Repos []DraftRepo
+}
+
+// DraftRepo is one repository of the project; Dir is where it sits under the
+// workspace root. A repository runs from its own docker-compose.yml unless
+// NoRuntime says it has none, which is what a library or a mobile app wants.
+type DraftRepo struct {
+	Key, URL, Dir string
+	NoRuntime     bool
+}
+
+// ManifestWriter turns a draft into a multiverse.yaml.
+type ManifestWriter interface {
+	Workspace(d ProjectDraft) ([]byte, error)
 }
 
 // CatalogEditor changes catalog files while keeping the comments and layout

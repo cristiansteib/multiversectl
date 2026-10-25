@@ -147,6 +147,11 @@ func (g Git) Commit(ctx context.Context, dir, message string, paths ...string) e
 	return err
 }
 
+func (g Git) AddRemote(ctx context.Context, dir, name, url string) error {
+	_, err := g.run(ctx, "-C", dir, "remote", "add", name, url)
+	return err
+}
+
 func (g Git) Push(ctx context.Context, dir, branch string) error {
 	_, err := g.run(ctx, "-C", dir, "push", "--quiet", "origin", "HEAD:refs/heads/"+branch)
 	return err

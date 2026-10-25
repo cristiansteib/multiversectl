@@ -65,9 +65,19 @@ func (p *scripted) Input(label, def string) (string, error) {
 }
 
 type fakeHost struct {
-	err     error
-	created []string
-	url     string
+	err      error
+	created  []string
+	url      string
+	accounts []app.Account
+	repos    []app.RemoteRepo
+}
+
+func (h *fakeHost) Name() string { return "GitHub" }
+func (h *fakeHost) Accounts(context.Context) ([]app.Account, error) {
+	return h.accounts, nil
+}
+func (h *fakeHost) Repos(context.Context, string) ([]app.RemoteRepo, error) {
+	return h.repos, nil
 }
 
 func (h *fakeHost) Available(context.Context) error { return h.err }

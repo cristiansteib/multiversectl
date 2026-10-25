@@ -69,6 +69,14 @@ func (f *fakeRepos) RefExists(context.Context, string, string) (app.RefKind, err
 	return app.RefRemote, nil
 }
 func (f *fakeRepos) Init(context.Context, string) error { return nil }
+func (f *fakeRepos) AddRemote(_ context.Context, dir, _, url string) error {
+	if f.remotes == nil {
+		f.remotes = map[string]string{}
+	}
+	f.remotes[dir] = url
+	return nil
+}
+func (f *fakeRepos) CurrentBranch(context.Context, string) (string, error) { return "main", nil }
 func (f *fakeRepos) Commit(_ context.Context, _, msg string, paths ...string) error {
 	f.commits = append(f.commits, msg+" "+strings.Join(paths, ","))
 	return nil

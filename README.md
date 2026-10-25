@@ -86,6 +86,7 @@ catalog. It is a git repository of pointers, private if you let `init` create it
 ```sh
 multiversectl init                      # asks where it should live
 multiversectl catalog add acme/billing  # asks which node of the tree it goes in
+multiversectl project init              # a guide: pick its repositories, create its repository, list it
 multiversectl catalog                   # the tree, with what is installed marked
 multiversectl catalog status                    # what is installed here, and what has drifted
 multiversectl catalog update                    # catch up: manifests and new repositories

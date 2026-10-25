@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
@@ -197,4 +198,28 @@ func decodeOrFail(t *testing.T, yaml string) *domain.Manifest {
 		t.Fatal(err)
 	}
 	return m
+}
+
+func TestWriterOutputLoadsBack(t *testing.T) {
+	data, err := Writer{}.Workspace(app.ProjectDraft{
+		Name: "acme",
+		Repos: []app.DraftRepo{
+			{Key: "api", URL: "https://example.test/acme/acme-api.git", Dir: "acme-api"},
+			{Key: "web", URL: "git@example.test:acme/web.git", Dir: "web"},
+			{Key: "docs", URL: "https://example.test/acme/docs.git", Dir: "docs", NoRuntime: true},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := Decode(data, t.TempDir())
+	if err != nil {
+		t.Fatalf("%v\n%s", err, data)
+	}
+	if m.Name != "acme" || len(m.Repos) != 3 || m.Repos["api"].Dir != "acme-api" {
+		t.Errorf("round trip lost something: %+v\n%s", m, data)
+	}
+	if got := strings.Join(m.RunnableApps(), ","); got != "api,web" {
+		t.Errorf("runnable apps = %s, want api,web (docs has no runtime)", got)
+	}
 }

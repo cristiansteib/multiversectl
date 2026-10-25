@@ -61,7 +61,19 @@ WORKSPACE  FROM            STATE
 
 <section id="hw-share">
   <h2 id="hw-share"><a href="#hw-share">Make a project others can join</a></h2>
-  <p>Give the project one repository that is both its index and its own workspace definition. The catalog lists that workspace with no <code>repo</code>, because a reference stays in the repository it is written in, and can link deeper catalogs when the project needs them.</p>
+  <div class="code"><pre><span class="c"># in an empty directory, or a checkout of a repository you made for it</span>
+<span class="p">$ </span>multiversectl project init</pre></div>
+  <p>The guide asks, in turn, and shows the plan before it creates or pushes anything:</p>
+  <ul class="t">
+    <li><strong>Its repositories.</strong> The git checkouts already beside the directory (each one's <code>origin</code> becomes its URL), a search through your repositories on GitHub or GitLab (pick the account or organization, filter by name, tick the ones you want), or URLs you paste: <code>git@...</code>, <code>https://...</code> or <code>owner/repo</code>. Mix them as you like.</li>
+    <li><strong>Its name.</strong> What most repository names start with (<code>acme-api</code>, <code>acme-ui</code> are <code>acme</code>), which also shortens their keys to <code>api</code> and <code>ui</code>.</li>
+    <li><strong>Where its own repository lives.</strong> A new private one under any account or organization you can create in, on GitHub or GitLab; one that exists; the directory's own <code>origin</code>; or only on this machine for now.</li>
+    <li><strong>Where to list it</strong> in your root catalog, with the same picker as <code>catalog add</code>, and whether to <strong>install it</strong> here so the next command can be <code>universe new 1</code>.</li>
+  </ul>
+  <p>It writes <code>multiverse.yaml</code> and <code>catalog.yaml</code> into the directory, commits them and pushes. A repository with a <code>docker-compose.yml</code> becomes an app of the same name; one that was found cloned and has none is marked <code>runtime: none</code>; one only chosen from a search is left to start as an app when it gets a compose file. GitHub needs <code>gh</code> and GitLab needs <code>glab</code>, both signed in; any other host works by URL. Every answer has a flag, so with enough of them it asks nothing:</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl project init ~/acme/multiverse --scan --create acme-org/multiverse --yes
+<span class="p">$ </span>multiversectl project init --name acme --repo acme-org/api --repo https://gitlab.com/acme/web.git --local</pre></div>
+  <p>What it makes is a repository that is both the project's index and its own workspace definition. The catalog lists that workspace with no <code>repo</code>, because a reference stays in the repository it is written in, and can link deeper catalogs when the project needs them.</p>
   <div class="code"><pre><span class="c"># catalog.yaml in acme-org/multiverse</span>
 <span class="k">apiVersion</span>: multiverse/v1alpha1
 <span class="k">kind</span>: Catalog
@@ -71,5 +83,5 @@ WORKSPACE  FROM            STATE
   <span class="k">workspaces</span>:
     - <span class="k">name</span>: acme
       <span class="k">source</span>: {<span class="k">path</span>: multiverse.yaml}   <span class="c"># this repository's own manifest</span></pre></div>
-  <p>Anyone then needs <code>multiversectl catalog install acme-org/multiverse</code>. If they keep an index of their own, <code>install</code> suggests <code>catalog add</code> for it. Drop machine-specific lines such as an absolute <code>spec.root</code> from a manifest you share: <code>install</code> chooses where it goes.</p>
+  <p>Anyone then needs <code>multiversectl catalog install acme-org/multiverse</code>. To do it by hand instead, write those two files yourself. If they keep an index of their own, <code>install</code> suggests <code>catalog add</code> for it. Drop machine-specific lines such as an absolute <code>spec.root</code> from a manifest you share: <code>install</code> chooses where it goes.</p>
 </section>

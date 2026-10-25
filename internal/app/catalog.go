@@ -32,7 +32,11 @@ type CatalogDeps struct {
 	Out       Output
 	Prompt    Prompter
 	Host      RepoHost
-	CacheDir  string // where remote repositories are cloned
+	// Hosts are every service a repository can be searched or created on; Host
+	// alone is enough when there is only one.
+	Hosts    []RepoHost
+	Writer   ManifestWriter
+	CacheDir string // where remote repositories are cloned
 
 	// Yes answers every confirmation with its default, for scripts.
 	Yes bool
@@ -41,7 +45,12 @@ type CatalogDeps struct {
 // Catalogs resolves and browses the tree of catalogs.
 type Catalogs struct{ CatalogDeps }
 
-func NewCatalogs(d CatalogDeps) *Catalogs { return &Catalogs{d} }
+func NewCatalogs(d CatalogDeps) *Catalogs {
+	if len(d.Hosts) == 0 && d.Host != nil {
+		d.Hosts = []RepoHost{d.Host}
+	}
+	return &Catalogs{d}
+}
 
 // Use records the root catalog for this machine.
 func (c *Catalogs) Use(source string) error {
