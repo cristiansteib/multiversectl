@@ -113,7 +113,7 @@ multiversectl universe up fix/login     # start its containers
 multiversectl universe ls               # list universes and their state
 multiversectl universe ls -o wide       # every service, whether it is up, and what it owns
 multiversectl universe urls fix/login   # print the hostnames it answers on
-multiversectl doctor           # check prerequisites and common problems
+multiversectl universe doctor           # check prerequisites and common problems
 multiversectl universe rm fix/login     # stop and delete it
 ```
 

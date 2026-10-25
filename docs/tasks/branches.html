@@ -128,10 +128,10 @@ http://api-fix-login.10-0-0-5.traefik.me
 
 <section id="hw-prune">
   <h2 id="hw-prune"><a href="#hw-prune">Clear out every universe on the machine</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl system                    <span class="c"># what each workspace holds</span>
-<span class="p">$ </span>multiversectl system --prune            <span class="c"># remove the idle ones, asking first</span>
-<span class="p">$ </span>multiversectl system --prune --all --yes <span class="c"># everything, running ones included, no question</span></pre></div>
-  <p><code>--prune</code> does to each universe what <code>universe rm</code> does, in every installed workspace, or only the one you name with <code>-w</code>: the containers and <strong>volumes</strong>, the worktrees, the directory and the state file. It is deliberately not a way to stop containers and keep the data; that is <code>universe down</code>.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe prune --dry-run                    <span class="c"># show what it would remove, and stop</span>
+<span class="p">$ </span>multiversectl universe prune            <span class="c"># remove the idle ones, asking first</span>
+<span class="p">$ </span>multiversectl universe prune --all --yes <span class="c"># everything, running ones included, no question</span></pre></div>
+  <p><code>universe prune</code> does to each universe what <code>universe rm</code> does, in every installed workspace, or only the one you name with <code>-w</code>: the containers and <strong>volumes</strong>, the worktrees, the directory and the state file. It is deliberately not a way to stop containers and keep the data; that is <code>universe down</code>.</p>
   <p>Two kinds of universe are kept unless you say otherwise, and each is listed with the reason:</p>
   <ul class="t"><li>one with containers running, until you add <code>--all</code>;</li><li>one with uncommitted work in a worktree, until you add <code>--force</code>. <code>--yes</code> only skips the question; it never discards work.</li></ul>
   <p>What it does not touch: the shared clones; the shared proxy; and the installed workspaces and catalogs. The branches a universe started are deleted only when every commit on them is already on the base branch or on a remote, so committed work is never lost, and one holding anything else is kept and named.</p>

@@ -14,34 +14,30 @@ import (
 
 // systemCmd is the machine-wide view: every installed workspace, not the one
 // commands act on by default, which is what makes a prune across them possible.
-func (r runner) systemCmd() *cobra.Command {
-	var prune, all, force, yes bool
+func (r runner) pruneCmd() *cobra.Command {
+	var all, force, yes, dry bool
 	cmd := &cobra.Command{
-		Use:   "system",
-		Short: "What universes take up on this machine, across every workspace; --prune removes them",
-		Long: "With no flags, lists every installed workspace with how many universes it has,\n" +
-			"how many containers run, and how many universes hold uncommitted work.\n\n" +
-			"--prune removes universes the way `universe rm` does (containers, volumes,\n" +
-			"worktrees, directory and state) for every installed workspace, or for the one\n" +
-			"named with -w. It keeps, and says why:\n" +
+		Use:   "prune",
+		Short: "Remove universes across every installed workspace: the idle ones, or all of them",
+		Long: "Removes universes the way `universe rm` does (containers, volumes, worktrees,\n" +
+			"directory and state) in every installed workspace, or in the one named with -w.\n" +
+			"It lists what it will do, and keeps, saying why:\n" +
 			"  - universes with containers running, unless --all\n" +
 			"  - universes with uncommitted work in a worktree, unless --force\n" +
 			"It leaves the shared clones, the proxy and the installed workspaces alone. A\n" +
 			"branch a universe started is deleted only when every commit on it is already\n" +
 			"on the base branch or a remote; one with anything else is kept and named, so\n" +
-			"committed work survives. It lists what it will remove and asks, unless --yes.",
-		Example: "  multiversectl system\n  multiversectl system --prune\n  multiversectl system --prune --all --yes\n  multiversectl system --prune --all --force -w acme",
+			"committed work survives. It asks before removing anything, unless --yes;\n" +
+			"--dry-run shows the list and stops.",
+		Example: "  multiversectl universe prune --dry-run\n  multiversectl universe prune\n  multiversectl u prune --all --yes\n  multiversectl u prune --all --force -w acme",
 		Args:    cobra.NoArgs,
 	}
-	cmd.Flags().BoolVar(&prune, "prune", false, "remove universes (see above for which)")
-	cmd.Flags().BoolVar(&all, "all", false, "with --prune: include universes that are running")
-	cmd.Flags().BoolVar(&force, "force", false, "with --prune: include universes with uncommitted work, which is discarded")
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "with --prune: do not ask")
+	cmd.Flags().BoolVar(&all, "all", false, "include universes that are running")
+	cmd.Flags().BoolVar(&force, "force", false, "include universes with uncommitted work, which is discarded")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "do not ask")
+	cmd.Flags().BoolVarP(&dry, "dry-run", "n", false, "show what would be removed and stop")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
-		if !prune && (all || force || yes) {
-			return errors.New("--all, --force and --yes only apply with --prune")
-		}
-		return r.system(cmd.Context(), prune, app.PruneOptions{All: all, Force: force}, yes)
+		return r.prune(cmd.Context(), app.PruneOptions{All: all, Force: force}, yes, dry)
 	}
 	return cmd
 }
@@ -53,7 +49,7 @@ type workspacePlan struct {
 	items []app.PruneItem
 }
 
-func (r runner) system(ctx context.Context, prune bool, o app.PruneOptions, yes bool) error {
+func (r runner) prune(ctx context.Context, o app.PruneOptions, yes, dry bool) error {
 	bare, err := r.f.Bare(*r.g, r.out)
 	if err != nil {
 		return err
@@ -88,35 +84,10 @@ func (r runner) system(ctx context.Context, prune bool, o app.PruneOptions, yes 
 		}
 		plans = append(plans, workspacePlan{name: w.Name, svc: svc, items: items})
 	}
-	if !prune {
-		r.systemOverview(plans)
-		return nil
-	}
-	return r.systemPrune(ctx, plans, yes)
+	return r.systemPrune(ctx, plans, yes, dry)
 }
 
-func (r runner) systemOverview(plans []workspacePlan) {
-	rows := make([][]string, 0, len(plans))
-	var universes int
-	for _, p := range plans {
-		running, dirty := 0, 0
-		for _, it := range p.items {
-			running += it.Running
-			if len(it.Dirty) > 0 {
-				dirty++
-			}
-		}
-		universes += len(p.items)
-		rows = append(rows, []string{p.name, fmt.Sprint(len(p.items)), fmt.Sprint(running), fmt.Sprint(dirty)})
-	}
-	r.out.Table([]string{"WORKSPACE", "UNIVERSES", "CONTAINERS UP", "WITH UNCOMMITTED WORK"}, rows)
-	if universes > 0 {
-		r.out.Plain("")
-		r.out.Info("remove the idle ones: `multiversectl system --prune`   (--all includes running, --force uncommitted work)")
-	}
-}
-
-func (r runner) systemPrune(ctx context.Context, plans []workspacePlan, yes bool) error {
+func (r runner) systemPrune(ctx context.Context, plans []workspacePlan, yes, dry bool) error {
 	out := r.out
 	remove, keep := 0, 0
 	for _, p := range plans {
@@ -140,6 +111,11 @@ func (r runner) systemPrune(ctx context.Context, plans []workspacePlan, yes bool
 	if remove == 0 {
 		out.Plain("")
 		out.Info("nothing to remove (%d kept)", keep)
+		return nil
+	}
+	if dry {
+		out.Plain("")
+		out.Info("dry run: %s would be removed and %d kept; nothing was changed", plural(remove, "universe"), keep)
 		return nil
 	}
 	if !yes {

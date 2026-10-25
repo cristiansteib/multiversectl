@@ -16,7 +16,7 @@ func (r runner) resetCmd() *cobra.Command {
 			"stays, unmanaged, and can be installed again (install reuses checkouts with\n" +
 			"--root). Use it to switch to another root: init refuses to while workspaces\n" +
 			"installed from the old one exist. Remove universes first with\n" +
-			"`multiversectl system --prune` if you want them gone.",
+			"`multiversectl universe prune` if you want them gone.",
 		Example: "  multiversectl reset\n  multiversectl reset --yes",
 		Args:    cobra.NoArgs,
 	}
@@ -53,6 +53,6 @@ func (r runner) warnUniverses(cmd *cobra.Command) {
 		if err != nil || len(items) == 0 {
 			continue
 		}
-		r.out.Warn("`%s` has %d universes in `%s`; they stay on disk and nothing will manage them. `multiversectl system --prune` removes them first", w.Name, len(items), w.Root)
+		r.out.Warn("`%s` has %d universes in `%s`; they stay on disk and nothing will manage them. `multiversectl universe prune` removes them first", w.Name, len(items), w.Root)
 	}
 }

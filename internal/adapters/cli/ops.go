@@ -21,7 +21,7 @@ func (r runner) doctorCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "doctor [universe]",
 		Short:   "Check the host, the workspace and optionally one universe; exits 1 on any failure",
-		Example: "  multiversectl doctor\n  multiversectl doctor 3\n  multiversectl doctor fix/login",
+		Example: "  multiversectl universe doctor\n  multiversectl universe doctor 3\n  multiversectl universe doctor fix/login",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			universe := ""
@@ -131,7 +131,7 @@ func (r runner) proxyCmd() *cobra.Command {
 					return err
 				}
 				if !st.Running {
-					s.Out.Warn("proxy is not running — start it with: `multiversectl proxy up`")
+					s.Out.Warn("proxy is not running — start it with: `multiversectl universe proxy up`")
 					return nil
 				}
 				s.Out.OK("proxy is running")

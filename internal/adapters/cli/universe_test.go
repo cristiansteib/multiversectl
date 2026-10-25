@@ -18,12 +18,14 @@ func (noTerminal) Input(string, string) (string, error)            { return "", 
 
 func TestUniverseCommandsLiveUnderUniverse(t *testing.T) {
 	root, _ := New(Factory{})
-	for _, name := range []string{"new", "up", "down", "rm", "ls", "urls", "env", "run", "exec"} {
+	for _, name := range []string{"new", "checkout", "up", "down", "rm", "ls", "status", "urls", "env", "run", "exec", "doctor", "proxy", "prune"} {
 		c, _, err := root.Find([]string{"u", name})
 		if err != nil || c.Name() != name {
 			t.Errorf("u %s: not found under universe (%v)", name, err)
 		}
-		if top, _, _ := root.Find([]string{name}); top != root {
+		// status is also a top-level command, but a different one: the machine's
+		// overview, not a universe listing.
+		if top, _, _ := root.Find([]string{name}); name != "status" && top != root {
 			t.Errorf("%s is still a top-level command", name)
 		}
 	}

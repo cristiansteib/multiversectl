@@ -67,8 +67,8 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run = runner{g: g, out: out, f: f}
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
-		run.universeCmd(), run.machineStatusCmd(), run.systemCmd(), run.serverCmd(), run.doctorCmd(), run.catalogCmd(), run.projectCmd(), run.initCmd(), run.resetCmd(), run.completionCmd(root),
-		run.proxyCmd(), run.selfUpdateCmd(), run.versionCmd(),
+		run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.projectCmd(), run.initCmd(), run.resetCmd(), run.completionCmd(root),
+		run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("workspace", run.completeWorkspaces)
 	root.Args = cobra.NoArgs

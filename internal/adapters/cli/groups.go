@@ -18,7 +18,7 @@ const (
 var commandGroups = map[string]string{
 	"init": groupSetup, "reset": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup,
 	"catalog": groupCatalog, "project": groupCatalog,
-	"universe": groupUniverse, "status": groupUniverse, "system": groupUniverse, "server": groupUniverse, "doctor": groupUniverse, "proxy": groupUniverse,
+	"universe": groupUniverse, "status": groupUniverse, "server": groupUniverse,
 }
 
 // groupCommands sorts the help into those groups and colours it. Each group
