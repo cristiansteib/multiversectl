@@ -34,6 +34,10 @@ type Machine struct {
 	Verbose bool
 	// Ctx ends a question waiting on the terminal; nil means never.
 	Ctx context.Context
+	// Stdout and Stderr receive what the commands being run print, instead of
+	// this process's own; a server uses them to carry that to a page. Stdout is
+	// dropped unless Verbose or set.
+	Stdout, Stderr io.Writer
 }
 
 func (m Machine) ctx() context.Context {
@@ -60,10 +64,17 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 	if m.Verbose {
 		childOut = os.Stdout
 	}
-	proxy := traefik.New(childOut, os.Stderr)
+	if m.Stdout != nil {
+		childOut = m.Stdout
+	}
+	var childErr io.Writer = os.Stderr
+	if m.Stderr != nil {
+		childErr = m.Stderr
+	}
+	proxy := traefik.New(childOut, childErr)
 	return app.Deps{
 		Git:       gitcli.New(),
-		Runtime:   compose.New(childOut, os.Stderr),
+		Runtime:   compose.New(childOut, childErr),
 		Proxy:     proxy,
 		Router:    proxy,
 		Files:     fsx.New(),

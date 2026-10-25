@@ -20,11 +20,30 @@ const h = (tag, props, ...kids) => {
 const main = document.getElementById('main');
 const REFRESH_MS = 10000;
 
+// What the page knows, fed by the websocket. A view reads from it and is told
+// when a piece changes; when the socket is down the views fetch for themselves.
+const state = { connected: false, readOnly: false, hello: null, fleet: null, overview: null, ops: [], shown: null, dockOpen: false };
+
 async function api(path) {
   const res = await fetch('/api/' + path, { headers: { Accept: 'application/json' } });
   let body = {};
   try { body = await res.json(); } catch (_) { /* leave empty */ }
   if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+// Everything that changes something goes through here. The header is what the
+// server asks for on anything that is not a read; a page on another site cannot
+// send it, and the session cookie is SameSite=Strict besides.
+async function post(path, payload) {
+  const res = await fetch('/api/' + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Mvctl': '1' },
+    body: JSON.stringify(payload),
+  });
+  let body = {};
+  try { body = await res.json(); } catch (_) { /* leave empty */ }
+  if (!res.ok) throw Object.assign(new Error(body.error || res.statusText), { status: res.status, body });
   return body;
 }
 
@@ -79,14 +98,19 @@ views.overview = {
         h('button', { type: 'button', class: 'btn', title: 'git fetch every catalog and manifest, then compare',
           onclick: async (e) => { e.target.disabled = true; try { await refresh(true); toast('Compared with the remotes'); } finally { e.target.disabled = false; } } },
         'Fetch remotes and compare')), body);
+    let last = null;
+    const draw = (status) => { last = status; body.replaceChildren(...overview(status)); };
     return {
       async refresh(fetch) {
         try {
-          const { version, status } = await api('overview' + (fetch ? '?fetch=1' : ''));
-          document.getElementById('version').textContent = version;
-          body.replaceChildren(...overview(status));
+          const { readOnly, status } = await api('overview' + (fetch ? '?fetch=1' : ''));
+          if (readOnly) state.readOnly = true;
+          draw(status);
         } catch (e) { body.replaceChildren(errorBox(e)); }
       },
+      onOverview(status) { draw(status); },
+      onOps() { if (last) draw(last); },
+      onMode() { if (last) draw(last); },
     };
   },
 };
@@ -101,7 +125,7 @@ function overview(st) {
     rootCard.append(h('p', { class: 'muted' }, 'None. Projects can still be installed from a repository.'),
       h('p', null, cmd('multiversectl init')));
   } else {
-    rootCard.append(h('div', { class: 'mono', style: 'word-break:break-all' }, root.source));
+    rootCard.append(h('div', { class: 'mono wrap' }, root.source));
     if (root.unavailable) rootCard.append(h('p', null, badge('bad', 'unavailable'), ' ', root.unavailable));
     if (root.noRemote) rootCard.append(h('p', null, badge('warn', 'local only'), ' Lost with this machine, and nobody else can use it.'));
     rootCard.append(h('p', null, h('a', { href: '#/catalog' }, 'Browse the tree →')));
@@ -121,7 +145,7 @@ function overview(st) {
     return out;
   }
   out.push(h('div', { class: 'scroll' }, h('table', null,
-    h('thead', null, h('tr', null, ['Workspace', 'From', 'State', 'Root'].map((t) => h('th', null, t)))),
+    h('thead', null, h('tr', null, ['Workspace', 'From', 'State', 'Root', ''].map((t) => h('th', null, t)))),
     h('tbody', null, ws.map((w) => h('tr', null,
       h('td', null, w.current ? h('span', { title: 'current workspace' }, '★ ') : '',
         h('a', { href: '#/workspace/' + encodeURIComponent(w.name) }, w.name)),
@@ -129,7 +153,8 @@ function overview(st) {
       h('td', null, w.notes && w.notes.length
         ? w.notes.map((n) => [badge(w.stale ? 'warn' : 'mute', n), ' '])
         : badge('ok', 'up to date')),
-      h('td', null, copyable(w.root))))))));
+      h('td', null, copyable(w.root)),
+      h('td', { class: 'row-actions' }, wsActions(w, { update: true, use: !w.current }))))))));
   return out;
 }
 
@@ -174,7 +199,7 @@ views.catalog = {
       const kids = (n.children || []).map(item).filter(Boolean);
       const d = h('details', { ontoggle: (e) => { e.target.open ? open.add(n.path) : open.delete(n.path); } },
         h('summary', null, h('div', { class: 'node cat' }, label)),
-        kids.length ? h('ul', null, kids) : h('p', { class: 'muted', style: 'margin:2px 0 2px 44px' }, n.unavailable ? '' : 'empty'));
+        kids.length ? h('ul', null, kids) : h('p', { class: 'muted tree-empty' }, n.unavailable ? '' : 'empty'));
       if (open.has(n.path) || filter) d.open = true;
       return h('li', null, d);
     }
@@ -207,6 +232,14 @@ const STATE_DOT = { running: 'ok', stopped: 'warn', 'not started': '', optional:
 
 function universeCard(w, u) {
   const total = u.apps.reduce((n, a) => n + a.expected, 0);
+  const busy = isBusy(w.name);
+  const act = (action, label, kind) => h('button', { type: 'button', class: 'btn small ' + (kind || ''), disabled: busy,
+    title: busy ? 'Another operation is running in ' + w.name : null,
+    onclick: () => run({ action, workspace: w.name, universe: u.name }) }, label);
+  const actions = state.readOnly ? null : h('div', { class: 'actions' },
+    u.running < total || !u.running ? act('up', 'Start', 'primary') : null,
+    u.running ? act('down', 'Stop') : null,
+    h('button', { type: 'button', class: 'btn small danger', disabled: busy, onclick: () => removeDialog(w, u) }, 'Remove…'));
   const apps = u.apps.map((a) => h('div', { class: 'app' },
     h('div', { class: 'app-head' }, h('b', null, a.key),
       a.branch ? h('span', { class: 'chip' }, a.repo + ' @ ' + a.branch) : null,
@@ -219,27 +252,38 @@ function universeCard(w, u) {
   const dir = h('div', { class: 'paths' }, h('span', null, 'universe'), copyable(u.dir),
     u.checkouts.map((c) => h('span', null, [c.repo + (c.branch ? ' @ ' + c.branch : '') + ' ', copyable(c.path)])));
   const panel = h('div');
+  const saved = doctorResults.get(w.name + '/' + u.name);
+  if (saved) panel.append(saved);
   return h('article', { class: 'card uni' },
     h('header', null, h('span', { class: 'dot ' + (u.running ? 'ok' : '') }), h('h3', null, u.name),
       badge(u.running ? 'ok' : 'mute', u.running ? u.running + (total ? '/' + total : '') + ' running' : 'stopped'),
       h('span', { class: 'grow' }),
       h('button', { type: 'button', class: 'btn small', onclick: (e) => runDoctor(panel, w.name, u.name, e.target) }, 'Doctor')),
+    actions,
     h('div', { class: 'meta' }, [u.created && 'created ' + ago(u.created), u.lastStarted && 'started ' + ago(u.lastStarted), u.domain].filter(Boolean).join(' · ')),
     u.note ? h('p', { class: 'note' }, u.note) : null,
     apps, dir, panel);
 }
 
+// What a doctor run said, kept by what it ran on, because the fleet is redrawn
+// whenever something changes and a result should not vanish with it.
+const doctorResults = new Map();
+
 async function runDoctor(into, workspace, universe, btn) {
   btn.disabled = true;
+  const key = workspace + '/' + universe;
   into.replaceChildren(h('p', { class: 'muted' }, 'Checking…'));
   try {
     const q = 'doctor?workspace=' + encodeURIComponent(workspace) + (universe ? '&universe=' + encodeURIComponent(universe) : '');
     const rep = await api(q);
     const kind = { ok: 'ok', warn: 'warn', fail: 'bad' };
-    into.replaceChildren(h('div', { class: 'panel' },
-      h('b', null, rep.ok ? 'No failures' : 'Something failed'),
+    const result = h('div', { class: 'panel' },
+      h('div', { class: 'ws-head tight' }, h('b', null, rep.ok ? 'No failures' : 'Something failed'), h('span', { class: 'grow' }),
+        h('button', { type: 'button', class: 'btn small ghost', onclick: () => { doctorResults.delete(key); result.remove(); } }, 'Dismiss')),
       h('ul', { class: 'checks' }, rep.checks.map((c) => h('li', null,
-        badge(kind[c.status] || 'mute', c.status), h('span', { class: 'mono' }, c.name), h('span', null, c.detail || ''))))));
+        badge(kind[c.status] || 'mute', c.status), h('span', { class: 'mono' }, c.name), h('span', null, c.detail || '')))));
+    doctorResults.set(key, result);
+    into.replaceChildren(result);
   } catch (e) { into.replaceChildren(errorBox(e)); }
   finally { btn.disabled = false; }
 }
@@ -260,6 +304,7 @@ views.fleet = {
 
     function draw() {
       if (!data) return;
+      if (data.error) { body.replaceChildren(errorBox(data.error)); return; }
       if (!data.workspaces.length) {
         body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl catalog install <owner/repo>')));
         return;
@@ -271,6 +316,8 @@ views.fleet = {
           h('div', { class: 'ws-head' }, h('h2', null, h('a', { href: '#/workspace/' + encodeURIComponent(w.name) }, w.name)),
             w.current ? badge('info', 'current') : null,
             h('span', { class: 'muted' }, w.universes.length + (w.universes.length === 1 ? ' universe' : ' universes')),
+            h('span', { class: 'grow' }),
+            wsActions(w, { create: true, update: true, use: !w.current }, w),
             h('button', { type: 'button', class: 'btn small', onclick: (e) => runDoctor(panel, w.name, '', e.target) }, 'Doctor')),
           panel,
           w.error ? errorBox(w.error) : null,
@@ -281,9 +328,12 @@ views.fleet = {
     }
     return {
       async refresh() {
-        try { data = await api('fleet'); draw(); }
+        try { data = state.fleet && state.connected ? state.fleet : await api('fleet'); draw(); }
         catch (e) { body.replaceChildren(errorBox(e)); }
       },
+      onFleet(d) { data = d; draw(); },
+      onOps() { draw(); },
+      onMode() { draw(); },
       focus: () => search.focus(),
     };
   },
@@ -295,12 +345,17 @@ views.workspace = {
     const body = h('div');
     host.append(h('p', null, h('a', { href: '#/' }, '← Overview')), h('h1', null, name), body);
     const panel = h('div');
+    let loaded = false;
     return {
+      onOps() { if (loaded) this.refresh(); },
+      onMode() { if (loaded) this.refresh(); },
       async refresh() {
         try {
+          loaded = true;
           const w = await api('workspaces/' + encodeURIComponent(name));
           body.replaceChildren(
             h('p', { class: 'lede' }, w.current ? badge('info', 'current') : null, ' ', copyable(w.root)),
+            state.readOnly ? null : h('div', { class: 'bar' }, wsActions({ name: w.name, current: w.current, universes: [] }, { create: true, update: true, use: !w.current })),
             h('div', { class: 'cards' },
               h('div', { class: 'card' }, h('h3', null, 'Reach'), h('div', null, 'domain ', h('b', null, w.domain), ' · ', w.expose || 'default')),
               h('div', { class: 'card' }, h('h3', null, 'Proxy'), h('div', { class: 'mono' }, w.network),
@@ -326,6 +381,283 @@ views.workspace = {
   },
 };
 
+// ── actions ────────────────────────────────────────────────────────────
+// Everything the page can do is a use case the command line has too. The
+// server runs it in the background and sends its output as it happens; the
+// dock at the bottom is where that is read.
+
+const isBusy = (workspace) => state.ops.some((o) => o.workspace === workspace && o.state === 'running');
+
+// run starts an action and opens the dock on it. An error comes back to the
+// caller, which is a dialog that can say it where the person is looking.
+async function run(request) {
+  const op = await post('ops', request);
+  upsertOp(op);
+  state.shown = op.id;
+  state.dockOpen = true;
+  renderDock();
+  return op;
+}
+
+async function runSafely(request) {
+  try { await run(request); } catch (e) { toast(e.message); }
+}
+
+// The buttons that act on a whole workspace. A workspace row may not know its
+// universes, so the caller can pass the fleet entry that does.
+function wsActions(w, want, fleetEntry) {
+  if (state.readOnly) return null;
+  const busy = isBusy(w.name);
+  const tip = busy ? 'Another operation is running in ' + w.name : null;
+  return h('span', { class: 'actions' },
+    want.create ? h('button', { type: 'button', class: 'btn small primary', disabled: busy, title: tip, onclick: () => newDialog(w, fleetEntry) }, 'New universe') : null,
+    want.update ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Fetch the manifest and clone what it newly lists', onclick: () => runSafely({ action: 'update', workspace: w.name }) }, 'Update') : null,
+    want.use ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Make it the workspace commands act on by default', onclick: () => runSafely({ action: 'use', workspace: w.name }) }, 'Make current') : null);
+}
+
+// modal shows a dialog with a form. submit may throw, and what it says is shown
+// inside the dialog; ctl lets it change the button.
+function modal({ title, body, confirm, danger, submit, ready }) {
+  const dlg = h('dialog', { class: 'modal', 'aria-label': title });
+  const err = h('div', { class: 'error', role: 'alert', hidden: true });
+  const ok = h('button', { type: 'submit', class: 'btn ' + (danger ? 'danger' : 'primary') }, confirm);
+  const ctl = { dlg, ok, error: (m) => { err.textContent = m; err.hidden = false; }, refresh: () => { ok.disabled = ready ? !ready() : false; } };
+  const form = h('form', {
+    method: 'dialog',
+    onsubmit: async (e) => {
+      e.preventDefault();
+      ok.disabled = true; err.hidden = true;
+      try { await submit(ctl); dlg.close(); } catch (x) { ctl.error(x.message || String(x)); ctl.refresh(); }
+    },
+  }, h('h2', null, title), body, err,
+  h('div', { class: 'modal-actions' }, h('button', { type: 'button', class: 'btn ghost', onclick: () => dlg.close() }, 'Cancel'), ok));
+  dlg.append(form);
+  dlg.addEventListener('close', () => dlg.remove());
+  document.body.append(dlg);
+  ctl.refresh();
+  dlg.showModal();
+  return ctl;
+}
+
+function removeDialog(w, u) {
+  let force = false;
+  const input = h('input', { type: 'text', name: 'confirm', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', placeholder: u.name,
+    'aria-label': 'Type the universe name to confirm', oninput: () => ctl.refresh() });
+  const ctl = modal({
+    title: 'Remove universe ' + u.name + '?', danger: true, confirm: 'Remove',
+    ready: () => input.value === u.name,
+    body: [
+      h('p', null, 'This deletes the universe’s worktrees, so uncommitted work in them is lost, its containers and its volumes, which hold its data, and its state. The shared clones and their branches are not touched.'),
+      h('label', { class: 'field' }, h('span', null, 'Type ', h('b', { class: 'mono' }, u.name), ' to confirm'), input),
+    ],
+    async submit(c) {
+      try {
+        await run({ action: 'rm', workspace: w.name, universe: u.name, confirm: input.value, force });
+      } catch (e) {
+        // Uncommitted work is never discarded by accident: the server refuses,
+        // says where it is, and only a second, deliberate press removes it.
+        if (e.status === 409 && e.body && e.body.dirty) {
+          force = true;
+          c.ok.textContent = 'Remove anyway';
+          throw new Error(e.message + '. Press the button again to discard it.');
+        }
+        throw e;
+      }
+    },
+  });
+  input.focus();
+}
+
+function newDialog(w, fleetEntry) {
+  const used = new Set(((fleetEntry && fleetEntry.universes) || (state.fleet && (state.fleet.workspaces.find((x) => x.name === w.name) || {}).universes) || []).map((u) => u.name));
+  let next = 1;
+  while (used.has(String(next))) next++;
+  const name = h('input', { type: 'text', name: 'name', value: String(next), autocomplete: 'off', oninput: () => ctl.refresh(), 'aria-label': 'Number or name' });
+  const note = h('input', { type: 'text', name: 'note', autocomplete: 'off', placeholder: 'why it exists, shown beside it', 'aria-label': 'Note' });
+  const branch = h('input', { type: 'text', name: 'branch', autocomplete: 'off', placeholder: 'default: u' + next, 'aria-label': 'Branch' });
+  const ctl = modal({
+    title: 'New universe in ' + w.name, confirm: 'Create', ready: () => name.value.trim() !== '',
+    body: [
+      h('label', { class: 'field' }, h('span', null, 'Number or name'), name,
+        h('small', { class: 'muted' }, 'A name such as fix/login is also the branch it checks out.')),
+      h('label', { class: 'field' }, h('span', null, 'Branch in every repository (optional)'), branch),
+      h('label', { class: 'field' }, h('span', null, 'Note (optional)'), note),
+    ],
+    async submit() { await run({ action: 'new', workspace: w.name, name: name.value.trim(), branch: branch.value.trim(), note: note.value.trim() }); },
+  });
+  name.select();
+}
+
+// ── the operations dock ────────────────────────────────────────────────
+
+function upsertOp(op) {
+  const i = state.ops.findIndex((o) => o.id === op.id);
+  if (i < 0) state.ops.push({ ...op, lines: op.lines || [] });
+  else state.ops[i] = { ...op, lines: op.lines && op.lines.length ? op.lines : state.ops[i].lines };
+  if (state.ops.length > 30) state.ops.splice(0, state.ops.length - 30);
+}
+
+const OP_STATE = { running: ['info', 'running'], done: ['ok', 'done'], failed: ['bad', 'failed'] };
+let dockLog = null;
+
+function renderDock() {
+  const dock = document.getElementById('dock');
+  if (!state.ops.length) { dock.hidden = true; return; }
+  dock.hidden = false;
+  const op = state.ops.find((o) => o.id === state.shown) || state.ops[state.ops.length - 1];
+  const [kind, label] = OP_STATE[op.state] || ['mute', op.state];
+  const running = state.ops.filter((o) => o.state === 'running').length;
+  const head = h('div', { class: 'dock-head' },
+    op.state === 'running' ? h('span', { class: 'spin', 'aria-hidden': 'true' }) : null,
+    badge(kind, label), h('b', null, op.title),
+    h('span', { class: 'muted' }, running > 1 ? running + ' running' : ''),
+    h('span', { class: 'grow' }),
+    h('button', { type: 'button', class: 'btn small ghost', 'aria-expanded': String(state.dockOpen),
+      onclick: () => { state.dockOpen = !state.dockOpen; renderDock(); } }, state.dockOpen ? 'Hide' : 'Show log'));
+  const kids = [head];
+  if (state.dockOpen) {
+    dockLog = h('pre', { class: 'log mono', tabindex: '0', 'aria-label': 'Output of ' + op.title });
+    for (const l of op.lines) dockLog.append(logLine(l));
+    if (op.error) dockLog.append(logLine({ kind: 'err', text: op.error }));
+    kids.push(dockLog);
+    if (state.ops.length > 1) {
+      kids.push(h('div', { class: 'dock-ops' }, state.ops.slice().reverse().map((o) => h('button', {
+        type: 'button', class: 'chip' + (o.id === op.id ? ' on' : ''), onclick: () => { state.shown = o.id; renderDock(); },
+      }, [o.state === 'failed' ? '✗ ' : o.state === 'done' ? '✓ ' : '… ', o.title]))));
+    }
+    queueMicrotask(() => { dockLog.scrollTop = dockLog.scrollHeight; });
+  } else {
+    dockLog = null;
+  }
+  dock.replaceChildren(...kids);
+}
+
+const logLine = (l) => h('span', { class: 'l ' + l.kind }, l.text + '\n');
+
+function onOpLine(d) {
+  const op = state.ops.find((o) => o.id === d.id);
+  if (!op) return;
+  op.lines.push({ kind: d.kind, text: d.text });
+  if (op.lines.length > 3000) op.lines.shift();
+  if (dockLog && (state.shown || state.ops[state.ops.length - 1].id) === d.id) {
+    const stick = dockLog.scrollTop + dockLog.clientHeight >= dockLog.scrollHeight - 24;
+    dockLog.append(logLine(d));
+    if (stick) dockLog.scrollTop = dockLog.scrollHeight;
+  }
+}
+
+function onOp(op) {
+  const before = state.ops.find((o) => o.id === op.id);
+  upsertOp(op);
+  if (!state.shown || !before) state.shown = op.id;
+  if (!before && op.state === 'running') state.dockOpen = true;
+  renderDock();
+  if (before && before.state === 'running' && op.state !== 'running') {
+    toast(op.state === 'done' ? op.title + ': done' : op.title + ': failed');
+  }
+  if (current && current.onOps) current.onOps();
+}
+
+// ── the live connection ────────────────────────────────────────────────
+
+let socket = null, retries = 0;
+
+function setLive(on) {
+  state.connected = on;
+  const el = document.getElementById('live');
+  el.textContent = on ? 'live' : 'reconnecting…';
+  el.className = 'live ' + (on ? 'on' : 'off');
+  el.title = on ? 'Changes are pushed to this page as they happen' : 'The connection dropped; the page reloads its data every ten seconds until it is back';
+  schedule();
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  socket = new WebSocket(proto + '//' + location.host + '/ws');
+  socket.onopen = () => { retries = 0; setLive(true); };
+  socket.onmessage = (m) => { let e; try { e = JSON.parse(m.data); } catch (_) { return; } onEvent(e); };
+  socket.onclose = () => { setLive(false); setTimeout(connect, Math.min(10000, 1000 * 2 ** retries++)); };
+}
+
+function onEvent(e) {
+  switch (e.type) {
+    case 'hello': {
+      state.hello = e.data;
+      const was = state.readOnly;
+      state.readOnly = !!e.data.readOnly;
+      state.ops = (e.data.ops || []).map((o) => ({ ...o, lines: o.lines || [] }));
+      showVersion();
+      renderDock();
+      if (was !== state.readOnly && current && current.onMode) current.onMode();
+      break;
+    }
+    case 'fleet': state.fleet = e.data; if (current && current.onFleet) current.onFleet(e.data); stamp(); break;
+    case 'overview': state.overview = e.data; if (current && current.onOverview) current.onOverview(e.data.status); stamp(); break;
+    case 'op': onOp(e.data); break;
+    case 'opline': onOpLine(e.data); break;
+    default: break;
+  }
+}
+
+function showVersion() {
+  const hello = state.hello;
+  if (!hello) return;
+  const el = document.getElementById('version');
+  el.textContent = hello.version;
+  el.title = ['multiversectl-server ' + hello.version, hello.commit && 'commit ' + hello.commit, hello.date && 'built ' + hello.date].filter(Boolean).join(' · ');
+  document.getElementById('railnote').textContent = state.readOnly
+    ? 'Read-only: started with --read-only.'
+    : 'Start, stop, create and remove universes here; the command line does the same.';
+}
+
+// ── system ─────────────────────────────────────────────────────────────
+
+views.system = {
+  title: 'System',
+  mount(host) {
+    const body = h('div');
+    host.append(h('h1', null, 'System'),
+      h('p', { class: 'lede' }, 'The versions of what this machine runs on: this server, the command line, and the tools they drive.'), body);
+    return {
+      async refresh() {
+        if (!body.firstChild) body.append(h('p', { class: 'muted' }, 'Checking the tools…'));
+        try { body.replaceChildren(...system(await api('system'))); }
+        catch (e) { body.replaceChildren(errorBox(e)); }
+      },
+    };
+  },
+};
+
+function system(v) {
+  const out = [];
+  const srv = v.server || {};
+  const cli = (v.tools || []).find((t) => t.name === 'multiversectl');
+  if (v.latest && v.latest.newer) {
+    out.push(h('div', { class: 'next' }, h('b', null, 'Update available'), 'multiversectl ' + v.latest.version + ' is out', copyable('multiversectl self-update')));
+  }
+  out.push(h('div', { class: 'cards' },
+    h('div', { class: 'card' }, h('h3', null, 'This server'), h('div', { class: 'big mono' }, srv.version || '—'),
+      h('div', { class: 'muted' }, [srv.commit && 'commit ' + srv.commit, srv.date && 'built ' + srv.date].filter(Boolean).join(' · ')),
+      h('div', { class: 'muted' }, 'listening on ' + v.listen + ' · up since ' + ago(v.started).replace(' ago', '')),
+      h('div', null, v.readOnly ? badge('warn', 'read-only') : badge('ok', 'actions enabled'), ' ', badge(state.connected ? 'ok' : 'warn', state.connected ? 'live' : 'reconnecting'))),
+    h('div', { class: 'card' }, h('h3', null, 'Command line'), h('div', { class: 'big mono' }, cli && cli.ok ? cli.version : 'not found'),
+      h('div', { class: 'muted' }, cli && cli.path ? cli.path : 'multiversectl is not beside this server or on the PATH')),
+    h('div', { class: 'card' }, h('h3', null, 'Latest release'),
+      h('div', { class: 'big mono' }, v.latest && v.latest.version ? v.latest.version : '—'),
+      h('div', { class: 'muted' }, v.latest && v.latest.error ? v.latest.error : v.latest && v.latest.newer ? 'newer than the command line' : 'the command line is current')),
+    h('div', { class: 'card' }, h('h3', null, 'File format'), h('div', { class: 'big mono' }, v.format || '—'),
+      h('div', { class: 'muted' }, 'apiVersion of manifests and catalogs'))));
+  out.push(h('h2', null, 'Tools'));
+  out.push(h('div', { class: 'scroll' }, h('table', null,
+    h('thead', null, h('tr', null, ['Tool', 'Version', 'Used for', 'Found at'].map((t) => h('th', null, t)))),
+    h('tbody', null, (v.tools || []).map((t) => h('tr', null,
+      h('td', null, h('b', null, t.name)),
+      h('td', { class: 'mono' }, t.ok ? t.version : badge('warn', t.note || 'unknown')),
+      h('td', { class: 'muted' }, t.ok ? t.note : ''),
+      h('td', { class: 'mono' }, t.path || '—')))))));
+  return out;
+}
+
 // ── shell ──────────────────────────────────────────────────────────────
 
 let current = null, timer = null;
@@ -345,16 +677,19 @@ function route() {
   main.focus({ preventScroll: true });
 }
 
+function stamp() { document.getElementById('stamp').textContent = 'updated ' + new Date().toLocaleTimeString(); }
+
 async function refresh(fetch) {
   if (!current) return;
   await current.refresh(fetch);
-  document.getElementById('stamp').textContent = 'updated ' + new Date().toLocaleTimeString();
+  stamp();
 }
 
+// With the socket up, changes arrive on their own. Without it the page falls
+// back to asking, so it still works behind something that drops websockets.
 function schedule() {
   clearInterval(timer);
-  if (!document.getElementById('auto').checked) return;
-  // Only the views whose data moves; the catalog changes when someone commits.
+  if (state.connected) return;
   timer = setInterval(() => {
     if (!document.hidden && /^#\/(fleet|workspace\/.*)?$|^$/.test(location.hash)) refresh();
   }, REFRESH_MS);
@@ -373,11 +708,15 @@ document.getElementById('theme').addEventListener('click', () => {
   setTheme(next);
   try { localStorage.setItem('theme', next); } catch (_) { /* private mode */ }
 });
-document.getElementById('refresh').addEventListener('click', (e) => { e.target.disabled = true; refresh().finally(() => { e.target.disabled = false; }); });
-document.getElementById('auto').addEventListener('change', schedule);
+document.getElementById('refresh').addEventListener('click', (e) => {
+  e.target.disabled = true;
+  if (state.connected) socket.send(JSON.stringify({ type: 'refresh' }));
+  refresh().finally(() => { e.target.disabled = false; });
+});
 document.addEventListener('keydown', (e) => {
   if (e.key === '/' && !/input|textarea/i.test(document.activeElement.tagName) && current && current.focus) { e.preventDefault(); current.focus(); }
 });
 window.addEventListener('hashchange', route);
 route();
+connect();
 schedule();

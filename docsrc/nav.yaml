@@ -81,10 +81,11 @@ groups:
           Set up a root catalog, nest another one under it, list workspaces in
           it, and install only the ones this machine needs.
       - path: tasks/server
-        title: Explore it in a browser
+        title: Explore and run it in a browser
         summary: >-
-          A read-only web view of the catalog tree, the workspaces installed here
-          and the fleet of universes, with doctor on demand.
+          A live web view of the catalog, the workspaces and the fleet of
+          universes, with versions and buttons to start, stop, create and
+          remove universes, behind a token.
   - title: Reference
     pages:
       - path: reference/cli

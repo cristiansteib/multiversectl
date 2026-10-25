@@ -1,5 +1,7 @@
 package server
 
+import "github.com/cristiansteib/multiversectl/internal/app"
+
 // The JSON the UI reads. These are written for the page, not borrowed from the
 // app types: the page is a client with its own lifetime, and what it is shown
 // should not change shape because a use case's struct did.
@@ -23,6 +25,7 @@ type nodeView struct {
 
 type fleetView struct {
 	Workspaces []fleetWorkspace `json:"workspaces"`
+	Error      string           `json:"error,omitempty"`
 }
 
 type fleetWorkspace struct {
@@ -125,4 +128,51 @@ type checkView struct {
 	Name   string `json:"name"`
 	Status string `json:"status"`
 	Detail string `json:"detail,omitempty"`
+}
+
+type overviewView struct {
+	Version  string           `json:"version"`
+	ReadOnly bool             `json:"readOnly,omitempty"`
+	Status   app.StatusReport `json:"status"`
+}
+
+// helloView is the first thing a page is told on the websocket.
+type helloView struct {
+	Version  string   `json:"version"`
+	Commit   string   `json:"commit,omitempty"`
+	Date     string   `json:"date,omitempty"`
+	ReadOnly bool     `json:"readOnly,omitempty"`
+	Ops      []opView `json:"ops"`
+}
+
+type versionInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit,omitempty"`
+	Date    string `json:"date,omitempty"`
+}
+
+// systemView is what this machine runs on: this server, the command line beside
+// it, the tools they drive, and whether a newer release exists.
+type systemView struct {
+	Server   versionInfo   `json:"server"`
+	Tools    []toolVersion `json:"tools"`
+	Latest   latestView    `json:"latest"`
+	Format   string        `json:"format"`
+	Listen   string        `json:"listen,omitempty"`
+	Started  string        `json:"started,omitempty"`
+	ReadOnly bool          `json:"readOnly,omitempty"`
+}
+
+type toolVersion struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+	Path    string `json:"path,omitempty"`
+	Note    string `json:"note,omitempty"` // why it is missing, or what it is for
+	OK      bool   `json:"ok"`
+}
+
+type latestView struct {
+	Version string `json:"version,omitempty"`
+	Newer   bool   `json:"newer,omitempty"`
+	Error   string `json:"error,omitempty"`
 }

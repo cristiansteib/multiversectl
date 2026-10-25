@@ -17,10 +17,12 @@ import (
 func (r runner) serverCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
-		Short: "Start, stop and check the read-only web view of this machine's setup and fleet",
+		Short: "Start, stop and check the web view of this machine's setup and fleet",
 		Long: "The web view is a separate program, multiversectl-server, installed beside this\n" +
-			"one. These commands run it in the background and remember it. It only reads,\n" +
-			"listens on the loopback address, and has no login.",
+			"one. These commands run it in the background and remember it. The page shows\n" +
+			"the catalog, the workspaces and the fleet live, their versions, and has buttons to\n" +
+			"start, stop, create and remove universes. It is opened with a link that carries a\n" +
+			"token, which `server start` and `server status` print; --read-only removes the buttons.",
 		Example: "  multiversectl server start --open\n  multiversectl server status\n  multiversectl server stop",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
@@ -31,7 +33,7 @@ func (r runner) serverCmd() *cobra.Command {
 
 func (r runner) serverStartCmd() *cobra.Command {
 	var addr string
-	var expose, open bool
+	var expose, open, readOnly bool
 	cmd := &cobra.Command{
 		Use:     "start",
 		Short:   "Start the web view in the background",
@@ -41,6 +43,7 @@ func (r runner) serverStartCmd() *cobra.Command {
 	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7777", "address to listen on (a port of 0 picks a free one)")
 	cmd.Flags().BoolVar(&expose, "expose", false, "allow a non-loopback address and any host name; there is no login")
 	cmd.Flags().BoolVar(&open, "open", false, "open the page in a browser")
+	cmd.Flags().BoolVar(&readOnly, "read-only", false, "offer no action: the page only shows")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		p, err := r.f.Server()
 		if err != nil {
@@ -48,7 +51,7 @@ func (r runner) serverStartCmd() *cobra.Command {
 		}
 		var info app.ServerInfo
 		err = r.spin(true, "Starting the server", func() (err error) {
-			info, err = p.Start(cmd.Context(), app.ServerStart{Addr: addr, Expose: expose})
+			info, err = p.Start(cmd.Context(), app.ServerStart{Addr: addr, Expose: expose, ReadOnly: readOnly})
 			return err
 		})
 		switch {
@@ -57,9 +60,13 @@ func (r runner) serverStartCmd() *cobra.Command {
 		case err != nil:
 			return err
 		default:
-			r.out.OK("serving `%s` in the background (pid %d, read-only); stop it with: `multiversectl server stop`", info.URL, info.PID)
+			mode := "it can start, stop, create and remove universes"
+			if readOnly {
+				mode = "read-only"
+			}
+			r.out.OK("serving `%s` in the background (pid %d; %s); stop it with: `multiversectl server stop`", info.URL, info.PID, mode)
 			if expose {
-				r.out.Warn("--expose: anyone who can reach this address can read your setup")
+				r.out.Warn("--expose: anyone who can reach this address and has the link can act on your setup")
 			}
 		}
 		if open {

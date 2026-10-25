@@ -8,6 +8,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -27,13 +28,16 @@ var (
 
 const usage = `multiversectl-server serves a read-only web view of this machine's setup and fleet.
 
-It serves one page and a small JSON API: the root catalog as a tree, the
-workspaces installed here and how they have drifted, and every universe of every
-workspace with what is running in it. It changes nothing; changes are made with
-multiversectl, and the page shows the command for each.
+It serves one page, a JSON API and a websocket: the root catalog as a tree, the
+workspaces installed here and how they have drifted, every universe of every
+workspace with what is running in it, the versions of what it all runs on, and
+buttons to start, stop, create and remove universes and to update a workspace.
+What changes is pushed to the page as it happens.
 
-It listens on the loopback address only, because it has no login: --expose is
-the decision to reach it from the network.
+Because the page can act, it is opened with a link that carries a token made
+when the server starts; without it nothing is served. It listens on the
+loopback address only: --expose is the decision to reach it from the network,
+and the token still applies. --read-only removes every action.
 
 Usage:
   multiversectl-server [flags]
@@ -59,6 +63,7 @@ func run(ctx context.Context, args []string) error {
 	addr := fs.String("addr", "127.0.0.1:7777", "address to listen on (a port of 0 picks a free one)")
 	expose := fs.Bool("expose", false, "allow a non-loopback address and any host name; there is no login")
 	open := fs.Bool("open", false, "open the page in a browser")
+	readOnly := fs.Bool("read-only", false, "offer no action: the page only shows")
 	showVersion := fs.Bool("version", false, "print the version and exit")
 	if err := fs.Parse(args); err != nil {
 		if err == flag.ErrHelp {
@@ -86,13 +91,19 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	backend := server.NewServices(cats, machine, func(out app.Output, root, manifestPath string) (*app.Service, error) {
-		return m.At(out, root, manifestPath)
+	backend := server.NewServices(cats, machine, func(out app.Output, stdout, stderr io.Writer, root, manifestPath string) (*app.Service, error) {
+		// What an action's commands print goes to the page, not to this process.
+		return wire.Machine{Version: version, Stdout: stdout, Stderr: stderr}.At(out, root, manifestPath)
 	})
-	return server.Serve(ctx, backend, server.Options{Addr: *addr, Version: version, Expose: *expose}, func(url string) {
-		fmt.Printf("serving %s (read-only; Ctrl-C stops it)\n", url)
+	opts := server.Options{Addr: *addr, Version: version, Commit: commit, Date: date, Expose: *expose, ReadOnly: *readOnly}
+	return server.Serve(ctx, backend, opts, func(url string) {
+		mode := "it can start, stop, create and remove universes"
+		if *readOnly {
+			mode = "read-only"
+		}
+		fmt.Printf("serving %s (%s; Ctrl-C stops it)\n", url, mode)
 		if *expose {
-			fmt.Fprintln(os.Stderr, "warning: --expose: anyone who can reach this address can read your setup")
+			fmt.Fprintln(os.Stderr, "warning: --expose: anyone who can reach this address and has the link can act on your setup")
 		}
 		if *open {
 			openBrowser(ctx, url)

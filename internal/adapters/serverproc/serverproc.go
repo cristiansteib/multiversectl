@@ -92,6 +92,9 @@ func (p *Process) Start(ctx context.Context, o app.ServerStart) (app.ServerInfo,
 	if o.Expose {
 		args = append(args, "--expose")
 	}
+	if o.ReadOnly {
+		args = append(args, "--read-only")
+	}
 	// Not CommandContext: the server must outlive this command. Its own session
 	// keeps the shell's Ctrl+C and hangup from reaching it.
 	cmd := exec.Command(bin, args...)

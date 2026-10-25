@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
+	"os/exec"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +23,21 @@ type Backend interface {
 	Fleet(ctx context.Context, workspace string) (fleetView, error)
 	Workspace(ctx context.Context, name string) (workspaceView, error)
 	Doctor(ctx context.Context, workspace, universe string) (doctorView, error)
+	// System reports the versions of what this machine runs on.
+	System(ctx context.Context) (systemView, error)
+	// Unsaved names the repositories of a universe whose worktree has uncommitted
+	// work, which removing the universe would discard.
+	Unsaved(ctx context.Context, workspace, universe string) ([]string, error)
+	// Do carries out an action, reporting to the sink as it goes.
+	Do(ctx context.Context, r opRequest, k Sink) error
+}
+
+// Sink is where an action reports: the use case's messages, and the output of
+// the commands it runs.
+type Sink interface {
+	app.Output
+	Stdout() io.Writer
+	Stderr() io.Writer
 }
 
 // Services is the Backend over the same use cases the command line runs.
@@ -29,14 +47,15 @@ type Services struct {
 	mu      *sync.Mutex
 	Machine *app.Service // knows the installed workspaces
 	// At builds a service for one workspace. The output is where it warns, which
-	// a page cannot show, so the server collects it per request.
-	At func(out app.Output, root, manifest string) (*app.Service, error)
+	// a page cannot show, so the server collects it per request; stdout and
+	// stderr are where the commands it runs print, nil to drop them.
+	At func(out app.Output, stdout, stderr io.Writer, root, manifest string) (*app.Service, error)
 }
 
 var _ Backend = Services{}
 
 // NewServices wires the Backend.
-func NewServices(c *app.Catalogs, machine *app.Service, at func(out app.Output, root, manifest string) (*app.Service, error)) Services {
+func NewServices(c *app.Catalogs, machine *app.Service, at func(out app.Output, stdout, stderr io.Writer, root, manifest string) (*app.Service, error)) Services {
 	return Services{Catalogs: c, Machine: machine, At: at, mu: &sync.Mutex{}}
 }
 
@@ -103,7 +122,7 @@ func (s Services) Fleet(ctx context.Context, workspace string) (fleetView, error
 func (s Services) fleetOf(ctx context.Context, w app.WorkspaceInfo) fleetWorkspace {
 	fw := fleetWorkspace{Name: w.Name, Current: w.Current, Root: w.Root, Universes: []universeView{}}
 	warn := &collector{}
-	svc, err := s.At(warn, w.Root, w.Manifest)
+	svc, err := s.At(warn, nil, nil, w.Root, w.Manifest)
 	if err != nil {
 		fw.Error = err.Error()
 		return fw
@@ -152,7 +171,7 @@ func (s Services) Workspace(ctx context.Context, name string) (workspaceView, er
 	if err != nil {
 		return workspaceView{}, err
 	}
-	svc, err := s.At(&collector{}, w.Root, w.Manifest)
+	svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
 	if err != nil {
 		return workspaceView{}, err
 	}
@@ -188,7 +207,7 @@ func (s Services) Doctor(ctx context.Context, workspace, universe string) (docto
 	if err != nil {
 		return doctorView{}, err
 	}
-	svc, err := s.At(&collector{}, w.Root, w.Manifest)
+	svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
 	if err != nil {
 		return doctorView{}, err
 	}
@@ -242,3 +261,182 @@ var _ app.Output = (*collector)(nil)
 // Quiet is an Output for services the server builds: warnings are dropped, and
 // a request that wants them uses its own collector.
 func Quiet() app.Output { return &collector{} }
+
+func (s Services) Unsaved(ctx context.Context, workspace, universe string) ([]string, error) {
+	w, err := s.Machine.WorkspaceNamed(workspace)
+	if err != nil {
+		return nil, err
+	}
+	svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+	if err != nil {
+		return nil, err
+	}
+	st, err := svc.Resolve(universe)
+	if err != nil {
+		return nil, err
+	}
+	items, err := svc.PrunePlan(ctx, app.PruneOptions{})
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range items {
+		if it.Name == st.Name {
+			return it.Dirty, nil
+		}
+	}
+	return nil, nil
+}
+
+// Do runs one action as the command line would, with the sink as its terminal.
+func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
+	if r.Action == "use" {
+		if err := s.Machine.Use(r.Workspace); err != nil {
+			return err
+		}
+		k.OK("%s is now the current workspace", r.Workspace)
+		return nil
+	}
+	w, err := s.Machine.WorkspaceNamed(r.Workspace)
+	if err != nil {
+		return err
+	}
+	svc, err := s.At(k, k.Stdout(), k.Stderr(), w.Root, w.Manifest)
+	if err != nil {
+		return err
+	}
+	switch r.Action {
+	case "up":
+		return svc.Start(ctx, app.StartInput{Universe: r.Universe})
+	case "down":
+		return svc.Stop(ctx, app.StopInput{Universe: r.Universe})
+	case "rm":
+		if err := svc.Remove(ctx, app.RemoveInput{Universe: r.Universe}); err != nil {
+			return err
+		}
+		k.OK("%s removed", r.Universe)
+		return nil
+	case "new":
+		st, err := svc.Create(ctx, app.CreateInput{Name: strings.TrimSpace(r.Name), Branch: strings.TrimSpace(r.Branch), Note: r.Note})
+		if err != nil {
+			return err
+		}
+		k.OK("universe %s ready (%s)", st.Name, st.Project)
+		return nil
+	case "update":
+		return s.update(ctx, w, svc, k)
+	}
+	return fmt.Errorf("unknown action %q", r.Action)
+}
+
+// update is what `catalog update` does for one workspace.
+func (s Services) update(ctx context.Context, w app.WorkspaceInfo, svc *app.Service, k Sink) error {
+	res, err := s.Catalogs.RefreshWorkspace(ctx, w.Name, w.WorkspaceEntry)
+	if err != nil {
+		return err
+	}
+	if res.Skipped != "" {
+		k.Info("%s: %s", w.Name, res.Skipped)
+		return nil
+	}
+	missing := s.Catalogs.MissingRepos(svc.Manifest, w.Root)
+	if len(missing) > 0 {
+		if err := svc.CloneMissing(ctx); err != nil {
+			return err
+		}
+	}
+	var did []string
+	if res.Changed {
+		did = append(did, res.Detail)
+	}
+	for _, key := range missing {
+		did = append(did, key+" cloned")
+	}
+	if len(did) == 0 {
+		k.OK("%s: up to date", w.Name)
+		return nil
+	}
+	k.OK("%s: %s", w.Name, strings.Join(did, " · "))
+	return nil
+}
+
+// System asks each tool for its version at once. A tool that is missing is
+// reported as such, since the page is where someone looks to find out why
+// something does not run.
+func (s Services) System(ctx context.Context) (systemView, error) {
+	probes := []struct {
+		name, note string
+		args       []string
+		parse      func(string) string
+	}{
+		{"multiversectl", "the command line", []string{"multiversectl", "version"}, wordAt(1)},
+		{"git", "worktrees and clones", []string{"git", "--version"}, wordAt(2)},
+		{"docker", "the container runtime", []string{"docker", "--version"}, func(o string) string { return strings.TrimSuffix(wordAt(2)(o), ",") }},
+		{"docker compose", "runs each app", []string{"docker", "compose", "version", "--short"}, wordAt(0)},
+		{"gh", "GitHub sign-in and repositories", []string{"gh", "--version"}, wordAt(2)},
+		{"glab", "GitLab sign-in and repositories", []string{"glab", "--version"}, wordAt(1)},
+	}
+	v := systemView{Format: "multiverse/v1alpha1", Tools: make([]toolVersion, len(probes))}
+	var wg sync.WaitGroup
+	for i, p := range probes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			t := toolVersion{Name: p.name, Note: p.note}
+			path, err := exec.LookPath(p.args[0])
+			if err != nil {
+				t.Note = "not installed"
+				v.Tools[i] = t
+				return
+			}
+			c, cancel := context.WithTimeout(ctx, 6*time.Second)
+			defer cancel()
+			out, err := exec.CommandContext(c, path, p.args[1:]...).Output()
+			if err != nil {
+				t.Path, t.Note = path, "installed, but its version could not be read"
+				v.Tools[i] = t
+				return
+			}
+			t.Path, t.OK, t.Version = path, true, p.parse(string(out))
+			v.Tools[i] = t
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		c, cancel := context.WithTimeout(ctx, 6*time.Second)
+		defer cancel()
+		rel, err := s.Machine.Releases.Latest(c)
+		if err != nil {
+			v.Latest.Error = "could not look up the latest release"
+			return
+		}
+		v.Latest.Version = rel.Version
+	}()
+	wg.Wait()
+	for _, t := range v.Tools {
+		// A build from source says "dev", which is neither older nor newer than a
+		// release, so it is not told to update.
+		if t.Name == "multiversectl" && t.OK && v.Latest.Version != "" && looksLikeRelease(t.Version) {
+			v.Latest.Newer = app.NewerVersion(v.Latest.Version, t.Version)
+		}
+	}
+	return v, nil
+}
+
+// wordAt picks the n-th word of the first line, which is where tools put
+// their version.
+func wordAt(n int) func(string) string {
+	return func(out string) string {
+		line, _, _ := strings.Cut(strings.TrimSpace(out), "\n")
+		f := strings.Fields(line)
+		if n < len(f) {
+			return f[n]
+		}
+		return strings.TrimSpace(line)
+	}
+}
+
+func looksLikeRelease(v string) bool {
+	v = strings.TrimPrefix(v, "v")
+	return v != "" && v[0] >= '0' && v[0] <= '9'
+}

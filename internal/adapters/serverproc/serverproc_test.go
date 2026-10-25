@@ -24,7 +24,7 @@ func fakeServer(t *testing.T, body string) *Process {
 }
 
 func TestStartStatusStop(t *testing.T) {
-	p := fakeServer(t, "trap 'exit 0' TERM\necho 'serving http://127.0.0.1:4242 (read-only)'\nwhile :; do sleep 0.1; done\n")
+	p := fakeServer(t, "trap 'exit 0' TERM\necho 'serving http://127.0.0.1:4242/?t=abc (it can act)'\nwhile :; do sleep 0.1; done\n")
 	ctx := context.Background()
 
 	if _, err := p.Status(ctx); !errors.Is(err, app.ErrServerNotRunning) {
@@ -35,7 +35,7 @@ func TestStartStatusStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _, _ = p.Stop(ctx) })
-	if info.URL != "http://127.0.0.1:4242" || info.PID == 0 {
+	if info.URL != "http://127.0.0.1:4242/?t=abc" || info.PID == 0 {
 		t.Fatalf("info = %+v", info)
 	}
 

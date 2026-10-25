@@ -18,7 +18,7 @@
     </a>
     <div class="tools">
       <span id="stamp" class="muted" aria-live="polite"></span>
-      <label class="switch"><input type="checkbox" id="auto" name="auto" checked><span>Live</span></label>
+      <span id="live" class="live off" role="status">connecting…</span>
       <button type="button" id="refresh" class="btn">Refresh</button>
       <button type="button" id="theme" class="btn ghost" aria-label="Switch colour theme">Theme</button>
     </div>
@@ -27,10 +27,12 @@
     <a href="#/" data-route="overview">Overview</a>
     <a href="#/catalog" data-route="catalog">Catalog</a>
     <a href="#/fleet" data-route="fleet">Fleet</a>
-    <p class="rail-note">Read-only. Everything here is changed from the command line.</p>
+    <a href="#/system" data-route="system">System</a>
+    <p class="rail-note" id="railnote"></p>
   </nav>
   <main id="main" tabindex="-1"></main>
 </div>
+<aside id="dock" class="dock" aria-label="Operations" hidden></aside>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script src="app.js" defer></script>
 </body>

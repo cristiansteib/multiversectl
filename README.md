@@ -94,11 +94,12 @@ multiversectl catalog update                    # catch up: manifests and new re
 
 See [Catalogs](https://cristiansteib.github.io/multiversectl/concepts/catalogs.html).
 
-To see all of it in a page (the tree, what is installed, every universe and what
-runs in it), without a way to change anything:
+To see all of it in a live page (the tree, what is installed, every universe and
+what runs in it, and the versions of what it all runs on), and to start, stop,
+create and remove universes from it:
 
 ```sh
-multiversectl server start --open   # in the background; read-only, loopback only
+multiversectl server start --open   # a live page: versions, and start/stop/create/remove, behind a token
 multiversectl server stop
 ```
 

@@ -433,6 +433,8 @@ type ServerProcess interface {
 type ServerStart struct {
 	Addr   string
 	Expose bool
+	// ReadOnly starts the web view without any action.
+	ReadOnly bool
 }
 
 // ServerInfo is a running server.

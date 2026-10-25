@@ -4,14 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
+
+const testToken = "test-token"
 
 type fake struct {
 	status  app.StatusReport
@@ -19,45 +27,113 @@ type fake struct {
 	fleet   fleetView
 	ws      workspaceView
 	doctor  doctorView
+	system  systemView
+	dirty   []string
 	err     error
-	asked   []string
+
+	mu    sync.Mutex
+	asked []string
+	did   []opRequest
+	// hold, when set, makes Do wait on it, so an operation can be in progress.
+	hold chan struct{}
+	// doErr is what Do returns.
+	doErr error
+}
+
+func (f *fake) ask(s string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.asked = append(f.asked, s)
+}
+func (f *fake) asks() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return strings.Join(f.asked, " ")
 }
 
 func (f *fake) Status(_ context.Context, fetch bool) (app.StatusReport, error) {
-	f.asked = append(f.asked, "status")
+	f.ask("status")
 	if fetch {
-		f.asked = append(f.asked, "fetch")
+		f.ask("fetch")
 	}
 	return f.status, f.err
 }
 func (f *fake) Catalog(context.Context, bool) (catalogView, error) { return f.catalog, f.err }
 func (f *fake) Fleet(_ context.Context, ws string) (fleetView, error) {
-	f.asked = append(f.asked, "fleet:"+ws)
+	f.ask("fleet:" + ws)
 	return f.fleet, f.err
 }
 func (f *fake) Workspace(_ context.Context, name string) (workspaceView, error) {
-	f.asked = append(f.asked, "workspace:"+name)
+	f.ask("workspace:" + name)
 	return f.ws, f.err
 }
 func (f *fake) Doctor(_ context.Context, ws, u string) (doctorView, error) {
-	f.asked = append(f.asked, "doctor:"+ws+":"+u)
+	f.ask("doctor:" + ws + ":" + u)
 	return f.doctor, f.err
 }
-
-func get(t *testing.T, h http.Handler, method, target string, headers map[string]string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(method, target, nil)
-	req.Host = "localhost:7777"
-	for k, v := range headers {
-		if k == "Host" {
-			req.Host = v
-			continue
+func (f *fake) System(context.Context) (systemView, error) { return f.system, f.err }
+func (f *fake) Unsaved(context.Context, string, string) ([]string, error) {
+	return f.dirty, f.err
+}
+func (f *fake) Do(ctx context.Context, r opRequest, k Sink) error {
+	f.mu.Lock()
+	f.did = append(f.did, r)
+	hold := f.hold
+	f.mu.Unlock()
+	k.Info("starting %s", r.Action)
+	_, _ = io.WriteString(k.Stdout(), "compose says hello\nsecond line")
+	if hold != nil {
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-		req.Header.Set(k, v)
+	}
+	if f.doErr == nil {
+		k.OK("done %s", r.Action)
+	}
+	return f.doErr
+}
+
+// serve starts a server and returns it with its handler.
+func serve(t *testing.T, f *fake, o Options) (*Server, http.Handler) {
+	t.Helper()
+	o.Token = testToken
+	s := New(f, o)
+	t.Cleanup(s.Close)
+	return s, s.Handler()
+}
+
+// do sends a request signed in with the session cookie unless headers say
+// otherwise (a "Cookie" entry replaces it, an empty one removes it).
+func do(t *testing.T, h http.Handler, method, target, body string, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(method, target, strings.NewReader(body))
+	req.Host = "localhost:7777"
+	req.AddCookie(&http.Cookie{Name: cookieName, Value: testToken})
+	for k, v := range headers {
+		switch {
+		case k == "Host":
+			req.Host = v
+		case k == "Cookie" && v == "":
+			req.Header.Del("Cookie")
+		default:
+			req.Header.Set(k, v)
+		}
 	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
+}
+
+func get(t *testing.T, h http.Handler, target string, headers map[string]string) *httptest.ResponseRecorder {
+	return do(t, h, "GET", target, "", headers)
+}
+
+var actionHeaders = map[string]string{csrfHeader: csrfValue, "Content-Type": "application/json"}
+
+func post(t *testing.T, h http.Handler, body string) *httptest.ResponseRecorder {
+	return do(t, h, "POST", "/api/ops", body, actionHeaders)
 }
 
 func TestEndpointsReturnTheBackendsViews(t *testing.T) {
@@ -68,7 +144,7 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 		ws:      workspaceView{Name: "acme"},
 		doctor:  doctorView{OK: true, Checks: []checkView{{Name: "git", Status: "ok"}}},
 	}
-	h := Handler(f, "v9", false)
+	_, h := serve(t, f, Options{Version: "v9"})
 	for _, tt := range []struct{ path, want string }{
 		{"/api/overview", `"next":"multiversectl catalog update acme"`},
 		{"/api/overview", `"version":"v9"`},
@@ -77,7 +153,7 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 		{"/api/workspaces/acme", `"name":"acme"`},
 		{"/api/doctor?workspace=acme&universe=1", `"ok":true`},
 	} {
-		rec := get(t, h, "GET", tt.path, nil)
+		rec := get(t, h, tt.path, nil)
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), tt.want) {
 			t.Errorf("%s: %d %s, want %s", tt.path, rec.Code, rec.Body, tt.want)
 		}
@@ -85,80 +161,147 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 			t.Errorf("%s: content type %q", tt.path, ct)
 		}
 	}
-	get(t, h, "GET", "/api/overview?fetch=1", nil)
-	get(t, h, "GET", "/api/fleet?workspace=acme", nil)
-	joined := strings.Join(f.asked, " ")
+	get(t, h, "/api/overview?fetch=1", nil)
+	get(t, h, "/api/fleet?workspace=acme", nil)
 	for _, want := range []string{"fetch", "fleet:acme", "workspace:acme", "doctor:acme:1"} {
-		if !strings.Contains(joined, want) {
-			t.Errorf("backend was not asked %q: %s", want, joined)
+		if !strings.Contains(f.asks(), want) {
+			t.Errorf("backend was not asked %q: %s", want, f.asks())
 		}
 	}
 }
 
-func TestItIsReadOnly(t *testing.T) {
-	h := Handler(&fake{}, "v", false)
-	for _, m := range []string{"POST", "PUT", "DELETE", "PATCH"} {
-		rec := get(t, h, m, "/api/overview", nil)
-		if rec.Code != http.StatusMethodNotAllowed || rec.Header().Get("Allow") == "" {
+func TestNothingIsServedWithoutTheToken(t *testing.T) {
+	_, h := serve(t, &fake{}, Options{})
+	for _, path := range []string{"/", "/app.js", "/api/overview", "/api/fleet", "/ws", "/api/ops"} {
+		if rec := get(t, h, path, map[string]string{"Cookie": ""}); rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s without a cookie: %d", path, rec.Code)
+		}
+		if rec := get(t, h, path, map[string]string{"Cookie": cookieName + "=wrong"}); rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s with the wrong cookie: %d", path, rec.Code)
+		}
+	}
+	// A wrong token in the link gets nothing either, and sets no cookie.
+	rec := get(t, h, "/?t=wrong", map[string]string{"Cookie": ""})
+	if rec.Code != http.StatusUnauthorized || rec.Header().Get("Set-Cookie") != "" {
+		t.Errorf("wrong token: %d %q", rec.Code, rec.Header().Get("Set-Cookie"))
+	}
+	if body := get(t, h, "/", map[string]string{"Cookie": ""}).Body.String(); !strings.Contains(body, "multiversectl server status") {
+		t.Errorf("the refusal should say how to get the link: %s", body)
+	}
+}
+
+func TestTheTokenIsTradedForACookieAndLeavesTheAddress(t *testing.T) {
+	_, h := serve(t, &fake{}, Options{})
+	rec := get(t, h, "/?t="+testToken+"&x=1", map[string]string{"Cookie": ""})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/?x=1" || strings.Contains(loc, testToken) {
+		t.Errorf("the token must not stay in the address: %q", loc)
+	}
+	c := rec.Result().Cookies()
+	if len(c) != 1 || c[0].Name != cookieName || !c[0].HttpOnly || c[0].SameSite != http.SameSiteStrictMode || c[0].Value != testToken {
+		t.Errorf("cookie = %+v", c)
+	}
+}
+
+func TestActionsNeedTheHeaderTheOriginAndAWritableServer(t *testing.T) {
+	f := &fake{}
+	_, h := serve(t, f, Options{})
+	body := `{"action":"up","workspace":"acme","universe":"1"}`
+
+	if rec := do(t, h, "POST", "/api/ops", body, map[string]string{"Content-Type": "application/json"}); rec.Code != http.StatusForbidden {
+		t.Errorf("without the header: %d", rec.Code)
+	}
+	evil := map[string]string{csrfHeader: csrfValue, "Origin": "http://evil.example.test"}
+	if rec := do(t, h, "POST", "/api/ops", body, evil); rec.Code != http.StatusForbidden {
+		t.Errorf("from another origin: %d", rec.Code)
+	}
+	if rec := do(t, h, "POST", "/api/ops", body, map[string]string{csrfHeader: csrfValue, "Sec-Fetch-Site": "cross-site"}); rec.Code != http.StatusForbidden {
+		t.Errorf("cross-site: %d", rec.Code)
+	}
+	if rec := do(t, h, "POST", "/api/ops", body, map[string]string{csrfHeader: csrfValue, "Origin": "http://localhost:7777"}); rec.Code != http.StatusAccepted {
+		t.Errorf("from the page itself: %d %s", rec.Code, rec.Body)
+	}
+	for _, m := range []string{"PUT", "DELETE", "PATCH"} {
+		if rec := do(t, h, m, "/api/overview", "", actionHeaders); rec.Code != http.StatusMethodNotAllowed {
 			t.Errorf("%s: %d", m, rec.Code)
 		}
+	}
+
+	_, ro := serve(t, &fake{}, Options{ReadOnly: true})
+	if rec := post(t, ro, body); rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "read-only") {
+		t.Errorf("read-only server: %d %s", rec.Code, rec.Body)
+	}
+	if rec := get(t, ro, "/api/overview", nil); rec.Code != 200 {
+		t.Errorf("read-only still reads: %d", rec.Code)
 	}
 }
 
 func TestOnlyThisMachineMayAskUnlessExposed(t *testing.T) {
-	closed, open := Handler(&fake{}, "v", false), Handler(&fake{}, "v", true)
+	_, closed := serve(t, &fake{}, Options{})
+	_, open := serve(t, &fake{}, Options{Expose: true})
 	for _, host := range []string{"localhost:7777", "127.0.0.1:7777", "[::1]:7777", "LOCALHOST"} {
-		if rec := get(t, closed, "GET", "/api/overview", map[string]string{"Host": host}); rec.Code != 200 {
+		if rec := get(t, closed, "/api/overview", map[string]string{"Host": host}); rec.Code != 200 {
 			t.Errorf("%s refused: %d", host, rec.Code)
 		}
 	}
 	// A page elsewhere points a name it controls at 127.0.0.1: the Host says so.
 	for _, host := range []string{"evil.example.test:7777", "192.168.1.5:7777", "localhost.evil.example.test"} {
-		if rec := get(t, closed, "GET", "/api/overview", map[string]string{"Host": host}); rec.Code != http.StatusForbidden {
+		if rec := get(t, closed, "/api/overview", map[string]string{"Host": host}); rec.Code != http.StatusForbidden {
 			t.Errorf("%s answered: %d", host, rec.Code)
 		}
-		if rec := get(t, open, "GET", "/api/overview", map[string]string{"Host": host}); rec.Code != 200 {
+		if rec := get(t, open, "/api/overview", map[string]string{"Host": host}); rec.Code != 200 {
 			t.Errorf("--expose should answer %s: %d", host, rec.Code)
 		}
 	}
-	if rec := get(t, closed, "GET", "/api/overview", map[string]string{"Sec-Fetch-Site": "cross-site"}); rec.Code != http.StatusForbidden {
+	if rec := get(t, closed, "/api/overview", map[string]string{"Sec-Fetch-Site": "cross-site"}); rec.Code != http.StatusForbidden {
 		t.Errorf("cross-site: %d", rec.Code)
 	}
-	if rec := get(t, closed, "GET", "/api/overview", map[string]string{"Sec-Fetch-Site": "same-origin"}); rec.Code != 200 {
+	if rec := get(t, closed, "/api/overview", map[string]string{"Sec-Fetch-Site": "same-origin"}); rec.Code != 200 {
 		t.Errorf("same-origin: %d", rec.Code)
+	}
+	if rec := get(t, open, "/api/overview", map[string]string{"Host": "evil.example.test", "Cookie": ""}); rec.Code != http.StatusUnauthorized {
+		t.Errorf("--expose still needs the token: %d", rec.Code)
 	}
 }
 
 func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
-	h := Handler(&fake{}, "v", false)
+	_, h := serve(t, &fake{}, Options{})
 	for _, path := range []string{"/", "/api/overview", "/app.js", "/nope"} {
-		rec := get(t, h, "GET", path, nil)
+		rec := get(t, h, path, nil)
 		hd := rec.Header()
 		// http.FileServer removes Cache-Control from its own 404s; nothing is cached there.
 		noStore := hd.Get("Cache-Control") == "no-store" || path == "/nope"
-		if !noStore || hd.Get("X-Content-Type-Options") != "nosniff" ||
-			hd.Get("X-Frame-Options") != "DENY" || !strings.Contains(hd.Get("Content-Security-Policy"), "default-src 'self'") {
+		csp := hd.Get("Content-Security-Policy")
+		if !noStore || hd.Get("X-Content-Type-Options") != "nosniff" || hd.Get("X-Frame-Options") != "DENY" ||
+			!strings.Contains(csp, "default-src 'self'") || !strings.Contains(csp, "connect-src 'self'") {
 			t.Errorf("%s: headers %v", path, hd)
 		}
+	}
+	if rec := get(t, h, "/", map[string]string{"Cookie": ""}); rec.Header().Get("X-Frame-Options") != "DENY" {
+		t.Error("a refusal carries the headers too")
 	}
 }
 
 func TestThePageAndItsAssetsAreServed(t *testing.T) {
-	h := Handler(&fake{}, "v", false)
-	if rec := get(t, h, "GET", "/", nil); rec.Code != 200 || !strings.Contains(rec.Body.String(), "multiversectl") || !strings.Contains(rec.Header().Get("Content-Type"), "text/html") {
+	_, h := serve(t, &fake{}, Options{})
+	if rec := get(t, h, "/", nil); rec.Code != 200 || !strings.Contains(rec.Body.String(), "multiversectl") || !strings.Contains(rec.Header().Get("Content-Type"), "text/html") {
 		t.Errorf("/: %d %s", rec.Code, rec.Header().Get("Content-Type"))
 	}
 	for _, p := range []string{"/app.js", "/style.css"} {
-		if rec := get(t, h, "GET", p, nil); rec.Code != 200 || rec.Body.Len() == 0 {
+		if rec := get(t, h, p, nil); rec.Code != 200 || rec.Body.Len() == 0 {
 			t.Errorf("%s: %d", p, rec.Code)
 		}
 	}
-	if rec := get(t, h, "GET", "/etc/passwd", nil); rec.Code != 404 {
+	if rec := get(t, h, "/etc/passwd", nil); rec.Code != 404 {
 		t.Errorf("unknown file: %d", rec.Code)
 	}
-	// Nothing in the page loads from outside, which is what the CSP enforces.
-	page := get(t, h, "GET", "/", nil).Body.String() + get(t, h, "GET", "/app.js", nil).Body.String()
-	for _, banned := range []string{"https://", "http://cdn", "innerHTML", "eval("} {
+	// Nothing in the page loads from outside, which is what the CSP enforces, and
+	// nothing is built from strings the data could turn into markup.
+	page := get(t, h, "/", nil).Body.String() + get(t, h, "/app.js", nil).Body.String()
+	// The CSP forbids inline styles, so a style set from script is silently dropped.
+	for _, banned := range []string{"https://", "http://cdn", "style: '", "innerHTML", "outerHTML", "insertAdjacentHTML", "eval(", "document.write"} {
 		if strings.Contains(strings.ReplaceAll(page, "http://www.w3.org/2000/svg", ""), banned) {
 			t.Errorf("the page contains %q", banned)
 		}
@@ -166,15 +309,325 @@ func TestThePageAndItsAssetsAreServed(t *testing.T) {
 }
 
 func TestErrorsAreJSONWithTheRightStatus(t *testing.T) {
-	h := Handler(&fake{err: errors.New("no workspace \"x\"")}, "v", false)
+	_, h := serve(t, &fake{err: errors.New("no workspace \"x\"")}, Options{})
 	for path, code := range map[string]int{
-		"/api/fleet?workspace=x": 404, "/api/workspaces/x": 404, "/api/overview": 500, "/api/doctor": 400, "/api/nope": 404, "/api/workspaces/": 404, "/api/workspaces/a/b": 404,
+		"/api/fleet?workspace=x": 404, "/api/workspaces/x": 404, "/api/overview": 500, "/api/doctor": 400, "/api/nope": 404, "/api/workspaces/": 404, "/api/workspaces/a/b": 404, "/api/system": 500,
 	} {
-		rec := get(t, h, "GET", path, nil)
-		var body map[string]string
+		rec := get(t, h, path, nil)
+		var body map[string]any
 		if rec.Code != code || json.Unmarshal(rec.Body.Bytes(), &body) != nil || body["error"] == "" {
 			t.Errorf("%s: %d %s, want %d with an error", path, rec.Code, rec.Body, code)
 		}
+	}
+}
+
+func TestTheSystemViewHasTheVersions(t *testing.T) {
+	f := &fake{system: systemView{
+		Tools:  []toolVersion{{Name: "git", Version: "2.43.0", OK: true}, {Name: "glab", Note: "not installed"}},
+		Latest: latestView{Version: "v1.2.0", Newer: true},
+		Format: "multiverse/v1alpha1",
+	}}
+	_, h := serve(t, f, Options{Version: "v1.1.0", Commit: "abc1234", Date: "2026-10-25"})
+	var got systemView
+	rec := get(t, h, "/api/system", nil)
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 {
+		t.Fatalf("%d %s %v", rec.Code, rec.Body, err)
+	}
+	if got.Server.Version != "v1.1.0" || got.Server.Commit != "abc1234" || len(got.Tools) != 2 || !got.Latest.Newer || got.Format == "" || got.Started == "" {
+		t.Errorf("system = %+v", got)
+	}
+}
+
+// operations
+
+func wait(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for end := time.Now().Add(3 * time.Second); time.Now().Before(end); time.Sleep(10 * time.Millisecond) {
+		if ok() {
+			return
+		}
+	}
+	t.Fatalf("timed out waiting for %s", what)
+}
+
+func listOps(t *testing.T, h http.Handler) []opView {
+	t.Helper()
+	var body struct {
+		Ops []opView `json:"ops"`
+	}
+	if err := json.Unmarshal(get(t, h, "/api/ops", nil).Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	return body.Ops
+}
+
+func TestAnActionRunsInTheBackgroundAndKeepsItsOutput(t *testing.T) {
+	f := &fake{}
+	_, h := serve(t, f, Options{})
+	rec := post(t, h, `{"action":"up","workspace":"acme","universe":"3"}`)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	wait(t, "the operation to finish", func() bool { o := listOps(t, h); return len(o) == 1 && o[0].State == "done" })
+	o := listOps(t, h)[0]
+	var text []string
+	for _, l := range o.Lines {
+		text = append(text, l.Kind+":"+l.Text)
+	}
+	joined := strings.Join(text, "|")
+	for _, want := range []string{"info:starting up", "out:compose says hello", "out:second line", "ok:done up"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("output lacks %q: %s", want, joined)
+		}
+	}
+	if o.Title != "Start 3 in acme" || o.Ended == "" {
+		t.Errorf("op = %+v", o)
+	}
+	if len(f.did) != 1 || f.did[0].Universe != "3" {
+		t.Errorf("did %+v", f.did)
+	}
+}
+
+func TestAFailedActionSaysWhy(t *testing.T) {
+	_, h := serve(t, &fake{doErr: errors.New("port is already allocated")}, Options{})
+	post(t, h, `{"action":"down","workspace":"acme","universe":"1"}`)
+	wait(t, "failure", func() bool { o := listOps(t, h); return len(o) == 1 && o[0].State == "failed" })
+	if o := listOps(t, h)[0]; o.Error != "port is already allocated" {
+		t.Errorf("error = %q", o.Error)
+	}
+}
+
+func TestRemovingNeedsTheNameTypedAndRefusesUncommittedWork(t *testing.T) {
+	f := &fake{dirty: []string{"api", "web"}}
+	_, h := serve(t, f, Options{})
+
+	if rec := post(t, h, `{"action":"rm","workspace":"acme","universe":"3"}`); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "type the universe's name") {
+		t.Errorf("no confirmation: %d %s", rec.Code, rec.Body)
+	}
+	if rec := post(t, h, `{"action":"rm","workspace":"acme","universe":"3","confirm":"4"}`); rec.Code != http.StatusBadRequest {
+		t.Errorf("wrong confirmation: %d", rec.Code)
+	}
+	rec := post(t, h, `{"action":"rm","workspace":"acme","universe":"3","confirm":"3"}`)
+	var body struct {
+		Error string   `json:"error"`
+		Dirty []string `json:"dirty"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &body)
+	if rec.Code != http.StatusConflict || len(body.Dirty) != 2 || !strings.Contains(body.Error, "uncommitted work in api, web") {
+		t.Errorf("uncommitted work: %d %s", rec.Code, rec.Body)
+	}
+	if len(f.did) != 0 {
+		t.Error("nothing may run before the person has agreed")
+	}
+	if rec := post(t, h, `{"action":"rm","workspace":"acme","universe":"3","confirm":"3","force":true}`); rec.Code != http.StatusAccepted {
+		t.Errorf("forced: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestOnlyOneActionRunsAtATimeInAWorkspace(t *testing.T) {
+	f := &fake{hold: make(chan struct{})}
+	_, h := serve(t, f, Options{})
+	if rec := post(t, h, `{"action":"up","workspace":"acme","universe":"1"}`); rec.Code != http.StatusAccepted {
+		t.Fatalf("first: %d", rec.Code)
+	}
+	if rec := post(t, h, `{"action":"up","workspace":"acme","universe":"2"}`); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "another operation") {
+		t.Errorf("second in the same workspace: %d %s", rec.Code, rec.Body)
+	}
+	if rec := post(t, h, `{"action":"up","workspace":"other","universe":"2"}`); rec.Code != http.StatusAccepted {
+		t.Errorf("another workspace is free: %d", rec.Code)
+	}
+	close(f.hold)
+	wait(t, "both to finish", func() bool {
+		for _, o := range listOps(t, h) {
+			if o.State == "running" {
+				return false
+			}
+		}
+		return true
+	})
+	if rec := post(t, h, `{"action":"up","workspace":"acme","universe":"2"}`); rec.Code != http.StatusAccepted {
+		t.Errorf("after it finished: %d", rec.Code)
+	}
+}
+
+func TestBadActionsAreRefusedBeforeAnythingRuns(t *testing.T) {
+	f := &fake{}
+	_, h := serve(t, f, Options{})
+	for body, want := range map[string]string{
+		`{"action":"format-disk","workspace":"acme"}`: "unknown action",
+		`{"action":"up"}`:                     "workspace is required",
+		`{"action":"up","workspace":"acme"}`:  "universe is required",
+		`{"action":"new","workspace":"acme"}`: "number or name",
+		`not json`:                            "not valid JSON",
+	} {
+		rec := post(t, h, body)
+		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("%s: %d %s, want %q", body, rec.Code, rec.Body, want)
+		}
+	}
+	if len(f.did) != 0 {
+		t.Errorf("ran %+v", f.did)
+	}
+}
+
+// websocket
+
+func dial(t *testing.T, ts *httptest.Server, headers http.Header) (*websocket.Conn, *http.Response, error) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return websocket.Dial(ctx, "ws"+strings.TrimPrefix(ts.URL, "http")+"/ws", &websocket.DialOptions{HTTPHeader: headers})
+}
+
+func signedIn() http.Header {
+	h := http.Header{}
+	h.Add("Cookie", cookieName+"="+testToken)
+	return h
+}
+
+func read(t *testing.T, c *websocket.Conn) event {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_, data, err := c.Read(ctx)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	var raw struct {
+		Type string          `json:"type"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	return event{Type: raw.Type, Data: raw.Data}
+}
+
+func TestTheWebsocketTellsAPageWhereThingsStandAndWhatChanges(t *testing.T) {
+	f := &fake{fleet: fleetView{Workspaces: []fleetWorkspace{{Name: "acme"}}}, status: app.StatusReport{Next: "x"}}
+	s, _ := serve(t, f, Options{Version: "v7", Commit: "c0ffee"})
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	c, _, err := dial(t, ts, signedIn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()
+
+	hello := read(t, c)
+	var h helloView
+	if err := json.Unmarshal(hello.Data.(json.RawMessage), &h); err != nil || hello.Type != "hello" || h.Version != "v7" || h.Commit != "c0ffee" {
+		t.Fatalf("hello = %+v %v", hello, err)
+	}
+	seen := map[string]bool{}
+	for len(seen) < 2 {
+		seen[read(t, c).Type] = true
+	}
+	if !seen["fleet"] || !seen["overview"] {
+		t.Errorf("a new page should be told the fleet and the overview: %v", seen)
+	}
+
+	// An action's progress arrives as it happens, without asking for it.
+	rec := do(t, ts.Config.Handler, "POST", "/api/ops", `{"action":"up","workspace":"acme","universe":"1"}`, actionHeaders)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	types := map[string]bool{}
+	for done := false; !done; {
+		e := read(t, c)
+		types[e.Type] = true
+		if e.Type == "op" {
+			var o opView
+			_ = json.Unmarshal(e.Data.(json.RawMessage), &o)
+			done = o.State == "done"
+		}
+	}
+	if !types["opline"] || !types["op"] {
+		t.Errorf("events seen: %v", types)
+	}
+}
+
+func TestChangesAreOnlyPushedWhenThereIsSomethingNew(t *testing.T) {
+	f := &fake{fleet: fleetView{Workspaces: []fleetWorkspace{{Name: "acme"}}}}
+	s, _ := serve(t, f, Options{})
+	events := 0
+	c1 := &client{send: make(chan []byte, 8), drop: func() {}}
+	s.hub.join(c1)
+	s.look1(context.Background(), true, false)
+	s.look1(context.Background(), true, false)
+	s.look1(context.Background(), true, false)
+	events = len(c1.send)
+	if events != 1 {
+		t.Errorf("an unchanged fleet was sent %d times, want once", events)
+	}
+	f.mu.Lock()
+	f.fleet = fleetView{Workspaces: []fleetWorkspace{{Name: "acme", Universes: []universeView{{Name: "1"}}}}}
+	f.mu.Unlock()
+	s.look1(context.Background(), true, false)
+	if len(c1.send) != 2 {
+		t.Errorf("a changed fleet should be sent: %d queued", len(c1.send))
+	}
+}
+
+func TestTheWebsocketRefusesStrangers(t *testing.T) {
+	s, _ := serve(t, &fake{}, Options{})
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	if _, resp, err := dial(t, ts, nil); err == nil || resp == nil || resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("without the cookie: %v %v", resp, err)
+	}
+	foreign := signedIn()
+	foreign.Set("Origin", "http://evil.example.test")
+	if _, resp, err := dial(t, ts, foreign); err == nil || resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Errorf("from another site: %v %v", resp, err)
+	}
+}
+
+func TestServeListensWithATokenAndStopsWithItsContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	urls := make(chan string, 1)
+	done := make(chan error, 1)
+	go func() {
+		done <- Serve(ctx, &fake{status: app.StatusReport{Next: "x"}}, Options{Addr: "127.0.0.1:0", Version: "v"}, func(u string) { urls <- u })
+	}()
+	var link string
+	select {
+	case link = <-urls:
+	case <-time.After(3 * time.Second):
+		t.Fatal("never became ready")
+	}
+	u, err := url.Parse(link)
+	if err != nil || u.Query().Get(tokenParam) == "" {
+		t.Fatalf("the link must carry the token: %q", link)
+	}
+	// Without it nothing answers; following the link signs a browser in.
+	plain, err := http.Get("http://" + u.Host + "/api/overview")
+	if err != nil || plain.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("no token: %v %v", plain, err)
+	}
+	plain.Body.Close()
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Jar: jar}
+	res, err := client.Get(link)
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("the link: %v %v", res, err)
+	}
+	res.Body.Close()
+	res, err = client.Get("http://" + u.Host + "/api/overview")
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("after signing in: %v %v", res, err)
+	}
+	res.Body.Close()
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("shutdown: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("did not stop")
 	}
 }
 
@@ -187,35 +640,6 @@ func TestServeRefusesWhatWouldExposeItself(t *testing.T) {
 	}
 	if err := Serve(context.Background(), &fake{}, Options{Addr: "nonsense"}, nil); err == nil {
 		t.Error("a malformed address must fail")
-	}
-}
-
-func TestServeListensAndStopsWithItsContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	urls := make(chan string, 1)
-	done := make(chan error, 1)
-	go func() {
-		done <- Serve(ctx, &fake{status: app.StatusReport{Next: "x"}}, Options{Addr: "127.0.0.1:0", Version: "v"}, func(u string) { urls <- u })
-	}()
-	var url string
-	select {
-	case url = <-urls:
-	case <-time.After(3 * time.Second):
-		t.Fatal("never became ready")
-	}
-	res, err := http.Get(url + "/api/overview")
-	if err != nil || res.StatusCode != 200 {
-		t.Fatalf("get: %v %v", res, err)
-	}
-	res.Body.Close()
-	cancel()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("shutdown: %v", err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("did not stop")
 	}
 }
 

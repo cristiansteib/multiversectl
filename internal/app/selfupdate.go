@@ -88,6 +88,9 @@ func (s *Service) install(ctx context.Context, url, binaryPath string) error {
 
 // isNewer reports whether latest is a higher version than current. A current
 // version that does not parse, such as "dev", is older than everything.
+// NewerVersion reports whether latest is a later release than current.
+func NewerVersion(latest, current string) bool { return isNewer(latest, current) }
+
 func isNewer(latest, current string) bool {
 	l, ok := parseSemver(latest)
 	if !ok {

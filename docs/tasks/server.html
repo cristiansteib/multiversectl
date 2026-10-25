@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Explore it in a browser &middot; multiversectl</title>
-<meta name="description" content="A read-only web view of the catalog tree, the workspaces installed here and the fleet of universes, with doctor on demand.">
+<title>Explore and run it in a browser &middot; multiversectl</title>
+<meta name="description" content="A live web view of the catalog, the workspaces and the fleet of universes, with versions and buttons to start, stop, create and remove universes, behind a token.">
 <meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
@@ -54,7 +54,7 @@
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
         <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
-        <li><a href="../tasks/server.html" aria-current="page">Explore it in a browser</a></li>
+        <li><a href="../tasks/server.html" aria-current="page">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
       <ul>
@@ -78,29 +78,36 @@
 <main id="main">
   <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Tasks</span>
   </nav>
-  <h1>Explore it in a browser</h1>
-  <p class="lede">A read-only web view of the catalog tree, the workspaces installed here and the fleet of universes, with doctor on demand.</p>
+  <h1>Explore and run it in a browser</h1>
+  <p class="lede">A live web view of the catalog, the workspaces and the fleet of universes, with versions and buttons to start, stop, create and remove universes, behind a token.</p>
 <section id="hw-server">
-  <h2 id="hw-server"><a href="#hw-server">See the whole setup in a page</a></h2>
+  <h2 id="hw-server"><a href="#hw-server">See and run the whole setup in a page</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl server start --open
-✓ serving http://127.0.0.1:7777 in the background (pid 4242, read-only); stop it with: multiversectl server stop
+✓ serving http://127.0.0.1:7777/?t=… in the background (pid 4242; it can start, stop, create and remove universes); stop it with: multiversectl server stop
 <span class="p">$ </span>multiversectl server status
 <span class="p">$ </span>multiversectl server stop</pre></div>
-  <p><code>start</code> runs the web view detached from your terminal and remembers it, so closing the shell does not stop it; <code>start</code> again reports the one already running, and <code>stop</code> ends it. <code>--addr</code>, <code>--expose</code> and <code>--open</code> are described below. Its output goes to <code>server.log</code> beside the configuration file, which is where <code>start</code> shows the reason when the server cannot start, such as a port already in use. To keep it in a terminal instead, run <code>multiversectl-server</code> itself; Ctrl-C stops it.</p>
-  <p><code>multiversectl-server</code> is a separate program from <code>multiversectl</code>, built from the same project: the command line carries no web server, and <code>multiversectl server</code> only starts and stops that program, which it looks for beside itself and then on the <code>PATH</code>. <code>make install</code> and the release archives and the <code>.deb</code> include both; the release also publishes a raw <code>multiversectl-server_&lt;os&gt;_&lt;arch&gt;</code> binary. It reads the same configuration, so it shows whatever <code>multiversectl</code> has installed.</p>
-  <p>One page, three views, refreshed every ten seconds while it is open:</p>
+  <p><code>start</code> runs the web view detached from your terminal and remembers it, so closing the shell does not stop it; <code>start</code> again reports the one already running, and <code>stop</code> ends it. Its output goes to <code>server.log</code> beside the configuration file, which is where <code>start</code> shows the reason when the server cannot start, such as a port already in use. To keep it in a terminal instead, run <code>multiversectl-server</code> itself; Ctrl-C stops it.</p>
+  <p><code>multiversectl-server</code> is a separate program from <code>multiversectl</code>, built from the same project: the command line carries no web server, and <code>multiversectl server</code> only starts and stops that program, which it looks for beside itself and then on the <code>PATH</code>.</p>
+  <p>The page is live: the server watches the machine and pushes what changes over a websocket, so a universe you start from a terminal appears on the page without a click, and the indicator in the corner says <em>live</em> while the connection is up. If the connection drops, the page asks again every ten seconds until it is back.</p>
   <ul class="t">
-    <li><strong>Overview</strong>: the root catalog, the workspaces installed here, and where each has drifted, as <code>status</code> shows it. <em>Fetch remotes and compare</em> is <code>status --fetch</code>.</li>
+    <li><strong>Overview</strong>: the root catalog, the workspaces installed here, and where each has drifted, as <code>catalog status</code> shows it. <em>Fetch remotes and compare</em> is <code>--fetch</code>. A stale workspace has an <em>Update</em> button, and any other a <em>Make current</em> button.</li>
     <li><strong>Catalog</strong>: the tree, with what is installed marked and layers you cannot reach listed with the reason. Filter it by name, path or repository, and copy the <code>install</code> command for any workspace.</li>
     <li><strong>Fleet</strong>: every universe of every installed workspace, with its branches, its apps and the state of each service, its addresses as links, and the paths of its checkouts. Press <kbd>/</kbd> to filter. <em>Doctor</em> runs the checks for a workspace or a single universe.</li>
+    <li><strong>System</strong>: the version of the server, of the command line beside it, and of git, docker, docker compose, <code>gh</code> and <code>glab</code> with where each was found, the latest release and whether you are behind it, and the file format.</li>
   </ul>
   <p>Each workspace also has a page with its repositories, whether each is cloned, its apps and their hostnames, and the proxy entrypoints it needs.</p>
 </section>
 
+<section id="hw-act">
+  <h2 id="hw-act"><a href="#hw-act">Act from the page</a></h2>
+  <p>A workspace has <em>New universe</em> (a number or name, an optional branch for every repository, a note), <em>Update</em> and <em>Make current</em>. A universe has <em>Start</em>, <em>Stop</em> and <em>Remove…</em>. Each is the use case the command line runs, started in the background; what it prints, including what <code>docker compose</code> prints, streams into the panel at the bottom as it happens, and the panel keeps the last thirty. One operation runs at a time in a workspace, because two would be two compose commands fighting over one project.</p>
+  <p>Removing is the one that cannot be undone, so it is slower on purpose. The dialog asks for the universe's name to be typed, and the server checks it again. If a worktree has uncommitted work the server refuses and says where; only a second press, now labelled <em>Remove anyway</em>, discards it. <code>--read-only</code> removes every button and makes the server refuse every action.</p>
+</section>
+
 <section id="hw-safe">
-  <h2 id="hw-safe"><a href="#hw-safe">What it will and will not do</a></h2>
-  <p>It only reads. There is no way to start, stop, install or edit anything from the page; it shows the command instead, ready to copy, and the command line remains the place where things change.</p>
-  <p>It has no login, so it listens on the loopback address only and answers only requests addressed to <code>localhost</code>, <code>127.0.0.1</code> or <code>::1</code>. That second check matters: without it, a web page on another site could point a name it controls at your machine and read your setup through the browser. <code>--addr</code> picks another loopback port (<code>0</code> chooses a free one). <code>--expose</code> allows any address and any host name; use it only on a network you trust, because anyone who can reach the port can read the same pages.</p>
+  <h2 id="hw-safe"><a href="#hw-safe">Who can use it</a></h2>
+  <p>A page that can remove a universe must not be open to whoever can reach the port, so the server makes up a token when it starts and nothing is served without it. The link <code>start</code>, <code>status</code> and <code>--open</code> print carries the token; opening it trades it for a cookie and redirects to an address without it, so it does not stay in the address bar or the history. The cookie is <code>HttpOnly</code> and <code>SameSite=Strict</code>, which stops a page on another site from using it. Without the cookie every request is refused, including the websocket, with a page that says how to get the link again.</p>
+  <p>On top of that the server listens on the loopback address only and answers only requests addressed to <code>localhost</code>, <code>127.0.0.1</code> or <code>::1</code>; without that second check a web page on another site could point a name it controls at your machine and talk to it through the browser. Anything that changes state also needs a header only the page's own script sends, and a request from another origin is refused, the websocket included. <code>--addr</code> picks another loopback port (<code>0</code> chooses a free one). <code>--expose</code> allows any address and any host name; the token still applies, so it is the way to reach the page from another device, and the link is then the password: it is in <code>server.log</code> and in the file <code>status</code> reads, both readable by you only.</p>
   <p>The page loads nothing from outside, which its content security policy enforces, and builds everything from text, so a branch name or a note cannot inject markup.</p>
 </section>
 
@@ -112,8 +119,9 @@
   <aside class="toc" aria-labelledby="toch">
     <p class="toc-h" id="toch">On this page</p>
     <ul>
-      <li><a href="#hw-server">See the whole setup in a page</a></li>
-      <li><a href="#hw-safe">What it will and will not do</a></li>
+      <li><a href="#hw-server">See and run the whole setup in a page</a></li>
+      <li><a href="#hw-act">Act from the page</a></li>
+      <li><a href="#hw-safe">Who can use it</a></li>
     </ul>
   </aside>
 </div>
