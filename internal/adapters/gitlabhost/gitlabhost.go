@@ -217,9 +217,15 @@ func glab(ctx context.Context, args ...string) (string, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
+		// As in githost: glab usually explains itself on stderr, and when it
+		// says nothing at all the exit status is all there is. An error whose
+		// message is empty reaches the user as a bare "error:".
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = strings.TrimSpace(stdout.String())
+		}
+		if msg == "" {
+			return "", fmt.Errorf("glab %s: %w", strings.Join(args, " "), err)
 		}
 		return "", errors.New(msg)
 	}
