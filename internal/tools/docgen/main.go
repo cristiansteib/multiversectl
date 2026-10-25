@@ -185,9 +185,14 @@ func render(src, out string) error {
 		}
 	}
 	// GitHub Pages reads the custom domain from a CNAME file at the site's
-	// root; it lives with the sources so a regenerate cannot drop it.
+	// root; it lives with the sources so a regenerate cannot drop it. Written
+	// without a trailing newline, because changing the domain in the
+	// repository's settings makes GitHub rewrite this file that way — and a
+	// file that differs by one byte would fail the staleness test every time
+	// someone touched the setting.
 	if cname, err := os.ReadFile(filepath.Join(src, "_CNAME")); err == nil {
-		if err := os.WriteFile(filepath.Join(out, "CNAME"), cname, 0o644); err != nil {
+		domain := strings.TrimSpace(string(cname))
+		if err := os.WriteFile(filepath.Join(out, "CNAME"), []byte(domain), 0o644); err != nil {
 			return err
 		}
 	}

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Install multiversectl (and the mvctl alias).
-#   curl -fsSL https://raw.githubusercontent.com/cristiansteib/multiversectl/main/install.sh | sh
+#   curl -fsSL https://multiversectl.dev/install.sh | sh
 # Env: MULTIVERSECTL_VERSION (e.g. v0.0.1), MULTIVERSECTL_BIN_DIR, MULTIVERSECTL_SKIP_CHECKSUM=1
 set -eu
 
