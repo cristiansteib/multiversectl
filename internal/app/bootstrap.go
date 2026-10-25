@@ -13,22 +13,23 @@ import (
 // BootstrapInput says where the workspace lives and where its manifest comes
 // from: a git URL, which is cloned into the workspace, or a local path.
 type BootstrapInput struct {
+	Name           string // empty: derived from the root directory
 	Root           string
 	ManifestSource string
 }
 
 // Bootstrap records this machine's workspace so the tool works from any
-// directory afterwards.
-func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (Config, error) {
+// directory afterwards. Other workspaces already recorded are kept.
+func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEntry, error) {
 	if in.Root == "" || in.ManifestSource == "" {
-		return Config{}, fmt.Errorf("bootstrap: root and manifest are both required")
+		return WorkspaceEntry{}, fmt.Errorf("bootstrap: root and manifest are both required")
 	}
 	root, err := s.expandHome(in.Root)
 	if err != nil {
-		return Config{}, err
+		return WorkspaceEntry{}, err
 	}
 	if err := s.Files.MkdirAll(root); err != nil {
-		return Config{}, fmt.Errorf("root %s: %w", root, err)
+		return WorkspaceEntry{}, fmt.Errorf("root %s: %w", root, err)
 	}
 
 	manifest := in.ManifestSource
@@ -38,21 +39,35 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (Config, err
 			s.Out.Info("manifest repository already at %s", dest)
 		} else {
 			if err := s.Files.MkdirAll(filepath.Dir(dest)); err != nil {
-				return Config{}, err
+				return WorkspaceEntry{}, err
 			}
 			if err := s.Git.Clone(ctx, manifest, dest); err != nil {
-				return Config{}, fmt.Errorf("cloning the manifest repository: %w", err)
+				return WorkspaceEntry{}, fmt.Errorf("cloning the manifest repository: %w", err)
 			}
 		}
 		manifest = filepath.Join(dest, "multiverse.yaml")
 	}
 
-	cfg := Config{Root: root, Manifest: manifest}
-	if err := s.Config.Save(cfg); err != nil {
-		return Config{}, fmt.Errorf("saving the configuration: %w", err)
+	name := in.Name
+	if name == "" {
+		name = WorkspaceNameFor(root)
+	} else if !workspaceNameRE.MatchString(name) {
+		return WorkspaceEntry{}, fmt.Errorf("workspace name %q must match %s", name, workspaceNameRE)
 	}
-	s.Out.OK("workspace at %s, manifest %s", cfg.Root, cfg.Manifest)
-	return cfg, nil
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return WorkspaceEntry{}, err
+	}
+	entry := WorkspaceEntry{Root: root, Manifest: manifest}
+	if cfg.Workspaces == nil {
+		cfg.Workspaces = map[string]WorkspaceEntry{}
+	}
+	cfg.Workspaces[name], cfg.Current = entry, name
+	if err := s.Config.Save(cfg); err != nil {
+		return WorkspaceEntry{}, fmt.Errorf("saving the configuration: %w", err)
+	}
+	s.Out.OK("workspace %s at %s, manifest %s", name, entry.Root, entry.Manifest)
+	return entry, nil
 }
 
 // CloneRepos clones every repository of the manifest that is not here yet.

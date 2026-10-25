@@ -87,17 +87,21 @@ func loadConfig() (app.ConfigStore, app.Config, error) {
 }
 
 // workspace resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the
-// manifest's own spec.root, the config file, then the manifest found upwards
-// from the current directory.
+// manifest's own spec.root, the config file's workspace (-w, else the current
+// one), then the manifest found upwards from the current directory.
 func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 	store, cfg, err := loadConfig()
 	if err != nil {
 		return nil, err
 	}
-	root := first(g.Root, os.Getenv("MULTIVERSECTL_ROOT"), cfg.Root)
+	saved, _, err := cfg.Select(g.Workspace)
+	if err != nil {
+		return nil, err
+	}
+	root := first(g.Root, os.Getenv("MULTIVERSECTL_ROOT"), saved.Root)
 	path := g.Manifest
-	if path == "" && cfg.Manifest != "" && (root == "" || root == cfg.Root) {
-		path = cfg.Manifest
+	if path == "" && saved.Manifest != "" && (root == "" || root == saved.Root) {
+		path = saved.Manifest
 	}
 	if path == "" {
 		start := root

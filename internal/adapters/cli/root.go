@@ -11,10 +11,11 @@ import (
 
 // Globals are the flags every command accepts.
 type Globals struct {
-	Manifest string
-	Root     string
-	NoColor  bool
-	Verbose  bool
+	Manifest  string
+	Root      string
+	Workspace string
+	NoColor   bool
+	Verbose   bool
 }
 
 // Factory builds services; main owns it so the CLI never names an adapter.
@@ -45,6 +46,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	root.CompletionOptions.HiddenDefaultCmd = true
 	flags := root.PersistentFlags()
 	flags.StringVarP(&g.Manifest, "manifest", "f", "", "path to the workspace manifest")
+	flags.StringVarP(&g.Workspace, "workspace", "w", "", "workspace to act on (default: the one set with `use`)")
 	flags.StringVar(&g.Root, "root", "", "workspace root (default $MULTIVERSECTL_ROOT, the manifest's spec.root, config, or the manifest's directory)")
 	flags.BoolVar(&g.NoColor, "no-color", false, "disable colour output")
 	flags.BoolVarP(&g.Verbose, "verbose", "v", false, "show the commands being run")
@@ -52,7 +54,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run := runner{g: g, out: out, f: f}
 	root.AddCommand(
 		run.newCmd(), run.upCmd(), run.downCmd(), run.rmCmd(), run.lsCmd(), run.urlsCmd(),
-		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.bootstrapCmd(), run.proxyCmd(),
+		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.bootstrapCmd(), run.workspacesCmd(), run.useCmd(), run.proxyCmd(),
 		run.updateCmd(), run.versionCmd(),
 	)
 	return root, g

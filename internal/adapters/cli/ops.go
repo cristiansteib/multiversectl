@@ -93,7 +93,8 @@ func exportLine(key, value string) string {
 }
 
 func (r runner) bootstrapCmd() *cobra.Command {
-	return &cobra.Command{
+	var name string
+	cmd := &cobra.Command{
 		Use:     "bootstrap <manifest-url-or-path>",
 		Short:   "Set up a workspace: record it, clone its repos, run doctor",
 		Example: "  multiversectl bootstrap git@github.com:acme/workspace.git --root ~/acme\n  multiversectl bootstrap ./multiverse.yaml --root ~/acme",
@@ -111,7 +112,7 @@ func (r runner) bootstrapCmd() *cobra.Command {
 				}
 			}
 			root := firstNonEmpty(r.g.Root, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse")
-			cfg, err := bare.Bootstrap(ctx, app.BootstrapInput{Root: root, ManifestSource: source})
+			cfg, err := bare.Bootstrap(ctx, app.BootstrapInput{Name: name, Root: root, ManifestSource: source})
 			if err != nil {
 				return err
 			}
@@ -123,6 +124,53 @@ func (r runner) bootstrapCmd() *cobra.Command {
 				return err
 			}
 			return r.runDoctor(ctx, s, "")
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "name to record the workspace under (default: from the root directory)")
+	return cmd
+}
+
+func (r runner) workspacesCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "workspaces",
+		Short: "List the workspaces bootstrapped on this machine",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			bare, err := r.f.Bare(*r.g, r.out)
+			if err != nil {
+				return err
+			}
+			list, err := bare.Workspaces()
+			if err != nil {
+				return err
+			}
+			if len(list) == 0 {
+				r.out.Info("no workspaces yet; run bootstrap")
+				return nil
+			}
+			for _, w := range list {
+				mark := " "
+				if w.Current {
+					mark = "*"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%s %-20s %s\n", mark, w.Name, w.Root)
+			}
+			return nil
+		},
+	}
+}
+
+func (r runner) useCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "use <workspace>",
+		Short: "Make a workspace the one commands act on by default",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			bare, err := r.f.Bare(*r.g, r.out)
+			if err != nil {
+				return err
+			}
+			return bare.Use(args[0])
 		},
 	}
 }

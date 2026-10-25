@@ -32,7 +32,8 @@ func New() (*Store, error) {
 
 func (s *Store) Path() string { return s.path }
 
-// Load returns a zero Config when the file does not exist yet.
+// Load returns a zero Config when the file does not exist yet, and upgrades
+// the single-workspace layout older releases wrote.
 func (s *Store) Load() (app.Config, error) {
 	var c app.Config
 	data, err := os.ReadFile(s.path)
@@ -45,6 +46,7 @@ func (s *Store) Load() (app.Config, error) {
 	if err := yaml.Unmarshal(data, &c); err != nil {
 		return c, fmt.Errorf("parse config %s: %w", s.path, err)
 	}
+	c.Normalize()
 	return c, nil
 }
 

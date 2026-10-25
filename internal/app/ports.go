@@ -211,11 +211,23 @@ type Releases interface {
 	Download(ctx context.Context, url, dest string) error
 }
 
-// Config is where this machine keeps its workspace, so the tool works from
-// any directory once bootstrapped.
-type Config struct {
+// WorkspaceEntry is one workspace this machine knows how to reach.
+type WorkspaceEntry struct {
 	Root     string `yaml:"root"`
 	Manifest string `yaml:"manifest"`
+}
+
+// Config is where this machine keeps its workspaces, so the tool works from
+// any directory once bootstrapped. Several can coexist; Current is the one
+// commands use when no flag says otherwise.
+type Config struct {
+	Current    string                    `yaml:"current,omitempty"`
+	Workspaces map[string]WorkspaceEntry `yaml:"workspaces,omitempty"`
+
+	// Root and Manifest are what releases before multiple workspaces wrote.
+	// Normalize folds them into Workspaces; nothing writes them any more.
+	Root     string `yaml:"root,omitempty"`
+	Manifest string `yaml:"manifest,omitempty"`
 }
 
 // ConfigStore persists Config for the current user.
