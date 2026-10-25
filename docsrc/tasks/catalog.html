@@ -45,7 +45,7 @@
 <span class="p">$ </span>multiversectl catalog install
 <span class="p">$ </span>multiversectl catalog status
 <span class="p">$ </span>multiversectl catalog use billing</pre></div>
-  <p>The first workspace on a machine becomes the current one; later ones are installed beside it and say so. A source is read in a fixed order: a node in your catalog, then a path, then a git URL, then <code>owner/repo</code>.</p>
+  <p>A workspace goes in <code>~/multiverse/&lt;name&gt;</code> unless you say otherwise, and the install shows that folder, prefilled, so Enter accepts it or you type another; <code>--root</code> (the folder itself), <code>--base</code> (the folder it goes under), <code>$MULTIVERSECTL_ROOT</code> or <code>--yes</code> settle it without asking. Pointing <code>--root</code> at a folder that already holds the checkouts reuses them. The first workspace on a machine becomes the current one; later ones are installed beside it and say so. A source is read in a fixed order: a node in your catalog, then a path, then a git URL, then <code>owner/repo</code>.</p>
 </section>
 
 <section id="hw-update">

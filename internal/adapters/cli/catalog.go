@@ -362,15 +362,18 @@ func (r runner) installCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&fetch, "fetch", false, "fetch the catalogs first")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		// Where it goes is asked only when nothing has said: not --root, --base
+		// or $MULTIVERSECTL_ROOT, and not --yes.
+		ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
 		return r.install(cmd, args, app.InstallOptions{
 			Base: firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"),
 			Root: r.g.Root, Name: name, All: all, Fetch: fetch,
-		}, yes)
+		}, yes, ask)
 	}
 	return cmd
 }
 
-func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions, yes bool) error {
+func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions, yes, askRoot bool) error {
 	ctx := cmd.Context()
 	c, err := r.catalogs(yes)
 	if err != nil {
@@ -398,6 +401,16 @@ func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions,
 			r.out.Info("%s: %s; `multiversectl catalog update %s` refreshes it", t.Name, t.Skip, t.Name)
 			continue
 		}
+		if askRoot {
+			root, err := r.f.Prompter().Input(fmt.Sprintf("Where should %s live?  (its repositories and universes go here)", t.Name), t.Root)
+			if errors.Is(err, context.Canceled) {
+				return err
+			}
+			if err == nil && root != "" {
+				t.Root = root
+			}
+		}
+		r.out.Info("installing `%s` into `%s`", t.Name, t.Root)
 		in := app.BootstrapInput{Name: t.Name, Root: t.Root, ManifestSource: t.ManifestSource, Ref: t.Ref,
 			ManifestPath: t.ManifestPath, From: t.From, Origin: t.Origin}
 		entry, err := bare.Bootstrap(ctx, in)
