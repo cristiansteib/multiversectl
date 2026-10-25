@@ -107,7 +107,7 @@
 <span class="k">optional</span>:
   - <span class="k">name</span>: celery
     <span class="k">services</span>: [worker, beat]</pre></div>
-  <div class="code"><pre><span class="p">$ </span>multiversectl up 3 api --with celery</pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe up 3 api --with celery</pre></div>
   <p class="muted">The group name is also activated as a compose profile. Comma-separate several: <code>--with celery,mail</code>.</p>
 </section>
 
@@ -131,7 +131,7 @@
           <span class="k">environment</span>:
             <span class="k">DJANGO_CSRF_TRUSTED_ORIGINS</span>: <span class="s">"${MULTIVERSE_ORIGINS}"</span>
             <span class="k">DJANGO_ALLOWED_HOSTS</span>: <span class="s">"${MULTIVERSE_HOSTS}"</span></pre></div>
-  <p class="muted">Prefer the aggregates to listing hostnames one at a time: they follow the manifest, so adding a host key or an app leaves no settings list behind. There is also <code>&lt;HOST&gt;_HOST</code> and <code>&lt;HOST&gt;_URL</code> per host key, <code>&lt;REPO&gt;_DIR</code> per checkout, and <code>UNIVERSE</code>, <code>UNIVERSE_SLUG</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, <code>COMPOSE_PROJECT_NAME</code>, <code>HOST_UID</code>, <code>HOST_GID</code>. <code>multiversectl env &lt;universe&gt;</code> prints the lot.</p>
+  <p class="muted">Prefer the aggregates to listing hostnames one at a time: they follow the manifest, so adding a host key or an app leaves no settings list behind. There is also <code>&lt;HOST&gt;_HOST</code> and <code>&lt;HOST&gt;_URL</code> per host key, <code>&lt;REPO&gt;_DIR</code> per checkout, and <code>UNIVERSE</code>, <code>UNIVERSE_SLUG</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, <code>COMPOSE_PROJECT_NAME</code>, <code>HOST_UID</code>, <code>HOST_GID</code>. <code>multiversectl universe env &lt;universe&gt;</code> prints the lot.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">

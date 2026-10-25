@@ -69,7 +69,7 @@ func (r runner) envCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "env <universe>",
 		Short:   "Print a universe's environment as export lines for your shell",
-		Example: `  eval "$(multiversectl env 3)"`,
+		Example: `  eval "$(multiversectl universe env 3)"`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
@@ -188,14 +188,14 @@ func (r runner) versionCmd() *cobra.Command {
 
 func (r runner) execCmd() *cobra.Command {
 	return r.commandIn("exec", "Run a command in a universe's running container", true,
-		"  multiversectl exec 3 api --service db -- psql -U postgres\n"+
-			"  multiversectl exec 3 api -- bash")
+		"  multiversectl universe exec 3 api --service db -- psql -U postgres\n"+
+			"  multiversectl universe exec 3 api -- bash")
 }
 
 func (r runner) runCmd() *cobra.Command {
 	return r.commandIn("run", "Run a one-off command in a fresh container", false,
-		"  multiversectl run 3 api -- python manage.py migrate\n"+
-			"  multiversectl run 3 api --service db -- psql -U postgres")
+		"  multiversectl universe run 3 api -- python manage.py migrate\n"+
+			"  multiversectl universe run 3 api --service db -- psql -U postgres")
 }
 
 // commandIn builds run and exec, which differ only in where they land.

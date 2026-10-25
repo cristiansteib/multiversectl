@@ -429,13 +429,13 @@ func (r runner) installedHint(bare *app.Service, added []app.InstallTarget, args
 	switch {
 	case current == added[0].Name && len(added) == 1:
 		r.out.OK("installed %s and now using it (the first on this machine)", added[0].Name)
-		r.out.Info("next: multiversectl new 1 && multiversectl up 1")
+		r.out.Info("next: multiversectl universe new 1 && multiversectl universe up 1")
 	case current != "" && !contains(names, current):
 		r.out.OK("installed %s (still using %s)", strings.Join(names, ", "), current)
 		r.out.Info("switch: multiversectl use %s", names[0])
 	default:
 		r.out.OK("installed %s; now using %s", strings.Join(names, ", "), current)
-		r.out.Info("next: multiversectl new 1 && multiversectl up 1")
+		r.out.Info("next: multiversectl universe new 1 && multiversectl universe up 1")
 	}
 	if added[0].From == "" && len(args) == 1 {
 		r.out.Info("keep it in your index: multiversectl catalog add %s", args[0])

@@ -94,8 +94,8 @@
 
 <section id="naming">
   <h2 id="naming"><a href="#naming">Numbered or named</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl new 3           <span class="c"># branch u3, hostnames api-u3.&lt;domain&gt;</span>
-<span class="p">$ </span>multiversectl new fix/login   <span class="c"># branch fix/login, api-fix-login.&lt;domain&gt;</span></pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe new 3           <span class="c"># branch u3, hostnames api-u3.&lt;domain&gt;</span>
+<span class="p">$ </span>multiversectl universe new fix/login   <span class="c"># branch fix/login, api-fix-login.&lt;domain&gt;</span></pre></div>
   <p>A universe is identified by the name you typed. Everything else about its identity is derived from it, so there is one place to look:</p>
   <div class="tw"><table>
   <thead><tr><th scope="col">Derived</th><th scope="col"><code>3</code></th><th scope="col"><code>fix/login</code></th></tr></thead><tbody>
@@ -113,7 +113,7 @@
   <div class="code"><pre><span class="k">spec</span>:
   <span class="k">branch</span>: dev/u{{universe}}   <span class="c"># default: u{{universe}}</span></pre></div>
   <p><code>--branch</code> overrides it, repeatably: a bare name is every repository, <code>repo=branch</code> is one of them.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl new 2 --branch feat/invoicing --branch web=main</pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe new 2 --branch feat/invoicing --branch web=main</pre></div>
   <p>A branch that already exists locally is checked out as it is; one that exists only on the remote is checked out tracking it; one that does not exist yet is created from the remote's default branch, not the clone's own copy of it, so a universe never starts on code that is behind without saying so.</p>
   <p class="muted">Removing a universe removes its worktrees but keeps the branches &mdash; uncommitted work is lost, committed work is not. Re-creating a universe of the same name therefore reuses the branch you already have.</p>
 </section>
@@ -131,7 +131,7 @@
 <span class="k">manifest</span>: /home/me/work/acme/multiverse.yaml
 <span class="k">version</span>: 0.0.1</pre></div>
   <p>Set the note when you create it, and <code>ls</code> shows it beside the name:</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl new fix/login --note <span class="s">"PR 412 review"</span></pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe new fix/login --note <span class="s">"PR 412 review"</span></pre></div>
   <p><code>ls -o wide</code> adds the ages &mdash; <code>created 3d ago · last started 2h ago</code> &mdash; which is usually how you decide which universe to reclaim.</p>
 </section>
 

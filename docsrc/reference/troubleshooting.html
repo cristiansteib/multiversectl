@@ -18,7 +18,7 @@
   <h2 id="ts-secret"><a href="#ts-secret">A secret file is missing</a></h2>
   <p><code>new</code> warns, and <code>doctor 3</code> fails with <em>secret &lt;app&gt;: missing &lt;path&gt;</em>. Secrets listed under an app's <code>secrets:</code> are copied from the shared clone into each universe. Put the file in the clone, then run <code>new</code> again (existing checkouts are kept):</p>
   <div class="code"><pre><span class="p">$ </span>cp .env ~/acme/api/.env
-<span class="p">$ </span>multiversectl new 3
+<span class="p">$ </span>multiversectl universe new 3
 <span class="p">$ </span>multiversectl doctor 3</pre></div>
 </section>
 
@@ -33,5 +33,5 @@
         <span class="k">app-dev</span>:
           <span class="k">environment</span>:
             ALLOWED_HOSTS: "${APP_HOST}"</pre></div>
-  <p class="muted">Also check that the hostname is the one <code>multiversectl urls 3</code> prints, and that the service has the label or the single port that routes it.</p>
+  <p class="muted">Also check that the hostname is the one <code>multiversectl universe urls 3</code> prints, and that the service has the label or the single port that routes it.</p>
 </section>

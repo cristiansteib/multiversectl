@@ -1,12 +1,12 @@
 <section id="hw-branches">
   <h2 id="hw-branches"><a href="#hw-branches">Work on two branches at once</a></h2>
   <div class="code"><pre><span class="c"># name the universe after the branch it checks out</span>
-<span class="p">$ </span>multiversectl new fix/login --note <span class="s">"PR 412 review"</span>
-<span class="p">$ </span>multiversectl up fix/login
-<span class="p">$ </span>multiversectl urls fix/login
+<span class="p">$ </span>multiversectl universe new fix/login --note <span class="s">"PR 412 review"</span>
+<span class="p">$ </span>multiversectl universe up fix/login
+<span class="p">$ </span>multiversectl universe urls fix/login
 http://api-fix-login.10-0-0-5.traefik.me
 <span class="c"># or number it, and override one repository's branch</span>
-<span class="p">$ </span>multiversectl new 2 --branch feat/invoicing --branch web=main</pre></div>
+<span class="p">$ </span>multiversectl universe new 2 --branch feat/invoicing --branch web=main</pre></div>
   <p class="muted">A named universe is checked out on its own name; a numbered one takes its branch from <code>spec.branch</code>, <code>u{{universe}}</code> by default. <code>--branch</code> is repeatable: a bare name is every repository, <code>repo=branch</code> overrides one. Every command accepts the name as typed, the directory it lives in, or the slug in its hostnames. Each universe has its own checkouts, containers and database.</p>
 </section>
 
@@ -21,17 +21,17 @@ http://api-fix-login.10-0-0-5.traefik.me
   <div class="code"><pre><span class="c"># clone the new repo (already-cloned ones are skipped)</span>
 <span class="p">$ </span>multiversectl install ./multiverse.yaml --root ~/acme
 <span class="c"># add its worktree to an existing universe; existing checkouts are kept</span>
-<span class="p">$ </span>multiversectl new 3
-<span class="p">$ </span>multiversectl up 3 worker</pre></div>
+<span class="p">$ </span>multiversectl universe new 3
+<span class="p">$ </span>multiversectl universe up 3 worker</pre></div>
   <p class="muted">For a repository you only edit, with nothing to run, use <code>runtime: none</code>.</p>
 </section>
 
 <section id="hw-rm">
   <h2 id="hw-rm"><a href="#hw-rm">Remove a universe and its data</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl rm 3
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe rm 3
 <span class="c"># skip the prompt</span>
-<span class="p">$ </span>multiversectl rm 3 --yes</pre></div>
+<span class="p">$ </span>multiversectl universe rm 3 --yes</pre></div>
   <p><code>rm</code> lists what it will destroy and asks you to type the number. It removes:</p>
   <ul class="t"><li>the universe's worktrees (uncommitted work in them is lost);</li><li>its containers and <strong>volumes</strong>, so every database in it;</li><li>its directory and state file.</li></ul>
-  <p>The shared clones are not touched. To stop a universe and keep everything, use <code>multiversectl down 3</code>.</p>
+  <p>The shared clones are not touched. To stop a universe and keep everything, use <code>multiversectl universe down 3</code>.</p>
 </section>

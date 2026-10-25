@@ -77,7 +77,7 @@ A project someone points you at needs one command, with nothing set up first:
 
 ```sh
 multiversectl install acme/multiverse   # owner/repo, any git URL, or a path
-multiversectl new 1 && multiversectl up 1
+multiversectl universe new 1 && multiversectl universe up 1
 ```
 
 To keep your own index of projects, which can nest other people's, make a
@@ -104,14 +104,14 @@ multiversectl-server --open   # read-only, loopback only
 
 ```sh
 multiversectl install ./multiverse.yaml --root ~/acme
-multiversectl new 1            # universe 1: a worktree of every repo on branch u1
-multiversectl new fix/login    # or name it after the branch it checks out
-multiversectl up fix/login     # start its containers
-multiversectl ls               # list universes and their state
-multiversectl ls -o wide       # every service, whether it is up, and what it owns
-multiversectl urls fix/login   # print the hostnames it answers on
+multiversectl universe new 1            # universe 1: a worktree of every repo on branch u1
+multiversectl universe new fix/login    # or name it after the branch it checks out
+multiversectl universe up fix/login     # start its containers
+multiversectl universe ls               # list universes and their state
+multiversectl universe ls -o wide       # every service, whether it is up, and what it owns
+multiversectl universe urls fix/login   # print the hostnames it answers on
 multiversectl doctor           # check prerequisites and common problems
-multiversectl rm fix/login     # stop and delete it
+multiversectl universe rm fix/login     # stop and delete it
 ```
 
 The [quick start](https://cristiansteib.github.io/multiversectl/start/quickstart.html)

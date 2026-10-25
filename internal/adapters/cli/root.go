@@ -54,8 +54,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 
 	run := runner{g: g, out: out, f: f}
 	root.AddCommand(
-		run.newCmd(), run.upCmd(), run.downCmd(), run.rmCmd(), run.lsCmd(), run.urlsCmd(),
-		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.useCmd(), run.catalogCmd(), run.initCmd(), run.installCmd(), run.uninstallCmd(), run.statusCmd(), run.updateCmd(),
+		run.universeCmd(), run.doctorCmd(), run.useCmd(), run.catalogCmd(), run.initCmd(), run.installCmd(), run.uninstallCmd(), run.statusCmd(), run.updateCmd(),
 		run.proxyCmd(), run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("workspace", run.completeWorkspaces)

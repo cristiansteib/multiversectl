@@ -276,7 +276,7 @@ views.fleet = {
           w.error ? errorBox(w.error) : null,
           (w.warnings || []).map((x) => h('p', { class: 'muted' }, badge('warn', 'warning'), ' ', x)),
           list.length ? h('div', { class: 'universes' }, list.map((u) => universeCard(w, u)))
-            : (!w.error && h('div', { class: 'empty' }, w.universes.length ? 'No universe matches.' : ['No universes yet. ', cmd('multiversectl -w ' + w.name + ' new 1')])));
+            : (!w.error && h('div', { class: 'empty' }, w.universes.length ? 'No universe matches.' : ['No universes yet. ', cmd('multiversectl -w ' + w.name + ' universe new 1')])));
       }));
     }
     return {

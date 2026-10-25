@@ -39,10 +39,10 @@ func (r runner) newCmd() *cobra.Command {
 		Use:     "new <number|name>",
 		Aliases: []string{"create"},
 		Short:   "Create a universe: one worktree per repo, secrets and state",
-		Example: "  multiversectl new 3\n" +
-			"  multiversectl new fix/login                   # named after the branch it checks out\n" +
-			"  multiversectl new 3 --branch feat/invoicing\n" +
-			"  multiversectl new 3 --branch feat/invoicing --branch web=main",
+		Example: "  multiversectl universe new 3\n" +
+			"  multiversectl universe new fix/login                   # named after the branch it checks out\n" +
+			"  multiversectl universe new 3 --branch feat/invoicing\n" +
+			"  multiversectl universe new 3 --branch feat/invoicing --branch web=main",
 		Args: cobra.ExactArgs(1),
 	}
 	cmd.Flags().StringArrayVar(&branches, "branch", nil,
@@ -73,7 +73,7 @@ func (r runner) upCmd() *cobra.Command {
 		Use:     "up <universe> [app ...]",
 		Aliases: []string{"start"},
 		Short:   "Start a universe (all apps, or only those named)",
-		Example: "  multiversectl up 3\n  multiversectl up fix/login api --with workers",
+		Example: "  multiversectl universe up 3\n  multiversectl universe up fix/login api --with workers",
 		Args:    cobra.MinimumNArgs(1),
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
@@ -90,7 +90,7 @@ func (r runner) downCmd() *cobra.Command {
 		Use:     "down <universe> [app ...]",
 		Aliases: []string{"stop"},
 		Short:   "Stop a universe (all apps, or only those named); keeps data and checkouts",
-		Example: "  multiversectl down 3\n  multiversectl down fix/login",
+		Example: "  multiversectl universe down 3\n  multiversectl universe down fix/login",
 		Args:    cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
@@ -137,10 +137,10 @@ func (r runner) lsCmd() *cobra.Command {
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List universes",
-		Example: "  multiversectl ls\n" +
-			"  multiversectl ls -o wide        # every service, its state and its volumes\n" +
-			"  multiversectl ls -o list        # one line per universe\n" +
-			"  multiversectl ls -o list,wide",
+		Example: "  multiversectl universe ls\n" +
+			"  multiversectl universe ls -o wide        # every service, its state and its volumes\n" +
+			"  multiversectl universe ls -o list        # one line per universe\n" +
+			"  multiversectl universe ls -o list,wide",
 		Args: cobra.NoArgs,
 	}
 	cmd.Flags().StringVarP(&format, "output", "o", "table",
@@ -156,7 +156,7 @@ func (r runner) lsCmd() *cobra.Command {
 				return err
 			}
 			if len(list) == 0 {
-				s.Out.Info("no universes yet — create one with: multiversectl new 1")
+				s.Out.Info("no universes yet — create one with: multiversectl universe new 1")
 				return nil
 			}
 			if f.table {
@@ -526,7 +526,7 @@ func (r runner) urlsCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "urls <universe>",
 		Short:   "Print a universe's URLs, one per line",
-		Example: "  multiversectl urls 3\n  multiversectl urls fix/login",
+		Example: "  multiversectl universe urls 3\n  multiversectl universe urls fix/login",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
@@ -575,4 +575,20 @@ func joinPairs(m map[string]string) string {
 		pairs = append(pairs, k+"="+m[k])
 	}
 	return strings.Join(pairs, " ")
+}
+
+// universeCmd holds what a person does with universes, so the top level stays
+// for the tool itself and for the catalog.
+func (r runner) universeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "universe",
+		Aliases: []string{"u"},
+		Short:   "Create, start, inspect and remove universes",
+		Example: "  multiversectl universe new 3\n  multiversectl u up 3\n  multiversectl u ls",
+		Args:    cobra.NoArgs,
+		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+	}
+	cmd.AddCommand(r.newCmd(), r.upCmd(), r.downCmd(), r.rmCmd(), r.lsCmd(), r.urlsCmd(),
+		r.envCmd(), r.runCmd(), r.execCmd())
+	return cmd
 }

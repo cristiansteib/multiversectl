@@ -125,7 +125,7 @@ acme-fix-login-api_postgres_data   <span class="c"># a different database entire
 acme-fix-login-web_node_modules</pre></div>
   <p>Universe 3 can be migrated, seeded or dropped without touching <code>fix/login</code>. That independence is the main reason to run a second universe at all: a destructive migration on a review branch cannot reach the data you were working with this morning.</p>
   <p><code>ls -o wide</code> names them, which is how you check the claim rather than taking it on trust:</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl ls -o wide
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe ls -o wide
 <span class="c">...</span>
 <span class="c">on disk</span>
 <span class="c">REPO  WORKTREE                    PROJECT      VOLUMES</span>

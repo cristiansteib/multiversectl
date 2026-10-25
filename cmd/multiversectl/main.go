@@ -85,7 +85,7 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 		return nil, err
 	}
 	// spec.root is what lets one directory hold a manifest per project and
-	// still be usable from anywhere: multiversectl -f acme.yaml up 3.
+	// still be usable from anywhere: multiversectl -f acme.yaml universe up 3.
 	if root == "" {
 		root = wire.First(m.Root, filepath.Dir(path))
 	}
