@@ -22,6 +22,12 @@ type fakeRepos struct {
 	cloned  []string
 	fetched []string
 	checked map[string]string
+
+	inRepo    bool // Toplevel succeeds: local catalogs are in a work tree
+	emptyRepo bool // DefaultBranch fails, as in a repository with no commits
+	commits   []string
+	pushed    []string
+	pushErr   error
 }
 
 func (f *fakeRepos) Clone(_ context.Context, url, dest string) error {
@@ -36,7 +42,32 @@ func (f *fakeRepos) Fetch(_ context.Context, dir string) error {
 	f.fetched = append(f.fetched, dir)
 	return nil
 }
-func (f *fakeRepos) DefaultBranch(context.Context, string) (string, error) { return "main", nil }
+func (f *fakeRepos) DefaultBranch(context.Context, string) (string, error) {
+	if f.emptyRepo {
+		return "", errors.New("cannot determine the default branch of origin")
+	}
+	return "main", nil
+}
+func (f *fakeRepos) Toplevel(_ context.Context, dir string) (string, error) {
+	if !f.inRepo {
+		return "", errors.New("not a git repository")
+	}
+	return dir, nil
+}
+func (f *fakeRepos) IsClean(context.Context, string) (bool, error) { return true, nil }
+func (f *fakeRepos) HasRemote(context.Context, string) bool        { return false }
+func (f *fakeRepos) RefExists(context.Context, string, string) (app.RefKind, error) {
+	return app.RefRemote, nil
+}
+func (f *fakeRepos) Init(context.Context, string) error { return nil }
+func (f *fakeRepos) Commit(_ context.Context, _, msg string, paths ...string) error {
+	f.commits = append(f.commits, msg+" "+strings.Join(paths, ","))
+	return nil
+}
+func (f *fakeRepos) Push(_ context.Context, _, branch string) error {
+	f.pushed = append(f.pushed, branch)
+	return f.pushErr
+}
 func (f *fakeRepos) Checkout(_ context.Context, dir, ref string) error {
 	if f.checked == nil {
 		f.checked = map[string]string{}

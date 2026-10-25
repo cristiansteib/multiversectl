@@ -26,9 +26,15 @@ type CatalogDeps struct {
 	Git      Git
 	Files    Files
 	Decoder  CatalogDecoder
+	Editor   CatalogEditor
 	Config   ConfigStore
 	Out      Output
+	Prompt   Prompter
+	Host     RepoHost
 	CacheDir string // where remote repositories are cloned
+
+	// Yes answers every confirmation with its default, for scripts.
+	Yes bool
 }
 
 // Catalogs resolves and browses the tree of catalogs.
@@ -63,7 +69,7 @@ func (c *Catalogs) Tree(ctx context.Context, source string, refresh bool) (domai
 			return domain.Node{}, err
 		}
 		if source = cfg.Catalog; source == "" {
-			return domain.Node{}, errors.New("no root catalog: pass one, or record it with `catalog use <git-url-or-file>`")
+			return domain.Node{}, errors.New("no root catalog: run `multiversectl init`, or record one with `catalog use <git-url-or-file>`")
 		}
 	}
 	r := &resolver{Catalogs: c, ctx: ctx, refresh: refresh, fetched: map[string]bool{}}
@@ -128,7 +134,8 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 	}
 	node := domain.Node{
 		Name: name, Path: nodePath, Kind: domain.CatalogNode,
-		Source: domain.Source{Repo: at.repo, Ref: at.ref, Path: filepath.Join(at.dir, at.file)},
+		Source: domain.Source{Repo: at.repo, Ref: at.ref, Path: filepath.ToSlash(at.file)},
+		File:   filepath.Join(at.dir, at.file), Dir: at.dir,
 	}
 	stack = append(stack, k)
 
@@ -191,38 +198,49 @@ var unsafeRE = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 // at ref. Each repo and ref pair gets its own directory: two references to one
 // repository at different refs must not fight over a single working tree.
 func (r *resolver) checkout(repo, ref string) (string, error) {
+	dir, _, err := r.ensure(repo, ref)
+	return dir, err
+}
+
+// ensure reports whether the clone was made just now. A new clone is already
+// at the default branch, and when the repository is empty there is no branch
+// to move to, so only an older clone is brought forward on refresh.
+func (r *resolver) ensure(repo, ref string) (dir string, fresh bool, err error) {
 	sum := sha256.Sum256([]byte(repo))
-	dir := filepath.Join(r.CacheDir, hex.EncodeToString(sum[:])[:12], unsafeRE.ReplaceAllString(firstOf(ref, "HEAD"), "_"))
+	dir = filepath.Join(r.CacheDir, hex.EncodeToString(sum[:])[:12], unsafeRE.ReplaceAllString(firstOf(ref, "HEAD"), "_"))
 	switch {
 	case !r.Files.Exists(dir):
 		if err := r.Files.MkdirAll(filepath.Dir(dir)); err != nil {
-			return "", err
+			return "", false, err
 		}
 		if err := r.Git.Clone(r.ctx, repo, dir); err != nil {
-			return "", fmt.Errorf("clone %s: %w", repo, err)
+			return "", false, fmt.Errorf("clone %s: %w", repo, err)
 		}
+		fresh = true
 	case r.refresh && !r.fetched[dir]:
 		if err := r.Git.Fetch(r.ctx, dir); err != nil {
-			return "", fmt.Errorf("fetch %s: %w", repo, err)
+			return "", false, fmt.Errorf("fetch %s: %w", repo, err)
 		}
 	}
+	first := !r.fetched[dir]
 	r.fetched[dir] = true
-	if ref != "" {
+	switch {
+	case ref != "":
 		if err := r.Git.Checkout(r.ctx, dir, ref); err != nil {
-			return "", fmt.Errorf("%s at %s: %w", repo, ref, err)
+			return "", false, fmt.Errorf("%s at %s: %w", repo, ref, err)
 		}
-	} else if r.refresh {
+	case r.refresh && !fresh && first:
 		// A refresh must move to the new tip of the default branch, not stay
 		// on the commit the first clone happened to land on.
 		branch, err := r.Git.DefaultBranch(r.ctx, dir)
 		if err != nil {
-			return "", err
+			return "", false, err
 		}
 		if err := r.Git.Checkout(r.ctx, dir, branch); err != nil {
-			return "", err
+			return "", false, err
 		}
 	}
-	return dir, nil
+	return dir, fresh, nil
 }
 
 func firstOf(values ...string) string {

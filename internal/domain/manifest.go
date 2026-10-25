@@ -235,3 +235,32 @@ func (m *Manifest) ComposeFiles(appKey, repoDir string) []string {
 	}
 	return out
 }
+
+// ProxyClashes says what two workspaces would fight over if both ran their
+// proxy on the same machine: a host port each wants to publish, or a network
+// each wants to own. Naming it at install time is kinder than a bind error
+// the first time the second one starts.
+func ProxyClashes(a, b *Manifest) []string {
+	var out []string
+	if a.Proxy.Network != "" && a.Proxy.Network == b.Proxy.Network {
+		out = append(out, fmt.Sprintf("%s and %s use the same proxy network %q", a.Name, b.Name, a.Proxy.Network))
+	}
+	for _, an := range sortedEntrypoints(a.Proxy.Entrypoints) {
+		for _, bn := range sortedEntrypoints(b.Proxy.Entrypoints) {
+			if a.Proxy.Entrypoints[an] == b.Proxy.Entrypoints[bn] {
+				out = append(out, fmt.Sprintf("%s (%s) and %s (%s) both publish proxy port %d",
+					a.Name, an, b.Name, bn, a.Proxy.Entrypoints[an]))
+			}
+		}
+	}
+	return out
+}
+
+func sortedEntrypoints(m map[string]int) []string {
+	names := make([]string, 0, len(m))
+	for n := range m {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}

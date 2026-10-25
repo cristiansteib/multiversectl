@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"sort"
 
@@ -31,6 +32,18 @@ type Git interface {
 	DefaultBranch(ctx context.Context, repoDir string) (string, error)
 	// Checkout detaches HEAD at ref, a branch (as of origin), tag or commit.
 	Checkout(ctx context.Context, repoDir, ref string) error
+
+	// The rest is what writing into a catalog repository needs.
+	Init(ctx context.Context, dir string) error
+	// Toplevel fails when dir is not inside a work tree.
+	Toplevel(ctx context.Context, dir string) (string, error)
+	IsClean(ctx context.Context, dir string) (bool, error)
+	HasRemote(ctx context.Context, dir string) bool
+	// Commit records only paths, so unrelated changes in a user's own
+	// repository are never swept into it.
+	Commit(ctx context.Context, dir, message string, paths ...string) error
+	// Push sends HEAD to the named branch of origin.
+	Push(ctx context.Context, dir, branch string) error
 }
 
 // RuntimeRequest is one invocation of the container runtime.
@@ -241,6 +254,37 @@ type ConfigStore interface {
 	Load() (Config, error)
 	Save(c Config) error
 	Path() string
+}
+
+// ErrNotInteractive is what a Prompter returns when input is not a terminal:
+// the caller should have been given the answer as a flag.
+var ErrNotInteractive = errors.New("an answer is needed but input is not a terminal; pass it as a flag")
+
+// Prompter asks the user a question. Every use case that prompts also takes the
+// answer as a flag, so scripts never reach it.
+type Prompter interface {
+	Select(label string, options []string, def int) (int, error)
+	MultiSelect(label string, options []string) ([]int, error)
+	Confirm(label string, def bool) (bool, error)
+	Input(label, def string) (string, error)
+}
+
+// RepoHost creates repositories on a hosting service.
+type RepoHost interface {
+	// Available says why repositories cannot be created, nil when they can.
+	Available(ctx context.Context) error
+	Create(ctx context.Context, name string, private bool) (url string, err error)
+}
+
+// CatalogEditor changes catalog files while keeping the comments and layout
+// a person wrote, which a decode and re-encode of the domain model would lose.
+type CatalogEditor interface {
+	Scaffold(name string) []byte
+	AddCatalogRef(data []byte, ref domain.CatalogRef) ([]byte, error)
+	AddWorkspaceRef(data []byte, ref domain.WorkspaceRef) ([]byte, error)
+	RemoveRef(data []byte, name string) ([]byte, error)
+	// WorkspaceName reads metadata.name from a multiverse.yaml.
+	WorkspaceName(data []byte) (string, error)
 }
 
 // CatalogDecoder turns a catalog file into the domain model; the app stays

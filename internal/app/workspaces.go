@@ -105,3 +105,24 @@ func (s *Service) Use(name string) error {
 	s.Out.OK("now using %s", name)
 	return nil
 }
+
+// Forget removes a workspace from this machine's list. Its files stay where
+// they are; only the tool stops knowing about it.
+func (s *Service) Forget(name string) error {
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return err
+	}
+	if _, _, err := cfg.Select(name); err != nil || name == "" {
+		return firstErr(err, fmt.Errorf("uninstall: a workspace name is required"))
+	}
+	delete(cfg.Workspaces, name)
+	if cfg.Current == name {
+		cfg.Current = ""
+	}
+	if err := s.Config.Save(cfg); err != nil {
+		return fmt.Errorf("saving the configuration: %w", err)
+	}
+	s.Out.OK("forgot %s; its files are still on disk", name)
+	return nil
+}

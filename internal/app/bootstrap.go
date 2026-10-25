@@ -16,6 +16,10 @@ type BootstrapInput struct {
 	Name           string // empty: derived from the root directory
 	Root           string
 	ManifestSource string
+	// Ref and ManifestPath only apply to a git source: the revision to check
+	// out, and where in the repository the manifest is (default multiverse.yaml).
+	Ref          string
+	ManifestPath string
 }
 
 // Bootstrap records this machine's workspace so the tool works from any
@@ -44,8 +48,13 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEn
 			if err := s.Git.Clone(ctx, manifest, dest); err != nil {
 				return WorkspaceEntry{}, fmt.Errorf("cloning the manifest repository: %w", err)
 			}
+			if in.Ref != "" {
+				if err := s.Git.Checkout(ctx, dest, in.Ref); err != nil {
+					return WorkspaceEntry{}, fmt.Errorf("checking out %s: %w", in.Ref, err)
+				}
+			}
 		}
-		manifest = filepath.Join(dest, "multiverse.yaml")
+		manifest = filepath.Join(dest, filepath.FromSlash(firstOf(in.ManifestPath, "multiverse.yaml")))
 	}
 
 	name := in.Name

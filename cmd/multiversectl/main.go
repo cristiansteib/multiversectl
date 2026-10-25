@@ -15,7 +15,9 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/adapters/config"
 	"github.com/cristiansteib/multiversectl/internal/adapters/fsx"
 	"github.com/cristiansteib/multiversectl/internal/adapters/gitcli"
+	"github.com/cristiansteib/multiversectl/internal/adapters/githost"
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest"
+	"github.com/cristiansteib/multiversectl/internal/adapters/prompt"
 	"github.com/cristiansteib/multiversectl/internal/adapters/release"
 	"github.com/cristiansteib/multiversectl/internal/adapters/statestore"
 	"github.com/cristiansteib/multiversectl/internal/adapters/system"
@@ -156,6 +158,9 @@ func catalogs(g cli.Globals, out app.Output) (*app.Catalogs, error) {
 		Git:      d.Git,
 		Files:    d.Files,
 		Decoder:  catalog.Decoder{},
+		Editor:   catalog.Editor{},
+		Prompt:   prompt.New(),
+		Host:     githost.New(),
 		Config:   store,
 		Out:      out,
 		CacheDir: filepath.Join(filepath.Dir(store.Path()), "catalogs"),

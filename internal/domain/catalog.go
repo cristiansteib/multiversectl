@@ -1,6 +1,10 @@
 package domain
 
-import "strings"
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
 
 // Source says where a file lives. An empty Repo means the repository of the
 // catalog that holds the reference, so one repository can carry a whole
@@ -48,6 +52,12 @@ type Node struct {
 	Source   Source
 	Children []Node
 
+	// File and Dir are where a loaded catalog node lives on this machine: its
+	// file, and the root of the checkout or directory its paths are relative
+	// to. They are what a write goes to; workspaces and unavailable nodes have
+	// neither.
+	File, Dir string
+
 	// Unavailable says why a subtree could not be read (no access, a bad file),
 	// so one unreachable layer does not hide the rest of the tree.
 	Unavailable string
@@ -87,4 +97,15 @@ func join(parent, name string) string {
 		return name
 	}
 	return parent + "/" + name
+}
+
+var catalogNameRE = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// ValidateCatalogName checks a name that will become a path segment, a file
+// name and a metadata.name.
+func ValidateCatalogName(name string) error {
+	if !catalogNameRE.MatchString(name) {
+		return fmt.Errorf("name %q must start with a letter and use lowercase letters, digits and dashes", name)
+	}
+	return nil
 }

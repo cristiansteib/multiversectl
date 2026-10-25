@@ -119,3 +119,35 @@ func (g Git) Checkout(ctx context.Context, repoDir, ref string) error {
 	_, err := g.run(ctx, "-C", repoDir, "checkout", "--quiet", "--detach", target)
 	return err
 }
+
+func (g Git) Init(ctx context.Context, dir string) error {
+	_, err := g.run(ctx, "init", "--quiet", "--initial-branch=main", dir)
+	return err
+}
+
+func (g Git) Toplevel(ctx context.Context, dir string) (string, error) {
+	return g.run(ctx, "-C", dir, "rev-parse", "--show-toplevel")
+}
+
+func (g Git) IsClean(ctx context.Context, dir string) (bool, error) {
+	out, err := g.run(ctx, "-C", dir, "status", "--porcelain")
+	return out == "", err
+}
+
+func (g Git) HasRemote(ctx context.Context, dir string) bool {
+	out, err := g.run(ctx, "-C", dir, "remote")
+	return err == nil && out != ""
+}
+
+func (g Git) Commit(ctx context.Context, dir, message string, paths ...string) error {
+	if _, err := g.run(ctx, append([]string{"-C", dir, "add", "--"}, paths...)...); err != nil {
+		return err
+	}
+	_, err := g.run(ctx, append([]string{"-C", dir, "commit", "--quiet", "-m", message, "--"}, paths...)...)
+	return err
+}
+
+func (g Git) Push(ctx context.Context, dir, branch string) error {
+	_, err := g.run(ctx, "-C", dir, "push", "--quiet", "origin", "HEAD:refs/heads/"+branch)
+	return err
+}

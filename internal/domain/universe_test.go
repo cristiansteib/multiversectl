@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // A universe is identified by the name the user typed; everything else about
 // its identity is derived from it, and the derivations are what hostnames,
@@ -70,5 +73,23 @@ func TestValidateUniverseName(t *testing.T) {
 	long := "feat/" + string(make([]byte, 0)) + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	if err := ValidateUniverseName(long); err == nil {
 		t.Error("want an error for a name too long for a hostname")
+	}
+}
+
+func TestProxyClashes(t *testing.T) {
+	a := &Manifest{Name: "acme", Proxy: Proxy{Network: "edge", Entrypoints: map[string]int{"web": 80, "api": 8001}}}
+	b := &Manifest{Name: "beta", Proxy: Proxy{Network: "edge", Entrypoints: map[string]int{"web": 80}}}
+	got := strings.Join(ProxyClashes(a, b), "\n")
+	for _, want := range []string{`proxy network "edge"`, "both publish proxy port 80"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+	if strings.Contains(got, "8001") {
+		t.Errorf("a port only one of them uses is not a clash: %q", got)
+	}
+	c := &Manifest{Name: "gamma", Proxy: Proxy{Network: "other", Entrypoints: map[string]int{"web": 8080}}}
+	if clashes := ProxyClashes(a, c); len(clashes) != 0 {
+		t.Errorf("unexpected: %v", clashes)
 	}
 }
