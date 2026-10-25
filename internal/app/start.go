@@ -154,7 +154,15 @@ func (s *Service) EnsureProxy(ctx context.Context, dom string) error {
 	// One machine has one shared proxy, so a second project with different
 	// entrypoints or a different exposure takes it over. Say so: the other
 	// project's universes stop answering, and nothing else would tell you.
-	if status, err := s.Proxy.Status(ctx); err == nil && status.Running {
+	status, err := s.Proxy.Status(ctx)
+	if err == nil && !status.Running {
+		// Docker's own refusal arrives after it has created the container,
+		// and names neither the entrypoint nor what to run to find the culprit.
+		if err := s.checkProxyPorts(ctx); err != nil {
+			return err
+		}
+	}
+	if err == nil && status.Running {
 		if status.Bind == "" {
 			// No address in front of a published port means every interface.
 			status.Bind = "0.0.0.0"
@@ -164,6 +172,25 @@ func (s *Service) EnsureProxy(ctx context.Context, dom string) error {
 		}
 	}
 	return s.Proxy.EnsureUp(ctx, want)
+}
+
+// checkProxyPorts fails before the proxy is started when another process
+// already holds one of its entrypoint ports. A running proxy holds them itself,
+// so this only runs when it is down.
+func (s *Service) checkProxyPorts(ctx context.Context) error {
+	names := make([]string, 0, len(s.Manifest.Proxy.Entrypoints))
+	for name := range s.Manifest.Proxy.Entrypoints {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		port := s.Manifest.Proxy.Entrypoints[name]
+		// A check that cannot run is not a conflict; Docker will say if it is.
+		if free, err := s.System.PortFree(ctx, port); err == nil && !free {
+			return fmt.Errorf("proxy entrypoint %q needs port %d, which another process is using (find it with: lsof -nP -iTCP:%d -sTCP:LISTEN)", name, port, port)
+		}
+	}
+	return nil
 }
 
 // proxyChange describes how a running proxy differs from what this project
