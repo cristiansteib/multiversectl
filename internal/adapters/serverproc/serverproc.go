@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,6 +47,13 @@ type state struct {
 	PID     int       `json:"pid"`
 	URL     string    `json:"url"`
 	Started time.Time `json:"started"`
+	// What it was started with, so a restart is the same server, and which
+	// program that was, so a later update of the file can be told from it.
+	Addr      string `json:"addr,omitempty"`
+	Expose    bool   `json:"expose,omitempty"`
+	ReadOnly  bool   `json:"readOnly,omitempty"`
+	Binary    string `json:"binary,omitempty"`
+	BinaryMod int64  `json:"binaryMod,omitempty"`
 }
 
 func (p *Process) statePath() string { return filepath.Join(p.dir, "server.json") }
@@ -126,7 +134,12 @@ func (p *Process) Start(ctx context.Context, o app.ServerStart) (app.ServerInfo,
 			if m == nil {
 				continue
 			}
-			st := state{PID: cmd.Process.Pid, URL: string(m[1]), Started: time.Now()}
+			st := state{PID: cmd.Process.Pid, URL: string(m[1]), Started: time.Now(),
+				Addr: o.Addr, Expose: o.Expose, ReadOnly: o.ReadOnly, Binary: bin, BinaryMod: modTime(bin)}
+			// A port of 0 was the system's to choose; a restart keeps the one it chose.
+			if u, err := url.Parse(st.URL); err == nil && strings.HasSuffix(o.Addr, ":0") && u.Host != "" {
+				st.Addr = u.Host
+			}
 			if err := p.save(st); err != nil {
 				_ = cmd.Process.Kill()
 				return app.ServerInfo{}, err
@@ -175,7 +188,34 @@ func (p *Process) Stop(ctx context.Context) (app.ServerInfo, error) {
 }
 
 func (p *Process) info(st state) app.ServerInfo {
-	return app.ServerInfo{PID: st.PID, URL: st.URL, Started: st.Started, Log: p.logPath()}
+	outdated := st.Binary != "" && modTime(st.Binary) != st.BinaryMod
+	return app.ServerInfo{PID: st.PID, URL: st.URL, Started: st.Started, Log: p.logPath(), Outdated: outdated}
+}
+
+// modTime is when the file was last replaced, zero when it cannot be read. An
+// update writes a new file and renames it over the old, which moves this.
+func modTime(path string) int64 {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	return info.ModTime().UnixNano()
+}
+
+// Restart stops the running server and starts it with what it was started with.
+func (p *Process) Restart(ctx context.Context) (app.ServerInfo, error) {
+	st, err := p.load()
+	if err != nil || !ours(st.PID) {
+		return app.ServerInfo{}, app.ErrServerNotRunning
+	}
+	if _, err := p.Stop(ctx); err != nil {
+		return app.ServerInfo{}, err
+	}
+	addr := st.Addr
+	if addr == "" {
+		addr = "127.0.0.1:7777" // a state file from before the options were kept
+	}
+	return p.Start(ctx, app.ServerStart{Addr: addr, Expose: st.Expose, ReadOnly: st.ReadOnly})
 }
 
 func (p *Process) load() (state, error) {

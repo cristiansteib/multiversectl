@@ -452,6 +452,9 @@ type ServerProcess interface {
 	// Stop ends the server this port started, ErrServerNotRunning when none is.
 	Stop(ctx context.Context) (ServerInfo, error)
 	Status(ctx context.Context) (ServerInfo, error)
+	// Restart stops the running server and starts it again with the options it
+	// had, so a new build is the one that runs. ErrServerNotRunning when none is.
+	Restart(ctx context.Context) (ServerInfo, error)
 }
 
 // ServerStart says where the server listens.
@@ -468,6 +471,9 @@ type ServerInfo struct {
 	URL     string
 	Started time.Time
 	Log     string
+	// Outdated is when the program on disk was replaced after this one started,
+	// so what is running is an older build than what is installed.
+	Outdated bool
 }
 
 var (

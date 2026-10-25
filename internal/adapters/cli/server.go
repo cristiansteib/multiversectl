@@ -17,17 +17,17 @@ import (
 func (r runner) serverCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
-		Short: "Start, stop and check the web view of this machine's setup and fleet",
+		Short: "Start, stop, restart and check the web view of this machine's setup and fleet",
 		Long: "The web view is a separate program, multiversectl-server, installed beside this\n" +
 			"one. These commands run it in the background and remember it. The page shows\n" +
 			"the catalog, the projects and the fleet live, their versions, and has buttons to\n" +
 			"start, stop, create and remove universes. It is opened with a link that carries a\n" +
 			"token, which `server start` and `server status` print; --read-only removes the buttons.",
-		Example: "  multiversectl server start --open\n  multiversectl server status\n  multiversectl server stop",
+		Example: "  multiversectl server start --open\n  multiversectl server status\n  multiversectl server restart\n  multiversectl server stop",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.serverStartCmd(), r.serverStopCmd(), r.serverStatusCmd())
+	cmd.AddCommand(r.serverStartCmd(), r.serverStopCmd(), r.serverRestartCmd(), r.serverStatusCmd())
 	return cmd
 }
 
@@ -101,6 +101,44 @@ func (r runner) serverStopCmd() *cobra.Command {
 	}
 }
 
+func (r runner) serverRestartCmd() *cobra.Command {
+	var ifRunning bool
+	cmd := &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the web view, with the options it had, so it runs the installed build",
+		Long: "Stops the running server and starts it again with the address and flags it was\n" +
+			"started with. The link stays the same: its token is kept across restarts. An\n" +
+			"update replaces the program on disk but not the one already running, so this is\n" +
+			"how the new build takes over; `self-update` does it for you.",
+		Example: "  multiversectl server restart\n  multiversectl server restart --if-running   # for scripts: nothing to do when it is not running",
+		Args:    cobra.NoArgs,
+	}
+	cmd.Flags().BoolVar(&ifRunning, "if-running", false, "say nothing and succeed when the server is not running")
+	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		p, err := r.f.Server()
+		if err != nil {
+			return err
+		}
+		var info app.ServerInfo
+		err = r.spin(true, "Restarting the server", func() (err error) {
+			info, err = p.Restart(cmd.Context())
+			return err
+		})
+		if errors.Is(err, app.ErrServerNotRunning) {
+			if !ifRunning {
+				r.out.Info("the server is not running: `multiversectl server start`")
+			}
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		r.out.OK("restarted: serving `%s` (pid %d)", info.URL, info.PID)
+		return nil
+	}
+	return cmd
+}
+
 func (r runner) serverStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
@@ -120,6 +158,9 @@ func (r runner) serverStatusCmd() *cobra.Command {
 				return err
 			}
 			r.out.OK("running at `%s` (pid %d, started %s); log: `%s`", info.URL, info.PID, age(info.Started), info.Log)
+			if info.Outdated {
+				r.out.Warn("it started before the installed program was replaced, so it runs an older build: `multiversectl server restart`")
+			}
 			return nil
 		},
 	}

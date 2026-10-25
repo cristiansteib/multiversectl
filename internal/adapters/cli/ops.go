@@ -171,12 +171,32 @@ func (r runner) selfUpdateCmd() *cobra.Command {
 			}
 			if res.Updated {
 				s.Out.OK("updated %s -> %s%s", res.From, res.To, map[bool]string{true: ", with the web view", false: ""}[res.Server])
+				r.restartServerAfterUpdate(cmd.Context())
 			} else {
 				s.Out.OK("already up to date (%s)", res.From)
 			}
 			return nil
 		},
 	}
+}
+
+// restartServerAfterUpdate makes a running web view take the new build: the file
+// on disk is new, but the process that is running still holds the old one. A
+// server that is not running is left alone; nothing here ever starts one.
+func (r runner) restartServerAfterUpdate(ctx context.Context) {
+	p, err := r.f.Server()
+	if err != nil {
+		return
+	}
+	if _, err := p.Status(ctx); err != nil {
+		return
+	}
+	info, err := p.Restart(ctx)
+	if err != nil {
+		r.out.Warn("the web view is still on the old build (%v): `multiversectl server restart`", err)
+		return
+	}
+	r.out.OK("restarted the web view on the new build: `%s`", info.URL)
 }
 
 func (r runner) versionCmd() *cobra.Command {
