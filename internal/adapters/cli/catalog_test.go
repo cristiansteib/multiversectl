@@ -25,3 +25,21 @@ func TestRenderTree(t *testing.T) {
 		t.Errorf("unavailable = %+v", bad)
 	}
 }
+
+// A command added without a group would land under "Additional Commands",
+// outside the three places the help is organised into.
+func TestEveryCommandIsInAGroup(t *testing.T) {
+	root, _ := New(Factory{})
+	known := map[string]bool{}
+	for _, g := range root.Groups() {
+		known[g.ID] = true
+	}
+	for _, c := range root.Commands() {
+		if c.Hidden || c.Name() == "completion" {
+			continue
+		}
+		if !known[c.GroupID] {
+			t.Errorf("%s has group %q; add it to commandGroups", c.Name(), c.GroupID)
+		}
+	}
+}

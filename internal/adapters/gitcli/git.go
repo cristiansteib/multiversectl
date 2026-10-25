@@ -151,3 +151,7 @@ func (g Git) Push(ctx context.Context, dir, branch string) error {
 	_, err := g.run(ctx, "-C", dir, "push", "--quiet", "origin", "HEAD:refs/heads/"+branch)
 	return err
 }
+
+func (g Git) RemoteURL(ctx context.Context, dir string) (string, error) {
+	return g.run(ctx, "-C", dir, "remote", "get-url", "origin")
+}

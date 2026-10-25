@@ -59,6 +59,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 		run.doctorCmd(), run.envCmd(), run.runCmd(), run.execCmd(), run.bootstrapCmd(), run.workspacesCmd(), run.useCmd(), run.catalogCmd(), run.initCmd(), run.addCmd(), run.installCmd(), run.uninstallCmd(), run.proxyCmd(),
 		run.updateCmd(), run.versionCmd(),
 	)
+	groupCommands(root, g)
 	return root, g
 }
 

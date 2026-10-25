@@ -482,3 +482,120 @@ func TestAddNeedsSomethingToAdd(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+const wsYAML = "apiVersion: multiverse/v1alpha1\nkind: Workspace\nmetadata:\n  name: fichero\nspec:\n  root: /home/me/fichero\n"
+
+func TestCreateCatalogWithAManifestMakesTheProjectItsOwnWorkspace(t *testing.T) {
+	src := t.TempDir()
+	write(t, src, "fichero.yaml", wsYAML)
+	empty := t.TempDir()
+	git := &fakeRepos{repos: map[string]string{"git@example.test:me/new.git": empty}, emptyRepo: true}
+	r := newRig(t, git)
+	r.Yes = true
+	err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{
+		Name: "fichero", Manifest: filepath.Join(src, "fichero.yaml"), Where: app.RepoChoice{Create: "fichero-app/multiverse"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(git.commits) != 1 || !strings.Contains(git.commits[0], "catalog.yaml") || !strings.Contains(git.commits[0], "multiverse.yaml") {
+		t.Errorf("the catalog and the manifest belong in one commit: %v", git.commits)
+	}
+	leaf, ok := r.tree(t).Find("fichero/fichero")
+	if !ok || leaf.Source.Path != "multiverse.yaml" || leaf.Source.Repo != "git@example.test:me/new.git" {
+		t.Errorf("the project's workspace should live in its own repository: %+v", leaf)
+	}
+}
+
+func TestCreateCatalogWithAManifestInTheParentsRepository(t *testing.T) {
+	src := t.TempDir()
+	write(t, src, "fichero.yaml", wsYAML)
+	r := newRig(t, &fakeRepos{})
+	r.Yes = true
+	if err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "fichero", Same: true, Manifest: filepath.Join(src, "fichero.yaml")}); err != nil {
+		t.Fatal(err)
+	}
+	leaf, ok := r.tree(t).Find("fichero/fichero")
+	if !ok || !strings.HasSuffix(leaf.Source.Path, "/catalogs/fichero/multiverse.yaml") {
+		t.Fatalf("leaf = %+v", leaf)
+	}
+	if _, err := os.Stat(filepath.Join(r.root, "catalogs", "fichero", "multiverse.yaml")); err != nil {
+		t.Errorf("manifest not copied: %v", err)
+	}
+}
+
+func TestCreateCatalogWithAManifestRefusesARepositoryThatAlreadyHasACatalog(t *testing.T) {
+	src := t.TempDir()
+	write(t, src, "fichero.yaml", wsYAML)
+	existing := t.TempDir()
+	write(t, existing, "catalog.yaml", string(catalog.Editor{}.Scaffold("x")))
+	git := &fakeRepos{repos: map[string]string{"git@example.test:me/x.git": existing}}
+	r := newRig(t, git)
+	r.Yes = true
+	err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "fichero", Manifest: filepath.Join(src, "fichero.yaml"), Where: app.RepoChoice{URL: "git@example.test:me/x.git"}})
+	if err == nil || !strings.Contains(err.Error(), "catalog add workspace") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+func TestAddAPathToACheckoutUsesItsOrigin(t *testing.T) {
+	checkout := manifestRepo(t, "solo")
+	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/solo.git": checkout}, remotes: map[string]string{checkout: "git@example.test:acme/solo.git"}, inRepo: true}
+	r := newRig(t, git)
+	r.Yes = true
+	node, err := r.Add(context.Background(), app.AddInput{Repo: checkout, At: "/", AtGiven: true})
+	if err != nil || node != "solo" {
+		t.Fatalf("node=%q err=%v", node, err)
+	}
+	if n, ok := r.tree(t).Find("solo"); !ok || n.Source.Repo != "git@example.test:acme/solo.git" {
+		t.Errorf("a path must be listed by its origin, not by a path only this machine has: %+v", n)
+	}
+}
+
+func TestAddAPathNeedsSomethingOthersCanFetch(t *testing.T) {
+	checkout := manifestRepo(t, "solo")
+	r := newRig(t, &fakeRepos{inRepo: true})
+	r.Yes = true
+	if _, err := r.Add(context.Background(), app.AddInput{Repo: checkout, At: "/", AtGiven: true}); err == nil || !strings.Contains(err.Error(), "no origin remote") {
+		t.Errorf("no remote: err = %v", err)
+	}
+	r2 := newRig(t, &fakeRepos{})
+	r2.Yes = true
+	if _, err := r2.Add(context.Background(), app.AddInput{Repo: checkout, At: "/", AtGiven: true}); err == nil || !strings.Contains(err.Error(), "not in a git repository") {
+		t.Errorf("not a repository: err = %v", err)
+	}
+}
+
+func TestAddAManifestFileCopiesItIntoTheCatalogsRepository(t *testing.T) {
+	src := t.TempDir()
+	write(t, src, "fichero.yaml", wsYAML)
+	git := &fakeRepos{inRepo: true}
+	r := newRig(t, git)
+	r.Yes = true
+	in := app.AddInput{Repo: filepath.Join(src, "fichero.yaml"), At: "/", AtGiven: true}
+	node, err := r.Add(context.Background(), in)
+	if err != nil || node != "fichero" {
+		t.Fatalf("node=%q err=%v", node, err)
+	}
+	leaf, ok := r.tree(t).Find("fichero")
+	if !ok || !strings.HasSuffix(leaf.Source.Path, "/workspaces/fichero/multiverse.yaml") {
+		t.Fatalf("leaf = %+v", leaf)
+	}
+	if _, err := os.Stat(filepath.Join(r.root, "workspaces", "fichero", "multiverse.yaml")); err != nil {
+		t.Errorf("manifest not copied: %v", err)
+	}
+	before := len(git.commits)
+	if _, err := r.Add(context.Background(), in); err != nil || len(git.commits) != before {
+		t.Errorf("adding it again must be a no-op: err=%v commits=%v", err, git.commits)
+	}
+}
+
+func TestAddAFileThatIsNeitherIsRefused(t *testing.T) {
+	src := t.TempDir()
+	write(t, src, "notes.yaml", "just: notes\n")
+	r := newRig(t, &fakeRepos{})
+	r.Yes = true
+	if _, err := r.Add(context.Background(), app.AddInput{Repo: filepath.Join(src, "notes.yaml"), At: "/", AtGiven: true}); err == nil || !strings.Contains(err.Error(), "neither a catalog nor a workspace manifest") {
+		t.Errorf("err = %v", err)
+	}
+}

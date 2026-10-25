@@ -18,8 +18,9 @@ import (
 var ErrCancelled = errors.New("cancelled")
 
 const (
-	catalogsDir    = "catalogs"
-	fallbackBranch = "main"
+	defaultManifestFile = "multiverse.yaml"
+	catalogsDir         = "catalogs"
+	fallbackBranch      = "main"
 )
 
 func (c *Catalogs) resolver(ctx context.Context, refresh bool) *resolver {
@@ -352,7 +353,7 @@ type RepoChoice struct {
 
 // provision makes sure a repository holds a catalog.yaml and returns its URL.
 // A repository that already has one is reused as it is.
-func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName string) (string, error) {
+func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName string, sd *seed) (string, error) {
 	url := ch.URL
 	if ch.Create != "" {
 		if err := c.Host.Available(ctx); err != nil {
@@ -387,6 +388,9 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 		if _, err := c.Decoder.Decode(data); err != nil {
 			return "", fmt.Errorf("%s in %s exists but is not a catalog: %w", defaultCatalogFile, url, err)
 		}
+		if sd != nil {
+			return "", fmt.Errorf("%s already has a catalog; list the manifest in it with `catalog add workspace` instead", url)
+		}
 		c.Out.Info("%s already has a catalog; using it", url)
 		return url, nil
 	}
@@ -401,15 +405,30 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 	if err := domain.ValidateCatalogName(catalogName); err != nil {
 		return "", fmt.Errorf("%w (--name sets it)", err)
 	}
-	if ok, err := c.confirm(fmt.Sprintf("Add a %s to %s and push it to %s?", defaultCatalogFile, url, branch), true); err != nil {
+	data, paths, what := c.Editor.Scaffold(catalogName), []string{file}, defaultCatalogFile
+	if sd != nil {
+		manifestFile := filepath.Join(dir, defaultManifestFile)
+		if c.Files.Exists(manifestFile) {
+			return "", fmt.Errorf("%s already has a %s; it is not overwritten", url, defaultManifestFile)
+		}
+		var err error
+		if data, err = c.Editor.AddWorkspaceRef(data, domain.WorkspaceRef{Name: sd.name, Source: domain.Source{Path: defaultManifestFile}}); err != nil {
+			return "", err
+		}
+		if err := c.Files.WriteFile(manifestFile, sd.manifest, 0o644); err != nil {
+			return "", err
+		}
+		paths, what = append(paths, manifestFile), defaultCatalogFile+" and "+defaultManifestFile
+	}
+	if ok, err := c.confirm(fmt.Sprintf("Add %s to %s and push it to %s?", what, url, branch), true); err != nil {
 		return "", err
 	} else if !ok {
 		return "", ErrCancelled
 	}
-	if err := c.Files.WriteFile(file, c.Editor.Scaffold(catalogName), 0o644); err != nil {
+	if err := c.Files.WriteFile(file, data, 0o644); err != nil {
 		return "", err
 	}
-	if err := c.Git.Commit(ctx, dir, "fix: start a catalog", file); err != nil {
+	if err := c.Git.Commit(ctx, dir, "fix: start a catalog", paths...); err != nil {
 		return "", err
 	}
 	if err := c.Git.Push(ctx, dir, branch); err != nil {
@@ -425,12 +444,21 @@ type CreateCatalogInput struct {
 	AtGiven bool
 	Where   RepoChoice // zero value: ask, or the same repository when not interactive
 	Same    bool       // keep it in the parent's repository
+
+	// Manifest is a workspace manifest on this machine to start the catalog
+	// with: copied in as multiverse.yaml and listed, so the project is its own
+	// index and its own workspace.
+	Manifest string
 }
 
 // CreateCatalog makes a catalog and links it from a parent: as a file in the
 // parent's own repository, in an existing repository, or in a new one.
 func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) error {
 	if err := domain.ValidateCatalogName(in.Name); err != nil {
+		return err
+	}
+	sd, err := c.loadSeed(in.Manifest)
+	if err != nil {
 		return err
 	}
 	tree, err := c.Tree(ctx, "", true)
@@ -457,17 +485,33 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) err
 
 	if in.Same || (where.URL == "" && where.Create == "") {
 		rel := path.Join(catalogsDir, in.Name+".yaml")
+		if sd != nil {
+			// A project keeps its catalog and manifest side by side.
+			rel = path.Join(catalogsDir, in.Name, defaultCatalogFile)
+		}
 		target := filepath.Join(parent.Dir, filepath.FromSlash(rel))
 		if c.Files.Exists(target) {
 			return fmt.Errorf("%s already exists", rel)
 		}
 		return c.edit(ctx, parent, fmt.Sprintf("add catalog %s", in.Name), func(data []byte) ([]fileChange, error) {
 			out, err := c.Editor.AddCatalogRef(data, domain.CatalogRef{Name: in.Name, Source: domain.Source{Path: rel}})
-			return []fileChange{{parent.File, out}, {target, c.Editor.Scaffold(in.Name)}}, err
+			if err != nil {
+				return nil, err
+			}
+			child := c.Editor.Scaffold(in.Name)
+			changes := []fileChange{{parent.File, out}}
+			if sd != nil {
+				manifestRel := path.Join(catalogsDir, in.Name, defaultManifestFile)
+				if child, err = c.Editor.AddWorkspaceRef(child, domain.WorkspaceRef{Name: sd.name, Source: domain.Source{Path: manifestRel}}); err != nil {
+					return nil, err
+				}
+				changes = append(changes, fileChange{filepath.Join(parent.Dir, filepath.FromSlash(manifestRel)), sd.manifest})
+			}
+			return append(changes, fileChange{target, child}), nil
 		})
 	}
 
-	url, err := c.provision(ctx, where, in.Name)
+	url, err := c.provision(ctx, where, in.Name, sd)
 	if err != nil {
 		return err
 	}
@@ -546,7 +590,7 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	switch {
 	case in.Where.URL != "" || in.Where.Create != "":
 		name = firstOf(name, in.Where.Create, "index")
-		if source, err = c.provision(ctx, in.Where, name); err != nil {
+		if source, err = c.provision(ctx, in.Where, name, nil); err != nil {
 			return err
 		}
 	case in.Local != "":
@@ -677,13 +721,23 @@ type AddInput struct {
 	AtGiven               bool
 }
 
-// Add links a repository into the catalog: as a catalog when it has a
-// catalog.yaml, otherwise as a workspace. With no root catalog yet it sets
+// Add links a source into the catalog: a repository (owner/repo or a URL) or a
+// path on this machine. A catalog.yaml makes it a catalog, otherwise it is a
+// workspace. With no root catalog yet it sets
 // one up first, so joining a project is one command on a fresh machine.
 func (c *Catalogs) Add(ctx context.Context, in AddInput) (string, error) {
 	if in.Repo == "" {
-		return "", errors.New("add: a repository (owner/repo or a URL) is required")
+		return "", errors.New("add: a repository (owner/repo or a URL) or a path is required")
 	}
+	if c.Files.Exists(in.Repo) {
+		return c.addLocal(ctx, in)
+	}
+	return c.addRemote(ctx, in)
+}
+
+// addRemote adds a repository by name. A checkout's origin can itself be a
+// path, so this must not look at the disk again to decide what it was given.
+func (c *Catalogs) addRemote(ctx context.Context, in AddInput) (string, error) {
 	repo := c.expand(in.Repo)
 	cfg, err := c.Config.Load()
 	if err != nil {
@@ -721,4 +775,140 @@ func (c *Catalogs) holdsCatalog(dir, path string) bool {
 	}
 	_, err = c.Decoder.Decode(data)
 	return err == nil
+}
+
+// seed is a manifest a new catalog starts out listing.
+type seed struct {
+	name     string
+	manifest []byte
+}
+
+// loadSeed reads the manifest to start a catalog with. Anything beside it
+// that the manifest may rely on is not copied, and saying so now is better
+// than a workspace that fails to start on someone else's machine.
+func (c *Catalogs) loadSeed(file string) (*seed, error) {
+	if file == "" {
+		return nil, nil
+	}
+	data, err := c.Files.ReadFile(file)
+	if err != nil {
+		return nil, fmt.Errorf("manifest: %w", err)
+	}
+	name, err := c.Editor.WorkspaceName(data)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", file, err)
+	}
+	if err := domain.ValidateCatalogName(name); err != nil {
+		return nil, fmt.Errorf("%s: metadata.name: %w", file, err)
+	}
+	if root := c.Editor.WorkspaceRoot(data); root != "" {
+		c.Out.Warn("%s sets spec.root (%s), a path on this machine that install ignores; consider removing it", file, root)
+	}
+	dir, stem := filepath.Dir(file), strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+	for _, sibling := range []string{"overlays", stem} {
+		if c.Files.Exists(filepath.Join(dir, sibling)) {
+			c.Out.Warn("%s/ sits next to the manifest and is not copied; add it to the repository by hand", sibling)
+		}
+	}
+	return &seed{name: name, manifest: data}, nil
+}
+
+// addLocal handles a path. A catalog entry is read by other machines, so a
+// directory or a catalog file is named by the repository it belongs to; a
+// workspace manifest file has no repository of its own to point at, so it is
+// copied into the repository of the catalog it is listed in.
+func (c *Catalogs) addLocal(ctx context.Context, in AddInput) (string, error) {
+	abs, err := filepath.Abs(in.Repo)
+	if err != nil {
+		return "", err
+	}
+	if _, derr := c.Files.ListDirs(abs); derr != nil { // a file
+		data, err := c.Files.ReadFile(abs)
+		if err != nil {
+			return "", err
+		}
+		if _, err := c.Decoder.Decode(data); err == nil {
+			return c.addCheckout(ctx, in, filepath.Dir(abs), filepath.Base(abs))
+		}
+		return c.vendorManifest(ctx, in, abs)
+	}
+	return c.addCheckout(ctx, in, abs, "")
+}
+
+// addCheckout adds a directory of a local git checkout by its origin URL, with
+// the path inside the repository worked out from where on disk it is.
+func (c *Catalogs) addCheckout(ctx context.Context, in AddInput, dir, file string) (string, error) {
+	top, err := c.Git.Toplevel(ctx, dir)
+	if err != nil {
+		return "", fmt.Errorf("%s is not in a git repository, so other machines could not fetch it; put it in one and push it", dir)
+	}
+	url, err := c.Git.RemoteURL(ctx, top)
+	if err != nil || url == "" {
+		return "", fmt.Errorf("%s has no origin remote, so other machines could not fetch it; publish it first (for example gh repo create --source %s --push) and add its URL", top, top)
+	}
+	if clean, err := c.Git.IsClean(ctx, top); err == nil && !clean {
+		c.Out.Warn("%s has uncommitted changes; the catalog points at what is pushed to %s", top, url)
+	}
+	rel, err := filepath.Rel(top, dir)
+	if err != nil {
+		return "", err
+	}
+	path := in.Path
+	if file != "" {
+		path = file
+	}
+	if rel != "." {
+		path = filepath.ToSlash(filepath.Join(rel, path))
+	}
+	c.Out.Info("%s is %s; adding that", in.Repo, url)
+	next := in
+	next.Repo, next.Path = url, path
+	return c.addRemote(ctx, next)
+}
+
+// vendorManifest lists a manifest file by copying it into the repository of
+// the parent catalog, next to nothing else it may depend on.
+func (c *Catalogs) vendorManifest(ctx context.Context, in AddInput, file string) (string, error) {
+	sd, err := c.loadSeed(file)
+	if err != nil {
+		return "", fmt.Errorf("%s is neither a catalog nor a workspace manifest: %w", file, err)
+	}
+	name := firstOf(in.Name, sd.name)
+	if err := domain.ValidateCatalogName(name); err != nil {
+		return "", err
+	}
+	cfg, err := c.Config.Load()
+	if err != nil {
+		return "", err
+	}
+	if cfg.Catalog == "" {
+		c.Out.Info("no root catalog on this machine yet; setting one up first")
+		if err := c.Init(ctx, InitInput{}); err != nil {
+			return "", err
+		}
+	}
+	tree, err := c.Tree(ctx, "", true)
+	if err != nil {
+		return "", err
+	}
+	parent, err := c.parentCatalog(tree, in.At, in.AtGiven)
+	if err != nil {
+		return "", err
+	}
+	for _, ch := range parent.Children {
+		if ch.Name == name {
+			c.Out.Info("%s is already in the catalog", ch.Path)
+			return ch.Path, nil
+		}
+	}
+	rel := path.Join("workspaces", name, defaultManifestFile)
+	target := filepath.Join(parent.Dir, filepath.FromSlash(rel))
+	if c.Files.Exists(target) {
+		return "", fmt.Errorf("%s already exists in the catalog's repository", rel)
+	}
+	err = c.edit(ctx, parent, fmt.Sprintf("add workspace %s", name), func(data []byte) ([]fileChange, error) {
+		out, err := c.Editor.AddWorkspaceRef(data, domain.WorkspaceRef{Name: name, Source: domain.Source{Path: rel}})
+		return []fileChange{{parent.File, out}, {target, sd.manifest}}, err
+	})
+	return domain.ChildPath(parent.Path, name), err
 }

@@ -23,8 +23,9 @@ type fakeRepos struct {
 	fetched []string
 	checked map[string]string
 
-	inRepo    bool // Toplevel succeeds: local catalogs are in a work tree
-	emptyRepo bool // DefaultBranch fails, as in a repository with no commits
+	remotes   map[string]string // checkout dir -> origin URL
+	inRepo    bool              // Toplevel succeeds: local catalogs are in a work tree
+	emptyRepo bool              // DefaultBranch fails, as in a repository with no commits
 	commits   []string
 	pushed    []string
 	pushErr   error
@@ -56,6 +57,12 @@ func (f *fakeRepos) Toplevel(_ context.Context, dir string) (string, error) {
 }
 func (f *fakeRepos) IsClean(context.Context, string) (bool, error) { return true, nil }
 func (f *fakeRepos) HasRemote(context.Context, string) bool        { return false }
+func (f *fakeRepos) RemoteURL(_ context.Context, dir string) (string, error) {
+	if u, ok := f.remotes[dir]; ok {
+		return u, nil
+	}
+	return "", errors.New("no such remote")
+}
 func (f *fakeRepos) RefExists(context.Context, string, string) (app.RefKind, error) {
 	return app.RefRemote, nil
 }

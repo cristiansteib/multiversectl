@@ -39,6 +39,9 @@ type Git interface {
 	Toplevel(ctx context.Context, dir string) (string, error)
 	IsClean(ctx context.Context, dir string) (bool, error)
 	HasRemote(ctx context.Context, dir string) bool
+	// RemoteURL is where origin points, which is how a local checkout is
+	// named in a catalog other people read.
+	RemoteURL(ctx context.Context, dir string) (string, error)
 	// Commit records only paths, so unrelated changes in a user's own
 	// repository are never swept into it.
 	Commit(ctx context.Context, dir, message string, paths ...string) error
@@ -285,6 +288,8 @@ type CatalogEditor interface {
 	RemoveRef(data []byte, name string) ([]byte, error)
 	// WorkspaceName reads metadata.name from a multiverse.yaml.
 	WorkspaceName(data []byte) (string, error)
+	// WorkspaceRoot reads spec.root, which is a path on one machine.
+	WorkspaceRoot(data []byte) string
 }
 
 // ManifestLoader reads a workspace manifest from disk, so a use case can look

@@ -229,7 +229,7 @@ func (r runner) catalogCreateCmd() *cobra.Command {
 		Short: "Create a catalog inside another one",
 		Long: "Create a catalog and link it from a parent. It can live in the parent's own\n" +
 			"repository, in a repository you already have, or in a new private one.",
-		Example: "  multiversectl catalog create acme --new-repo acme-index\n  multiversectl catalog create personal --same-repo --at /",
+		Example: "  multiversectl catalog create acme --new-repo acme-index\n  multiversectl catalog create personal --same-repo --at /\n  multiversectl catalog create acme --manifest ./acme.yaml   # a project: its own index and workspace",
 		Args:    cobra.ExactArgs(1),
 	}
 	atFlag(cmd, &in.At)
@@ -237,11 +237,17 @@ func (r runner) catalogCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&in.Where.URL, "repo", "", "put it in this existing repository")
 	cmd.Flags().StringVar(&in.Where.Create, "new-repo", "", "create a new repository with this name for it")
 	cmd.Flags().BoolVar(&in.Where.Public, "public", false, "make a --new-repo public (private by default)")
+	cmd.Flags().StringVar(&in.Manifest, "manifest", "", "start with this workspace manifest, copied in as multiverse.yaml, so the project is its own index and workspace")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		c, err := r.catalogs(yes)
 		if err != nil {
 			return err
+		}
+		if in.Manifest != "" {
+			if in.Manifest, err = filepath.Abs(in.Manifest); err != nil {
+				return err
+			}
 		}
 		in.Name, in.AtGiven = args[0], cmd.Flags().Changed("at")
 		return r.declined(c.CreateCatalog(cmd.Context(), in))
@@ -432,13 +438,16 @@ func (r runner) addCmd() *cobra.Command {
 	var base string
 	var yes, install bool
 	cmd := &cobra.Command{
-		Use:   "add <owner/repo | url>",
+		Use:   "add <owner/repo | url | path>",
 		Short: "Join a project: link its catalog, or list its workspace, and optionally install it",
-		Long: "The repository is looked at: one with a catalog.yaml is linked as a catalog\n" +
-			"(and may list its own workspace and deeper catalogs), one with only a\n" +
-			"multiverse.yaml is listed as a workspace. With no root catalog on this\n" +
+		Long: "The source can be owner/repo (GitHub), any git URL, or a path. A repository\n" +
+			"with a catalog.yaml is linked as a catalog (and may list its own workspace\n" +
+			"and deeper catalogs); one with only a multiverse.yaml is listed as a\n" +
+			"workspace. A path to a git checkout is added by its origin URL, since other\n" +
+			"machines must be able to fetch it; a path to a manifest file is copied into\n" +
+			"the repository of the catalog it goes in. With no root catalog on this\n" +
 			"machine yet, init runs first.",
-		Example: "  multiversectl add fichero-app/multiverse --install\n  multiversectl add git@github.com:acme/multiverse.git --at personal",
+		Example: "  multiversectl add fichero-app/multiverse --install\n  multiversectl add git@github.com:acme/multiverse.git --at personal\n  multiversectl add ~/code/multiverse            # a local checkout, by its origin\n  multiversectl add ./acme.yaml --at personal    # a manifest file, copied in",
 		Args:    cobra.ExactArgs(1),
 	}
 	atFlag(cmd, &in.At)

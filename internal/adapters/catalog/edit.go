@@ -77,6 +77,18 @@ func (Editor) WorkspaceName(data []byte) (string, error) {
 	return w.Metadata.Name, nil
 }
 
+func (Editor) WorkspaceRoot(data []byte) string {
+	var w struct {
+		Spec struct {
+			Root string `yaml:"root"`
+		} `yaml:"spec"`
+	}
+	if yaml.Unmarshal(data, &w) != nil {
+		return ""
+	}
+	return w.Spec.Root
+}
+
 func addRef(data []byte, list, name string, src domain.Source, defaultPath string) ([]byte, error) {
 	doc, spec, err := parse(data)
 	if err != nil {
