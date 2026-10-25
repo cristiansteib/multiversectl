@@ -122,6 +122,14 @@ web    u3      1        app-dev  app     http://app-u3.192-168-1-20.traefik.me
   <p>Both serve at once, on different hostnames, with their own containers, their own databases and their own checkouts. Nothing was stopped and no port was reassigned &mdash; <a href="../concepts/networking.html">Networking</a> explains why they do not collide.</p>
 </section>
 
+<section id="browser">
+  <h2 id="browser"><a href="#browser">The same thing in a browser</a></h2>
+  <p>Everything above is also on a page. It is another way to work with the tool, not another tool: it shows the catalog, the projects and every universe, live, and starts, stops, creates and removes universes with the same operations as the commands.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl server start --open
+<span class="p">$ </span>multiversectl server stop</pre></div>
+  <p>It runs in the background, behind a token, and the command line and the page can be used together. <a href="../tasks/server.html">Explore and run it in a browser</a> has the details.</p>
+</section>
+
   <nav class="pager" aria-label="Pages">
     <a class="prev" href="../start/install.html"><span>Previous</span>Install</a>
     <a class="next" href="../start/concepts.html"><span>Next</span>Concepts at a glance</a>
@@ -134,6 +142,7 @@ web    u3      1        app-dev  app     http://app-u3.192-168-1-20.traefik.me
       <li><a href="#first">Your first universe</a></li>
       <li><a href="#see">Seeing what you have</a></li>
       <li><a href="#second">A second universe</a></li>
+      <li><a href="#browser">The same thing in a browser</a></li>
     </ul>
   </aside>
 </div>
