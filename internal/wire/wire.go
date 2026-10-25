@@ -113,6 +113,13 @@ func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 	}), nil
 }
 
+// Completions builds the use case that installs shell completions.
+func (m Machine) Completions(out app.Output) *app.Completions {
+	return app.NewCompletions(app.CompletionDeps{
+		Files: fsx.New(), System: system.New(), Prompt: prompt.New(), Out: out, Version: m.Version,
+	})
+}
+
 // ManifestLoader adapts manifest.Load to the app.ManifestLoader port.
 type ManifestLoader struct{}
 

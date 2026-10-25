@@ -30,19 +30,25 @@ type Factory struct {
 	At func(g Globals, out app.Output, root, manifestPath string) (*app.Service, error)
 	// Catalogs builds the catalog service, which never needs a workspace.
 	Catalogs func(g Globals, out app.Output) (*app.Catalogs, error)
+	// Completions builds the use case that installs and refreshes completions.
+	Completions func(out app.Output) *app.Completions
 }
 
 // New returns the root command and the globals its flags fill in.
 func New(f Factory) (*cobra.Command, *Globals) {
 	g := &Globals{}
 	out := &Output{}
-	root := &cobra.Command{
+	// The pre-run hook needs the command it hangs on and the runner built after it.
+	var run runner
+	var root *cobra.Command
+	root = &cobra.Command{
 		Use:           "multiversectl",
 		Short:         "Run numbered, isolated copies of a multi-repo stack side by side",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRun: func(*cobra.Command, []string) {
+		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
 			*out = *NewOutput(os.Stdout, ColorEnabled(os.Stdout, g.NoColor))
+			run.refreshCompletions(root, cmd)
 		},
 	}
 	flags := root.PersistentFlags()
@@ -52,9 +58,10 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	flags.BoolVar(&g.NoColor, "no-color", false, "disable colour output")
 	flags.BoolVarP(&g.Verbose, "verbose", "v", false, "show the commands being run")
 
-	run := runner{g: g, out: out, f: f}
+	run = runner{g: g, out: out, f: f}
+	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
-		run.universeCmd(), run.doctorCmd(), run.catalogCmd(), run.initCmd(),
+		run.universeCmd(), run.doctorCmd(), run.catalogCmd(), run.initCmd(), run.completionCmd(root),
 		run.proxyCmd(), run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("workspace", run.completeWorkspaces)

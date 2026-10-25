@@ -36,7 +36,6 @@ func groupCommands(root *cobra.Command, g *Globals) {
 		}
 	}
 	root.SetHelpCommandGroupID(groupSetup)
-	root.SetCompletionCommandGroupID(groupSetup)
 
 	paint := func() *Output { return NewOutput(os.Stdout, ColorEnabled(os.Stdout, g.NoColor)) }
 	cobra.AddTemplateFunc("heading", func(s string) string { return paint().Bold(s) })

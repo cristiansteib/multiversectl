@@ -20,6 +20,18 @@
   <p><code>make install</code> honours <code>PREFIX</code>, so <code>make install PREFIX=/usr/local/bin</code> puts it on the system path instead.</p>
 </section>
 
+<section id="completion">
+  <h2 id="completion"><a href="#completion">Shell completions</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl completion</pre></div>
+  <p>It finds your shell from <code>$SHELL</code>, says which files it will write, and asks. <code>--yes</code> answers for you, which is what a setup script wants. Everything goes under your home directory; nothing needs root.</p>
+  <ul class="t">
+    <li><strong>bash</strong>: <code>~/.local/share/bash-completion/completions/multiversectl</code>, loaded on demand by the bash-completion package.</li>
+    <li><strong>fish</strong>: <code>~/.config/fish/completions/multiversectl.fish</code>, which fish loads by itself.</li>
+    <li><strong>zsh</strong>: <code>~/.local/share/multiversectl/completions/multiversectl.zsh</code>, plus a block between two marker comments in <code>~/.zshrc</code> that sources it. Nothing puts a user directory on zsh's <code>$fpath</code>, so the startup file has to.</li>
+  </ul>
+  <p>The first line of the installed file records the version that wrote it. After an upgrade, whether by <code>self-update</code>, a package or <code>make install</code>, the next run of any command rewrites a script written by another version, so completions follow the binary. It only updates a script that is already there; it never installs one you did not ask for. <code>multiversectl completion --uninstall</code> removes the file and the block.</p>
+</section>
+
 <section id="needs">
   <h2 id="needs"><a href="#needs">What it needs on the machine</a></h2>
   <ul class="t">

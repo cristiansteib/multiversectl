@@ -25,13 +25,14 @@ func main() {
 	defer stop()
 
 	cmd, globals := cli.New(cli.Factory{
-		Version:   version,
-		Commit:    commit,
-		Date:      date,
-		Workspace: workspace,
-		Bare:      bare,
-		At:        at,
-		Catalogs:  catalogs,
+		Version:     version,
+		Commit:      commit,
+		Date:        date,
+		Workspace:   workspace,
+		Bare:        bare,
+		At:          at,
+		Catalogs:    catalogs,
+		Completions: func(out app.Output) *app.Completions { return wire.Machine{Version: version}.Completions(out) },
 	})
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		if !cli.IsSilent(err) {
