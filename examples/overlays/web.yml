@@ -1,0 +1,6 @@
+# Overlay for the web app (a browser SPA served by a dev server).
+services:
+  app-dev:
+    # Dev servers reject Host headers they do not know, and a universe is
+    # reached by hostname. ${APP_HOST} is set by multiversectl.
+    command: sh -c "[ -x node_modules/.bin/dev ] || npm ci; exec npm start -- --allowed-hosts=${APP_HOST}"

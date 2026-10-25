@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overlays and merge order &middot; multiversectl</title>
+<meta name="description" content="The files that make up an app, the order they are merged in, and where to put a value that only this environment knows.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html">Start</a>
+      <a href="../concepts/universes.html" aria-current="true">Concepts</a>
+      <a href="../tasks/branches.html">Tasks</a>
+      <a href="../reference/cli.html">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html" aria-current="page">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html">Labels</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Concepts</span>
+  </nav>
+  <h1>Overlays and merge order</h1>
+  <p class="lede">The files that make up an app, the order they are merged in, and where to put a value that only this environment knows.</p>
+<section id="order">
+  <h2 id="order"><a href="#order">Merge order</a></h2>
+  <p>An app is a list of compose files, merged left to right by the container runtime, with the last word winning. multiversectl adds two of its own at the end:</p>
+  <div class="code"><pre>1. docker-compose.yml          <span class="c"># the repository's own, unchanged</span>
+2. overlays/&lt;app&gt;.yml          <span class="c"># beside the manifest, if present</span>
+3. .multiverse-overlay-&lt;app&gt;.yml  <span class="c"># the manifest's inline overlay:</span>
+4. .multiverse-routes-&lt;app&gt;.yml   <span class="c"># generated: routing, ports, labels</span></pre></div>
+  <p>Everything before the generated files is yours. Nothing rewrites your compose file, and removing multiversectl leaves a repository that still runs with plain <code>docker compose up</code>.</p>
+  <p>Within compose's merge rules the shapes matter: mappings merge key by key, so an <code>environment:</code> entry in a later file replaces just that variable; sequences are replaced wholesale, so a later <code>command:</code> or <code>ports:</code> supersedes the earlier one entirely.</p>
+</section>
+
+<section id="where">
+  <h2 id="where"><a href="#where">Which file to put something in</a></h2>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">The value is</th><th scope="col">Put it</th></tr></thead><tbody>
+  <tr><td data-l="The value is">True of the project everywhere</td><td data-l="Put it">The repository's own compose file. It is not multiversectl's business.</td></tr>
+  <tr><td data-l="The value is">True of this environment, for a repository you control</td><td data-l="Put it">A label on the service. The repository then carries its own needs &mdash; see <a href="labels.html">Labels</a>.</td></tr>
+  <tr><td data-l="The value is">True of this environment, for a repository you do not control</td><td data-l="Put it">The app's inline <code>overlay:</code> in the manifest.</td></tr>
+  <tr><td data-l="The value is">Several services' worth, or long</td><td data-l="Put it">A file beside the manifest, named in <code>compose:</code> with an <code>@</code> prefix.</td></tr>
+  </tbody></table></div>
+  <p>Prefer the label. It keeps the knowledge in the repository that has it, and it is inert when the compose file is run by hand.</p>
+</section>
+
+<section id="conventions">
+  <h2 id="conventions"><a href="#conventions">Found by convention</a></h2>
+  <p>With no <code>compose:</code> list, two conventional places are tried, and whichever exist are used in this order:</p>
+  <ul class="t">
+    <li><code>docker-compose.yml</code> in the repository's checkout.</li>
+    <li><code>overlays/&lt;app&gt;.yml</code> beside the manifest &mdash; or <code>&lt;manifest-name&gt;/&lt;app&gt;.yml</code>, for a directory holding several manifests.</li>
+  </ul>
+  <p>So an app that follows the convention needs no <code>compose:</code> line at all, and a repository that no <code>apps:</code> entry names gets an app of its own name on the same terms.</p>
+  <p>When you do name the files, a plain path is relative to the repository's checkout and a path starting with <code>@</code> is relative to the manifest's directory:</p>
+  <div class="code"><pre><span class="k">apps</span>:
+  - <span class="k">name</span>: api
+    <span class="k">repo</span>: api
+    <span class="k">compose</span>: [docker-compose.yml, docker-compose.dev.yml, <span class="s">"@acme/api.yml"</span>]</pre></div>
+</section>
+
+<section id="inline">
+  <h2 id="inline"><a href="#inline">The inline overlay</a></h2>
+  <p><code>overlay:</code> is a compose fragment written straight into the manifest, kept verbatim and merged third. Use it for the few things only this environment knows:</p>
+  <div class="code"><pre><span class="k">apps</span>:
+  - <span class="k">name</span>: web
+    <span class="k">repo</span>: web
+    <span class="k">profiles</span>: [dev]
+    <span class="k">overlay</span>:
+      <span class="k">services</span>:
+        <span class="k">app-dev</span>:
+          <span class="c"># The dev server rejects Host headers it does not know,</span>
+          <span class="c"># and this universe's hostname is not in its config.</span>
+          <span class="k">command</span>: sh -c <span class="s">"npm start -- --allowed-hosts=${APP_HOST}"</span></pre></div>
+  <p>It is compose syntax, so it can reference any of the <a href="../reference/variables.html">variables a universe passes</a>. It is also the whole service definition for a repository that has no compose file of its own:</p>
+  <div class="code"><pre><span class="k">apps</span>:
+  - <span class="k">name</span>: docs
+    <span class="k">repo</span>: docs
+    <span class="k">overlay</span>:
+      <span class="k">services</span>:
+        <span class="k">site</span>:
+          <span class="k">image</span>: nginx:alpine
+          <span class="k">volumes</span>: [<span class="s">"${DOCS_DIR}:/usr/share/nginx/html:ro"</span>]
+          <span class="k">labels</span>:
+            <span class="k">multiverse.host.docs</span>: <span class="s">"80"</span></pre></div>
+</section>
+
+<section id="generated">
+  <h2 id="generated"><a href="#generated">The generated fragment</a></h2>
+  <p>The last file is written by multiversectl before each start, and it is where the environment-specific mechanics live:</p>
+  <ul class="t">
+    <li><strong>Proxy labels</strong> for every host rule, and the proxy network added to the services that serve one.</li>
+    <li><strong><code>ports: !reset []</code></strong> on every service that is not allowed to publish &mdash; <code>!reset</code> is compose's way to clear a sequence an earlier file set, rather than add to it.</li>
+    <li><strong>An <code>environment:</code> block</strong> for the values a service asked for by label.</li>
+  </ul>
+  <p>Because it is merged last, its <code>environment:</code> beats both the service's own <code>environment:</code> and any <code>env_file:</code>. That is what lets a per-universe value override a static list in a committed <code>.env</code> &mdash; the one thing an overlay in the manifest cannot do.</p>
+</section>
+
+<section id="profiles">
+  <h2 id="profiles"><a href="#profiles">Profiles and service selection</a></h2>
+  <p>Three different ways to say which services run, in increasing specificity:</p>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead><tbody>
+  <tr><td data-l="Field"><code>profiles</code></td><td data-l="Meaning">Compose profiles always active for this app, so a <code>dev</code>-profiled service starts and a <code>prod</code>-profiled one does not.</td></tr>
+  <tr><td data-l="Field"><code>services</code></td><td data-l="Meaning">The services to start. Omit it and every service the files define for the active profiles starts, which is what <code>docker compose up</code> would do. Name them only when a file also holds services a universe should not run.</td></tr>
+  <tr><td data-l="Field"><code>optional</code></td><td data-l="Meaning">Named groups started on demand with <code>--with &lt;name&gt;</code>. The name is activated as a profile too, so a service can be in a group by either route.</td></tr>
+  </tbody></table></div>
+  <div class="code"><pre><span class="k">apps</span>:
+  - <span class="k">name</span>: api
+    <span class="k">repo</span>: api
+    <span class="k">services</span>: [web, db]
+    <span class="k">optional</span>:
+      - <span class="k">name</span>: workers
+        <span class="k">services</span>: [worker, scheduler]</pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl up 3 api --with workers</pre></div>
+  <p><code>ls -o wide</code> shows every service the files define with its state, including the ones that are off and the flag that would start them, so "what is not running" is as answerable as "what is".</p>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../concepts/storage.html"><span>Previous</span>Storage and data</a>
+    <a class="next" href="../concepts/labels.html"><span>Next</span>Labels</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#order">Merge order</a></li>
+      <li><a href="#where">Which file to put something in</a></li>
+      <li><a href="#conventions">Found by convention</a></li>
+      <li><a href="#inline">The inline overlay</a></li>
+      <li><a href="#generated">The generated fragment</a></li>
+      <li><a href="#profiles">Profiles and service selection</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>

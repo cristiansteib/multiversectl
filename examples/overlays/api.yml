@@ -1,0 +1,23 @@
+# Overlay for the api app. Routing labels, the shared proxy network and
+# dropping published ports are generated per universe by multiversectl — this
+# file only holds what the tool cannot know: how this service behaves in a
+# development universe.
+services:
+  web:
+    environment:
+      # A universe answers on its own hostnames, so anything that validates
+      # the Host header or sets cookies has to trust them. MULTIVERSE_ORIGINS
+      # is all of them, each with its entrypoint's port, so this does not have
+      # to be edited when a host or an app is added.
+      #
+      # Better still, when you can change the repository: a label on the
+      # service itself, `multiverse.env.TRUSTED_ORIGINS: origins`, which also
+      # wins over an env_file. An overlay is for repositories you cannot
+      # change.
+      TRUSTED_ORIGINS: "${MULTIVERSE_ORIGINS}"
+      ALLOWED_HOSTS: "${MULTIVERSE_HOSTS}"
+
+  # Not part of a universe: a production-shaped service would publish its own
+  # ports and fight the proxy. Hiding it behind a profile keeps it out.
+  web-release:
+    profiles: ["release"]

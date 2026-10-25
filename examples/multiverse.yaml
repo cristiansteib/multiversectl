@@ -1,0 +1,74 @@
+# Workspace manifest: the repositories a project is made of and the hostnames
+# its universes answer on. It does not describe containers — the repositories'
+# own compose files already do, and this asks them rather than repeating them.
+apiVersion: multiverse/v1alpha1
+kind: Workspace
+metadata:
+  name: acme
+spec:
+  expose: lan                    # lan: any device on the network can open a
+                                 # universe. local: this machine only.
+  domain: auto                   # auto follows expose: <dashed-lan-ip>.traefik.me
+                                 # for lan, localhost for local
+  branch: u{{universe}}          # the branch each universe is checked out on
+
+  proxy:
+    entrypoints:
+      - name: web
+        port: 80
+      - name: devapi             # extra port a browser app expects its API on
+        port: 8001
+
+  repos:
+    - name: api
+      url: git@github.com:acme/api.git
+    - name: web
+      url: git@github.com:acme/web.git
+    - name: admin
+      url: git@github.com:acme/admin.git
+    - name: mobile
+      url: git@github.com:acme/mobile.git
+      runtime: none              # no services, checked out for editing only
+
+  # Only the repositories that need something other than the defaults. A
+  # repository no app names gets one of its own name: its compose files are
+  # found by convention, every service they define is started, and the
+  # addresses come from their labels. "admin" below is here only for its host.
+  apps:
+    - name: api
+      repo: api
+      build: true
+      secrets: [.env, service-account.json]
+      optional:                  # extra services, started with --with workers
+        - name: workers
+          services: [worker, scheduler]
+      hosts:
+        - name: api
+          service: web
+          port: 8001
+        - name: devapi           # same service, on the devapi entrypoint
+          service: web
+          port: 8001
+          entrypoint: devapi
+          alsoMatch: [app, adm]
+
+    - name: web
+      repo: web
+      profiles: [dev]
+      hosts:
+        - name: app
+          service: app-dev
+          port: 4200
+
+    - name: admin
+      repo: admin
+      hosts:
+        - name: adm
+          service: app-dev
+          port: 4300
+
+# Left out on purpose, because the defaults cover them:
+#   compose:    docker-compose.yml in the repo, plus overlays/<app>.yml here
+#   services:   every service the compose files define
+#   publish:    nothing — universes are reached through the proxy. List a
+#               service here only if it genuinely needs a host port.

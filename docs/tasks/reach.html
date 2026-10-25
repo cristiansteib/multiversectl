@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reach a universe &middot; multiversectl</title>
+<meta name="description" content="From another device, from a domain you own, from a shell, and from a database client.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html">Start</a>
+      <a href="../concepts/universes.html">Concepts</a>
+      <a href="../tasks/branches.html" aria-current="true">Tasks</a>
+      <a href="../reference/cli.html">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html">Labels</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html" aria-current="page">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Tasks</span>
+  </nav>
+  <h1>Reach a universe</h1>
+  <p class="lede">From another device, from a domain you own, from a shell, and from a database client.</p>
+<section id="hw-network">
+  <h2 id="hw-network"><a href="#hw-network">Reach a universe from your phone</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl urls 3
+http://app-u3.192-168-1-20.traefik.me
+http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
+  <p>Open a printed URL on any device on the same network. With <code>expose: lan</code> (the default) and <code>domain: auto</code> the hostnames are <code>&lt;host&gt;-u3.&lt;dashed-lan-ip&gt;.traefik.me</code>, a public wildcard DNS name that resolves to this machine, so nothing is installed on the device. If a name does not resolve, see <a href="../reference/troubleshooting.html#ts-dns">Troubleshooting</a>.</p>
+  <p>To keep a project on your machine instead, set <code>expose: local</code>: the proxy then publishes on <code>127.0.0.1</code> only, so nothing off the box can connect, and <code>domain: auto</code> becomes <code>&lt;host&gt;-u3.localhost</code>, which browsers resolve themselves without asking any DNS server. Worth preferring unless another device has to open a universe — a dev stack's mail catcher, debug pages and seeded data are otherwise readable by anyone on the network.</p>
+</section>
+
+<section id="hw-domain">
+  <h2 id="hw-domain"><a href="#hw-domain">Point a workspace at a domain you own</a></h2>
+  <p>Create a wildcard DNS record, <code>*.dev.example.test</code>, pointing at this machine, then replace <code>domain: auto</code>:</p>
+  <div class="code"><pre><span class="c"># multiverse.yaml</span>
+<span class="k">spec</span>:
+  <span class="k">domain</span>: dev.example.test   <span class="c"># app-u3.dev.example.test</span></pre></div>
+  <p class="muted">The domain is stored in a universe when it is created: recreate existing universes (<code>rm</code>, <code>new</code>) to pick up a change.</p>
+</section>
+
+<section id="hw-db">
+  <h2 id="hw-db"><a href="#hw-db">Reach a universe's database</a></h2>
+  <p>No universe publishes a host port, so reach the database inside its own container. <code>exec</code> lands in the running one and streams straight to your terminal:</p>
+  <div class="code"><pre><span class="c"># a client in universe 3's api database</span>
+<span class="p">$ </span>multiversectl exec 3 api --service db -- psql -U postgres
+<span class="c"># a one-off container instead, when the app itself need not be up</span>
+<span class="p">$ </span>multiversectl run 3 api -- python manage.py migrate</pre></div>
+  <p class="muted">Each app is its own compose project, named <code>&lt;workspace&gt;-u&lt;universe&gt;-&lt;app&gt;</code>, so <code>docker compose -p acme-u3-api ps</code> works too.</p>
+  <p class="muted">Need a host port anyway? See <a href="services.html#hw-publish">Keep a service's published port</a>.</p>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../tasks/branches.html"><span>Previous</span>Work across branches</a>
+    <a class="next" href="../tasks/services.html"><span>Next</span>Control which services run</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#hw-network">Reach a universe from your phone</a></li>
+      <li><a href="#hw-domain">Point a workspace at a domain you own</a></li>
+      <li><a href="#hw-db">Reach a universe&#39;s database</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>

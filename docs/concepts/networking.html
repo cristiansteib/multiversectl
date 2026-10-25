@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Networking &middot; multiversectl</title>
+<meta name="description" content="One shared proxy, one hostname per address per universe, and why no universe publishes a port of its own.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html">Start</a>
+      <a href="../concepts/universes.html" aria-current="true">Concepts</a>
+      <a href="../tasks/branches.html">Tasks</a>
+      <a href="../reference/cli.html">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html" aria-current="page">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html">Labels</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Concepts</span>
+  </nav>
+  <h1>Networking</h1>
+  <p class="lede">One shared proxy, one hostname per address per universe, and why no universe publishes a port of its own.</p>
+<section id="problem">
+  <h2 id="problem"><a href="#problem">The problem it solves</a></h2>
+  <p>Two copies of the same stack cannot both publish port 8000. The usual answer is to give the second copy different ports and then teach every front-end, every callback URL and every developer about them. multiversectl does not allocate ports: every universe is reached through <strong>one shared proxy</strong> on <strong>one set of ports</strong>, and requests are told apart by the <code>Host</code> header.</p>
+  <p>The consequence is that adding the tenth universe costs no ports and changes no configuration anywhere.</p>
+</section>
+
+<section id="proxy">
+  <h2 id="proxy"><a href="#proxy">The shared proxy</a></h2>
+  <p>One Traefik container for the whole machine, in its own runtime project <code>multiverse-proxy</code>, joined to one external network &mdash; <code>multiversenet</code> by default. The first <code>up</code> brings it up; it is not per workspace and not per universe.</p>
+  <p>It discovers routes from the container runtime, so starting a universe is all the configuration it needs. multiversectl writes the labels for it into a generated compose fragment, one per app, which is why your own compose files say nothing about Traefik:</p>
+  <div class="code"><pre><span class="c"># universes/3/.multiverse-routes-api.yml, rewritten on every up</span>
+<span class="k">services</span>:
+  <span class="k">web</span>:
+    <span class="k">ports</span>: !reset []
+    <span class="k">labels</span>:
+      <span class="k">traefik.enable</span>: <span class="s">"true"</span>
+      <span class="k">traefik.docker.network</span>: <span class="s">"multiversenet"</span>
+      <span class="k">traefik.http.services.api-u3.loadbalancer.server.port</span>: <span class="s">"8001"</span>
+      <span class="k">traefik.http.routers.api-u3.rule</span>: <span class="s">"Host(`api-u3.example.test`)"</span>
+      <span class="k">traefik.http.routers.api-u3.entrypoints</span>: <span class="s">"web"</span>
+    <span class="k">networks</span>: [default, multiversenet]</pre></div>
+  <p class="muted">Edit the manifest or your compose files, never the generated file: it is replaced on every start.</p>
+</section>
+
+<section id="entrypoints">
+  <h2 id="entrypoints"><a href="#entrypoints">Entrypoints</a></h2>
+  <p>An entrypoint is a named port the proxy listens on. Every universe shares all of them.</p>
+  <div class="code"><pre><span class="k">spec</span>:
+  <span class="k">proxy</span>:
+    <span class="k">entrypoints</span>:
+      - <span class="k">name</span>: web
+        <span class="k">port</span>: 80
+      - <span class="k">name</span>: devapi
+        <span class="k">port</span>: 8001</pre></div>
+  <p>One is usually enough. The second exists for a case worth spelling out: a browser application built to call its API on a fixed port. Point the proxy at that port too, and the API answers there under every universe's own hostname &mdash; so the front-end's hard-coded <code>:8001</code> keeps working, in every universe, unchanged.</p>
+  <p>A host rule picks its entrypoint by name, defaulting to <code>web</code>. Because a hostname tells the proxy which universe is meant, the ports never have to be unique.</p>
+</section>
+
+<section id="hostnames">
+  <h2 id="hostnames"><a href="#hostnames">Hostnames</a></h2>
+  <p>Every address is <code>&lt;host-key&gt;-&lt;slug&gt;.&lt;domain&gt;</code>. The host key names the address, the slug names the universe:</p>
+  <div class="code"><pre>api-u3.example.test         <span class="c"># host api, universe 3</span>
+adm-u3.example.test         <span class="c"># host adm, universe 3</span>
+api-fix-login.example.test  <span class="c"># host api, universe fix/login</span></pre></div>
+  <p>The scheme is deliberately flat rather than nested. <code>api-u3.example.test</code> is one DNS label under the domain, so a single wildcard certificate for <code>*.example.test</code> covers every address of every universe. <code>api.u3.example.test</code> would need a certificate per universe, because a wildcard matches one label.</p>
+  <p>A service can also claim more than one hostname, which is how one API answers under each front-end's own name &mdash; see <a href="labels.html">Labels</a>.</p>
+</section>
+
+<section id="domains">
+  <h2 id="domains"><a href="#domains">Domains</a></h2>
+  <p><code>spec.domain</code> is the wildcard domain every hostname is built under. <code>auto</code>, the default, derives one from how the workspace is exposed.</p>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Setting</th><th scope="col">Hostnames</th><th scope="col">Resolution</th></tr></thead><tbody>
+  <tr><td data-l="Setting"><code>auto</code> with <code>expose: lan</code></td><td data-l="Hostnames"><code>api-u3.192-168-1-20.traefik.me</code></td><td data-l="Resolution">A public wildcard DNS service answers with the address in the name, so any device on the network resolves it with nothing installed.</td></tr>
+  <tr><td data-l="Setting"><code>auto</code> with <code>expose: local</code></td><td data-l="Hostnames"><code>api-u3.localhost</code></td><td data-l="Resolution">Browsers resolve <code>*.localhost</code> to the loopback address themselves. No DNS query leaves the machine.</td></tr>
+  <tr><td data-l="Setting">A domain you own</td><td data-l="Hostnames"><code>api-u3.dev.example.com</code></td><td data-l="Resolution">Yours to point at the machine, with your own wildcard certificate.</td></tr>
+  </tbody></table></div>
+</section>
+
+<section id="expose">
+  <h2 id="expose"><a href="#expose">Who can reach a universe</a></h2>
+  <p>One setting, because the two halves have to agree:</p>
+  <div class="code"><pre><span class="k">spec</span>:
+  <span class="k">expose</span>: lan     <span class="c"># default</span>
+  <span class="c"># expose: local</span></pre></div>
+  <p><code>lan</code> publishes the proxy's ports on every interface and derives a publicly resolvable domain: a phone, a tablet or a colleague on the same network opens a universe with nothing to install. <code>local</code> publishes on <code>127.0.0.1</code> only and derives <code>localhost</code>: nothing about the project is looked up anywhere, and nothing off the machine can connect at all.</p>
+  <p>They are one setting rather than two knobs because either alone is a half-measure. A <code>.localhost</code> name with the proxy still on <code>0.0.0.0</code> leaves the port open to anyone who sends the right <code>Host</code> header; a loopback bind with public hostnames still puts your naming in a stranger's DNS logs.</p>
+  <p><code>doctor</code> reports where the proxy actually listens, and warns when that is not what the workspace asks for.</p>
+  <h3 id="expose-risk">What <code>lan</code> actually exposes</h3>
+  <p>Worth reading once before choosing it. A development stack usually runs with debug pages on, seeded data and no authentication in front of its mail catcher &mdash; so anyone on the network can read every message a universe sends, password resets included. That is fine on a home network and not fine in a café, a hotel or a shared office.</p>
+  <p>Those hostnames are also public DNS names pointing at a private address, which means a web page you happen to open can make your browser send requests to a universe. Reading the response needs permissive CORS, which development stacks often have. Under <code>localhost</code> the browser blocks that class of request outright.</p>
+</section>
+
+<section id="ports">
+  <h2 id="ports"><a href="#ports">Why nothing publishes a port</a></h2>
+  <p>Isolating project names, networks and volumes is not enough while two universes both map a host port. So every service's published ports are dropped by default &mdash; that is the <code>ports: !reset []</code> in the generated fragment &mdash; and a universe is reached through the proxy instead.</p>
+  <p>A service that genuinely needs its host port back asks for it, either in the manifest's <code>publish:</code> list or with a label on itself:</p>
+  <div class="code"><pre><span class="k">services</span>:
+  <span class="k">db</span>:
+    <span class="k">labels</span>:
+      <span class="k">multiverse.publish</span>: <span class="s">"true"</span></pre></div>
+  <p>Only one universe can hold such a port at a time, which is the trade you are making. <code>ls -o wide</code> has a <code>PUBLISHED</code> column so you can see at a glance that the answer is <code>none</code> everywhere it should be.</p>
+</section>
+
+<section id="inside">
+  <h2 id="inside"><a href="#inside">Talking between services</a></h2>
+  <p>Inside one app, services reach each other by compose service name on the app's own network, exactly as they would without multiversectl: <code>db</code>, <code>redis</code>, <code>mailpit</code>. Nothing about that changes.</p>
+  <p>Between apps of the same universe, use the universe's hostnames through the proxy. Note the one asymmetry with <code>expose: local</code>: a <code>.localhost</code> name resolves to the calling container's own loopback, not to the proxy, so container-to-container calls by hostname do not work there. If you need both privacy and that kind of call, keep a resolvable domain and bind to loopback instead &mdash; <code>domain: 127-0-0-1.traefik.me</code> with <code>expose: local</code> gives you a name that only ever answers <code>127.0.0.1</code>.</p>
+</section>
+
+<section id="shared">
+  <h2 id="shared"><a href="#shared">One proxy, several workspaces</a></h2>
+  <p>The proxy is per machine, so two workspaces with different entrypoints or a different <code>expose</code> compete for it: starting a universe in the second reconfigures it, and the first workspace's universes stop answering until something is started there again. Starting says so explicitly:</p>
+  <div class="code"><pre>! the shared proxy is being reconfigured: published on 127.0.0.1 instead of
+  0.0.0.0, entrypoints web:80 instead of devapi:8001 web:80 — universes of any
+  other workspace on this machine stop answering until it is started from
+  there again</pre></div>
+  <p class="muted">Running several workspaces side by side is therefore best done with the same entrypoints and the same exposure. A proxy that merges what each workspace asks for is an open question, not a settled design.</p>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../concepts/universes.html"><span>Previous</span>Universes</a>
+    <a class="next" href="../concepts/storage.html"><span>Next</span>Storage and data</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#problem">The problem it solves</a></li>
+      <li><a href="#proxy">The shared proxy</a></li>
+      <li><a href="#entrypoints">Entrypoints</a></li>
+      <li><a href="#hostnames">Hostnames</a></li>
+      <li><a href="#domains">Domains</a></li>
+      <li><a href="#expose">Who can reach a universe</a></li>
+      <li><a href="#ports">Why nothing publishes a port</a></li>
+      <li><a href="#inside">Talking between services</a></li>
+      <li><a href="#shared">One proxy, several workspaces</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>

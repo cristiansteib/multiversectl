@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Labels &middot; multiversectl</title>
+<meta name="description" content="How a compose file describes itself: the addresses it answers on, the ports it must keep, and the values it needs from its universe.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html">Start</a>
+      <a href="../concepts/universes.html" aria-current="true">Concepts</a>
+      <a href="../tasks/branches.html">Tasks</a>
+      <a href="../reference/cli.html">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html" aria-current="page">Labels</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Concepts</span>
+  </nav>
+  <h1>Labels</h1>
+  <p class="lede">How a compose file describes itself: the addresses it answers on, the ports it must keep, and the values it needs from its universe.</p>
+<section id="why">
+  <h2 id="why"><a href="#why">Why labels</a></h2>
+  <p>A compose file already knows which port its service listens on and which settings depend on the environment. Writing that into a manifest means saying it twice and keeping the two in step by hand, so multiversectl reads the compose files instead &mdash; with <code>docker compose config</code>, so it sees the merged result, variables and profiles included.</p>
+  <p>Labels rather than a reference such as <code>${MULTIVERSE_ORIGINS}</code> in the service's own <code>environment:</code>, because a compose file is also run by hand: the reference resolves to the empty string when multiversectl is not driving it, while a label is inert metadata until it is.</p>
+</section>
+
+<section id="host">
+  <h2 id="host"><a href="#host">Addresses: <code>multiverse.host.*</code></a></h2>
+  <p>The label key names the host, the value is the container port:</p>
+  <div class="code"><pre><span class="k">services</span>:
+  <span class="k">app-dev</span>:
+    <span class="k">labels</span>:
+      <span class="k">multiverse.host.app</span>: <span class="s">"4200"</span>              <span class="c"># app-u3.&lt;domain&gt; → 4200</span>
+      <span class="k">multiverse.host.api</span>: <span class="s">"8001"</span>
+      <span class="k">multiverse.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
+      <span class="k">multiverse.host.api.aliases</span>: app,adm     <span class="c"># same service, more names</span></pre></div>
+  <p><code>aliases</code> is how one API answers under each front-end's own hostname on a second entrypoint, which is what makes a hard-coded <code>:8001</code> work in every universe.</p>
+  <h3 id="host-none">With no labels at all</h3>
+  <p>A service exposing exactly one port is reached at the app's own name, so the common case needs nothing. Anything ambiguous is an error that names the label to add rather than a guess:</p>
+  <div class="code"><pre>api: services "web" and "worker" both expose a port — label the one that
+should answer: multiverse.host.api: "&lt;port&gt;"</pre></div>
+  <p>Hosts declared in the manifest's <code>hosts:</code> win over labels, and exist for repositories you cannot change.</p>
+</section>
+
+<section id="publish">
+  <h2 id="publish"><a href="#publish">Ports: <code>multiverse.publish</code></a></h2>
+  <div class="code"><pre><span class="k">services</span>:
+  <span class="k">db</span>:
+    <span class="k">labels</span>:
+      <span class="k">multiverse.publish</span>: <span class="s">"true"</span></pre></div>
+  <p>Keeps this service's published host ports instead of dropping them. Only one universe can hold a given host port at a time, so a service that asks for this is a service only one universe can run &mdash; usually worth it for a database you point a GUI at, rarely worth it for anything else. The manifest's <code>publish:</code> list does the same from outside.</p>
+</section>
+
+<section id="env">
+  <h2 id="env"><a href="#env">Values: <code>multiverse.env.*</code></a></h2>
+  <p>The label key names an environment variable, the value names what to put in it:</p>
+  <div class="code"><pre><span class="k">services</span>:
+  <span class="k">web</span>:
+    <span class="k">labels</span>:
+      <span class="k">multiverse.env.DJANGO_ALLOWED_HOSTS</span>: hosts
+      <span class="k">multiverse.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
+      <span class="k">multiverse.env.DJANGO_CORS_ALLOWED_ORIGINS</span>: origins
+      <span class="k">multiverse.env.API_BASE_URL</span>: url:devapi</pre></div>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Source</th><th scope="col">Value</th></tr></thead><tbody>
+  <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port: <code>http://api-u3.d,http://devapi-u3.d:8001,…</code></td></tr>
+  <tr><td data-l="Source"><code>hosts</code></td><td data-l="Value">Every hostname, comma separated.</td></tr>
+  <tr><td data-l="Source"><code>domain</code></td><td data-l="Value">The wildcard domain in use.</td></tr>
+  <tr><td data-l="Source"><code>universe</code></td><td data-l="Value">The universe's name, as it was typed.</td></tr>
+  <tr><td data-l="Source"><code>slug</code></td><td data-l="Value">The part its hostnames carry.</td></tr>
+  <tr><td data-l="Source"><code>host:&lt;key&gt;</code></td><td data-l="Value">One host key's hostname.</td></tr>
+  <tr><td data-l="Source"><code>url:&lt;key&gt;</code></td><td data-l="Value">One host key's whole address, port included.</td></tr>
+  </tbody></table></div>
+  <p>An unknown source fails the start, naming the valid ones. That is deliberate: a variable left quietly empty surfaces much later as a confusing runtime error, a long way from the label that caused it.</p>
+  <h3 id="env-precedence">It beats <code>env_file</code></h3>
+  <p>These land in the generated fragment, which is merged last, so they override both the service's own <code>environment:</code> and any <code>env_file:</code>. A static list of origins in a committed <code>.env</code> therefore stops being what the universe runs with &mdash; which is the usual reason CORS is wrong in a second copy of a stack.</p>
+  <p>Prefer <code>origins</code> and <code>hosts</code> over naming addresses one at a time: they follow the manifest, so adding a host key or an app does not leave a settings list behind to be found later.</p>
+</section>
+
+<section id="where">
+  <h2 id="where"><a href="#where">Where multiversectl reads them</a></h2>
+  <p>Labels are read from the merged configuration of the app's files, at two moments: when a universe is created, so <code>urls</code> and <code>ls</code> can answer without a running container, and again on every start, because the files may have changed since. Nothing is cached beyond the universe's state file.</p>
+  <p>This also means a label added to a repository takes effect on the next <code>up</code>, with no manifest change and no re-creation.</p>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../concepts/overlays.html"><span>Previous</span>Overlays and merge order</a>
+    <a class="next" href="../tasks/branches.html"><span>Next</span>Work across branches</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#why">Why labels</a></li>
+      <li><a href="#host">Addresses: multiverse.host.*</a></li>
+      <li><a href="#publish">Ports: multiverse.publish</a></li>
+      <li><a href="#env">Values: multiverse.env.*</a></li>
+      <li><a href="#where">Where multiversectl reads them</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>

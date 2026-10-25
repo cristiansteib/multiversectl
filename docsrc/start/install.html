@@ -1,0 +1,31 @@
+<section id="binary">
+  <h2 id="binary"><a href="#binary">Ready-made binaries</a></h2>
+    <div role="tablist" aria-label="Install method">
+    <button role="tab" id="t-curl" aria-selected="true" aria-controls="p-curl" type="button">curl | sh</button>
+    <button role="tab" id="t-mise" aria-selected="false" aria-controls="p-mise" tabindex="-1" type="button">mise</button>
+    <button role="tab" id="t-deb" aria-selected="false" aria-controls="p-deb" tabindex="-1" type="button">.deb</button>
+  </div>
+  <div role="tabpanel" id="p-curl" aria-labelledby="t-curl" tabindex="0"><div class="code"><pre><span class="p">$ </span>curl -fsSL https://raw.githubusercontent.com/cristiansteib/multiversectl/main/install.sh | sh
+<span class="c"># linux/darwin, amd64/arm64; set MULTIVERSECTL_VERSION to pin a release</span></pre></div></div>
+  <div role="tabpanel" id="p-mise" aria-labelledby="t-mise" tabindex="0" hidden><div class="code"><pre><span class="p">$ </span>mise use -g ubi:cristiansteib/multiversectl</pre></div></div>
+  <div role="tabpanel" id="p-deb" aria-labelledby="t-deb" tabindex="0" hidden><p class="muted">Download the <code>.deb</code> from the <a href="https://github.com/cristiansteib/multiversectl/releases">releases page</a>, then:</p><div class="code"><pre><span class="p">$ </span>sudo dpkg -i multiversectl_*.deb</pre></div></div>
+  <p>The script and the <code>.deb</code> also install a short alias, <code>mvctl</code>. Later: <code>multiversectl update</code> replaces the binary with the latest release.</p>
+</section>
+
+<section id="build">
+  <h2 id="build"><a href="#build">From source</a></h2>
+  <p>Go 1.27 or newer:</p>
+  <div class="code"><pre><span class="p">$ </span>git clone https://github.com/cristiansteib/multiversectl
+<span class="p">$ </span>cd multiversectl &amp;&amp; make install   <span class="c"># builds into ~/.local/bin</span></pre></div>
+  <p><code>make install</code> honours <code>PREFIX</code>, so <code>make install PREFIX=/usr/local/bin</code> puts it on the system path instead.</p>
+</section>
+
+<section id="needs">
+  <h2 id="needs"><a href="#needs">What it needs on the machine</a></h2>
+  <ul class="t">
+    <li>A container runtime with <code>docker compose</code> v2.</li>
+    <li><code>git</code>, new enough for <code>git worktree</code>.</li>
+    <li>Nothing else. multiversectl runs no daemon of its own; the only long-lived process it starts is the shared proxy, and that is a container.</li>
+  </ul>
+  <p><code>multiversectl doctor</code> checks all of it and names what is missing.</p>
+</section>

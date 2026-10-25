@@ -1,0 +1,17 @@
+# Build output
+/dist/
+/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Editors
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Scratch drafts kept in the working tree; not project content.
+/issue.reply*
+/*.draft

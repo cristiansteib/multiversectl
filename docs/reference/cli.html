@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Commands &middot; multiversectl</title>
+<meta name="description" content="Every command, what it does and the arguments it takes.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html">Start</a>
+      <a href="../concepts/universes.html">Concepts</a>
+      <a href="../tasks/branches.html">Tasks</a>
+      <a href="../reference/cli.html" aria-current="true">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html">Labels</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html" aria-current="page">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/workspace.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Reference</span>
+  </nav>
+  <h1>Commands</h1>
+  <p class="lede">Every command, what it does and the arguments it takes.</p>
+<section id="commands">
+  <h2 id="all"><a href="#all">Every command</a></h2>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col">Example</th></tr></thead>
+  <tbody>
+  <tr><td data-l="Command"><code>bootstrap &lt;manifest&gt;</code></td><td data-l="What it does">Set up a workspace: record it, clone its repos, run <code>doctor</code>. Takes a path or a git URL.</td><td data-l="Example"><code>multiversectl bootstrap ./multiverse.yaml --root ~/acme</code></td></tr>
+  <tr><td data-l="Command"><code>new &lt;number|name&gt;</code></td><td data-l="What it does">Create a universe: one worktree per repo, secrets and state. Alias <code>create</code>. A universe is numbered or named after a branch. <code>--branch</code> (repeatable) overrides the branch: a bare name for every repo, <code>repo=branch</code> for one. <code>--note</code> records why it exists.</td><td data-l="Example"><code>multiversectl new fix/login</code></td></tr>
+  <tr><td data-l="Command"><code>up &lt;universe&gt; [app ...]</code></td><td data-l="What it does">Start a universe, all apps or only those named. <code>--with</code> adds optional service groups. Alias <code>start</code>.</td><td data-l="Example"><code>multiversectl up 3 api --with workers</code></td></tr>
+  <tr><td data-l="Command"><code>down &lt;universe&gt; [app ...]</code></td><td data-l="What it does">Stop a universe; keeps data and checkouts. Alias <code>stop</code>.</td><td data-l="Example"><code>multiversectl down 3</code></td></tr>
+  <tr><td data-l="Command"><code>rm &lt;universe&gt;</code></td><td data-l="What it does">Destroy a universe: worktrees, containers, volumes and state. Asks first; <code>--yes</code> skips. Aliases <code>remove</code>, <code>destroy</code>.</td><td data-l="Example"><code>multiversectl rm 3 --yes</code></td></tr>
+  <tr><td data-l="Command"><code>ls</code></td><td data-l="What it does">List universes: a table per universe with a row per app — its branch, its worktree on disk, its service, host and URL — and a row for every repository checked out with no services of its own. <code>-o wide</code> swaps the addresses for every service of every app — what is on, what is off and why, and which host ports it publishes — followed by an <em>on disk</em> block naming each repository's worktree, runtime project and volumes. <code>-o list</code> is one line per universe. The three combine with commas. Alias <code>list</code>.</td><td data-l="Example"><code>multiversectl ls -o wide</code></td></tr>
+  <tr><td data-l="Command"><code>urls &lt;universe&gt;</code></td><td data-l="What it does">Print a universe's URLs, one per line.</td><td data-l="Example"><code>multiversectl urls 3</code></td></tr>
+  <tr><td data-l="Command"><code>doctor [N]</code></td><td data-l="What it does">Check the host, the workspace and optionally a universe; exits 1 on any failure.</td><td data-l="Example"><code>multiversectl doctor 3</code></td></tr>
+  <tr><td data-l="Command"><code>exec &lt;universe&gt; &lt;app&gt; -- &lt;cmd&gt;</code></td><td data-l="What it does">Run a command in a running container of a universe. <code>--service</code> picks one when the app has several. Streams straight to your terminal.</td><td data-l="Example"><code>multiversectl exec 3 api --service db -- psql -U postgres</code></td></tr>
+  <tr><td data-l="Command"><code>run &lt;universe&gt; &lt;app&gt; -- &lt;cmd&gt;</code></td><td data-l="What it does">Run a command in a fresh one-off container instead, for a task that should not need the service up — a migration, a shell on a stopped app.</td><td data-l="Example"><code>multiversectl run 3 api -- python manage.py migrate</code></td></tr>
+  <tr><td data-l="Command"><code>env &lt;universe&gt;</code></td><td data-l="What it does">Print a universe's environment as <code>export</code> lines for your shell.</td><td data-l="Example"><code>eval "$(multiversectl env 3)"</code></td></tr>
+  <tr><td data-l="Command"><code>proxy up|down|status</code></td><td data-l="What it does">Start, stop, or inspect the shared proxy and its network. Universes keep their data when it stops.</td><td data-l="Example"><code>multiversectl proxy status</code></td></tr>
+  <tr><td data-l="Command"><code>update</code></td><td data-l="What it does">Replace this binary with the latest release.</td><td data-l="Example"><code>multiversectl update</code></td></tr>
+  <tr><td data-l="Command"><code>version</code></td><td data-l="What it does">Print version, commit, build date and Go version.</td><td data-l="Example"><code>multiversectl version</code></td></tr>
+  </tbody></table></div>
+  <p>Global flags: <code>-f, --manifest</code> path to the manifest; <code>--root</code> workspace root (default <code>$MULTIVERSECTL_ROOT</code>, the manifest's <code>spec.root</code>, the saved config, or the manifest's directory); <code>--no-color</code>; <code>-v, --verbose</code> shows the commands being run. <code>&lt;universe&gt;</code> is a positive integer.</p>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../tasks/services.html"><span>Previous</span>Control which services run</a>
+    <a class="next" href="../reference/manifest.html"><span>Next</span>Manifest</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#all">Every command</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>

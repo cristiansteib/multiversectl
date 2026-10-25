@@ -1,0 +1,36 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "timezone": "America/Argentina/Buenos_Aires",
+  "schedule": ["* 2-6 * * 1"],
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 0,
+  "postUpdateOptions": ["gomodTidy"],
+  "semanticCommitType": "fix",
+  "platformAutomerge": true,
+  "automergeStrategy": "squash",
+  "packageRules": [
+    {
+      "description": "Dependency and action updates land on their own once CI is green.",
+      "matchManagers": ["gomod", "github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin"],
+      "automerge": true
+    },
+    {
+      "description": "A major bump is a decision, not a chore: it waits for a human.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "The Go toolchain itself changes the build; review it.",
+      "matchDepNames": ["go", "golang"],
+      "automerge": false
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "schedule": ["* 2-6 * * 1"]
+  }
+}

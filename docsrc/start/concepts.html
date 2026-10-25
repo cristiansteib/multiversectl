@@ -1,0 +1,31 @@
+<section id="words">
+  <h2 id="words"><a href="#words">Five words</a></h2>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Word</th><th scope="col">What it means</th></tr></thead><tbody>
+  <tr><td data-l="Word"><strong>Workspace</strong></td><td data-l="Meaning">One project, described by one <code>multiverse.yaml</code>: the repositories it is made of, the apps that run them, and how a copy of it is addressed. One per project, kept wherever you like and used from anywhere with <code>-f</code>.</td></tr>
+  <tr><td data-l="Word"><strong>Universe</strong></td><td data-l="Meaning">One complete copy of that workspace: a git worktree of every repository, one runtime project per app, and its own set of hostnames. Numbered (<code>3</code>) or named after a branch (<code>fix/login</code>).</td></tr>
+  <tr><td data-l="Word"><strong>App</strong></td><td data-l="Meaning">A runnable unit inside a universe: one repository's compose files, started as their own project. A repository usually has exactly one, and does not have to say so.</td></tr>
+  <tr><td data-l="Word"><strong>Host</strong></td><td data-l="Meaning">One address an app answers on, named by a key: host <code>api</code> in universe 3 is <code>api-u3.&lt;domain&gt;</code>. A host knows which service and container port serve it.</td></tr>
+  <tr><td data-l="Word"><strong>Entrypoint</strong></td><td data-l="Meaning">A port the shared proxy listens on, named. Every universe shares them, because requests are told apart by hostname rather than by port.</td></tr>
+  </tbody></table></div>
+</section>
+
+<section id="shape">
+  <h2 id="shape"><a href="#shape">How they nest</a></h2>
+  <div class="code"><pre><span class="c">workspace "acme"            multiverse.yaml</span>
+├── universe 3               <span class="c">~/acme/universes/3</span>
+│   ├── app api              <span class="c">project acme-u3-api</span>
+│   │   ├── service web      <span class="c">host api  → api-u3.example.test</span>
+│   │   └── service db       <span class="c">no host; reachable inside the app</span>
+│   └── app web              <span class="c">project acme-u3-web</span>
+│       └── service app-dev  <span class="c">host app  → app-u3.example.test</span>
+└── universe fix/login       <span class="c">~/acme/universes/fix-login</span>
+    └── ...                  <span class="c">the same shape, its own everything</span></pre></div>
+  <p>Each level namespaces the one below it. The workspace name prefixes every runtime project, the universe adds its own part, and the app adds a third, so a container is <code>acme-u3-api-web-1</code> and two repositories can both call a service <code>app</code> without meeting.</p>
+</section>
+
+<section id="not-vm">
+  <h2 id="not-vm"><a href="#not-vm">It is not a virtual machine</a></h2>
+  <p>A universe is a namespace, not a sandbox. It shares the machine's kernel, its container runtime, its image cache and its git object store &mdash; which is why a new one costs seconds rather than minutes, and why the second one does not double your disk use. What it does not share is the four things that actually collide: checkouts, container names, volumes and hostnames.</p>
+  <p>Two consequences worth knowing. A universe is not isolated for security purposes: anything running in one can reach the others' containers over the proxy network. And a universe is not reproducible the way an image is &mdash; it is your machine, with your daemon and your caches.</p>
+</section>

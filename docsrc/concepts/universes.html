@@ -1,0 +1,65 @@
+<section id="made-of">
+  <h2 id="made-of"><a href="#made-of">What a universe is made of</a></h2>
+  <p>Creating one is four things on disk and nothing else:</p>
+  <ul class="t">
+    <li><strong>A worktree of every repository</strong>, under <code>&lt;root&gt;/universes/&lt;id&gt;/&lt;repo&gt;</code>, checked out on the universe's branch. They are real directories you edit with your own editor and your own git.</li>
+    <li><strong>A runtime project per app</strong>, named <code>&lt;workspace&gt;-&lt;slug&gt;-&lt;app&gt;</code>, which is what namespaces containers, networks and volumes.</li>
+    <li><strong>A set of hostnames</strong>, one per host key, resolved when the universe is created and refreshed on every start.</li>
+    <li><strong>A state file</strong>, <code>universe.yaml</code>, holding all of the above plus when it was created, when it last started and why it exists.</li>
+  </ul>
+  <p>Nothing is copied that git already has: every worktree shares the clone's object store, so ten universes of a large repository cost ten checkouts, not ten histories.</p>
+</section>
+
+<section id="naming">
+  <h2 id="naming"><a href="#naming">Numbered or named</a></h2>
+  <div class="code"><pre><span class="p">$ </span>multiversectl new 3           <span class="c"># branch u3, hostnames api-u3.&lt;domain&gt;</span>
+<span class="p">$ </span>multiversectl new fix/login   <span class="c"># branch fix/login, api-fix-login.&lt;domain&gt;</span></pre></div>
+  <p>A universe is identified by the name you typed. Everything else about its identity is derived from it, so there is one place to look:</p>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Derived</th><th scope="col"><code>3</code></th><th scope="col"><code>fix/login</code></th></tr></thead><tbody>
+  <tr><td data-l="Derived">Directory</td><td data-l="3"><code>universes/3</code></td><td data-l="fix/login"><code>universes/fix-login</code></td></tr>
+  <tr><td data-l="Derived">Slug, in hostnames and projects</td><td data-l="3"><code>u3</code></td><td data-l="fix/login"><code>fix-login</code></td></tr>
+  <tr><td data-l="Derived">Default branch</td><td data-l="3"><code>spec.branch</code>, <code>u3</code> by default</td><td data-l="fix/login">the name itself</td></tr>
+  </tbody></table></div>
+  <p>The slug is the name reduced to what DNS labels and runtime project names both accept, so <code>feat/ARCA-123</code> is reachable at <code>api-feat-arca-123.&lt;domain&gt;</code> while the branch keeps its real name. A name whose slug would not fit in a DNS label is refused, with the limit named, rather than truncated into a collision with another universe.</p>
+  <p>Every command takes whichever of the three you happen to be looking at &mdash; the name, the directory or the slug &mdash; because all three are in front of you at different moments. <code>up fix/login</code>, <code>up fix-login</code>, <code>up 3</code> and <code>up u3</code> all find their universe, and an unknown name lists the ones that exist.</p>
+</section>
+
+<section id="branches">
+  <h2 id="branches"><a href="#branches">Branches</a></h2>
+  <p>A universe checks out one branch per repository. Unless you say otherwise, a named universe uses its own name and a numbered one renders <code>spec.branch</code>:</p>
+  <div class="code"><pre><span class="k">spec</span>:
+  <span class="k">branch</span>: dev/u{{universe}}   <span class="c"># default: u{{universe}}</span></pre></div>
+  <p><code>--branch</code> overrides it, repeatably: a bare name is every repository, <code>repo=branch</code> is one of them.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl new 2 --branch feat/invoicing --branch web=main</pre></div>
+  <p>A branch that already exists locally is checked out as it is; one that exists only on the remote is checked out tracking it; one that does not exist yet is created from the remote's default branch, not the clone's own copy of it, so a universe never starts on code that is behind without saying so.</p>
+  <p class="muted">Removing a universe removes its worktrees but keeps the branches &mdash; uncommitted work is lost, committed work is not. Re-creating a universe of the same name therefore reuses the branch you already have.</p>
+</section>
+
+<section id="metadata">
+  <h2 id="metadata"><a href="#metadata">What a universe remembers</a></h2>
+  <p>A universe that has been sitting there for a week should still be identifiable, so its state file keeps more than the routing:</p>
+  <div class="code"><pre><span class="c"># ~/acme/universes/fix-login/universe.yaml</span>
+<span class="k">name</span>: fix/login
+<span class="k">id</span>: fix-login
+<span class="k">slug</span>: fix-login
+<span class="k">created</span>: 2026-10-25T10:44:09Z
+<span class="k">lastStarted</span>: 2026-10-25T10:46:11Z
+<span class="k">note</span>: PR 412 review
+<span class="k">manifest</span>: /home/me/work/acme/multiverse.yaml
+<span class="k">version</span>: 0.0.1</pre></div>
+  <p>Set the note when you create it, and <code>ls</code> shows it beside the name:</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl new fix/login --note <span class="s">"PR 412 review"</span></pre></div>
+  <p><code>ls -o wide</code> adds the ages &mdash; <code>created 3d ago · last started 2h ago</code> &mdash; which is usually how you decide which universe to reclaim.</p>
+</section>
+
+<section id="lifecycle">
+  <h2 id="lifecycle"><a href="#lifecycle">Lifecycle</a></h2>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Command</th><th scope="col">What changes</th></tr></thead><tbody>
+  <tr><td data-l="Command"><code>new</code></td><td data-l="Effect">Worktrees, secrets, state. Nothing starts. Safe to run again: existing checkouts are kept, and a repository added to the manifest since is added to the universe.</td></tr>
+  <tr><td data-l="Command"><code>up</code></td><td data-l="Effect">Brings up the shared proxy, regenerates the routing, starts each app. Idempotent.</td></tr>
+  <tr><td data-l="Command"><code>down</code></td><td data-l="Effect">Stops containers. Volumes and checkouts stay, so starting again is where you left off.</td></tr>
+  <tr><td data-l="Command"><code>rm</code></td><td data-l="Effect">Destroys containers, volumes, worktrees and state. Asks first, and requires the universe's name typed back.</td></tr>
+  </tbody></table></div>
+</section>

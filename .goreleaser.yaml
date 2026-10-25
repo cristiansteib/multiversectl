@@ -1,0 +1,61 @@
+version: 2
+
+project_name: multiversectl
+
+builds:
+  - id: multiversectl
+    main: ./cmd/multiversectl
+    binary: multiversectl
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - id: tarball
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+
+  # Raw binary release assets named multiversectl_<os>_<arch> (no version).
+  # The tool's own `update` command downloads exactly this name; do not change it.
+  - id: raw
+    formats: [binary]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - id: deb
+    package_name: multiversectl
+    formats: [deb]
+    maintainer: "Cristian Steib <cristiansteib@gmail.com>"
+    description: Manage numbered local development environments side by side.
+    homepage: https://github.com/cristiansteib/multiversectl
+    license: Apache-2.0
+    section: utils
+    bindir: /usr/bin
+    contents:
+      - src: /usr/bin/multiversectl
+        dst: /usr/bin/mvctl
+        type: symlink
+
+release:
+  mode: append
+  # A tag can be pushed again at the same version — after a history rewrite,
+  # or when a release is re-run. Replacing the artifacts makes that idempotent
+  # instead of failing on "asset already exists".
+  replace_existing_artifacts: true
+
+# semantic-release writes the release notes from the commits, so GoReleaser
+# only attaches artifacts to the release it already created.
+changelog:
+  disable: true

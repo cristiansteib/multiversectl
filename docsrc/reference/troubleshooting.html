@@ -1,0 +1,37 @@
+<section id="ts-dns">
+  <h2 id="ts-dns"><a href="#ts-dns">Hostnames do not resolve</a></h2>
+  <p><code>doctor</code> warns: <em>does not resolve; a router or local DNS server may be stripping private-IP answers</em>. Some routers and resolvers drop DNS answers that point to private addresses. Compare your resolver with a public one:</p>
+  <div class="code"><pre><span class="p">$ </span>dig +short app-u3.192-168-1-20.traefik.me
+<span class="p">$ </span>dig +short app-u3.192-168-1-20.traefik.me @1.1.1.1</pre></div>
+  <p>Empty from the first and an address from the second means your resolver strips it. Allow private answers for that domain (often called DNS rebinding protection), point the device at another resolver, or use <a href="../tasks/reach.html#hw-domain">a domain you own</a>.</p>
+</section>
+
+<section id="ts-ports">
+  <h2 id="ts-ports"><a href="#ts-ports">Port 80 or 8001 is already in use</a></h2>
+  <p><code>doctor</code> fails with <em>entrypoint web needs port 80, which is taken by another process</em> when the proxy is not running yet. Find the owner and stop it:</p>
+  <div class="code"><pre><span class="p">$ </span>ss -ltnp 'sport = :80'
+<span class="p">$ </span>multiversectl doctor</pre></div>
+  <p>Or move the entrypoint in the manifest (<code>spec.proxy.entrypoints</code>); <code>urls</code> then prints the port.</p>
+</section>
+
+<section id="ts-secret">
+  <h2 id="ts-secret"><a href="#ts-secret">A secret file is missing</a></h2>
+  <p><code>new</code> warns, and <code>doctor 3</code> fails with <em>secret &lt;app&gt;: missing &lt;path&gt;</em>. Secrets listed under an app's <code>secrets:</code> are copied from the shared clone into each universe. Put the file in the clone, then run <code>new</code> again (existing checkouts are kept):</p>
+  <div class="code"><pre><span class="p">$ </span>cp .env ~/acme/api/.env
+<span class="p">$ </span>multiversectl new 3
+<span class="p">$ </span>multiversectl doctor 3</pre></div>
+</section>
+
+<section id="ts-403">
+  <h2 id="ts-403"><a href="#ts-403">A dev server answers 403</a></h2>
+  <p>Many dev servers reject Host headers they do not know, and a universe answers on <code>app-u3.&lt;domain&gt;</code>. Allow the hostname, using the variable the manifest passes in, through an inline overlay (the environment variable is whatever your server reads):</p>
+  <div class="code"><pre><span class="k">apps</span>:
+  - <span class="k">name</span>: web
+    <span class="k">repo</span>: web
+    <span class="k">overlay</span>:
+      <span class="k">services</span>:
+        <span class="k">app-dev</span>:
+          <span class="k">environment</span>:
+            ALLOWED_HOSTS: "${APP_HOST}"</pre></div>
+  <p class="muted">Also check that the hostname is the one <code>multiversectl urls 3</code> prints, and that the service has the label or the single port that routes it.</p>
+</section>

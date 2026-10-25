@@ -1,0 +1,15 @@
+# The admin app has no compose file of its own, so the overlay is the whole
+# definition. multiversectl adds the routing and the proxy network.
+services:
+  app-dev:
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "[ -x node_modules/.bin/dev ] || npm ci; exec npm start -- --host 0.0.0.0"
+    volumes:
+      - ${ADMIN_DIR}:/app
+      - node_modules:/app/node_modules
+    stdin_open: true
+    tty: true
+
+volumes:
+  node_modules:

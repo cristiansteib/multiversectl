@@ -1,0 +1,53 @@
+<section id="hw-labels">
+  <h2 id="hw-labels"><a href="#hw-labels">Let a service declare its own hostname</a></h2>
+  <p>Put a label on the service in its own compose file. The key names the host, the value is the container port:</p>
+  <div class="code"><pre><span class="k">services</span>:
+  <span class="k">app-dev</span>:
+    <span class="k">labels</span>:
+      <span class="k">multiverse.host.app</span>: "4200"   <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span></pre></div>
+  <p>With no labels at all, a service that exposes exactly one port is already reached at the app's own name. See <a href="../concepts/labels.html">Labels and variables</a> for entrypoints and aliases.</p>
+</section>
+
+<section id="hw-publish">
+  <h2 id="hw-publish"><a href="#hw-publish">Keep a service's published port</a></h2>
+  <p>Universes drop every published host port, so two copies never collide. A service that genuinely needs one asks to keep it:</p>
+  <div class="code"><pre><span class="k">services</span>:
+  <span class="k">db</span>:
+    <span class="k">ports</span>: ["5432:5432"]
+    <span class="k">labels</span>:
+      <span class="k">multiverse.publish</span>: "true"</pre></div>
+  <p class="muted">Or, without touching the repository, list it in the manifest: <code>publish: [db]</code> on the app. Only one universe can hold that host port at a time.</p>
+</section>
+
+<section id="hw-optional">
+  <h2 id="hw-optional"><a href="#hw-optional">Run optional services on demand</a></h2>
+  <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
+<span class="k">optional</span>:
+  - <span class="k">name</span>: celery
+    <span class="k">services</span>: [worker, beat]</pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl up 3 api --with celery</pre></div>
+  <p class="muted">The group name is also activated as a compose profile. Comma-separate several: <code>--with celery,mail</code>.</p>
+</section>
+
+<section id="hw-dynamic">
+  <h2 id="hw-dynamic"><a href="#hw-dynamic">Configure what depends on the universe</a></h2>
+  <p>A universe's hostnames do not exist until it does, so anything built from them — trusted origins, allowed hosts, CORS, a front-end's API base URL — is asked for with a label on the service that needs it:</p>
+  <div class="code"><pre><span class="k">services</span>:
+  <span class="k">web</span>:
+    <span class="k">labels</span>:
+      <span class="k">multiverse.env.DJANGO_ALLOWED_HOSTS</span>: hosts
+      <span class="k">multiverse.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
+      <span class="k">multiverse.env.API_BASE_URL</span>: url:devapi</pre></div>
+  <p>The sources are <code>origins</code> (every address as an origin, each with its entrypoint's port), <code>hosts</code>, <code>domain</code>, <code>universe</code>, <code>slug</code>, <code>host:&lt;key&gt;</code> and <code>url:&lt;key&gt;</code>. An unknown one is an error naming the valid ones, never a variable that is quietly empty. They are written into the fragment generated for the app, which is merged last, so they win over the service's own <code>environment:</code> and over any <code>env_file:</code> — which is how a static list in a committed <code>.env</code> stops being what the universe runs with.</p>
+  <p>It is a label rather than a <code>${MULTIVERSE_ORIGINS}</code> reference because a compose file is also run by hand: the reference would resolve to the empty string when multiversectl is not driving, while a label is inert metadata until it is. For a repository you cannot change, an app's inline <code>overlay:</code> does the same from the manifest:</p>
+  <div class="code"><pre><span class="k">apps</span>:
+  - <span class="k">name</span>: api
+    <span class="k">repo</span>: api
+    <span class="k">overlay</span>:
+      <span class="k">services</span>:
+        <span class="k">web</span>:
+          <span class="k">environment</span>:
+            <span class="k">DJANGO_CSRF_TRUSTED_ORIGINS</span>: <span class="s">"${MULTIVERSE_ORIGINS}"</span>
+            <span class="k">DJANGO_ALLOWED_HOSTS</span>: <span class="s">"${MULTIVERSE_HOSTS}"</span></pre></div>
+  <p class="muted">Prefer the aggregates to listing hostnames one at a time: they follow the manifest, so adding a host key or an app leaves no settings list behind. There is also <code>&lt;HOST&gt;_HOST</code> and <code>&lt;HOST&gt;_URL</code> per host key, <code>&lt;REPO&gt;_DIR</code> per checkout, and <code>UNIVERSE</code>, <code>UNIVERSE_SLUG</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, <code>COMPOSE_PROJECT_NAME</code>, <code>HOST_UID</code>, <code>HOST_GID</code>. <code>multiversectl env &lt;universe&gt;</code> prints the lot.</p>
+</section>

@@ -1,0 +1,27 @@
+<header class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <h1>multiverse<span>ctl</span></h1>
+      <p class="lead">Run your whole multi-repository stack as many times as you need, side by side, on one machine. Every copy gets its own branch, its own containers and its own hostnames.</p>
+      <p class="cta">
+        <a class="btn btn-1" href="start/install.html">Install</a>
+        <a class="btn btn-2" href="start/quickstart.html">Quick start</a>
+        <a class="plain" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+      </p>
+      <p class="fineprint">Apache 2.0. One binary for Linux and macOS, no daemon of its own.</p>
+    </div>
+    <div class="term">
+      <div class="term-bar"><i></i><i></i><i></i><span>two universes, one machine</span></div>
+<pre><span class="pr">$</span> multiversectl ls
+<span class="u">universe 1</span><span class="d">  ·  acme-u1  ·  </span><span class="g">5 running</span>
+<span class="rule"></span><span class="d">APP  BRANCH      URL</span>
+api  <span class="u">feat/login</span>  <span class="a">http://api-u1.10-0-0-5.traefik.me</span>
+web  <span class="u">feat/login</span>  <span class="a">http://app-u1.10-0-0-5.traefik.me</span>
+
+<span class="u">universe 2</span><span class="d">  ·  acme-u2  ·  </span><span class="g">5 running</span>
+<span class="rule"></span><span class="d">APP  BRANCH      URL</span>
+api  <span class="u">main</span>        <span class="a">http://api-u2.10-0-0-5.traefik.me</span>
+web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.traefik.me</span></pre>
+    </div>
+  </div>
+</header>

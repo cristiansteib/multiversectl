@@ -1,0 +1,578 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/cristiansteib/multiversectl/internal/app"
+)
+
+// parseBranches reads repeated --branch flags. A bare name is the branch for
+// every repository, which is the common case — one feature spans them all —
+// and repo=branch overrides a single one.
+func parseBranches(values []string) (all string, byRepo map[string]string, err error) {
+	byRepo = map[string]string{}
+	for _, value := range values {
+		repo, branch, ok := strings.Cut(value, "=")
+		switch {
+		case !ok && repo != "":
+			all = repo
+		case repo == "" || branch == "":
+			return "", nil, fmt.Errorf("--branch %q: want a branch name, or repo=branch to override one repository", value)
+		default:
+			byRepo[repo] = branch
+		}
+	}
+	return all, byRepo, nil
+}
+
+func (r runner) newCmd() *cobra.Command {
+	var branches []string
+	var note string
+	cmd := &cobra.Command{
+		Use:     "new <number|name>",
+		Aliases: []string{"create"},
+		Short:   "Create a universe: one worktree per repo, secrets and state",
+		Example: "  multiversectl new 3\n" +
+			"  multiversectl new fix/login                   # named after the branch it checks out\n" +
+			"  multiversectl new 3 --branch feat/invoicing\n" +
+			"  multiversectl new 3 --branch feat/invoicing --branch web=main",
+		Args: cobra.ExactArgs(1),
+	}
+	cmd.Flags().StringArrayVar(&branches, "branch", nil,
+		"branch to check out in every repo, or repo=branch for one of them (repeatable)")
+	cmd.Flags().StringVar(&note, "note", "", "why this universe exists, kept with it and shown by ls")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		all, byRepo, err := parseBranches(branches)
+		if err != nil {
+			return err
+		}
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			st, err := s.Create(ctx, app.CreateInput{
+				Name: args[0], Branch: all, Branches: byRepo, Note: note,
+			})
+			if err != nil {
+				return err
+			}
+			s.Out.OK("universe %s ready (%s)", st.Name, st.Project)
+			return nil
+		})(cmd, args)
+	}
+	return cmd
+}
+
+func (r runner) upCmd() *cobra.Command {
+	var with []string
+	cmd := &cobra.Command{
+		Use:     "up <universe> [app ...]",
+		Aliases: []string{"start"},
+		Short:   "Start a universe (all apps, or only those named)",
+		Example: "  multiversectl up 3\n  multiversectl up fix/login api --with workers",
+		Args:    cobra.MinimumNArgs(1),
+	}
+	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with})
+		})(cmd, args)
+	}
+	return cmd
+}
+
+func (r runner) downCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "down <universe> [app ...]",
+		Aliases: []string{"stop"},
+		Short:   "Stop a universe (all apps, or only those named); keeps data and checkouts",
+		Example: "  multiversectl down 3\n  multiversectl down fix/login",
+		Args:    cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return r.withService(func(ctx context.Context, s *app.Service) error {
+				return s.Stop(ctx, app.StopInput{Universe: args[0], Apps: args[1:]})
+			})(cmd, args)
+		},
+	}
+}
+
+// lsFormat is what -o asked for. The shapes and the detail are separate
+// choices, so they combine: "table,wide" or "list,wide" or both shapes at
+// once.
+type lsFormat struct {
+	table bool
+	list  bool
+	wide  bool
+}
+
+// parseLsFormat reads a comma-separated -o value. "wide" on its own means the
+// default shape with more detail, which is what a user who types it expects.
+func parseLsFormat(spec string) (lsFormat, error) {
+	var f lsFormat
+	for _, token := range strings.Split(spec, ",") {
+		switch strings.TrimSpace(token) {
+		case "", "table":
+			f.table = true
+		case "list", "compact":
+			f.list = true
+		case "wide":
+			f.wide = true
+		default:
+			return f, fmt.Errorf("unknown output %q: want table, list or wide, combined with commas like table,wide", token)
+		}
+	}
+	if !f.table && !f.list {
+		f.table = true
+	}
+	return f, nil
+}
+
+func (r runner) lsCmd() *cobra.Command {
+	var format string
+	cmd := &cobra.Command{
+		Use:     "ls",
+		Aliases: []string{"list"},
+		Short:   "List universes",
+		Example: "  multiversectl ls\n" +
+			"  multiversectl ls -o wide        # every service, its state and its volumes\n" +
+			"  multiversectl ls -o list        # one line per universe\n" +
+			"  multiversectl ls -o list,wide",
+		Args: cobra.NoArgs,
+	}
+	cmd.Flags().StringVarP(&format, "output", "o", "table",
+		"output: table, list, wide, or a combination such as table,wide")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		f, err := parseLsFormat(format)
+		if err != nil {
+			return err
+		}
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			list, err := s.List(ctx, app.ListOptions{Services: f.wide})
+			if err != nil {
+				return err
+			}
+			if len(list) == 0 {
+				s.Out.Info("no universes yet — create one with: multiversectl new 1")
+				return nil
+			}
+			if f.table {
+				lsTable(r.out, list, f.wide)
+			}
+			if f.list {
+				if f.table {
+					r.out.Plain("")
+				}
+				lsList(r.out, list, f.wide)
+			}
+			return nil
+		})(cmd, args)
+	}
+	return cmd
+}
+
+// lsList is one line per universe, for a quick look at what exists or for
+// piping into something else.
+func lsList(o *Output, list []app.Summary, wide bool) {
+	headers := []string{"UNIVERSE", "PROJECT", "RUNNING", "HOSTS", "BRANCHES"}
+	if wide {
+		headers = []string{"UNIVERSE", "PROJECT", "DIR", "CREATED", "RUNNING", "SERVICES", "VOLUMES", "HOSTS", "BRANCHES"}
+	}
+	rows := make([][]string, 0, len(list))
+	for _, u := range list {
+		row := []string{u.Name, u.Project}
+		if wide {
+			row = append(row, shortPath(u.Dir), age(u.Created))
+		}
+		row = append(row, fmt.Sprint(u.Running))
+		if wide {
+			up, expected, volumes := totals(u)
+			row = append(row, fmt.Sprintf("%d/%d", up, expected), fmt.Sprint(volumes))
+		}
+		row = append(row, strings.Join(sortedValues(u.Hosts), ","), joinPairs(u.Branches))
+		rows = append(rows, row)
+	}
+	o.Table(headers, rows)
+}
+
+// totals add up a universe's services and volumes across its apps.
+func totals(u app.Summary) (up, expected, volumes int) {
+	for _, a := range u.Apps {
+		for _, svc := range a.Services {
+			if svc.Up() {
+				up++
+			}
+		}
+		expected += a.Expected
+		volumes += len(a.Volumes)
+	}
+	return up, expected, volumes
+}
+
+// lsTable is the default: one block per universe, with a row per address so
+// each app's branch, service and URL are readable rather than crammed into a
+// single cell. Wide trades the addresses for every service of every app, and
+// names the volumes underneath.
+func lsTable(o *Output, list []app.Summary, wide bool) {
+	headers := []string{"APP", "BRANCH", "RUNNING", "SERVICE", "HOST", "URL", "PATH"}
+	rows := universeRows
+	if wide {
+		headers = []string{"APP", "BRANCH", "SERVICE", "STATE", "PUBLISHED", "HOST", "URL"}
+		rows = universeWideRows
+	}
+	for i, u := range list {
+		if i > 0 {
+			o.Plain("")
+		}
+		o.Block(universeTitle(o, u), headers, rows(u))
+		if wide {
+			o.Plain("%s", o.Dim(metaLine(u)))
+			o.Plain("")
+			o.Block(o.Dim("on disk"),
+				[]string{"REPO", "WORKTREE", "PROJECT", "VOLUMES"}, diskRows(u))
+		}
+	}
+}
+
+// diskRows is what a universe owns on disk: one row per repository, with the
+// worktree its code is in and, for the ones that run something, the runtime
+// project and the volumes under it. Every name carrying the universe's own
+// prefix is the evidence that this universe shares nothing with another.
+func diskRows(u app.Summary) [][]Cell {
+	byRepo := map[string]app.AppSummary{}
+	for _, a := range u.Apps {
+		byRepo[a.Repo] = a
+	}
+	rows := make([][]Cell, 0, len(u.Checkouts))
+	for _, c := range u.Checkouts {
+		row := []Cell{
+			{Text: c.Repo, Style: bold},
+			{Text: shortPath(c.Path), Style: dim},
+		}
+		a, runs := byRepo[c.Repo]
+		switch {
+		case !runs:
+			row = append(row, Cell{Text: "-", Style: dim}, Cell{Text: "-", Style: dim})
+		case len(a.Volumes) == 0:
+			row = append(row, Cell{Text: a.Project}, Cell{Text: "none", Style: dim})
+		default:
+			row = append(row, Cell{Text: a.Project}, Cell{Text: strings.Join(a.Volumes, ", ")})
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// universeTitle heads a universe's block: which universe, why it exists if
+// anyone said, its runtime project, whether anything is up, and the domain its
+// hostnames sit under.
+func universeTitle(o *Output, u app.Summary) string {
+	state := o.Green(fmt.Sprintf("%d running", u.Running))
+	if u.Running == 0 {
+		state = o.Yellow("stopped")
+	}
+	parts := []string{o.paint(bold+cyan, "universe "+u.Name)}
+	if u.Note != "" {
+		parts = append(parts, o.Yellow(truncate(u.Note, 48)))
+	}
+	parts = append(parts, o.Dim(u.Project), state, o.Dim(u.Domain))
+	return strings.Join(parts, o.Dim("  ·  "))
+}
+
+// metaLine is what nothing else in the table says: how old the universe is,
+// when it last ran, and what made it. Only the wide shape has room for it.
+func metaLine(u app.Summary) string {
+	parts := []string{"created " + age(u.Created)}
+	if u.LastStarted.IsZero() {
+		parts = append(parts, "never started")
+	} else {
+		parts = append(parts, "last started "+age(u.LastStarted))
+	}
+	return strings.Join(parts, "  ·  ")
+}
+
+// age reads as a glance rather than a timestamp: what matters about a universe
+// is whether it is from this morning or from last month.
+func age(t time.Time) string {
+	if t.IsZero() {
+		return "unknown"
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n-1] + "…"
+}
+
+// universeRows is one row per address, each column in its own colour so a row
+// can be read across at a glance.
+//
+// The app's name is repeated on every row of its group rather than left
+// blank: a blank cell says which app a row belongs to by absence, which is
+// the weakest signal there is, and it drops out of `grep`. Bold on the row
+// the group starts at and dim after it marks the seam between groups without
+// spending a colour.
+func universeRows(u app.Summary) [][]Cell {
+	rows := make([][]Cell, 0, len(u.Apps)+1)
+	for _, a := range u.Apps {
+		head := []Cell{
+			{Text: a.Key, Style: bold},
+			{Text: a.Branch, Style: yellow},
+			{Text: fmt.Sprint(a.Running), Style: runningStyle(a.Running)},
+		}
+		path := Cell{Text: shortPath(a.Path), Style: dim}
+		if len(a.URLs) == 0 {
+			rows = append(rows, append(head, dashes(3)[0], dashes(3)[1], dashes(3)[2], path))
+			continue
+		}
+		for _, h := range a.URLs {
+			rows = append(rows, append(head,
+				Cell{Text: h.Service, Style: dim},
+				Cell{Text: h.Host, Style: cyan},
+				// The URL is what gets copied, so it stays in the terminal's
+				// own foreground rather than a colour that may be dim.
+				Cell{Text: h.URL},
+				path,
+			))
+			head, path = continuation(a.Key, 2), Cell{}
+		}
+	}
+	return append(rows, checkoutRows(u, false)...)
+}
+
+// continuation is the head of a row that belongs to the group above it: the
+// app named again, quietly, and the columns describing its checkout left
+// blank, since they were stated once and have not changed.
+func continuation(appKey string, blanks int) []Cell {
+	head := append([]Cell{{Text: appKey, Style: dim}}, make([]Cell, blanks)...)
+	return head
+}
+
+// universeWideRows is one row per service of every app, so the reader can see
+// what is on, what is off and what nothing has ever started — and that no
+// service publishes a host port it was not allowed to.
+func universeWideRows(u app.Summary) [][]Cell {
+	rows := make([][]Cell, 0, len(u.Apps)*4)
+	for _, a := range u.Apps {
+		byService := map[string][]app.HostURL{}
+		for _, h := range a.URLs {
+			byService[h.Service] = append(byService[h.Service], h)
+		}
+		if len(rows) > 0 {
+			// Groups here run to a dozen services, so they are set apart by a
+			// blank line as well as by weight.
+			rows = append(rows, nil)
+		}
+		head := []Cell{
+			{Text: a.Key, Style: bold},
+			{Text: a.Branch, Style: yellow},
+		}
+		if len(a.Services) == 0 {
+			rows = append(rows, append(head,
+				Cell{Text: "-", Style: dim},
+				Cell{Text: "no services", Style: dim},
+				Cell{Text: "-", Style: dim},
+				Cell{Text: "-", Style: dim},
+				Cell{Text: "-", Style: dim},
+			))
+			continue
+		}
+		for _, svc := range a.Services {
+			row := []Cell{head[0], head[1],
+				{Text: svc.Name},
+				{Text: stateText(svc), Style: stateStyle(svc.State)},
+				{Text: publishedText(svc), Style: publishedStyle(svc)},
+			}
+			addrs := byService[svc.Name]
+			if len(addrs) == 0 {
+				rows = append(rows, append(row, Cell{Text: "-", Style: dim}, Cell{Text: "-", Style: dim}))
+			}
+			for i, h := range addrs {
+				if i > 0 {
+					row = append(continuation(a.Key, 1), make([]Cell, 3)...)
+				}
+				rows = append(rows, append(row, Cell{Text: h.Host, Style: cyan}, Cell{Text: h.URL}))
+			}
+			head = continuation(a.Key, 1)
+		}
+	}
+	if len(rows) > 0 && len(u.Checkouts) > len(u.Apps) {
+		rows = append(rows, nil)
+	}
+	return append(rows, checkoutRows(u, true)...)
+}
+
+// checkoutRows give every repository without an app a row of its own. A
+// repository with no services is still checked out for editing, and a table
+// that silently drops it reads as if the universe did not have it.
+func checkoutRows(u app.Summary, wide bool) [][]Cell {
+	var rows [][]Cell
+	for _, c := range u.Checkouts {
+		if c.App != "" {
+			continue
+		}
+		row := []Cell{
+			{Text: c.Repo, Style: dim},
+			{Text: c.Branch, Style: yellow},
+		}
+		// Both shapes end with the reason there is nothing to show, in the
+		// column that would hold the URL; the columns before it are dashed.
+		if wide {
+			row = append(row, dashes(4)...)
+		} else {
+			row = append(row, dashes(3)...)
+		}
+		row = append(row, Cell{Text: "checkout only, no services", Style: dim})
+		if !wide {
+			// Wide names every worktree in its own block instead.
+			row = append(row, Cell{Text: shortPath(c.Path), Style: dim})
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// shortPath writes a path under the home directory with a tilde, which is
+// both shorter in the table and what the reader would type.
+func shortPath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || path == "" {
+		return path
+	}
+	if rest, ok := strings.CutPrefix(path, home+string(os.PathSeparator)); ok {
+		return "~" + string(os.PathSeparator) + rest
+	}
+	return path
+}
+
+func dashes(n int) []Cell {
+	row := make([]Cell, n)
+	for i := range row {
+		row[i] = Cell{Text: "-", Style: dim}
+	}
+	return row
+}
+
+// stateText keeps the state to one scannable word, except where the detail is
+// the actionable part: the flag that would start an optional service.
+func stateText(svc app.ServiceStatus) string {
+	if svc.State == app.StateOptional {
+		return "off  " + svc.Detail
+	}
+	return string(svc.State)
+}
+
+func stateStyle(state app.ServiceState) string {
+	switch state {
+	case app.StateRunning:
+		return green
+	case app.StateStopped:
+		return red
+	case app.StateNotUp:
+		return yellow
+	default:
+		return dim
+	}
+}
+
+// publishedText shows a service's host ports. Empty is the healthy case — a
+// universe is reached through the proxy — so it is spelled out rather than
+// left blank.
+func publishedText(svc app.ServiceStatus) string {
+	if svc.State != app.StateRunning {
+		return "-"
+	}
+	if svc.Published == "" {
+		return "none"
+	}
+	return svc.Published
+}
+
+// publishedStyle marks a published port: it is the one thing here that stops
+// a second universe from starting.
+func publishedStyle(svc app.ServiceStatus) string {
+	if svc.State == app.StateRunning && svc.Published != "" {
+		return yellow
+	}
+	return dim
+}
+
+// runningStyle dims an app with nothing up, so the eye lands on the ones that
+// are serving.
+func runningStyle(n int) string {
+	if n == 0 {
+		return dim
+	}
+	return green
+}
+
+func (r runner) urlsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "urls <universe>",
+		Short:   "Print a universe's URLs, one per line",
+		Example: "  multiversectl urls 3\n  multiversectl urls fix/login",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return r.withService(func(ctx context.Context, s *app.Service) error {
+				st, err := s.Resolve(args[0])
+				if err != nil {
+					return err
+				}
+				for _, appKey := range sortedKeys(s.Manifest.Apps) {
+					for _, route := range s.Routes(st, appKey) {
+						if route.Hostname == "" {
+							continue
+						}
+						url := "http://" + route.Hostname
+						if port := s.Manifest.Proxy.Entrypoints[route.Entrypoint]; port != 0 && port != 80 {
+							url += fmt.Sprintf(":%d", port)
+						}
+						s.Out.Plain("%s", url)
+					}
+				}
+				return nil
+			})(cmd, args)
+		},
+	}
+}
+
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func sortedValues(m map[string]string) []string {
+	vals := make([]string, 0, len(m))
+	for _, k := range sortedKeys(m) {
+		vals = append(vals, m[k])
+	}
+	return vals
+}
+
+func joinPairs(m map[string]string) string {
+	pairs := make([]string, 0, len(m))
+	for _, k := range sortedKeys(m) {
+		pairs = append(pairs, k+"="+m[k])
+	}
+	return strings.Join(pairs, " ")
+}
