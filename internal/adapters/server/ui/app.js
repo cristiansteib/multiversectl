@@ -117,7 +117,7 @@ function overview(st) {
 
   out.push(h('h2', null, 'Workspaces'));
   if (!ws.length) {
-    out.push(empty('Nothing installed yet.', h('br'), cmd('multiversectl install <owner/repo>')));
+    out.push(empty('Nothing installed yet.', h('br'), cmd('multiversectl catalog install <owner/repo>')));
     return out;
   }
   out.push(h('div', { class: 'scroll' }, h('table', null,
@@ -169,7 +169,7 @@ views.catalog = {
       ];
       if (n.kind === 'workspace') {
         return h('li', { class: 'leaf' }, h('div', { class: 'node ws' }, label,
-          n.installedAs ? null : copyable('multiversectl install ' + n.path, 'install')));
+          n.installedAs ? null : copyable('multiversectl catalog install ' + n.path, 'install')));
       }
       const kids = (n.children || []).map(item).filter(Boolean);
       const d = h('details', { ontoggle: (e) => { e.target.open ? open.add(n.path) : open.delete(n.path); } },
@@ -261,7 +261,7 @@ views.fleet = {
     function draw() {
       if (!data) return;
       if (!data.workspaces.length) {
-        body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl install <owner/repo>')));
+        body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl catalog install <owner/repo>')));
         return;
       }
       body.replaceChildren(...data.workspaces.map((w) => {

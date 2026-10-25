@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -16,8 +17,7 @@ const (
 
 var commandGroups = map[string]string{
 	"init": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup,
-	"catalog": groupCatalog, "install": groupCatalog, "uninstall": groupCatalog,
-	"use": groupCatalog, "status": groupCatalog, "update": groupCatalog,
+	"catalog":  groupCatalog,
 	"universe": groupUniverse, "doctor": groupUniverse, "proxy": groupUniverse,
 }
 
@@ -51,6 +51,7 @@ func groupCommands(root *cobra.Command, g *Globals) {
 		}
 		return o.Bold(o.Yellow(title))
 	})
+	cobra.AddTemplateFunc("label", commandLabel)
 	root.SetUsageTemplate(usageTemplate)
 }
 
@@ -67,13 +68,13 @@ const usageTemplate = `{{heading "Usage:"}}{{if .Runnable}}
 {{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
 
 {{heading "Available Commands:"}}{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{command (rpad .Name .NamePadding)}} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+  {{command (label .)}} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
 
 {{groupTitle $group.ID $group.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
-  {{command (rpad .Name .NamePadding)}} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+  {{command (label .)}} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
 
 {{heading "Additional Commands:"}}{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
-  {{command (rpad .Name .NamePadding)}} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+  {{command (label .)}} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 {{heading "Flags:"}}
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
@@ -86,3 +87,21 @@ const usageTemplate = `{{heading "Usage:"}}{{if .Runnable}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
+
+// commandLabel is a command's name followed by its aliases, padded so the
+// descriptions in a list line up: "universe, u". Cobra shows aliases only on a
+// command's own page, which is the last place anyone looks for a shorter name.
+func commandLabel(c *cobra.Command) string {
+	label := func(c *cobra.Command) string {
+		return strings.Join(append([]string{c.Name()}, c.Aliases...), ", ")
+	}
+	width := 0
+	if p := c.Parent(); p != nil {
+		for _, s := range p.Commands() {
+			if s.IsAvailableCommand() || s.Name() == "help" {
+				width = max(width, len(label(s)))
+			}
+		}
+	}
+	return label(c) + strings.Repeat(" ", max(0, width-len(label(c))))
+}

@@ -45,7 +45,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 
 	s.checkRuntime(ctx, add)
 	if s.Manifest == nil {
-		add("manifest", StatusWarn, "no manifest loaded; multiversectl install <owner/repo>")
+		add("manifest", StatusWarn, "no manifest loaded; multiversectl catalog install <owner/repo>")
 	} else {
 		s.checkProxy(ctx, add)
 		s.checkWorkspaces(add)

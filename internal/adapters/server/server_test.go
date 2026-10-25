@@ -62,7 +62,7 @@ func get(t *testing.T, h http.Handler, method, target string, headers map[string
 
 func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 	f := &fake{
-		status:  app.StatusReport{Next: "multiversectl update acme", Workspaces: []app.WorkspaceStatus{{Name: "acme", Stale: true}}},
+		status:  app.StatusReport{Next: "multiversectl catalog update acme", Workspaces: []app.WorkspaceStatus{{Name: "acme", Stale: true}}},
 		catalog: catalogView{Root: nodeView{Name: "me", Kind: "catalog"}, Installs: 1},
 		fleet:   fleetView{Workspaces: []fleetWorkspace{{Name: "acme", Universes: []universeView{{Name: "1"}}}}},
 		ws:      workspaceView{Name: "acme"},
@@ -70,7 +70,7 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 	}
 	h := Handler(f, "v9", false)
 	for _, tt := range []struct{ path, want string }{
-		{"/api/overview", `"next":"multiversectl update acme"`},
+		{"/api/overview", `"next":"multiversectl catalog update acme"`},
 		{"/api/overview", `"version":"v9"`},
 		{"/api/catalog", `"installed":1`},
 		{"/api/fleet", `"name":"1"`},

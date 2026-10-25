@@ -61,7 +61,7 @@ func (c *Catalogs) PlanInstall(ctx context.Context, args []string, o InstallOpti
 	var found []found
 	if len(args) == 0 {
 		if root == nil {
-			return nil, firstErr(rootErr, errors.New("no root catalog to pick from: multiversectl install <owner/repo | url | path>, or multiversectl init"))
+			return nil, firstErr(rootErr, errors.New("no root catalog to pick from: multiversectl catalog install <owner/repo | url | path>, or multiversectl init"))
 		}
 		picked, err := c.pickLeaves(*root, cfg)
 		if err != nil {

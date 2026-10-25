@@ -47,7 +47,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 	for _, repoKey := range repoKeys {
 		clone := s.Manifest.CloneDir(s.Workspace, repoKey)
 		if !s.Files.Exists(clone) {
-			return domain.UniverseState{}, fmt.Errorf("clone %s: %w — run multiversectl update to clone it", clone, domain.ErrNotFound)
+			return domain.UniverseState{}, fmt.Errorf("clone %s: %w — run multiversectl catalog update to clone it", clone, domain.ErrNotFound)
 		}
 		branch := firstNonEmpty(in.Branches[repoKey], in.Branch, u.DefaultBranch())
 		dest := u.RepoDir(repoKey)

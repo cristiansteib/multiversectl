@@ -84,7 +84,7 @@
   <h2 id="why"><a href="#why">What a catalog is for</a></h2>
   <p>A workspace manifest describes one project. A <strong>catalog</strong> answers a different question: which projects exist, and which of them should be on this machine. It is a file of pointers, so the manifests stay with the repositories they describe and nobody has to copy them.</p>
   <p>Catalogs nest. A personal catalog can link a catalog that a team keeps in its own repository, which can link another, and each layer is edited by whoever owns that repository. A machine installs only the branches of the tree it wants.</p>
-  <p>You do not need one to use a project. <code>multiversectl install acme/multiverse</code> works on a machine with no catalog at all; the catalog is for keeping your own index of what you work on.</p>
+  <p>You do not need one to use a project. <code>multiversectl catalog install acme/multiverse</code> works on a machine with no catalog at all; the catalog is for keeping your own index of what you work on.</p>
 </section>
 
 <section id="kinds">

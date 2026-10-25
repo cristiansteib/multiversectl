@@ -49,7 +49,7 @@ func TestStatusSaysWhereAWorkspaceHasDrifted(t *testing.T) {
 	if !w.Stale || !w.Current || !strings.Contains(notes, "manifest behind 2 (as of the last fetch)") || !strings.Contains(notes, "billing-api not cloned") {
 		t.Errorf("%+v", w)
 	}
-	if rep.Next != "multiversectl update acme" {
+	if rep.Next != "multiversectl catalog update acme" {
 		t.Errorf("next = %q", rep.Next)
 	}
 	if len(r.git.fetched) != 0 {
@@ -96,7 +96,7 @@ func TestStatusOnAFreshMachineSaysHowToBegin(t *testing.T) {
 	r := newRig(t, &fakeRepos{})
 	r.cfg.c = app.Config{}
 	rep, _ := r.Status(context.Background(), false)
-	if !strings.Contains(rep.Next, "multiversectl install <owner/repo>") || !strings.Contains(rep.Next, "multiversectl init") {
+	if !strings.Contains(rep.Next, "multiversectl catalog install <owner/repo>") || !strings.Contains(rep.Next, "multiversectl init") {
 		t.Errorf("next = %q", rep.Next)
 	}
 }

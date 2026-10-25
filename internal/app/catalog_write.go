@@ -372,7 +372,7 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 	if cfg, err := c.Config.Load(); err == nil {
 		for installed, e := range cfg.Workspaces {
 			if e.From == nodePath || strings.HasPrefix(e.From, nodePath+"/") {
-				c.Out.Info("still installed here: multiversectl uninstall %s", installed)
+				c.Out.Info("still installed here: multiversectl catalog uninstall %s", installed)
 			}
 		}
 	}

@@ -76,7 +76,7 @@ for what it needs on the machine.
 A project someone points you at needs one command, with nothing set up first:
 
 ```sh
-multiversectl install acme/multiverse   # owner/repo, any git URL, or a path
+multiversectl catalog install acme/multiverse   # owner/repo, any git URL, or a path
 multiversectl universe new 1 && multiversectl universe up 1
 ```
 
@@ -87,8 +87,8 @@ catalog. It is a git repository of pointers, private if you let `init` create it
 multiversectl init                      # asks where it should live
 multiversectl catalog add acme/billing  # asks which node of the tree it goes in
 multiversectl catalog                   # the tree, with what is installed marked
-multiversectl status                    # what is installed here, and what has drifted
-multiversectl update                    # catch up: manifests and new repositories
+multiversectl catalog status                    # what is installed here, and what has drifted
+multiversectl catalog update                    # catch up: manifests and new repositories
 ```
 
 See [Catalogs](https://cristiansteib.github.io/multiversectl/concepts/catalogs.html).
@@ -103,7 +103,7 @@ multiversectl-server --open   # read-only, loopback only
 ## Quick start
 
 ```sh
-multiversectl install ./multiverse.yaml --root ~/acme
+multiversectl catalog install ./multiverse.yaml --root ~/acme
 multiversectl universe new 1            # universe 1: a worktree of every repo on branch u1
 multiversectl universe new fix/login    # or name it after the branch it checks out
 multiversectl universe up fix/login     # start its containers

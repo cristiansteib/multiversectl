@@ -90,11 +90,11 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 
 	switch {
 	case len(stale) > 0:
-		rep.Next = "multiversectl update " + strings.Join(stale, " ")
+		rep.Next = "multiversectl catalog update " + strings.Join(stale, " ")
 	case len(rep.Workspaces) == 0 && cfg.Catalog == "":
-		rep.Next = "multiversectl install <owner/repo>  ·  multiversectl init"
+		rep.Next = "multiversectl catalog install <owner/repo>  ·  multiversectl init"
 	case len(rep.Workspaces) == 0:
-		rep.Next = "multiversectl catalog  ·  multiversectl install <path>"
+		rep.Next = "multiversectl catalog  ·  multiversectl catalog install <path>"
 	}
 	return rep, nil
 }
@@ -175,7 +175,7 @@ func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e Workspac
 		return res, nil
 	}
 	if clean, err := c.Git.IsClean(ctx, dir); err != nil || !clean {
-		return res, fmt.Errorf("%s: local changes in %s; commit or stash them, then multiversectl update %s", name, dir, name)
+		return res, fmt.Errorf("%s: local changes in %s; commit or stash them, then multiversectl catalog update %s", name, dir, name)
 	}
 	if err := c.Git.Fetch(ctx, dir); err != nil {
 		return res, fmt.Errorf("%s: fetch %s: %s", name, shortRepo(e.Source.Repo), reason(err, e.Source.Repo))

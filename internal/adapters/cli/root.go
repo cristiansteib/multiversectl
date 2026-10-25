@@ -54,7 +54,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 
 	run := runner{g: g, out: out, f: f}
 	root.AddCommand(
-		run.universeCmd(), run.doctorCmd(), run.useCmd(), run.catalogCmd(), run.initCmd(), run.installCmd(), run.uninstallCmd(), run.statusCmd(), run.updateCmd(),
+		run.universeCmd(), run.doctorCmd(), run.catalogCmd(), run.initCmd(),
 		run.proxyCmd(), run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("workspace", run.completeWorkspaces)
@@ -94,7 +94,7 @@ func (r runner) welcome(cmd *cobra.Command, _ []string) error {
 	if list, err := bare.Workspaces(); err == nil && len(list) == 0 {
 		r.out.Plain("")
 		r.out.Plain("%s", r.out.Bold("Get started:"))
-		r.out.Plain("  multiversectl install <owner/repo>   one project, from a repository or a path")
+		r.out.Plain("  multiversectl catalog install <owner/repo>   one project, from a repository or a path")
 		r.out.Plain("  multiversectl init                   your own index of projects")
 	}
 	return nil

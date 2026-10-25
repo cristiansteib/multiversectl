@@ -82,7 +82,7 @@
   <p class="lede">Set up a root catalog, nest another one under it, list workspaces in it, and install only the ones this machine needs.</p>
 <section id="hw-first">
   <h2 id="hw-first"><a href="#hw-first">Use a project someone points you at</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl install acme/multiverse
+  <div class="code"><pre><span class="p">$ </span>multiversectl catalog install acme/multiverse
 <span class="p">$ </span>multiversectl universe new 1
 <span class="p">$ </span>multiversectl universe up 1</pre></div>
   <p>That is all, on a machine with nothing set up: no catalog, no prompts. The source can be <code>owner/repo</code> (GitHub), any git URL, or a path. A repository that holds a <code>catalog.yaml</code> is read as one; one with only a <code>multiverse.yaml</code> is read as a workspace. <code>install</code> says which it took the source for.</p>
@@ -120,22 +120,22 @@ choose [4]:</pre></div>
 <section id="hw-install">
   <h2 id="hw-install"><a href="#hw-install">Install what this machine needs</a></h2>
   <div class="code"><pre><span class="c"># a workspace, or everything under a catalog</span>
-<span class="p">$ </span>multiversectl install acme/backend/billing
-<span class="p">$ </span>multiversectl install acme personal/notes
+<span class="p">$ </span>multiversectl catalog install acme/backend/billing
+<span class="p">$ </span>multiversectl catalog install acme personal/notes
 <span class="c"># no source: pick from your catalog, installed ones are marked</span>
-<span class="p">$ </span>multiversectl install
-<span class="p">$ </span>multiversectl status
-<span class="p">$ </span>multiversectl use billing</pre></div>
+<span class="p">$ </span>multiversectl catalog install
+<span class="p">$ </span>multiversectl catalog status
+<span class="p">$ </span>multiversectl catalog use billing</pre></div>
   <p>The first workspace on a machine becomes the current one; later ones are installed beside it and say so. A source is read in a fixed order: a node in your catalog, then a path, then a git URL, then <code>owner/repo</code>.</p>
 </section>
 
 <section id="hw-update">
   <h2 id="hw-update"><a href="#hw-update">Keep installed workspaces current</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl status --fetch
+  <div class="code"><pre><span class="p">$ </span>multiversectl catalog status --fetch
 WORKSPACE  FROM            STATE
 * acme      acme/multiverse  manifest behind 1 · billing-api not cloned
-› next: multiversectl update acme
-<span class="p">$ </span>multiversectl update
+› next: multiversectl catalog update acme
+<span class="p">$ </span>multiversectl catalog update
 ✓ billing-api: cloned
 ✓ acme: manifest moved forward 1 · billing-api cloned</pre></div>
   <p><code>status</code> compares each workspace with where it was installed from, offline unless you pass <code>--fetch</code>. <code>update</code> fetches, moves each manifest forward, and clones the repositories the new manifest lists. It refuses a manifest with local changes and leaves a pinned one (a tag or commit) alone. <code>uninstall &lt;name&gt;</code> forgets a workspace and leaves its files.</p>
@@ -153,7 +153,7 @@ WORKSPACE  FROM            STATE
   <span class="k">workspaces</span>:
     - <span class="k">name</span>: acme
       <span class="k">source</span>: {<span class="k">path</span>: multiverse.yaml}   <span class="c"># this repository's own manifest</span></pre></div>
-  <p>Anyone then needs <code>multiversectl install acme-org/multiverse</code>. If they keep an index of their own, <code>install</code> suggests <code>catalog add</code> for it. Drop machine-specific lines such as an absolute <code>spec.root</code> from a manifest you share: <code>install</code> chooses where it goes.</p>
+  <p>Anyone then needs <code>multiversectl catalog install acme-org/multiverse</code>. If they keep an index of their own, <code>install</code> suggests <code>catalog add</code> for it. Drop machine-specific lines such as an absolute <code>spec.root</code> from a manifest you share: <code>install</code> chooses where it goes.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">

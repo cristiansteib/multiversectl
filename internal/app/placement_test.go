@@ -155,7 +155,7 @@ func TestRemovingAnEntryTellsYouWhatIsStillInstalled(t *testing.T) {
 	if err := r.Remove(context.Background(), "personal"); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(strings.Join(r.out.infos, "|"), "still installed here: multiversectl uninstall fish") {
+	if !strings.Contains(strings.Join(r.out.infos, "|"), "still installed here: multiversectl catalog uninstall fish") {
 		t.Errorf("infos = %v", r.out.infos)
 	}
 }
