@@ -137,7 +137,7 @@ func (r runner) welcome(cmd *cobra.Command, _ []string) error {
 	}
 	if list, err := bare.Workspaces(); err == nil && len(list) == 0 {
 		r.out.Plain("")
-		r.out.Plain("%s", r.out.Bold("Get started:"))
+		r.out.Plain("%s", r.out.Bold("Nothing is installed yet:"))
 		r.out.Plain("  `multiversectl start <owner/repo>`   install it, make a universe, run it")
 		r.out.Plain("  `multiversectl init`                 your own index of projects")
 	}

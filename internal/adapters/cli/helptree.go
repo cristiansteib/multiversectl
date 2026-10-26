@@ -51,8 +51,8 @@ type treeNode struct {
 	Children []treeNode
 }
 
-// commandTree reads the commands under c, in the order they are typed about:
-// by name, since that is how somebody looks one up.
+// commandTree reads the commands under c: by name, since that is how somebody
+// looks one up, except that what leads the help (startHere) leads here too.
 func commandTree(c *cobra.Command) []treeNode {
 	var out []treeNode
 	for _, k := range c.Commands() {
@@ -66,7 +66,23 @@ func commandTree(c *cobra.Command) []treeNode {
 			Name: k.Name(), Aliases: k.Aliases, Short: k.Short, Children: kids,
 		})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	pinned := func(name string) int {
+		if c.HasParent() {
+			return len(startHere) // only the top level has a front of the queue
+		}
+		for i, n := range startHere {
+			if n == name {
+				return i
+			}
+		}
+		return len(startHere)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if pi, pj := pinned(out[i].Name), pinned(out[j].Name); pi != pj {
+			return pi < pj
+		}
+		return out[i].Name < out[j].Name
+	})
 	return out
 }
 

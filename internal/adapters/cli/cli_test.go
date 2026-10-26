@@ -421,3 +421,53 @@ func TestHelpTreeNestsAndNamesAliases(t *testing.T) {
 		t.Errorf("want a count:\n%s", out)
 	}
 }
+
+// What somebody runs first leads the help, not the housekeeping it is
+// alphabetised among.
+func TestInitLeadsTheHelp(t *testing.T) {
+	root, _ := New(Factory{})
+	groups := root.Groups()
+	if len(groups) == 0 || groups[0].ID != groupStart {
+		t.Fatalf("want the get-started group first, got %+v", groups)
+	}
+	init, _, err := root.Find([]string{"init"})
+	if err != nil || init.GroupID != groupStart {
+		t.Errorf("init is in group %q, want %q (%v)", init.GroupID, groupStart, err)
+	}
+	var help bytes.Buffer
+	root.SetOut(&help)
+	if err := root.Help(); err != nil {
+		t.Fatal(err)
+	}
+	text := help.String()
+	at := strings.Index(text, "init ")
+	for _, after := range []string{"server ", "status ", "universe", "cleanup ", "completion ", "catalog "} {
+		if i := strings.Index(text, after); i >= 0 && i < at {
+			t.Errorf("%q is listed before init:\n%s", after, text)
+		}
+	}
+}
+
+func TestInitLeadsTheTreeAtTheTopLevelOnly(t *testing.T) {
+	root, _ := New(Factory{})
+	nodes := commandTree(root)
+	if len(nodes) == 0 || nodes[0].Name != "init" {
+		t.Fatalf("want init first, got %v", nodes)
+	}
+	// The rest stay alphabetical, so the tree is still easy to look things up in.
+	for i := 2; i < len(nodes); i++ {
+		if nodes[i-1].Name > nodes[i].Name {
+			t.Errorf("%s comes after %s", nodes[i-1].Name, nodes[i].Name)
+		}
+	}
+	// `project init` is a different command and is not pulled to the front of
+	// its own group just for sharing a name.
+	for _, n := range nodes {
+		if n.Name != "project" {
+			continue
+		}
+		if n.Children[0].Name == "init" {
+			t.Errorf("project init was pinned too: %v", n.Children)
+		}
+	}
+}
