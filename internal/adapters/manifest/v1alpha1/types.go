@@ -203,6 +203,11 @@ type App struct {
 	// ask for this itself with the label multiverse.publish: "true".
 	Publish []string `yaml:"publish"`
 
+	// The service `universe exec` and `universe run` use when --service is not
+	// given. Needed only when the app has several services; with one, that one
+	// is used.
+	DefaultService string `yaml:"defaultService"`
+
 	// A compose fragment written inline, merged last before the generated
 	// routing file. Use it for the few things only this environment knows — a
 	// trusted-origins variable, a dev server flag — or as the whole service

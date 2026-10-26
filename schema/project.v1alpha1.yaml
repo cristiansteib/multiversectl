@@ -265,6 +265,13 @@ spec:
                           the label multiverse.publish: "true".
                         items:
                           type: string
+                      defaultService:
+                        type: string
+                        description: >-
+                          The service `universe exec` and `universe run` use
+                          when --service is not given. Needed only when the
+                          app has several services; with one, that one is
+                          used.
                       overlay:
                         type: object
                         x-kubernetes-preserve-unknown-fields: true

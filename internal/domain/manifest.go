@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,9 +105,12 @@ type App struct {
 	Optional map[string][]string // name -> extra services, enabled with --with
 	Secrets  []string            // repo-relative files copied into each universe
 	Publish  []string            // the few services allowed to keep a published host port
-	Overlay  []byte              // inline compose fragment, rendered by the manifest adapter
-	Build    bool                // build images before starting
-	Hosts    map[string]HostRule
+	// DefaultService is where exec and run go when no service is named and the
+	// app has several.
+	DefaultService string
+	Overlay        []byte // inline compose fragment, rendered by the manifest adapter
+	Build          bool   // build images before starting
+	Hosts          map[string]HostRule
 
 	// Derived marks an app no one declared: one repository, everything by
 	// convention. Such an app may turn out to have no compose file at all,
@@ -157,6 +161,9 @@ func (m *Manifest) Validate() error {
 		}
 		if _, ok := m.Repos[app.Repo]; !ok {
 			errs = append(errs, fmt.Sprintf("apps.%s.repo: no such repo %q", key, app.Repo))
+		}
+		if app.DefaultService != "" && len(app.Services) > 0 && !slices.Contains(app.Services, app.DefaultService) {
+			errs = append(errs, fmt.Sprintf("apps.%s.defaultService: %q is not one of its services (%s)", key, app.DefaultService, strings.Join(app.Services, ", ")))
 		}
 		for hostKey, rule := range app.Hosts {
 			if !nameRe.MatchString(hostKey) {

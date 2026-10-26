@@ -245,7 +245,7 @@ func (r runner) commandIn(name, short string, inRunning bool, example string) *c
 			})(cmd, args)
 		},
 	}
-	cmd.Flags().StringVar(&service, "service", "", "service to run in (default: the app's only service)")
+	cmd.Flags().StringVar(&service, "service", "", "service to run in (default: the app's defaultService, or its only service)")
 	return cmd
 }
 

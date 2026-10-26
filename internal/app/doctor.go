@@ -243,7 +243,32 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 	for _, appKey := range s.Manifest.RunnableApps() {
 		// Each app runs as its own compose project, so that is the prefix
 		// its container names carry.
-		add("app "+appKey, StatusOK, "%d running", runningFor(containers, s.Universe(st.Name).ProjectFor(appKey)))
+		running := runningFor(containers, s.Universe(st.Name).ProjectFor(appKey))
+		add("app "+appKey, StatusOK, "%d running", running)
+		if running > 0 {
+			s.checkAddresses(ctx, add, st, appKey)
+		}
+	}
+}
+
+// checkAddresses asks each address of a running app once. Any answer counts:
+// a 401 or a 404 from the app itself proves the route and the service are
+// there, which a container listing cannot. Only a refused connection or the
+// proxy's own "no backend" statuses are findings, and warnings, because an app
+// may legitimately not serve "/".
+func (s *Service) checkAddresses(ctx context.Context, add addCheck, st domain.UniverseState, appKey string) {
+	for _, route := range s.Routes(st, appKey) {
+		url := s.routeURL(route)
+		name := "url " + appKey + "/" + strings.TrimSuffix(route.Name, "-"+st.Slug)
+		status, err := s.System.Probe(ctx, url)
+		switch {
+		case err != nil:
+			add(name, StatusWarn, "%s does not answer: %v", url, err)
+		case status == 502 || status == 503 || status == 504:
+			add(name, StatusWarn, "%s answered %d: the proxy has no running service behind it", url, status)
+		default:
+			add(name, StatusOK, "%s answers %d", url, status)
+		}
 	}
 }
 

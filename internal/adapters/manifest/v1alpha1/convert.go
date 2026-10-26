@@ -105,15 +105,16 @@ func Convert(w *Project, dir string) (*domain.Manifest, error) {
 
 func convertApp(a App) (domain.App, error) {
 	app := domain.App{
-		Repo:     a.Repo,
-		Compose:  a.Compose,
-		Profiles: a.Profiles,
-		Services: a.Services,
-		Secrets:  a.Secrets,
-		Publish:  a.Publish,
-		Build:    a.Build,
-		Optional: map[string][]string{},
-		Hosts:    map[string]domain.HostRule{},
+		Repo:           a.Repo,
+		Compose:        a.Compose,
+		Profiles:       a.Profiles,
+		Services:       a.Services,
+		Secrets:        a.Secrets,
+		Publish:        a.Publish,
+		Build:          a.Build,
+		DefaultService: a.DefaultService,
+		Optional:       map[string][]string{},
+		Hosts:          map[string]domain.HostRule{},
 	}
 	if !a.Overlay.IsZero() {
 		// Rendered here, in the format adapter, so neither the domain nor the
