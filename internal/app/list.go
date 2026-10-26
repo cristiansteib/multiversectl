@@ -100,6 +100,9 @@ type ServiceStatus struct {
 	State     ServiceState
 	Detail    string
 	Published string // host ports it publishes; empty is the healthy case
+	// Container is the name of the container the service runs in, for docker
+	// commands that exec does not cover (logs, cp); empty when it has none.
+	Container string
 }
 
 // Up reports whether the service is one of those a started app should run.
@@ -276,9 +279,9 @@ func (s *Service) serviceStates(ctx context.Context, u domain.Universe, st domai
 		c, exists := found[name]
 		switch {
 		case exists && isRunning(c):
-			status.State, status.Detail, status.Published = StateRunning, c.Status, c.Published
+			status.State, status.Detail, status.Published, status.Container = StateRunning, c.Status, c.Published, c.Name
 		case exists:
-			status.State, status.Detail = StateStopped, c.Status
+			status.State, status.Detail, status.Container = StateStopped, c.Status, c.Name
 		case group[name] != "":
 			status.State, status.Detail = StateOptional, "--with "+group[name]
 		case len(app.Services) > 0 && !selected[name]:
