@@ -272,6 +272,25 @@ type fileChange struct {
 // commits it. In a remote repository it then pushes; the user is asked once,
 // before anything is written, so declining leaves no half-made commit behind.
 func (c *Catalogs) edit(ctx context.Context, parent domain.Node, summary string, fn func(data []byte) ([]fileChange, error)) error {
+	return c.editPlanned(ctx, parent, summary, editPlan{}, fn)
+}
+
+// editPlan is what an edit says about itself before it asks.
+//
+// An addition is easy to take back and a one-line question is enough for it. A
+// removal from a catalog other people read is not: it is a commit pushed to a
+// branch they update from, and what it changes for them is not in the question.
+// So a careful edit says what goes, where it goes, what it leaves alone and who
+// will notice — and the answer it takes by default is no.
+type editPlan struct {
+	// Careful puts the plan in front of the person and makes no the default.
+	Careful bool
+	// Lines are what this edit removes and leaves, in the words of the one
+	// asking. Where it is written is added after them: only the edit knows.
+	Lines []string
+}
+
+func (c *Catalogs) editPlanned(ctx context.Context, parent domain.Node, summary string, plan editPlan, fn func(data []byte) ([]fileChange, error)) error {
 	remote := parent.Source.Repo != ""
 	var branch, where string
 	var err error
@@ -311,7 +330,14 @@ func (c *Catalogs) edit(ctx context.Context, parent domain.Node, summary string,
 	if err != nil {
 		return err
 	}
-	if ok, err := c.confirm(fmt.Sprintf("%s: %s?", summary, where), true); err != nil {
+	if plan.Careful {
+		c.Out.Info("%s", summary)
+		for _, l := range plan.Lines {
+			c.Out.Info("  %s", l)
+		}
+		c.Out.Info("  %s", c.consequence(ctx, parent, remote))
+	}
+	if ok, err := c.confirm(fmt.Sprintf("%s: %s?", summary, where), !plan.Careful); err != nil {
 		return err
 	} else if !ok {
 		return ErrCancelled
@@ -357,6 +383,21 @@ func (c *Catalogs) edit(ctx context.Context, parent domain.Node, summary string,
 	return nil
 }
 
+// consequence is what writing there means for anybody else, in one sentence.
+func (c *Catalogs) consequence(ctx context.Context, parent domain.Node, remote bool) string {
+	switch {
+	case remote:
+		branch, _ := c.writableBranch(ctx, parent)
+		return fmt.Sprintf("it is committed and pushed straight to %s of %s, not through a pull request, so "+
+			"everyone who updates their catalog sees it gone; `git revert` on that commit brings it back",
+			branch, shortRepo(parent.Source.Repo))
+	}
+	if _, err := c.Git.Toplevel(ctx, parent.Dir); err == nil {
+		return "it is committed in " + parent.Dir + " and not pushed; `git revert` brings it back"
+	}
+	return "it is written to " + parent.File + ", which is not in a git repository, so nothing can bring it back"
+}
+
 // writableBranch is the branch a write to a remote catalog lands on. A tag or
 // commit cannot be written to, and a reference pinned to one is read-only.
 func (c *Catalogs) writableBranch(ctx context.Context, n domain.Node) (string, error) {
@@ -398,21 +439,70 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 		return fmt.Errorf("the catalog that holds %q cannot be read", nodePath)
 	}
 	name := path.Base(nodePath)
-	if err := c.edit(ctx, parent, fmt.Sprintf("remove %s from the catalog", nodePath), func(data []byte) ([]fileChange, error) {
+	target, _ := tree.Find(nodePath)
+	plan := editPlan{Careful: true, Lines: removalLines(target)}
+	var installed []string
+	if cfg, err := c.Config.Load(); err == nil {
+		for name, e := range cfg.Workspaces {
+			if e.From == nodePath || strings.HasPrefix(e.From, nodePath+"/") {
+				installed = append(installed, name)
+			}
+		}
+		sort.Strings(installed)
+	}
+	if len(installed) > 0 {
+		plan.Lines = append(plan.Lines, "installed here from it, and staying installed: "+strings.Join(installed, ", "))
+	}
+	if err := c.editPlanned(ctx, parent, fmt.Sprintf("remove %s from the catalog", nodePath), plan, func(data []byte) ([]fileChange, error) {
 		out, err := c.Editor.RemoveRef(data, name)
 		return []fileChange{{parent.File, out}}, err
 	}); err != nil {
 		return err
 	}
 	// Removing an entry does not touch what is installed from it.
-	if cfg, err := c.Config.Load(); err == nil {
-		for installed, e := range cfg.Workspaces {
-			if e.From == nodePath || strings.HasPrefix(e.From, nodePath+"/") {
-				c.Out.Info("still installed here: `multiversectl project uninstall %s`", installed)
-			}
-		}
+	for _, name := range installed {
+		c.Out.Info("still installed here: `multiversectl project uninstall %s`", name)
 	}
 	return nil
+}
+
+// removalLines is what taking a node out of a catalog removes, and what it does
+// not. A catalog takes everything under it along, which is the part that is
+// easy to miss when the name on the command line is one word.
+func removalLines(n domain.Node) []string {
+	if n.Kind != domain.CatalogNode {
+		return []string{
+			"removes: the entry " + n.Path + " (a project); the repository it points at is not touched",
+		}
+	}
+	leaves := n.Leaves()
+	names := make([]string, len(leaves))
+	for i, l := range leaves {
+		names[i] = l.Path
+	}
+	if len(names) == 0 {
+		return []string{
+			"removes: the entry " + n.Path + " (a catalog that lists no projects)",
+			"leaves alone: the catalog file; only the link to it goes",
+		}
+	}
+	list := ""
+	if len(names) > 0 {
+		shown := names
+		more := ""
+		if len(shown) > 5 {
+			shown, more = shown[:5], fmt.Sprintf(", and %d more", len(names)-5)
+		}
+		noun := "projects"
+		if len(names) == 1 {
+			noun = "project"
+		}
+		list = fmt.Sprintf("%d %s: %s%s", len(names), noun, strings.Join(shown, ", "), more)
+	}
+	return []string{
+		"removes: the entry " + n.Path + " (a catalog), and with it everything listed under it — " + list,
+		"leaves alone: the catalog file and the repositories it points at; only the link to them goes",
+	}
 }
 
 // AddWorkspaceInput is a repository to list in a catalog.
