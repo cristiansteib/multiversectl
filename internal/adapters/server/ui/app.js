@@ -665,6 +665,7 @@ function onOp(op) {
   renderDock();
   if (before && before.state === 'running' && op.state !== 'running') {
     toast(op.state === 'done' ? op.title + ': done' : op.title + ': failed');
+    sidePanel.reload();
   }
   if (current && current.onOps) current.onOps();
 }
@@ -720,6 +721,292 @@ function showVersion() {
     ? 'Read-only: started with --read-only.'
     : 'Start, stop, create and remove universes here; the command line does the same.';
 }
+
+// ── stats ──────────────────────────────────────────────────────────────
+// Every running container of every project, read over and over and drawn as
+// lines. The server keeps no history — one reading is all it has — so the
+// window is what this page has seen since it was opened, and saying so is
+// part of the view.
+
+const STATS_WINDOWS = [[120000, '2 min'], [300000, '5 min'], [900000, '15 min']];
+const STATS_EVERY = [[2000, 'every 2s'], [5000, 'every 5s'], [10000, 'every 10s'], [30000, 'every 30s']];
+const MAX_SAMPLES = 600;
+
+views.stats = {
+  title: 'Stats',
+  mount(host) {
+    // What has been read, newest last: one entry per reading, each holding
+    // every container that answered in it.
+    const samples = [];
+    let group = 'universe', only = '', span = 300000, every = 2000, paused = false;
+    let timer = null, failed = null, busy = false;
+
+    const root = h('div');
+    const errors = h('div');
+    const tiles = h('div', { class: 'cards tiles' });
+    const charts = h('div', { class: 'charts' });
+    const facets = h('div');
+    const table = h('div');
+    const note = h('span', { class: 'muted' });
+
+    const pick = (label, options, value, onpick) => h('label', { class: 'pick' }, h('span', null, label),
+      h('select', { 'aria-label': label, onchange: (e) => onpick(e.target.value) },
+        options.map(([v, t]) => h('option', { value: v, selected: String(v) === String(value) }, t))));
+
+    const projects = () => {
+      const seen = new Set();
+      for (const s of samples) for (const r of s.rows) seen.add(r.project);
+      return [...seen].sort();
+    };
+
+    const pauseBtn = h('button', { type: 'button', class: 'btn', 'aria-pressed': 'false',
+      onclick: () => { paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+        pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.classList.toggle('primary', paused); arm(); draw(); } }, 'Pause');
+
+    // The controls are built once and left alone: a select that is rebuilt
+    // under the pointer every two seconds cannot be used.
+    const wsPick = h('span');
+    let wsShown = '';
+    const bar = h('div', { class: 'bar' },
+      wsPick,
+      pick('Group by', [['universe', 'Universe'], ['app', 'App'], ['service', 'Container']], group, (v) => { group = v; draw(); }),
+      pick('Window', STATS_WINDOWS, span, (v) => { span = Number(v); draw(); }),
+      pick('Read', STATS_EVERY, every, (v) => { every = Number(v); arm(); }),
+      pauseBtn, h('span', { class: 'grow' }), note);
+    const refreshWsPick = () => {
+      const ws = projects();
+      const key = ws.join('\u0000');
+      if (key === wsShown) return;
+      wsShown = key;
+      wsPick.replaceChildren(ws.length > 1
+        ? pick('Project', [['', 'All projects'], ...ws.map((w) => [w, w])], only, (v) => { only = v; samples.length = 0; load(); })
+        : '');
+    };
+
+    host.append(h('h1', null, 'Stats'),
+      h('p', { class: 'lede' }, 'What every running container of every universe is using, read live. ',
+        'The history is this page’s own: it starts when the page opens and is lost when it closes.'),
+      bar, root);
+    root.append(errors, tiles, charts, facets, table);
+
+    // ---- reading
+    async function load() {
+      if (busy) return;
+      busy = true;
+      try {
+        const d = await api('stats' + (only ? '?project=' + encodeURIComponent(only) : ''));
+        const t = Date.parse(d.at) || Date.now();
+        samples.push({ t, rows: d.rows || [] });
+        // Nothing older than the longest window is kept: it can never be drawn.
+        const oldest = Date.now() - STATS_WINDOWS[STATS_WINDOWS.length - 1][0];
+        while (samples.length && (samples[0].t < oldest || samples.length > MAX_SAMPLES)) samples.shift();
+        failed = (d.sources || []).length ? d.sources : null;
+        draw();
+      } catch (e) {
+        failed = [{ project: only || 'this machine', error: e.message }];
+        draw();
+      } finally { busy = false; }
+    }
+
+    function arm() {
+      clearInterval(timer);
+      timer = paused ? null : setInterval(() => { if (!document.hidden) load(); }, every);
+    }
+
+    // ---- grouping
+    const keyOf = (r) => group === 'universe' ? r.project + '/' + r.universe
+      : group === 'app' ? r.project + '/' + r.universe + '/' + r.app
+        : r.project + '/' + r.universe + '/' + r.app + '/' + r.service;
+    // With one project its name adds nothing to every label; with two it is
+    // what tells one project's universe 1 from the other's.
+    const labelOf = (r, many) => {
+      const uni = (many ? r.project + ' · ' : '') + r.universe;
+      return group === 'universe' ? uni : group === 'app' ? uni + ' ' + r.app : uni + ' ' + r.app + '/' + r.service;
+    };
+
+    const colours = viz.palette();
+
+    // series sums each group at each reading. Everything past the eighth group
+    // is one line called “other”: a ninth colour nobody could tell apart would
+    // be worse than saying “the rest”.
+    function build(field) {
+      const within = samples.filter((s) => s.t >= Date.now() - span);
+      const labels = new Map();
+      const order = [];
+      const many = projects().length > 1;
+      for (const s of within) {
+        for (const r of s.rows) {
+          const k = keyOf(r);
+          if (!labels.has(k)) { labels.set(k, labelOf(r, many)); order.push(k); }
+        }
+      }
+      const live = new Set(within.length ? within[within.length - 1].rows.map(keyOf) : []);
+      // Those still running keep their colour first; a group that has gone
+      // quiet does not take one from a group that is busy.
+      colours.claim([...order].sort((a, b) => (live.has(b) ? 1 : 0) - (live.has(a) ? 1 : 0) || a.localeCompare(b)));
+      const named = order.filter((k) => colours.has(k));
+      const rest = order.filter((k) => !colours.has(k));
+      const series = named.map((k) => ({ key: k, label: labels.get(k), cls: colours.of(k), points: [] }));
+      if (rest.length) series.push({ key: '\u0000other', label: rest.length + ' more', cls: 'so', points: [], other: true });
+      for (const s of within) {
+        const sum = new Map();
+        for (const r of s.rows) {
+          const k = colours.has(keyOf(r)) ? keyOf(r) : '\u0000other';
+          sum.set(k, (sum.get(k) || 0) + (r[field] || 0));
+        }
+        for (const line of series) line.points.push([s.t, sum.get(line.key) || 0]);
+      }
+      // Until the page has watched for a whole window, the plot shows what it
+      // has: a line crammed against the right edge is not history.
+      return { series, from: within.length ? Math.max(within[0].t, Date.now() - span) : Date.now() - span, to: Date.now() };
+    }
+
+    // ---- drawing
+    function draw() {
+      refreshWsPick();
+      errors.replaceChildren(...(failed || []).map((f) => h('p', { class: 'error', role: 'alert' }, f.project + ': ' + f.error)));
+      const last = samples.length ? samples[samples.length - 1] : null;
+      note.replaceChildren(paused ? badge('warn', 'paused') : badge('ok', 'reading ' + (every / 1000) + 's'),
+        last ? ' last at ' + viz.clock(last.t) : ' waiting for the first reading');
+
+      if (!last) { tiles.replaceChildren(); charts.replaceChildren(h('p', { class: 'muted' }, 'Reading…')); facets.replaceChildren(); table.replaceChildren(); return; }
+      const rows = last.rows;
+      const cpu = rows.reduce((n, r) => n + r.cpu, 0);
+      const mem = rows.reduce((n, r) => n + (r.mem || 0), 0);
+      const universes = new Set(rows.map((r) => r.project + '/' + r.universe));
+      const busiest = rows.slice().sort((a, b) => b.cpu - a.cpu)[0];
+
+      tiles.replaceChildren(
+        h('div', { class: 'card' }, h('h3', null, 'Running'), h('div', { class: 'big' }, rows.length),
+          h('div', { class: 'muted' }, rows.length === 1 ? 'container' : 'containers', ' in ', universes.size, universes.size === 1 ? ' universe' : ' universes')),
+        h('div', { class: 'card' }, h('h3', null, 'CPU'), h('div', { class: 'big' }, viz.percent(cpu)),
+          h('div', { class: 'muted' }, 'of one core, added up')),
+        h('div', { class: 'card' }, h('h3', null, 'Memory'), h('div', { class: 'big' }, viz.bytes(mem)),
+          h('div', { class: 'muted' }, 'resident, added up')),
+        h('div', { class: 'card' }, h('h3', null, 'Busiest'), h('div', { class: 'big mono' }, busiest ? viz.percent(busiest.cpu) : '—'),
+          h('div', { class: 'muted' }, busiest ? busiest.app + '/' + busiest.service + ' in ' + busiest.universe : 'nothing is running')));
+
+      const c = build('cpu'), m = build('mem');
+      charts.replaceChildren(
+        plot('CPU', 'Percent of one core. A container on four cores can pass 100%.', c, viz.percent, 10),
+        plot('Memory', 'Resident memory, added up.', m, viz.bytes, 1024));
+
+      drawFacets(last);
+      drawTable(last);
+    }
+
+    // plot is one chart with its legend and its hover readout. The legend is
+    // always there: two lines must never be told apart by colour alone.
+    function plot(title, why, data, format, base) {
+      const readout = h('div', { class: 'readout', role: 'status' });
+      const frame = h('div', { class: 'plot-frame' });
+      const card = h('section', { class: 'card chart' },
+        h('div', { class: 'chart-head' }, h('h3', null, title), h('span', { class: 'muted' }, why), h('span', { class: 'grow' }), readout),
+        frame,
+        h('div', { class: 'legend' }, data.series.map((s) => h('span', { class: 'key' + (s.other ? ' other' : '') },
+          h('span', { class: 'swatch ' + s.cls }), s.label,
+          h('b', { class: 'mono' }, format(s.points.length ? s.points[s.points.length - 1][1] : 0))))));
+      const render = () => {
+        const width = frame.clientWidth || card.clientWidth - 32 || 600;
+        frame.replaceChildren(viz.chart(data.series, data.from, data.to, {
+          width, height: 190, format, base, label: title,
+          onhover: (hits, t) => {
+            if (!hits) { readout.replaceChildren(); return; }
+            const top = hits.slice().sort((a, b) => b.p[1] - a.p[1]).slice(0, 5);
+            readout.replaceChildren(h('span', { class: 'muted' }, viz.clock(t)),
+              ...top.map((x) => h('span', { class: 'hit' }, h('span', { class: 'swatch ' + x.s.cls }),
+                h('b', null, format(x.p[1])), h('span', { class: 'muted' }, x.s.label))));
+          },
+        }));
+      };
+      queueMicrotask(render);
+      return card;
+    }
+
+    // One small chart per universe, all on their own scale but side by side:
+    // past a handful of lines in one plot, the answer is more plots.
+    function drawFacets(last) {
+      const by = new Map();
+      const within = samples.filter((s) => s.t >= Date.now() - span);
+      for (const s of within) {
+        for (const r of s.rows) {
+          const k = r.project + '/' + r.universe;
+          if (!by.has(k)) by.set(k, { project: r.project, universe: r.universe, at: new Map() });
+          const g = by.get(k);
+          g.at.set(s.t, (g.at.get(s.t) || 0) + r.cpu);
+        }
+      }
+      if (by.size < 2) { facets.replaceChildren(); return; }
+      const from = within.length ? Math.max(within[0].t, Date.now() - span) : Date.now() - span;
+      const now = Date.now();
+      const cards = [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, g]) => {
+        const points = [...g.at.entries()].sort((a, b) => a[0] - b[0]);
+        const current = points.length ? points[points.length - 1][1] : 0;
+        const live = last.rows.some((r) => r.project + '/' + r.universe === k);
+        const card = h('article', { class: 'card facet' },
+          h('div', { class: 'facet-head' }, h('span', { class: 'dot ' + (live ? 'ok' : '') }), h('b', null, g.universe),
+            h('span', { class: 'muted' }, g.project), h('span', { class: 'grow' }), h('b', { class: 'mono' }, viz.percent(current))),
+          h('div', { class: 'plot-frame' }));
+        queueMicrotask(() => {
+          const frame = card.querySelector('.plot-frame');
+          frame.replaceChildren(viz.chart([{ key: k, label: g.universe, cls: colours.of(k), points }], from, now,
+            { width: frame.clientWidth || 220, height: 70, format: viz.percent, compact: true, label: 'CPU of ' + g.universe }));
+        });
+        return card;
+      });
+      facets.replaceChildren(h('h2', null, 'Per universe'), h('div', { class: 'facets' }, cards));
+    }
+
+    // The table is the chart's other half: every value a line holds is here as
+    // a number, in an order that does not move while it is read.
+    function drawTable(last) {
+      const cutoff = Date.now() - span;
+      const history = new Map();
+      let from = Date.now();
+      for (const s of samples) {
+        if (s.t < cutoff) continue;
+        from = Math.min(from, s.t);
+        for (const r of s.rows) {
+          const k = r.project + '/' + r.universe + '/' + r.app + '/' + r.service;
+          if (!history.has(k)) history.set(k, []);
+          history.get(k).push([s.t, r.cpu]);
+        }
+      }
+      const rows = last.rows.slice().sort((a, b) =>
+        a.project.localeCompare(b.project) || a.universe.localeCompare(b.universe, undefined, { numeric: true })
+        || a.app.localeCompare(b.app) || a.service.localeCompare(b.service));
+      table.replaceChildren(h('h2', null, 'Containers'),
+        rows.length ? h('div', { class: 'scroll' }, h('table', { class: 'stats-table' },
+          h('thead', null, h('tr', null, ['Universe', 'Service', 'CPU', 'Last ' + (span / 60000) + ' min', 'Memory', 'Network', 'PIDs', ''].map((t) => h('th', null, t)))),
+          h('tbody', null, rows.map((r) => {
+            const k = r.project + '/' + r.universe + '/' + r.app + '/' + r.service;
+            const cls = colours.of(keyOf(r));
+            return h('tr', null,
+              h('td', null, h('b', null, r.universe), ' ', h('span', { class: 'muted' }, r.project)),
+              h('td', null, h('span', { class: 'swatch ' + cls }), r.app + '/' + r.service),
+              h('td', { class: 'mono num' }, viz.percent(r.cpu)),
+              h('td', null, viz.sparkline(history.get(k) || [], from, Date.now(), cls, 110, 20)),
+              h('td', { class: 'mono num', title: r.memUsage }, viz.bytes(r.mem || 0),
+                r.memLimit ? h('span', { class: 'muted' }, ' ' + viz.percent(r.memory)) : null),
+              h('td', { class: 'mono num muted' }, r.netIO || '—'),
+              h('td', { class: 'mono num muted' }, r.pids || 0),
+              h('td', { class: 'row-actions' },
+                h('button', { type: 'button', class: 'btn small', onclick: () => sidePanel.open(r.project, r.universe, { service: r.app + '/' + r.service }) }, 'Logs')));
+          }))))
+          : empty('Nothing is running. Start a universe in the ', h('a', { href: '#/fleet' }, 'fleet'), '.'));
+    }
+
+    let sized;
+    const onResize = () => { clearTimeout(sized); sized = setTimeout(draw, 150); };
+    addEventListener('resize', onResize);
+
+    arm();
+    return {
+      refresh: load,
+      stop() { clearInterval(timer); removeEventListener('resize', onResize); },
+    };
+  },
+};
 
 // ── system ─────────────────────────────────────────────────────────────
 
@@ -781,6 +1068,7 @@ function route() {
     if (a.dataset.route === (key === 'project' ? 'overview' : key)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
+  if (current && current.stop) current.stop();
   main.replaceChildren();
   current = view.mount(main, arg ? decodeURIComponent(arg) : undefined);
   document.title = view.title + ' · multiversectl';
@@ -833,15 +1121,20 @@ connect();
 schedule();
 
 
-// The side panel of one universe: its containers with their resource use, and a
-// log per service. It is outside what the fleet redraws, and everything in it is
-// fetched when it opens and stopped when it closes, so a universe nobody is
-// looking at costs nothing.
+// ── the side panel of one universe ─────────────────────────────────────
+// Its containers with what they are using, and a log per service. It is
+// outside what the fleet redraws, and everything in it is fetched when it
+// opens and stopped when it closes, so a universe nobody is looking at costs
+// nothing. Only the numbers are redrawn as they arrive: a row that is rebuilt
+// under the pointer cannot be clicked or read.
+
 const sidePanel = (() => {
   const root = document.getElementById('side');
   const STATS_MS = 3000;
   const MAX_LOG_LINES = 3000;
-  let cur = null;  // { project, universe, rows, stats, tab, log, statsTimer, confirm }
+  const SPARK_POINTS = 40;
+  let cur = null;
+  let opener = null;
 
   const query = (c, extra) => new URLSearchParams({ project: c.project, universe: c.universe, ...extra }).toString();
 
@@ -852,18 +1145,36 @@ const sidePanel = (() => {
     cur = null;
     root.hidden = true;
     root.replaceChildren();
+    document.body.classList.remove('with-side');
+    if (opener && opener.isConnected) opener.focus();
+    opener = null;
   }
 
-  async function open(project, universe) {
-    if (cur && cur.project === project && cur.universe === universe) return;
+  // open(project, universe, { service }) — with a service it opens straight on
+  // that log, which is what a row elsewhere on the page links to.
+  async function open(project, universe, opts) {
+    const want = (opts || {}).service;
+    if (cur && cur.project === project && cur.universe === universe) {
+      if (want) startLog(...want.split('/'));
+      return;
+    }
+    const from = document.activeElement;
     close();
-    cur = { project, universe, rows: null, stats: {}, tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
+    opener = from;
+    cur = { project, universe, rows: null, stats: {}, history: new Map(), tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
     root.hidden = false;
+    document.body.classList.add('with-side');
     draw();
+    root.querySelector('.side-head h3').focus();
     await loadRows();
+    if (want && cur) startLog(...want.split('/'));
     pollStats();
     cur.statsTimer = setInterval(pollStats, STATS_MS);
   }
+
+  // reload is what an operation elsewhere calls: a service that was just
+  // restarted or started should not still read “Exited” here.
+  function reload() { if (cur) loadRows(); }
 
   async function loadRows() {
     const c = cur;
@@ -879,8 +1190,15 @@ const sidePanel = (() => {
       const r = await api('universe/stats?' + query(c));
       if (cur !== c) return;
       c.stats = Object.fromEntries(r.stats.map((s) => [s.name, s]));
-      drawRows();
-    } catch (_) { /* the next tick tries again */ }
+      const now = Date.now();
+      for (const s of r.stats) {
+        if (!c.history.has(s.name)) c.history.set(s.name, []);
+        const points = c.history.get(s.name);
+        points.push([now, s.cpu]);
+        if (points.length > SPARK_POINTS) points.shift();
+      }
+      drawStats();
+    } catch (_) { /* the next reading tries again */ }
   }
 
   // ---- logs
@@ -888,15 +1206,23 @@ const sidePanel = (() => {
 
   async function startLog(appKey, service) {
     const c = cur;
+    if (!c) return;
+    const was = c.log;
     stopLog();
-    const log = { appKey, service, lines: [], tail: (c.log && c.log.tail) || 200, follow: true, filter: '', abort: new AbortController(), status: 'loading…' };
-    c.log = log; c.tab = 'logs';
+    const log = {
+      appKey, service, lines: [], drawn: 0,
+      tail: was ? was.tail : 200, follow: was ? was.follow : true, filter: was ? was.filter : '',
+      wrap: was ? was.wrap : true, times: was ? was.times : true,
+      abort: new AbortController(), state: 'loading', detail: '',
+    };
+    c.log = log;
+    c.tab = 'logs';
     draw();
     try {
       const res = await fetch('/api/universe/logs?' + query(c, { app: appKey, service, tail: log.tail, follow: log.follow ? '1' : '0' }), { signal: log.abort.signal });
       if (!res.ok) { let b = {}; try { b = await res.json(); } catch (_) { /* empty */ } throw new Error(b.error || res.statusText); }
-      log.status = log.follow ? 'following' : 'done';
-      drawLogStatus();
+      log.state = log.follow ? 'following' : 'loaded';
+      drawLogState();
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let rest = '';
@@ -906,34 +1232,110 @@ const sidePanel = (() => {
         const text = rest + dec.decode(value, { stream: true });
         const parts = text.split('\n');
         rest = parts.pop();
-        if (parts.length) { log.lines.push(...parts); if (log.lines.length > MAX_LOG_LINES) log.lines.splice(0, log.lines.length - MAX_LOG_LINES); drawLog(); }
+        if (parts.length) { push(log, parts); drawLog(); }
       }
-      if (rest) { log.lines.push(rest); drawLog(); }
-      log.status = 'ended'; drawLogStatus();
+      if (rest) { push(log, [rest]); drawLog(); }
+      log.state = 'ended';
+      drawLogState();
     } catch (e) {
       if (e.name === 'AbortError') return;
-      log.status = 'stopped: ' + e.message; drawLogStatus();
+      log.state = 'failed';
+      log.detail = e.message;
+      drawLogState();
     }
   }
 
+  // A line as docker hands it over: an RFC 3339 stamp, a space, the rest. The
+  // stamp is split off so it can be shown as a clock time, or not at all.
+  const STAMP = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?) (.*)$/s;
+  // What a line looks like when it is bad news. Only a word on its own, near
+  // the front, counts: "errors: 0" in the middle of a line is not an error.
+  const LEVEL = [
+    [/(^|[\s[|"'(])(error|fatal|critical|panic|exception|traceback)([\s\]:|"')]|$)/i, 'err'],
+    [/(^|[\s[|"'(])(warn|warning|deprecated)([\s\]:|"')]|$)/i, 'warn'],
+    [/(^|[\s[|"'(])(debug|trace)([\s\]:|"')]|$)/i, 'dim'],
+  ];
+
+  function push(log, raw) {
+    for (const line of raw) {
+      const m = STAMP.exec(line);
+      const text = m ? m[2] : line;
+      let level = '';
+      const head = text.slice(0, 160);
+      for (const [re, name] of LEVEL) if (re.test(head)) { level = name; break; }
+      log.lines.push({ at: m ? Date.parse(m[1]) : 0, text, level });
+    }
+    if (log.lines.length > MAX_LOG_LINES) {
+      log.lines.splice(0, log.lines.length - MAX_LOG_LINES);
+      log.drawn = 0; // the window moved; the whole view is redrawn
+    }
+  }
+
+  const shows = (log, l) => !log.filter || l.text.toLowerCase().includes(log.filter.toLowerCase());
+  const visible = (log) => log.lines.filter((l) => shows(log, l));
+  const asText = (log) => visible(log).map((l) => (log.times && l.at ? new Date(l.at).toISOString() + ' ' : '') + l.text).join('\n');
+
+  // One line, with the part that matched the filter marked in it.
+  function lineEl(log, l) {
+    const body = h('span', { class: 'lm' });
+    const f = log.filter;
+    if (f) {
+      const low = l.text.toLowerCase(), needle = f.toLowerCase();
+      let i = 0;
+      for (;;) {
+        const at = low.indexOf(needle, i);
+        if (at < 0) { body.append(l.text.slice(i)); break; }
+        if (at > i) body.append(l.text.slice(i, at));
+        body.append(h('mark', null, l.text.slice(at, at + f.length)));
+        i = at + f.length;
+      }
+    } else body.append(l.text);
+    return h('div', { class: 'll ' + l.level },
+      log.times && l.at ? h('span', { class: 'lt' }, new Date(l.at).toLocaleTimeString(undefined, { hour12: false })) : null,
+      body);
+  }
+
   // ---- drawing
-  let rowsBody, logOut, logStatus;
+  let rowsBody, logOut, logState, logCount, jump;
 
   function draw() {
     if (!cur) return;
     const c = cur;
-    const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'tab' + (c.tab === id ? ' on' : ''), 'aria-selected': c.tab === id ? 'true' : 'false',
-      onclick: () => { c.tab = id; if (id === 'containers') { stopLog(); c.log = null; pollStats(); } draw(); } }, label);
+    const tab = (id, label, count) => h('button', {
+      type: 'button', role: 'tab', id: 'tab-' + id, 'aria-controls': 'tabpanel', class: 'tab' + (c.tab === id ? ' on' : ''),
+      'aria-selected': c.tab === id ? 'true' : 'false',
+      onclick: () => { c.tab = id; if (id === 'containers') { stopLog(); c.log = null; pollStats(); } draw(); },
+    }, label, count != null ? h('span', { class: 'count' }, count) : null);
+    const running = (c.rows || []).filter((r) => r.running).length;
+    const uni = universeIn(c.project, c.universe);
     root.replaceChildren(
-      h('header', { class: 'side-head' }, h('h3', null, c.universe), h('span', { class: 'muted' }, c.project), h('span', { class: 'grow' }),
-        h('button', { type: 'button', class: 'btn small ghost', 'aria-label': 'Close the panel', onclick: close }, 'Close')),
-      h('div', { class: 'tabs', role: 'tablist' }, tab('containers', 'Containers'), tab('logs', 'Logs')),
+      h('header', { class: 'side-head' },
+        h('h3', { tabindex: '-1' }, c.universe),
+        h('span', { class: 'muted' }, c.project),
+        c.rows ? badge(running ? 'ok' : 'mute', running ? running + ' running' : 'stopped') : null,
+        h('span', { class: 'grow' }),
+        h('button', { type: 'button', class: 'btn small ghost close', 'aria-label': 'Close the panel (Esc)', title: 'Close (Esc)', onclick: close }, '✕')),
+      uni && uni.apps ? h('div', { class: 'side-urls' }, uni.apps.flatMap((a) => (a.urls || []).map((x) =>
+        h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer', class: 'chip' }, x.service || a.key)))) : null,
+      h('div', { class: 'tabs', role: 'tablist' }, tab('containers', 'Containers', c.rows ? c.rows.length : null), tab('logs', 'Logs')),
       ...(c.error ? [errorBox(c.error)] : []),
-      c.tab === 'containers' ? containersTab() : logsTab());
+      h('div', { id: 'tabpanel', role: 'tabpanel', 'aria-labelledby': 'tab-' + c.tab, class: 'side-body' },
+        c.tab === 'containers' ? containersTab() : logsTab()));
   }
+
+  // What the fleet already knows about this universe, when it knows it: the
+  // panel does not ask again for what is on the page.
+  function universeIn(project, universe) {
+    const w = ((state.fleet || {}).projects || []).find((x) => x.name === project);
+    return w && (w.universes || []).find((u) => u.name === universe);
+  }
+
+  // Each row is built once; only its numbers change as readings come in.
+  let meterEls;
 
   function containersTab() {
     rowsBody = h('div', { class: 'crows' });
+    meterEls = new Map();
     drawRows();
     return rowsBody;
   }
@@ -941,65 +1343,165 @@ const sidePanel = (() => {
   function drawRows() {
     if (!rowsBody || !cur) return;
     const c = cur;
+    meterEls = new Map();
     if (!c.rows) { rowsBody.replaceChildren(h('p', { class: 'muted' }, 'Loading…')); return; }
-    if (!c.rows.length) { rowsBody.replaceChildren(h('p', { class: 'muted' }, 'No containers: the universe is not started.')); return; }
+    if (!c.rows.length) {
+      rowsBody.replaceChildren(empty('No containers yet — the universe is not started.',
+        state.readOnly ? null : h('div', { class: 'actions' },
+          h('button', { type: 'button', class: 'btn small primary', onclick: () => runSafely({ action: 'up', project: c.project, universe: c.universe }) }, 'Start it'))));
+      return;
+    }
     rowsBody.replaceChildren(...c.rows.map((r) => {
-      const st = c.stats[r.name];
       const key = r.app + '/' + r.service;
-      const restart = state.readOnly || !r.running ? null : (c.confirm === key
-        ? h('button', { type: 'button', class: 'btn small danger', onclick: async () => { c.confirm = null; try { await run({ action: 'restart', project: c.project, universe: c.universe, app: r.app, service: r.service }); } catch (e) { toast(e.message); } drawRows(); } }, 'Confirm restart')
-        : h('button', { type: 'button', class: 'btn small', disabled: isBusy(c.project), onclick: () => { c.confirm = key; drawRows(); setTimeout(() => { if (c.confirm === key) { c.confirm = null; drawRows(); } }, 4000); } }, 'Restart'));
-      return h('div', { class: 'crow' },
-        h('div', { class: 'crow-head' }, h('span', { class: 'dot ' + (r.running ? 'ok' : 'warn') }), h('b', null, key), h('span', { class: 'grow' }),
-          h('span', { class: 'muted' }, r.status)),
-        st ? h('div', { class: 'meters' }, meter('CPU', st.cpu, st.cpu.toFixed(1) + '%'), meter('Mem', st.memory, st.memUsage), h('span', { class: 'muted' }, 'net ' + st.netIO + ' · ' + st.pids + ' pids'))
-           : (r.running ? h('div', { class: 'muted' }, 'reading…') : null),
+      const numbers = h('div', { class: 'meters' });
+      meterEls.set(r.name, numbers);
+      return h('div', { class: 'crow' + (r.running ? '' : ' off') },
+        h('div', { class: 'crow-head' }, h('span', { class: 'dot ' + (r.running ? 'ok' : 'warn') }), h('b', null, key),
+          h('span', { class: 'grow' }), h('span', { class: 'muted small' }, r.status)),
+        numbers,
         r.ports ? h('div', { class: 'muted mono small' }, r.ports) : null,
         h('div', { class: 'actions' },
           h('button', { type: 'button', class: 'btn small', onclick: () => startLog(r.app, r.service) }, 'Logs'),
-          restart,
-          copyable('multiversectl universe exec ' + c.universe + ' ' + r.app + ' --service ' + r.service + ' -- sh', 'copy shell command')),
-        h('div', { class: 'muted mono small' }, r.name));
+          restartButton(c, r, key),
+          copyable('multiversectl universe exec ' + c.universe + ' ' + r.app + ' --service ' + r.service + ' -- sh', 'shell command'),
+          h('span', { class: 'grow' }),
+          copyable(r.name, 'name')));
     }));
+    drawStats();
   }
 
-  const meter = (label, pct, text) => h('span', { class: 'meter', title: label + ' ' + text },
-    h('span', { class: 'meter-l' }, label), h('span', { class: 'bar-track' }, h('span', { class: 'bar-fill w' + Math.min(10, Math.round(pct / 10)) })), h('span', { class: 'mono small' }, text));
+  function restartButton(c, r, key) {
+    if (state.readOnly || !r.running) return null;
+    if (c.confirm === key) {
+      return h('button', {
+        type: 'button', class: 'btn small danger',
+        onclick: async () => {
+          c.confirm = null;
+          try { await run({ action: 'restart', project: c.project, universe: c.universe, app: r.app, service: r.service }); }
+          catch (e) { toast(e.message); }
+          drawRows();
+        },
+      }, 'Restart, really');
+    }
+    return h('button', {
+      type: 'button', class: 'btn small', disabled: isBusy(c.project),
+      title: 'Restart the container in place; it does not pick up a changed image',
+      onclick: () => { c.confirm = key; drawRows(); setTimeout(() => { if (cur === c && c.confirm === key) { c.confirm = null; drawRows(); } }, 4000); },
+    }, 'Restart');
+  }
+
+  function drawStats() {
+    if (!cur || !meterEls) return;
+    const c = cur;
+    for (const [name, into] of meterEls) {
+      const st = c.stats[name];
+      const row = (c.rows || []).find((r) => r.name === name);
+      if (!st) { into.replaceChildren(row && row.running ? h('span', { class: 'muted small' }, 'reading…') : h('span', { class: 'muted small' }, 'not running')); continue; }
+      into.replaceChildren(
+        meter('CPU', st.cpu, viz.percent(st.cpu)),
+        meter('Mem', st.memory, viz.bytes(st.mem || 0), st.memUsage),
+        viz.sparkline(c.history.get(name) || [], Date.now() - SPARK_POINTS * STATS_MS, Date.now(), '', 70, 18),
+        h('span', { class: 'muted small' }, 'net ' + (st.netIO || '—') + ' · ' + st.pids + ' pids'));
+    }
+  }
+
+  const meter = (label, pct, text, title) => h('span', { class: 'meter', title: title || label + ' ' + text },
+    h('span', { class: 'meter-l' }, label),
+    h('span', { class: 'bar-track' }, h('span', { class: 'bar-fill w' + Math.min(10, Math.max(0, Math.round(pct / 10))) })),
+    h('span', { class: 'mono small' }, text));
+
+  const LOG_STATE = { loading: ['mute', 'opening…'], loaded: ['ok', 'last lines'], following: ['ok', 'following'], ended: ['mute', 'ended'], failed: ['bad', 'stopped'] };
 
   function logsTab() {
     const c = cur;
     const log = c.log;
     if (!log) {
       const choices = (c.rows || []);
-      return h('div', null, choices.length ? h('p', { class: 'muted' }, 'Pick a service:') : h('p', { class: 'muted' }, 'Start the universe to see logs.'),
-        h('div', { class: 'actions' }, choices.map((r) => h('button', { type: 'button', class: 'btn small', onclick: () => startLog(r.app, r.service) }, r.app + '/' + r.service))));
+      if (!choices.length) return h('p', { class: 'muted' }, 'Start the universe to read its logs.');
+      return h('div', null, h('p', { class: 'muted' }, 'Which service?'),
+        h('div', { class: 'actions wrap' }, choices.map((r) => h('button', {
+          type: 'button', class: 'btn small', onclick: () => startLog(r.app, r.service),
+        }, h('span', { class: 'dot ' + (r.running ? 'ok' : 'warn') }), r.app + '/' + r.service))));
     }
-    logStatus = h('span', { class: 'muted' }, log.status);
-    logOut = h('pre', { class: 'logout mono', tabindex: '0' });
+    logState = h('span', { class: 'log-state' });
+    logCount = h('span', { class: 'muted small' });
+    logOut = h('div', { class: 'logout mono' + (log.wrap ? ' wrap' : ''), tabindex: '0', role: 'log', 'aria-label': 'Log of ' + log.appKey + '/' + log.service });
+    log.drawn = 0;
+    logOut.addEventListener('scroll', () => { if (jump) jump.hidden = atEnd(); });
+
+    const services = h('select', {
+      'aria-label': 'Service', onchange: (e) => startLog(...e.target.value.split('/')),
+    }, (c.rows || []).map((r) => h('option', { value: r.app + '/' + r.service, selected: r.app === log.appKey && r.service === log.service }, r.app + '/' + r.service)));
     const tailSel = h('select', { 'aria-label': 'Lines of history', onchange: (e) => { log.tail = Number(e.target.value); startLog(log.appKey, log.service); } },
-      [100, 200, 500, 1000, 2000].map((n) => h('option', { value: n, selected: n === log.tail }, n + ' lines')));
-    const followBox = h('input', { type: 'checkbox', checked: log.follow, onchange: (e) => { log.follow = e.target.checked; startLog(log.appKey, log.service); } });
-    const filter = h('input', { type: 'search', placeholder: 'Filter these lines', value: log.filter, oninput: (e) => { log.filter = e.target.value; drawLog(); } });
-    setTimeout(drawLog);
-    return h('div', { class: 'logs' },
-      h('div', { class: 'bar' }, h('b', null, log.appKey + '/' + log.service), logStatus, h('span', { class: 'grow' }), tailSel,
-        h('label', { class: 'switch' }, followBox, 'follow')),
-      h('div', { class: 'bar' }, filter,
-        h('button', { type: 'button', class: 'btn small', onclick: () => { log.lines = []; drawLog(); } }, 'Clear'),
-        h('button', { type: 'button', class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(visible(log).join('\n')); toast('Copied the visible lines'); } catch (_) { toast('Copy failed'); } } }, 'Copy')),
-      logOut);
+      [100, 200, 500, 1000, 2000].map((n) => h('option', { value: n, selected: n === log.tail }, 'last ' + n)));
+    const filter = h('input', { type: 'search', placeholder: 'Only lines containing…', value: log.filter, 'aria-label': 'Filter the lines', oninput: (e) => { log.filter = e.target.value; log.drawn = 0; drawLog(); } });
+    const toggle = (name, on, set) => h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: on, onchange: (e) => set(e.target.checked) }), name);
+    jump = h('button', { type: 'button', class: 'btn small jump', hidden: true, onclick: () => { logOut.scrollTop = logOut.scrollHeight; jump.hidden = true; } }, '↓ latest');
+
+    const panel = h('div', { class: 'logs' },
+      h('div', { class: 'bar' }, services, logState, h('span', { class: 'grow' }), tailSel,
+        toggle('follow', log.follow, (on) => { log.follow = on; startLog(log.appKey, log.service); })),
+      h('div', { class: 'bar' }, filter, logCount, h('span', { class: 'grow' }),
+        toggle('wrap', log.wrap, (on) => { log.wrap = on; logOut.classList.toggle('wrap', on); }),
+        toggle('times', log.times, (on) => { log.times = on; log.drawn = 0; drawLog(); })),
+      h('div', { class: 'log-wrap' }, logOut, jump),
+      h('div', { class: 'bar' },
+        h('button', { type: 'button', class: 'btn small', onclick: () => { log.lines = []; log.drawn = 0; drawLog(); } }, 'Clear'),
+        h('button', { type: 'button', class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(asText(log)); toast('Copied ' + visible(log).length + ' lines'); } catch (_) { toast('Copy failed'); } } }, 'Copy'),
+        h('button', { type: 'button', class: 'btn small', onclick: () => download(log) }, 'Download'),
+        h('span', { class: 'grow' }),
+        h('span', { class: 'muted small' }, 'docker logs of ', log.appKey, '/', log.service)));
+    drawLogState();
+    queueMicrotask(drawLog);
+    return panel;
   }
 
-  const visible = (log) => log.filter ? log.lines.filter((l) => l.toLowerCase().includes(log.filter.toLowerCase())) : log.lines;
+  function download(log) {
+    const name = cur.project + '-' + cur.universe + '-' + log.appKey + '-' + log.service + '.log';
+    const url = URL.createObjectURL(new Blob([asText(log)], { type: 'text/plain' }));
+    const a = h('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
 
+  const atEnd = () => !logOut || logOut.scrollHeight - logOut.scrollTop - logOut.clientHeight < 40;
+
+  // Only what is new is added: a log that is followed must not rebuild three
+  // thousand lines every time one arrives.
   function drawLog() {
     if (!cur || !cur.log || !logOut) return;
-    const atEnd = logOut.scrollHeight - logOut.scrollTop - logOut.clientHeight < 40;
-    logOut.textContent = visible(cur.log).join('\n');
-    if (atEnd) logOut.scrollTop = logOut.scrollHeight;
+    const log = cur.log;
+    const stick = atEnd();
+    if (!log.drawn) logOut.replaceChildren();
+    const note = logOut.querySelector('.log-note');
+    if (note) note.remove();
+    const add = [];
+    for (let i = log.drawn; i < log.lines.length; i++) {
+      const l = log.lines[i];
+      if (shows(log, l)) add.push(lineEl(log, l));
+    }
+    log.drawn = log.lines.length;
+    if (add.length) logOut.append(...add);
+    const shown = logOut.childElementCount;
+    logCount.textContent = log.filter ? shown + ' of ' + log.lines.length + ' lines' : shown + (shown === 1 ? ' line' : ' lines');
+    if (!shown) logOut.append(h('p', { class: 'muted log-note' }, log.filter ? 'No line contains that.' : 'Nothing logged yet.'));
+    if (stick) logOut.scrollTop = logOut.scrollHeight;
+    if (jump) jump.hidden = atEnd();
   }
-  function drawLogStatus() { if (cur && cur.log && logStatus) logStatus.textContent = cur.log.status; }
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && cur) close(); });
-  return { open, close };
+  function drawLogState() {
+    if (!cur || !cur.log || !logState) return;
+    const log = cur.log;
+    const [kind, text] = LOG_STATE[log.state] || ['mute', log.state];
+    logState.replaceChildren(h('span', { class: 'dot ' + (kind === 'bad' ? 'warn' : kind === 'ok' ? 'ok' : '') }),
+      h('span', { class: 'muted small' }, text + (log.detail ? ': ' + log.detail : '')));
+  }
+
+  // Escape closes the panel, but a dialog on top of it gets it first.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && cur && !document.querySelector('dialog[open]')) close();
+  });
+  return { open, close, reload };
 })();

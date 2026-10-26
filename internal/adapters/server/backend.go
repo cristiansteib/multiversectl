@@ -38,6 +38,8 @@ type Backend interface {
 	Containers(ctx context.Context, workspace, universe string) ([]containerView, error)
 	Stats(ctx context.Context, workspace, universe string) ([]statView, error)
 	Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error
+	// FleetStats reads every running container of one project, or of all.
+	FleetStats(ctx context.Context, workspace string) (fleetStatsView, error)
 	// Do carries out an action, reporting to the sink as it goes.
 	Do(ctx context.Context, r opRequest, k Sink) error
 }
@@ -271,10 +273,49 @@ func (s Services) Stats(ctx context.Context, workspace, universe string) ([]stat
 	}
 	out := make([]statView, 0, len(stats))
 	for _, c := range stats {
-		out = append(out, statView{Name: c.Name, CPU: c.CPU, Memory: c.Memory, MemUsage: c.MemUsage, NetIO: c.NetIO, PIDs: c.PIDs})
+		out = append(out, statOf(c))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+// FleetStats asks every project at once, as Fleet does, and says which ones
+// could not answer rather than leaving their containers out silently.
+func (s Services) FleetStats(ctx context.Context, workspace string) (fleetStatsView, error) {
+	list, err := s.infos(workspace)
+	if err != nil {
+		return fleetStatsView{}, err
+	}
+	rows := make([][]fleetStatRow, len(list))
+	fails := make([]fleetStatError, len(list))
+	var wg sync.WaitGroup
+	for i, w := range list {
+		wg.Add(1)
+		go func(i int, w app.WorkspaceInfo) {
+			defer wg.Done()
+			svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+			if err == nil {
+				var read []app.StatRow
+				if read, err = svc.ProjectStats(ctx); err == nil {
+					for _, r := range read {
+						rows[i] = append(rows[i], fleetStatRow{Workspace: w.Name, Universe: r.Universe, App: r.App, Service: r.Service, statView: statOf(r.ContainerStats)})
+					}
+				}
+			}
+			if err != nil {
+				fails[i] = fleetStatError{Workspace: w.Name, Error: err.Error()}
+			}
+		}(i, w)
+	}
+	wg.Wait()
+	v := fleetStatsView{At: time.Now().UTC().Format(time.RFC3339), Rows: []fleetStatRow{}}
+	for i := range list {
+		v.Rows = append(v.Rows, rows[i]...)
+		if fails[i].Error != "" {
+			v.Sources = append(v.Sources, fails[i])
+		}
+	}
+	return v, nil
 }
 
 func (s Services) Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error {
@@ -283,6 +324,11 @@ func (s Services) Logs(ctx context.Context, workspace, universe, appKey, service
 		return err
 	}
 	return svc.Logs(ctx, app.LogsInput{Universe: universe, App: appKey, Service: service, Tail: tail, Follow: follow}, w)
+}
+
+func statOf(c app.ContainerStats) statView {
+	return statView{Name: c.Name, CPU: c.CPU, Memory: c.Memory, MemUsage: c.MemUsage,
+		Mem: c.MemBytes, MemLimit: c.MemLimit, NetIO: c.NetIO, PIDs: c.PIDs}
 }
 
 func sortedKeys[V any](m map[string]V) []string {

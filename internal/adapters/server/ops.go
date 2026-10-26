@@ -165,7 +165,7 @@ func title(r opRequest) string {
 	case "rm":
 		return "Remove " + r.Universe + " from " + r.Workspace
 	case "restart":
-		return "Restart " + r.App + "/" + r.Service + " in " + r.Universe
+		return "Restart " + r.App + "/" + r.Service + " in " + r.Universe + " of " + r.Workspace
 	case "sync":
 		return "Bring " + r.Universe + " up to date in " + r.Workspace
 	case "new":

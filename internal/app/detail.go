@@ -120,6 +120,72 @@ func (s *Service) Stats(ctx context.Context, universe string) (map[string]Contai
 	return out, nil
 }
 
+// StatRow is one container's reading, filed under the universe and service it
+// belongs to: a fleet is read by universe and app, never by docker name.
+type StatRow struct {
+	Universe string
+	App      string
+	Service  string
+	ContainerStats
+}
+
+// ProjectStats takes one reading of every running container of every universe
+// of the project. It asks the runtime twice however many universes there are,
+// because a page polls it: once for the containers, once for their use.
+func (s *Service) ProjectStats(ctx context.Context) ([]StatRow, error) {
+	states, err := s.Store.List()
+	if err != nil {
+		return nil, fmt.Errorf("listing universes: %w", err)
+	}
+	// Every compose project of every universe starts with the project's own
+	// name, so one query covers the fleet; owners keeps only what it owns.
+	containers, err := s.Runtime.Containers(ctx, s.Manifest.Name)
+	if err != nil {
+		return nil, err
+	}
+	type owner struct{ universe, app string }
+	owners := map[string]owner{}
+	for _, st := range states {
+		u := s.Universe(st.Name)
+		for key := range s.Manifest.Apps {
+			owners[u.ProjectFor(key)] = owner{st.Name, key}
+		}
+	}
+	rows := make(map[string]StatRow, len(containers))
+	names := make([]string, 0, len(containers))
+	for _, c := range containers {
+		o, ok := owners[c.Project]
+		if !ok || !isRunning(c) {
+			continue
+		}
+		rows[c.Name] = StatRow{Universe: o.universe, App: o.app, Service: c.Service}
+		names = append(names, c.Name)
+	}
+	stats, err := s.Runtime.Stats(ctx, names)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]StatRow, 0, len(stats))
+	for _, c := range stats {
+		r, ok := rows[c.Name]
+		if !ok {
+			continue
+		}
+		r.ContainerStats = c
+		out = append(out, r)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Universe != out[j].Universe {
+			return out[i].Universe < out[j].Universe
+		}
+		if out[i].App != out[j].App {
+			return out[i].App < out[j].App
+		}
+		return out[i].Service < out[j].Service
+	})
+	return out, nil
+}
+
 // RestartInput is one service of one universe.
 type RestartInput struct {
 	Universe string

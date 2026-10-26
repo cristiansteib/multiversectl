@@ -263,12 +263,39 @@ type containerView struct {
 	Ports   string `json:"ports,omitempty"`
 }
 
-// statView is one reading of a container's resource use.
+// statView is one reading of a container's resource use. CPU and memory are
+// percentages; mem and memLimit are bytes, which is what can be added up.
 type statView struct {
 	Name     string  `json:"name"`
 	CPU      float64 `json:"cpu"`
 	Memory   float64 `json:"memory"`
 	MemUsage string  `json:"memUsage"`
+	Mem      float64 `json:"mem,omitempty"`
+	MemLimit float64 `json:"memLimit,omitempty"`
 	NetIO    string  `json:"netIO"`
 	PIDs     int     `json:"pids"`
+}
+
+// fleetStatsView is one reading of every running container this machine holds
+// for the installed projects, flat: the page groups it as it likes.
+type fleetStatsView struct {
+	At      string           `json:"at"`
+	Rows    []fleetStatRow   `json:"rows"`
+	Sources []fleetStatError `json:"sources,omitempty"`
+}
+
+// fleetStatRow says where the container is before it says what it is using.
+type fleetStatRow struct {
+	Workspace string `json:"project"`
+	Universe  string `json:"universe"`
+	App       string `json:"app"`
+	Service   string `json:"service"`
+	statView
+}
+
+// fleetStatError is a project whose reading failed, so the page can say which
+// numbers are missing instead of showing a gap.
+type fleetStatError struct {
+	Workspace string `json:"project"`
+	Error     string `json:"error"`
 }

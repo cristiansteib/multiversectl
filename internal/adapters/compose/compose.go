@@ -118,10 +118,36 @@ func (c *Compose) Stats(ctx context.Context, containers []string) ([]app.Contain
 	args := append([]string{"stats", "--no-stream", "--format", "{{json .}}"}, containers...)
 	out, err := c.capture(ctx, "docker", args...)
 	if err != nil {
-		return nil, err
+		// A container asked for by name may have stopped since it was listed,
+		// and docker then reports nothing at all rather than the rest. Reading
+		// every running container and keeping the ones asked for still answers.
+		out, err = c.capture(ctx, "docker", "stats", "--no-stream", "--format", "{{json .}}")
+		if err != nil {
+			return nil, err
+		}
+		wanted := make(map[string]bool, len(containers))
+		for _, name := range containers {
+			wanted[name] = true
+		}
+		all, perr := parseStats(out)
+		if perr != nil {
+			return nil, perr
+		}
+		kept := all[:0]
+		for _, s := range all {
+			if wanted[s.Name] {
+				kept = append(kept, s)
+			}
+		}
+		return kept, nil
 	}
+	return parseStats(out)
+}
+
+func parseStats(out []byte) ([]app.ContainerStats, error) {
 	var stats []app.ContainerStats
 	scanner := bufio.NewScanner(bytes.NewReader(out))
+	scanner.Buffer(nil, 1<<20)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
@@ -132,12 +158,13 @@ func (c *Compose) Stats(ctx context.Context, containers []string) ([]app.Contain
 			return nil, fmt.Errorf("parsing docker stats output: %w", err)
 		}
 		pids, _ := strconv.Atoi(row.PIDs)
+		used, limit := sizePair(row.MemUsage)
 		stats = append(stats, app.ContainerStats{
 			Name: row.Name, CPU: percent(row.CPUPerc), Memory: percent(row.MemPerc),
-			MemUsage: row.MemUsage, NetIO: row.NetIO, PIDs: pids,
+			MemUsage: row.MemUsage, MemBytes: used, MemLimit: limit, NetIO: row.NetIO, PIDs: pids,
 		})
 	}
-	return stats, nil
+	return stats, scanner.Err()
 }
 
 // percent reads docker's "12.34%"; a container that is not running reports
@@ -145,6 +172,35 @@ func (c *Compose) Stats(ctx context.Context, containers []string) ([]app.Contain
 func percent(s string) float64 {
 	v, _ := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(s), "%"), 64)
 	return v
+}
+
+// sizePair reads docker's "123.4MiB / 7.654GiB" as bytes, so a page can total
+// and plot memory instead of only printing it. Either side may be missing.
+func sizePair(s string) (used, limit float64) {
+	before, after, _ := strings.Cut(s, "/")
+	return size(before), size(after)
+}
+
+var sizeUnits = []struct {
+	suffix string
+	mult   float64
+}{
+	{"TiB", 1 << 40}, {"GiB", 1 << 30}, {"MiB", 1 << 20}, {"KiB", 1 << 10},
+	{"TB", 1e12}, {"GB", 1e9}, {"MB", 1e6}, {"kB", 1e3}, {"KB", 1e3}, {"B", 1},
+}
+
+func size(s string) float64 {
+	s = strings.TrimSpace(s)
+	for _, u := range sizeUnits {
+		if rest, ok := strings.CutSuffix(s, u.suffix); ok {
+			v, err := strconv.ParseFloat(strings.TrimSpace(rest), 64)
+			if err != nil {
+				return 0
+			}
+			return v * u.mult
+		}
+	}
+	return 0
 }
 
 func (c *Compose) Containers(ctx context.Context, namePrefix string) ([]app.Container, error) {

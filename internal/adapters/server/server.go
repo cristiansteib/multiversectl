@@ -103,6 +103,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/universe/containers", s.containers)
 	mux.HandleFunc("/api/universe/stats", s.stats)
 	mux.HandleFunc("/api/universe/logs", s.logs)
+	mux.HandleFunc("/api/stats", s.fleetStats)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "no such endpoint") })
 	mux.HandleFunc("/ws", s.ws)
 

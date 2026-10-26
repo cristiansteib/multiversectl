@@ -46,6 +46,7 @@ type fake struct {
 	// stream open until the request ends.
 	containers []containerView
 	stats      []statView
+	fleetStats fleetStatsView
 	logText    string
 	logHold    bool
 }
@@ -88,6 +89,10 @@ func (f *fake) Containers(_ context.Context, ws, u string) ([]containerView, err
 func (f *fake) Stats(_ context.Context, ws, u string) ([]statView, error) {
 	f.ask("stats:" + ws + ":" + u)
 	return f.stats, f.err
+}
+func (f *fake) FleetStats(_ context.Context, ws string) (fleetStatsView, error) {
+	f.ask("fleetstats:" + ws)
+	return f.fleetStats, f.err
 }
 func (f *fake) Logs(ctx context.Context, ws, u, appKey, service string, tail int, follow bool, w io.Writer) error {
 	f.ask(fmt.Sprintf("logs:%s:%s:%s/%s:%d:%v", ws, u, appKey, service, tail, follow))

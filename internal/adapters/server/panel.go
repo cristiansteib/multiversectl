@@ -1,8 +1,11 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
+
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // The side panel of a universe asks for these when it opens and stops when it
@@ -25,7 +28,7 @@ func (s *Server) containers(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rows, err := s.b.Containers(ctx, project, universe)
 	if err != nil {
-		fail(w, http.StatusNotFound, err.Error())
+		failErr(w, err)
 		return
 	}
 	reply(w, map[string]any{"containers": rows})
@@ -41,10 +44,33 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rows, err := s.b.Stats(ctx, project, universe)
 	if err != nil {
-		fail(w, http.StatusInternalServerError, err.Error())
+		failErr(w, err)
 		return
 	}
 	reply(w, map[string]any{"stats": rows})
+}
+
+// fleetStats is every running container of every installed project, or of one
+// when the page asks for one: the stats view plots the whole machine.
+func (s *Server) fleetStats(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	v, err := s.b.FleetStats(ctx, r.URL.Query().Get("project"))
+	if err != nil {
+		failErr(w, err)
+		return
+	}
+	reply(w, v)
+}
+
+// failErr says 404 for something that is not there and 500 for everything
+// else, so a page can tell a typo from a runtime that is down.
+func failErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, domain.ErrNotFound) {
+		fail(w, http.StatusNotFound, err.Error())
+		return
+	}
+	fail(w, http.StatusInternalServerError, err.Error())
 }
 
 // logs streams a service's log as plain text, one flush per write so a followed
@@ -80,7 +106,7 @@ func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 	fw := &flushWriter{w: w, rc: http.NewResponseController(w)}
 	if err := s.b.Logs(ctx, project, universe, appKey, service, tail, follow, fw); err != nil {
 		if !fw.wrote {
-			fail(w, http.StatusNotFound, err.Error())
+			failErr(w, err)
 			return
 		}
 		_, _ = fw.Write([]byte("\n[logs stopped: " + err.Error() + "]\n"))

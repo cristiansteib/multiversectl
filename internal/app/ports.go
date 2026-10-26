@@ -104,12 +104,16 @@ type Container struct {
 }
 
 // ContainerStats is one reading of a container's resource use, as the runtime
-// reports it: CPU and Memory are percentages, MemUsage is "used / limit".
+// reports it: CPU and Memory are percentages, MemUsage is "used / limit", and
+// MemBytes and MemLimit are that pair in bytes, so it can be totalled and
+// plotted rather than only printed.
 type ContainerStats struct {
 	Name     string
 	CPU      float64
 	Memory   float64
 	MemUsage string
+	MemBytes float64
+	MemLimit float64
 	NetIO    string
 	PIDs     int
 }

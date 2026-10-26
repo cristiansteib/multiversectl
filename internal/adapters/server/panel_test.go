@@ -3,11 +3,14 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 func TestThePanelReadsContainersAndStats(t *testing.T) {
@@ -60,7 +63,7 @@ func TestLogsAreStreamedAsText(t *testing.T) {
 }
 
 func TestLogsOfAServiceThatDoesNotExistAreNotFound(t *testing.T) {
-	f := &fake{err: errors.New("universe 3 has no container for api/nope")}
+	f := &fake{err: fmt.Errorf("universe 3 has no container for api/nope: %w", domain.ErrNotFound)}
 	_, h := serve(t, f, Options{})
 	rec := do(t, h, "GET", "/api/universe/logs?project=acme&universe=3&app=api&service=nope", "", nil)
 	if rec.Code != http.StatusNotFound {
@@ -97,6 +100,34 @@ func TestTooManyOpenLogsAreRefused(t *testing.T) {
 	cancel()
 	for i := 0; i < maxLogStreams; i++ {
 		<-done
+	}
+}
+
+// A runtime that is down is not a universe that is missing: the page tells a
+// typo from docker being unreachable by the status it gets back.
+func TestAReadThatFailsForAnotherReasonIsNotAFourOhFour(t *testing.T) {
+	_, h := serve(t, &fake{err: errors.New("docker daemon is unreachable")}, Options{})
+	if rec := do(t, h, "GET", "/api/universe/stats?project=acme&universe=3", "", nil); rec.Code != http.StatusInternalServerError {
+		t.Errorf("= %d, want 500", rec.Code)
+	}
+}
+
+func TestTheStatsViewReadsEveryProjectAtOnce(t *testing.T) {
+	f := &fake{fleetStats: fleetStatsView{At: "2026-01-01T00:00:00Z", Rows: []fleetStatRow{
+		{Workspace: "acme", Universe: "3", App: "api", Service: "web", statView: statView{Name: "acme-u3-api-web-1", CPU: 4, Mem: 1 << 20}},
+	}, Sources: []fleetStatError{{Workspace: "other", Error: "no manifest"}}}}
+	_, h := serve(t, f, Options{ReadOnly: true})
+	rec := do(t, h, "GET", "/api/stats", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("= %d %s", rec.Code, rec.Body)
+	}
+	for _, want := range []string{`"project":"acme"`, `"universe":"3"`, `"mem":1048576`, `"sources":[{"project":"other"`} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("missing %s in %s", want, rec.Body)
+		}
+	}
+	if got := strings.Join(f.asked, ","); !strings.Contains(got, "fleetstats:") {
+		t.Errorf("asked %s", got)
 	}
 }
 
