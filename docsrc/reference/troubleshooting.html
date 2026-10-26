@@ -30,6 +30,17 @@
 <span class="p">$ </span>multiversectl universe doctor 3</pre></div>
 </section>
 
+<section id="ts-rm">
+  <h2 id="ts-rm"><a href="#ts-rm">Removing a universe stops on a worktree</a></h2>
+  <p>A container that runs as root writes into the worktree it mounts — a <code>node_modules</code>, a build cache, sometimes a file in the source tree — and those files belong to root. Nothing you run as yourself can delete them, so <code>rm</code> removes everything else, leaves the universe listed, and says what is left:</p>
+  <div class="code"><pre>error: universe 2: its containers and volumes are gone, but this is still on disk:
+    ~/acme/universes/2/admin: unlinkat …/.angular/cache/…/.tsbuildinfo: permission denied
+  Files owned by another user, which a container that runs as root leaves behind. Remove them with:
+    sudo rm -rf ~/acme/universes/2/admin
+  Then run `multiversectl universe rm 2` again to finish.</pre></div>
+  <p>Do that and the second <code>rm</code> finishes the job. To stop it happening again, have the service run as you — most images take a <code>user:</code>, and <code>${HOST_UID}:${HOST_GID}</code> are passed to every compose file for exactly this.</p>
+</section>
+
 <section id="ts-403">
   <h2 id="ts-403"><a href="#ts-403">A dev server answers 403</a></h2>
   <p>Many dev servers reject Host headers they do not know, and a universe answers on <code>app-u3.&lt;domain&gt;</code>. Allow it with the variable the manifest passes in, through an inline overlay — the variable name is whatever your server reads:</p>

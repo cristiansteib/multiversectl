@@ -39,6 +39,7 @@ http://api-fix-login.10-0-0-5.traefik.me
 <span class="p">$ </span>multiversectl universe rm 3 --yes     <span class="c"># skip the prompt</span></pre></div>
   <p><code>rm</code> lists what it will destroy and asks you to type the number back. It removes the worktrees, the containers and <strong>volumes</strong>, so every database in it, and the directory and state file. The shared clones are untouched. To stop a universe and keep everything, use <code>universe down 3</code>.</p>
   <p>Work that is only in a worktree is a second question, with its own answer: a universe holding uncommitted changes is refused, and named, until <code>--force</code>. Typing a universe's name back says "yes, this universe", not "yes, and the afternoon's work in it". <code>--yes</code> skips the question; it never discards.</p>
+  <p>A worktree a container has written into as root holds files you cannot delete, so that one is left where it is: everything else still goes, the universe stays listed, and the command says which paths to remove with <code>sudo</code> and to run <code>rm</code> again to finish. The same goes for a worktree the clone has lost its record of — the directory is taken away even though git will not do it.</p>
 </section>
 
 <section id="hw-prune">

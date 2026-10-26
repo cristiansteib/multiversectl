@@ -32,6 +32,9 @@ type Git interface {
 	// work that is only in it: git refuses otherwise, and whether that refusal
 	// is right is a question for the use case, not for this port.
 	RemoveWorktree(ctx context.Context, repoDir, dest string, discard bool) error
+	// PruneWorktrees makes the clone forget worktrees whose directories are
+	// gone, so a directory removed some other way does not keep its branch.
+	PruneWorktrees(ctx context.Context, repoDir string) error
 	CurrentBranch(ctx context.Context, dir string) (string, error)
 	RefExists(ctx context.Context, repoDir, ref string) (RefKind, error)
 	DefaultBranch(ctx context.Context, repoDir string) (string, error)

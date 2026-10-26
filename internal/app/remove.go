@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"sort"
 	"strings"
 
@@ -102,6 +103,11 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		}
 	}
 
+	// Every repository is attempted, whatever the one before it did. By this
+	// point the containers and the volumes are already gone, so stopping at
+	// the first worktree that will not go would leave the universe destroyed
+	// in every way that matters and still listed as if it were there.
+	var stuck []Leftover
 	for _, repoKey := range sortedRepoKeys(s.Manifest.Repos) {
 		dest := u.RepoDir(repoKey)
 		if !s.Files.Exists(dest) {
@@ -110,20 +116,81 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		clone := s.Manifest.CloneDir(s.Workspace, repoKey)
 		// Whatever was in them has been accounted for above, by refusing or by
 		// being forced, so this is where the work is actually discarded.
-		if err := s.Git.RemoveWorktree(ctx, clone, dest, true); err != nil {
-			return fmt.Errorf("universe %s: %s: remove worktree: %w", st.Name, repoKey, err)
+		err := s.Git.RemoveWorktree(ctx, clone, dest, true)
+		if err != nil && s.Files.Exists(dest) {
+			// git would not, or could not. It refuses a directory it has no
+			// record of, which is what a worktree whose registration was lost
+			// looks like — and the universe is being destroyed either way, so
+			// the directory goes.
+			if rmErr := s.Files.RemoveAll(dest); rmErr != nil {
+				stuck = append(stuck, Leftover{Repo: repoKey, Path: dest, Err: rmErr})
+				continue
+			}
+			err = nil
+		}
+		if err != nil {
+			stuck = append(stuck, Leftover{Repo: repoKey, Path: dest, Err: err})
+			continue
+		}
+		// However it went, git may still have it written down.
+		if err := s.Git.PruneWorktrees(ctx, clone); err != nil {
+			s.Out.Warn("%s: %v", repoKey, err)
 		}
 		s.Out.OK("%s: worktree removed", repoKey)
 		s.dropBranch(ctx, st, repoKey, clone)
 	}
 
-	if err := s.Files.RemoveAll(u.Dir()); err != nil {
-		return fmt.Errorf("universe %s: %w", st.Name, err)
+	if len(stuck) == 0 {
+		if err := s.Files.RemoveAll(u.Dir()); err != nil {
+			stuck = append(stuck, Leftover{Path: u.Dir(), Err: err})
+		}
+	}
+	if len(stuck) > 0 {
+		// The state file stays, so the universe is still something `rm` can be
+		// pointed at: once the paths below are gone, running it again finishes
+		// the job rather than leaving a directory nothing accounts for.
+		return &NotFullyRemoved{Universe: st.Name, Left: stuck}
 	}
 	if err := s.Store.Delete(st.ID); err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return fmt.Errorf("universe %s: %w", st.Name, err)
 	}
 	return nil
+}
+
+// Leftover is one path a removal could not take away, and why.
+type Leftover struct {
+	Repo string
+	Path string
+	Err  error
+}
+
+// NotFullyRemoved says the containers and volumes are gone but something on
+// disk is not, and what to do about it. The usual cause is a container that
+// wrote into the worktree as root — a node_modules, a cache — which leaves
+// files the person who started it cannot delete.
+type NotFullyRemoved struct {
+	Universe string
+	Left     []Leftover
+}
+
+func (e *NotFullyRemoved) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "universe %s: its containers and volumes are gone, but this is still on disk:", e.Universe)
+	denied := false
+	for _, l := range e.Left {
+		fmt.Fprintf(&b, "\n    %s: %v", l.Path, l.Err)
+		if errors.Is(l.Err, fs.ErrPermission) || strings.Contains(strings.ToLower(l.Err.Error()), "permission denied") {
+			denied = true
+		}
+	}
+	if denied {
+		b.WriteString("\n  Files owned by another user, which a container that runs as root leaves behind. Remove them with:")
+		for _, l := range e.Left {
+			fmt.Fprintf(&b, "\n    sudo rm -rf %s", l.Path)
+		}
+	}
+	fmt.Fprintf(&b, "\n  Then run `multiversectl universe rm %s` again to finish.", e.Universe)
+	return b.String()
 }
 
 // dropBranch deletes the branch a universe started, so the number can be used
