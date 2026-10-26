@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -46,7 +47,10 @@ func main() {
 			fmt.Fprintln(os.Stderr, "interrupted")
 			os.Exit(130)
 		}
-		if !cli.IsSilent(err) {
+		if !cli.IsSilent(err) && globals.JSON {
+			b, _ := json.Marshal(map[string]string{"level": "error", "message": cli.Markup(err.Error(), false)})
+			fmt.Fprintln(os.Stderr, string(b))
+		} else if !cli.IsSilent(err) {
 			fmt.Fprintln(os.Stderr, errorPrefix(globals.NoColor)+cli.Markup(err.Error(), cli.ColorEnabled(os.Stderr, globals.NoColor)))
 		}
 		os.Exit(1)

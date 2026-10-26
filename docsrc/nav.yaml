@@ -85,8 +85,7 @@ groups:
         summary: >-
           A live web view of the catalog, the projects and the fleet of
           universes, with versions and buttons to start, stop, create and
-          remove universes, behind a token. Coding agents connect to the same
-          server over MCP.
+          remove universes, behind a token.
   - title: Reference
     pages:
       - path: reference/cli

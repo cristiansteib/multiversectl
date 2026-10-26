@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -16,6 +18,7 @@ type Globals struct {
 	Workspace string
 	NoColor   bool
 	Verbose   bool
+	JSON      bool
 }
 
 // Factory builds services; main owns it so the CLI never names an adapter.
@@ -52,9 +55,10 @@ func New(f Factory) (*cobra.Command, *Globals) {
 		Short:         "Run numbered, isolated copies of a multi-repo stack side by side",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			*out = *NewOutput(os.Stdout, ColorEnabled(os.Stdout, g.NoColor))
 			run.refreshCompletions(root, cmd)
+			return applyJSON(cmd, out)
 		},
 	}
 	flags := root.PersistentFlags()
@@ -67,6 +71,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	flags.StringVar(&g.Root, "root", "", "project root (default $MULTIVERSECTL_ROOT, the manifest's spec.root, config, or the manifest's directory)")
 	flags.BoolVar(&g.NoColor, "no-color", false, "disable colour output")
 	flags.BoolVarP(&g.Verbose, "verbose", "v", false, "show the commands being run")
+	flags.BoolVar(&g.JSON, jsonFlag, false, "machine-readable output: -o json on a listing, and --help as a document (for agents)")
 
 	run = runner{g: g, out: out, f: f}
 	root.CompletionOptions.DisableDefaultCmd = true
@@ -80,6 +85,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	explainArgs(root)
 	root.SetFlagErrorFunc(run.flagError)
 	groupCommands(root, g)
+	jsonHelp(root, nil)
 	return root, g
 }
 
@@ -99,7 +105,12 @@ func (r runner) withService(fn func(ctx context.Context, s *app.Service) error) 
 		// News about the project's manifest, on the way in: the commands that
 		// act on a project are where someone would otherwise never look.
 		if msg := s.ManifestNotice(cmd.Context()); msg != "" {
-			r.out.Warn("%s", msg)
+			if o := cmd.Flags().Lookup("output"); o != nil && strings.Contains(o.Value.String(), "json") {
+				// stdout is a document: the notice must not break it.
+				fmt.Fprintln(os.Stderr, "! "+Markup(msg, false))
+			} else {
+				r.out.Warn("%s", msg)
+			}
 		}
 		return fn(cmd.Context(), s)
 	}

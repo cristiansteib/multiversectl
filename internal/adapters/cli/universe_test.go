@@ -83,7 +83,7 @@ func TestArgumentErrorsSayWhatToDo(t *testing.T) {
 		want []string
 	}{
 		{[]string{"catalog", "create"}, []string{"needs <name>", "usage:", "example:"}},
-		{[]string{"universe", "ls", "extra"}, []string{"takes no arguments", "extra"}},
+		{[]string{"universe", "status", "extra"}, []string{"takes no arguments", "extra"}},
 		{[]string{"u", "nwe"}, []string{"has no command nwe", "did you mean new", "commands:"}},
 	}
 	for _, c := range cases {
