@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// allTreeCmd draws every command there is, nested as it is typed.
+// helpTreeCmd draws every command there is, nested as it is typed.
 //
 // The help of one command names its children and no further, so the shape of
 // the whole tool — what lives under what, what is a command and what only
@@ -15,14 +15,14 @@ import (
 // This walks the command tree itself, so it is the tree that is installed and
 // cannot disagree with it, and it shows the aliases, which no help screen
 // puts next to the name they belong to.
-func (r runner) allTreeCmd(root *cobra.Command) *cobra.Command {
+func (r runner) helpTreeCmd(root *cobra.Command) *cobra.Command {
 	var flat bool
 	cmd := &cobra.Command{
-		Use:   "all-tree",
+		Use:   "help-tree",
 		Short: "Show every command and subcommand, nested",
 		Long: "Every command, under the command it belongs to, with the aliases it answers\n" +
 			"to in brackets and a line on what it does.",
-		Example: "  multiversectl all-tree\n  multiversectl all-tree --flat     # one full command per line, to grep",
+		Example: "  multiversectl help-tree\n  multiversectl help-tree --flat     # one full command per line, to grep",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			nodes := commandTree(root)

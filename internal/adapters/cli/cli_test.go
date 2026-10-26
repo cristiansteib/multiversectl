@@ -356,17 +356,17 @@ func (nothingOnDisk) Exists(string) bool { return false }
 // The tree is read off the commands themselves, so the way to test it is
 // against them: every command the tool has must be in it, nested where it is
 // typed, and the ones that are hidden on purpose must not be.
-func TestAllTreeShowsEveryCommandWhereItIsTyped(t *testing.T) {
+func TestHelpTreeShowsEveryCommandWhereItIsTyped(t *testing.T) {
 	root, _ := New(Factory{})
 	var buf bytes.Buffer
 	run := runner{g: &Globals{}, out: NewOutput(&buf, false), f: Factory{}}
-	cmd := run.allTreeCmd(root)
+	cmd := run.helpTreeCmd(root)
 	cmd.SetContext(context.Background())
 	if err := cmd.Flags().Set("flat", "true"); err != nil {
 		t.Fatal(err)
 	}
 	if err := cmd.RunE(cmd, nil); err != nil {
-		t.Fatalf("all-tree: %v", err)
+		t.Fatalf("help-tree: %v", err)
 	}
 	flat := buf.String()
 
@@ -384,14 +384,14 @@ func TestAllTreeShowsEveryCommandWhereItIsTyped(t *testing.T) {
 	}
 }
 
-func TestAllTreeNestsAndNamesAliases(t *testing.T) {
+func TestHelpTreeNestsAndNamesAliases(t *testing.T) {
 	root, _ := New(Factory{})
 	var buf bytes.Buffer
 	run := runner{g: &Globals{}, out: NewOutput(&buf, false), f: Factory{}}
-	cmd := run.allTreeCmd(root)
+	cmd := run.helpTreeCmd(root)
 	cmd.SetContext(context.Background())
 	if err := cmd.RunE(cmd, nil); err != nil {
-		t.Fatalf("all-tree: %v", err)
+		t.Fatalf("help-tree: %v", err)
 	}
 	out := buf.String()
 	// Aliases, which no help screen puts beside the name they belong to.
