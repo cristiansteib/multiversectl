@@ -44,4 +44,8 @@ A new capability starts as a port method in `internal/app/ports.go`.
 - Comments say *why*, not what. Don't narrate code that reads plainly.
 - Tests cover behaviour that would otherwise be argued about; don't pad.
 - Nothing about any private project belongs in this repo — examples use
-  `acme`, `example.test` and the like.
+  `acme`, `example.test` and the like. That covers the screenshots too.
+- The docs carry screenshots of the web view (`docs/assets/img`). Change how it
+  looks and they go stale, so retake them: `MVCTL_DEV_UI=1 go test
+  ./internal/adapters/server -run TestDevUI -timeout 0` serves the invented
+  fleet they are taken from, in light and dark.

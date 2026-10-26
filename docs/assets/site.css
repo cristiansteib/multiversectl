@@ -225,6 +225,11 @@ td code{white-space:normal}
 .d-a{font:600 12px var(--mono);fill:var(--num)}
 .d-bar{fill:var(--addr);fill-opacity:.1;stroke:var(--addr);stroke-width:1.5}
 
+/* screenshots */
+.shot{margin:26px 0 0}
+.shot img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:10px;background:var(--raised)}
+.shot figcaption{font-size:.875rem;color:var(--muted);margin-top:10px}
+
 /* tabs */
 [role=tablist]{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto;margin-bottom:16px}
 [role=tab]{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:10px 14px;font:600 .875rem var(--mono);margin-bottom:-1px;white-space:nowrap;cursor:pointer}
