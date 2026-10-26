@@ -28,7 +28,10 @@ type Git interface {
 	Clone(ctx context.Context, url, dest string) error
 	Fetch(ctx context.Context, repoDir string) error
 	AddWorktree(ctx context.Context, repoDir, dest, branch, base string) error
-	RemoveWorktree(ctx context.Context, repoDir, dest string) error
+	// RemoveWorktree takes a worktree away. discard says whether to throw away
+	// work that is only in it: git refuses otherwise, and whether that refusal
+	// is right is a question for the use case, not for this port.
+	RemoveWorktree(ctx context.Context, repoDir, dest string, discard bool) error
 	CurrentBranch(ctx context.Context, dir string) (string, error)
 	RefExists(ctx context.Context, repoDir, ref string) (RefKind, error)
 	DefaultBranch(ctx context.Context, repoDir string) (string, error)
@@ -228,6 +231,10 @@ type Route struct {
 	Entrypoint string
 	Project    string
 	Network    string
+	// HostPort, when set, is the host port the service is also published on
+	// (bound to OverrideRequest.Bind). ForwardURL is the address that gives.
+	HostPort   int
+	ForwardURL string
 }
 
 // Router materialises routing for a universe's apps. Returning extra runtime
@@ -246,6 +253,8 @@ type OverrideRequest struct {
 	Routes    []Route
 	Unpublish []string
 	Env       []ServiceEnv
+	// Bind is the address forwarded host ports are published on.
+	Bind string
 }
 
 // ServiceEnv is the environment one service asked for with labels.
@@ -285,6 +294,8 @@ type System interface {
 	LANIP(ctx context.Context) (string, error)
 	Resolve(ctx context.Context, host string) ([]string, error)
 	PortFree(ctx context.Context, port int) (bool, error)
+	// FreePort asks the kernel for a port nothing is listening on.
+	FreePort(ctx context.Context) (int, error)
 	// Probe asks url once and returns the HTTP status it answered with, without
 	// following redirects: any answer means something is listening.
 	Probe(ctx context.Context, url string) (int, error)
@@ -300,7 +311,11 @@ type Release struct {
 // Releases is the self-update port.
 type Releases interface {
 	Latest(ctx context.Context) (Release, error)
-	Download(ctx context.Context, url, dest string) error
+	// Download writes the URL to dest and returns the SHA-256 of what it
+	// wrote, in lower-case hex. The digest is taken from the bytes as they
+	// land, so it describes the file that is there and not a second read of
+	// something that may have changed.
+	Download(ctx context.Context, url, dest string) (sum string, err error)
 }
 
 // Origin is where a project's manifest came from. It is recorded at install

@@ -51,6 +51,7 @@ spec:
           port: 8001
           entrypoint: devapi
           alsoMatch: [app, adm]
+      portForward: [api]         # also http://<this machine's address>:<free port>, for a phone
 
     - name: web
       repo: web

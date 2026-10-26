@@ -295,6 +295,8 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 			Entrypoint: rule.Entrypoint,
 			Project:    st.Project,
 			Network:    network,
+			HostPort:   rule.HostPort,
+			ForwardURL: rule.ForwardURL,
 		})
 	}
 	return routes

@@ -420,6 +420,7 @@ const labelsFooter = `
 #         multiverse.host.api: "8001"
 #         multiverse.host.api.entrypoint: devapi   # default: web
 #         multiverse.host.api.aliases: app,adm     # same service, other names
+#         multiverse.host.api.portForward: auto    # also at <ip>:<free port>
 #         multiverse.publish: "true"               # keep my published ports
 #         multiverse.env.DJANGO_ALLOWED_HOSTS: hosts
 #         multiverse.env.DJANGO_CSRF_TRUSTED_ORIGINS: origins

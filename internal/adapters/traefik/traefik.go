@@ -202,6 +202,7 @@ type label struct{ Key, Value string }
 type service struct {
 	Name      string
 	Unpublish bool
+	Ports     []string // "bind:host:container", replacing every published port
 	Labels    []label
 	Env       []label
 	Networks  []string
@@ -217,6 +218,10 @@ type override struct {
 // single entry; everything is sorted so the file is stable across runs.
 func buildOverride(r app.OverrideRequest) override {
 	routes, unpublish := r.Routes, r.Unpublish
+	bind := r.Bind
+	if bind == "" {
+		bind = "0.0.0.0"
+	}
 	byName := map[string]*service{}
 	get := func(name string) *service {
 		if s, ok := byName[name]; ok {
@@ -232,6 +237,9 @@ func buildOverride(r app.OverrideRequest) override {
 	}
 	for _, r := range routes {
 		s := get(r.Service)
+		if r.HostPort > 0 {
+			s.Ports = append(s.Ports, bind+":"+strconv.Itoa(r.HostPort)+":"+strconv.Itoa(r.Port))
+		}
 		networks[r.Network] = true
 		if !s.seen[r.Network] {
 			s.seen[r.Network] = true

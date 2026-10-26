@@ -111,6 +111,11 @@ type App struct {
 	Overlay        []byte // inline compose fragment, rendered by the manifest adapter
 	Build          bool   // build images before starting
 	Hosts          map[string]HostRule
+	// PortForward lists host keys, however they were declared (manifest, labels
+	// or the single exposed port), that are also reachable by IP and port: a
+	// client that cannot use a hostname, such as a phone refusing plain http to
+	// a name, needs an address it may call.
+	PortForward []string
 
 	// Derived marks an app no one declared: one repository, everything by
 	// convention. Such an app may turn out to have no compose file at all,
@@ -125,6 +130,10 @@ type HostRule struct {
 	Entrypoint string   // proxy entrypoint, default "web"
 	AlsoMatch  []string // other host keys routed to this same service
 }
+
+// PortForwardAuto marks a resolved host as also published on a host port that
+// the tool chooses: free when first chosen, then kept.
+const PortForwardAuto = "auto"
 
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
@@ -164,6 +173,11 @@ func (m *Manifest) Validate() error {
 		}
 		if app.DefaultService != "" && len(app.Services) > 0 && !slices.Contains(app.Services, app.DefaultService) {
 			errs = append(errs, fmt.Sprintf("apps.%s.defaultService: %q is not one of its services (%s)", key, app.DefaultService, strings.Join(app.Services, ", ")))
+		}
+		for _, hostKey := range app.PortForward {
+			if !nameRe.MatchString(hostKey) {
+				errs = append(errs, fmt.Sprintf("apps.%s.portForward: %q is not a host key", key, hostKey))
+			}
 		}
 		for hostKey, rule := range app.Hosts {
 			if !nameRe.MatchString(hostKey) {

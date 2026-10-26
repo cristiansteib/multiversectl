@@ -10,9 +10,50 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// RemoveInput names the universe to delete. Confirmation is the caller's job.
+// RemoveInput names the universe to delete. Confirming with the person is the
+// caller's job; whether work may be thrown away is not.
 type RemoveInput struct {
 	Universe string
+	// Force removes a universe whose worktrees hold work that is only there.
+	// Without it such a universe is left alone and named, because a question
+	// answered about a universe is not an answer about the commits in it:
+	// somebody typing a name back is saying "yes, this universe", not "yes,
+	// and the afternoon's work in it too".
+	Force bool
+}
+
+// UnsavedWork is the repositories of a universe whose worktree holds changes
+// that are committed nowhere. Removing the universe would be the end of them.
+type UnsavedWork struct {
+	Universe string
+	Repos    []string
+}
+
+func (e *UnsavedWork) Error() string {
+	return "uncommitted work in " + strings.Join(e.Repos, ", ") +
+		": removing universe " + e.Universe + " would discard it (--force removes it anyway)"
+}
+
+// Unsaved names the repositories of a universe with uncommitted work in them.
+// A worktree that cannot be read is left out rather than guessed at: this
+// answers "what would be lost", and it may not invent a loss.
+func (s *Service) Unsaved(ctx context.Context, name string) ([]string, error) {
+	st, err := s.Resolve(name)
+	if err != nil {
+		return nil, err
+	}
+	u := s.Universe(st.Name)
+	var dirty []string
+	for _, repoKey := range sortedRepoKeys(s.Manifest.Repos) {
+		dest := u.RepoDir(repoKey)
+		if !s.Files.Exists(dest) {
+			continue
+		}
+		if clean, err := s.Git.IsClean(ctx, dest); err == nil && !clean {
+			dirty = append(dirty, repoKey)
+		}
+	}
+	return dirty, nil
 }
 
 // Remove destroys a universe: its containers and volumes, its worktrees, its
@@ -43,24 +84,33 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 	defer unlockUniverse()
 	u := s.Universe(st.Name)
 
+	// Asked before anything is destroyed, not repository by repository: half a
+	// universe removed and then a refusal is worse than either answer.
+	if !in.Force {
+		dirty, err := s.Unsaved(ctx, st.Name)
+		if err != nil {
+			return err
+		}
+		if len(dirty) > 0 {
+			return &UnsavedWork{Universe: st.Name, Repos: dirty}
+		}
+	}
+
 	for _, appKey := range s.Manifest.RunnableApps() {
 		if err := s.Runtime.Down(ctx, s.request(u, st, appKey, nil), true); err != nil {
 			s.Out.Warn("%s: down: %v", appKey, err)
 		}
 	}
 
-	repoKeys := make([]string, 0, len(s.Manifest.Repos))
-	for key := range s.Manifest.Repos {
-		repoKeys = append(repoKeys, key)
-	}
-	sort.Strings(repoKeys)
-	for _, repoKey := range repoKeys {
+	for _, repoKey := range sortedRepoKeys(s.Manifest.Repos) {
 		dest := u.RepoDir(repoKey)
 		if !s.Files.Exists(dest) {
 			continue
 		}
 		clone := s.Manifest.CloneDir(s.Workspace, repoKey)
-		if err := s.Git.RemoveWorktree(ctx, clone, dest); err != nil {
+		// Whatever was in them has been accounted for above, by refusing or by
+		// being forced, so this is where the work is actually discarded.
+		if err := s.Git.RemoveWorktree(ctx, clone, dest, true); err != nil {
 			return fmt.Errorf("universe %s: %s: remove worktree: %w", st.Name, repoKey, err)
 		}
 		s.Out.OK("%s: worktree removed", repoKey)
@@ -104,4 +154,15 @@ func (s *Service) dropBranch(ctx context.Context, st domain.UniverseState, repoK
 	case why != "":
 		s.Out.Warn("%s: kept branch %s: %s; push it, or delete it with `git -C %s branch -D %s`", repoKey, branch, why, clone, branch)
 	}
+}
+
+// sortedRepoKeys is the manifest's repositories in a fixed order, so what is
+// removed, and what is reported, reads the same every time.
+func sortedRepoKeys(repos map[string]domain.Repo) []string {
+	keys := make([]string, 0, len(repos))
+	for key := range repos {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

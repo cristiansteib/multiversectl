@@ -2,6 +2,8 @@ package release
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -82,41 +84,43 @@ func (g *GitHub) Latest(ctx context.Context) (app.Release, error) {
 }
 
 // Download writes to a temp file beside dest and renames it, so a partial
-// download never lands at dest.
-func (g *GitHub) Download(ctx context.Context, url, dest string) error {
+// download never lands at dest, and hashes the bytes on their way through: the
+// digest is of what was written, which is what the caller is about to run.
+func (g *GitHub) Download(ctx context.Context, url, dest string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return fmt.Errorf("build download request: %w", err)
+		return "", fmt.Errorf("build download request: %w", err)
 	}
 	req.Header.Set("User-Agent", "multiversectl")
 
 	resp, err := g.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("download %s: %w", url, err)
+		return "", fmt.Errorf("download %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("download %s: %s", url, resp.Status)
+		return "", fmt.Errorf("download %s: %s", url, resp.Status)
 	}
 
 	dir := filepath.Dir(dest)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("download to %s: %w", dest, err)
+		return "", fmt.Errorf("download to %s: %w", dest, err)
 	}
 	tmp, err := os.CreateTemp(dir, ".download-*")
 	if err != nil {
-		return fmt.Errorf("download to %s: %w", dest, err)
+		return "", fmt.Errorf("download to %s: %w", dest, err)
 	}
 	defer os.Remove(tmp.Name())
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
+	sum := sha256.New()
+	if _, err := io.Copy(io.MultiWriter(tmp, sum), resp.Body); err != nil {
 		tmp.Close()
-		return fmt.Errorf("download %s: %w", url, err)
+		return "", fmt.Errorf("download %s: %w", url, err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("download to %s: %w", dest, err)
+		return "", fmt.Errorf("download to %s: %w", dest, err)
 	}
 	if err := os.Rename(tmp.Name(), dest); err != nil {
-		return fmt.Errorf("download to %s: %w", dest, err)
+		return "", fmt.Errorf("download to %s: %w", dest, err)
 	}
-	return nil
+	return hex.EncodeToString(sum.Sum(nil)), nil
 }

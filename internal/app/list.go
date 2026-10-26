@@ -190,6 +190,13 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 				Service: route.Service,
 				URL:     s.routeURL(route),
 			})
+			if route.ForwardURL != "" {
+				summary.URLs = append(summary.URLs, HostURL{
+					Host:    strings.TrimSuffix(route.Name, "-"+u.Slug()) + ":forward",
+					Service: route.Service,
+					URL:     route.ForwardURL,
+				})
+			}
 		}
 		if opts.Services {
 			summary.Services = s.serviceStates(ctx, u, st, key, containers)

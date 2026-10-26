@@ -15,6 +15,10 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  # Keyless signing: cosign exchanges this job's OIDC token for a short-lived
+  # certificate, so nothing long-lived has to be kept anywhere.
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release
@@ -57,6 +61,9 @@ jobs:
           echo "HOMEBREW_TAP_KEY_FILE=$RUNNER_TEMP/tap_key" >> "$GITHUB_ENV"
 
       - if: steps.semantic.outputs.new_release_published == 'true'
+        uses: sigstore/cosign-installer@v3
+
+      - if: steps.semantic.outputs.new_release_published == 'true'
         uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
@@ -84,6 +91,8 @@ jobs:
           umask 077
           printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > "$RUNNER_TEMP/tap_key"
           echo "HOMEBREW_TAP_KEY_FILE=$RUNNER_TEMP/tap_key" >> "$GITHUB_ENV"
+
+      - uses: sigstore/cosign-installer@v3
 
       - uses: goreleaser/goreleaser-action@v6
         with:

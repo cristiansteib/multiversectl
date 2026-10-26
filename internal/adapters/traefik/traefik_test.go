@@ -117,3 +117,25 @@ func TestProxyTemplateRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// A forwarded service publishes exactly the ports it was given, which replaces
+// the unpublish reset rather than adding to it.
+func TestOverridePublishesForwardedPort(t *testing.T) {
+	got := buildOverride(app.OverrideRequest{
+		Bind:      "0.0.0.0",
+		Unpublish: []string{"web"},
+		Routes: []app.Route{{Name: "api-u1", Hostname: "api-u1.example.test", Service: "web", Port: 8000, Entrypoint: "web",
+			Network: "multiversenet", HostPort: 50010}},
+	})
+	content, err := render("routes.yml.tmpl", got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(content)
+	if !strings.Contains(out, "ports: !override\n      - \"0.0.0.0:50010:8000\"") {
+		t.Fatalf("forwarded port missing:\n%s", out)
+	}
+	if strings.Contains(out, "!reset") {
+		t.Fatalf("the reset must not follow the override:\n%s", out)
+	}
+}
