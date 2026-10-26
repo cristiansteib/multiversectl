@@ -89,16 +89,15 @@
 http://api-fix-login.10-0-0-5.traefik.me
 <span class="c"># or number it (leave the number out for the next free one), and say where it starts</span>
 <span class="p">$ </span>multiversectl universe new 2 --branch feat/invoicing --base api=release/1.2</pre></div>
-  <p class="muted">A new universe never reuses a branch: if the name is taken in any repository, in the clone or on origin, nothing is created and every clash is listed. A numbered one takes its branch from <code>spec.branch</code>, <code>u{{universe}}</code> by default. Every command accepts the name as typed, the directory it lives in, or the slug in its hostnames. Each universe has its own containers, volumes and hostnames, so the two run side by side.</p>
+  <p class="muted">A new universe never reuses a branch: if the name is taken in any repository, nothing is created and every clash is listed. A numbered one takes its branch from <code>spec.branch</code>, <code>u{{universe}}</code> by default. Commands accept the name as typed, its directory or its slug. Each universe has its own containers, volumes and hostnames, so the two run side by side.</p>
 </section>
 
 <section id="hw-checkout">
   <h2 id="hw-checkout"><a href="#hw-checkout">Review or continue a branch that already exists</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe checkout fix/login           <span class="c"># or with no branch, to pick from the ones there are</span>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe checkout fix/login           <span class="c"># or with no branch, to pick one</span>
 <span class="p">$ </span>multiversectl universe checkout fix/login --only-existing</pre></div>
-  <p>This is the other way in: instead of starting branches, it checks out the one you name, in every repository that has it. A repository that lacks it gets a new branch of that name, or with <code>--only-existing</code> stays on its base, detached. It refuses a branch that is checked out in another universe or in the shared clone, because git allows a branch in one worktree only, and it refuses a name no repository has, so a typo does not become a branch. When you remove the universe the branch stays; only a branch a universe started is ever deleted.</p>
+  <p>The other way in: it checks out the branch you name in every repository that has it. A repository that lacks it gets a new branch of that name, or with <code>--only-existing</code> stays on its base, detached. It refuses a branch checked out in another universe or in the clone, because git allows a branch in one worktree only, and one no repository has, so a typo never becomes a branch. Removing the universe keeps the branch: only a branch a universe started is ever deleted.</p>
 </section>
-
 
 <section id="hw-repo">
   <h2 id="hw-repo"><a href="#hw-repo">Add a repository to a project</a></h2>
@@ -107,7 +106,7 @@ http://api-fix-login.10-0-0-5.traefik.me
   <span class="k">repos</span>:
     - <span class="k">name</span>: worker
       <span class="k">url</span>: git@github.com:acme/worker.git</pre></div>
-  <p>That is the whole change: a repository no <code>apps</code> entry names gets an app of its own name, its compose files are found by convention, every service they define is started and the addresses come from their labels. Add an <code>apps</code> entry only to change one of those, or to split the repository into several apps.</p>
+  <p>That is the whole change: a repository no <code>apps</code> entry names gets an app of its own name, its compose files are found by convention, every service they define starts, and the addresses come from their labels. Add an <code>apps</code> entry only to change one of those, or to split the repository into several apps.</p>
   <div class="code"><pre><span class="c"># clone the new repo (already-cloned ones are skipped)</span>
 <span class="p">$ </span>multiversectl project install ./multiverse.yaml --root ~/acme
 <span class="c"># add its worktree to an existing universe; existing checkouts are kept</span>
@@ -119,22 +118,17 @@ http://api-fix-login.10-0-0-5.traefik.me
 <section id="hw-rm">
   <h2 id="hw-rm"><a href="#hw-rm">Remove a universe and its data</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl universe rm 3
-<span class="c"># skip the prompt</span>
-<span class="p">$ </span>multiversectl universe rm 3 --yes</pre></div>
-  <p><code>rm</code> lists what it will destroy and asks you to type the number back, which is the one question that is deliberately not a list to move through. It removes:</p>
-  <ul class="t"><li>the universe's worktrees (uncommitted work in them is lost);</li><li>its containers and <strong>volumes</strong>, so every database in it;</li><li>its directory and state file.</li></ul>
-  <p>The shared clones are not touched. To stop a universe and keep everything, use <code>multiversectl universe down 3</code>.</p>
+<span class="p">$ </span>multiversectl universe rm 3 --yes     <span class="c"># skip the prompt</span></pre></div>
+  <p><code>rm</code> lists what it will destroy and asks you to type the number back. It removes the worktrees (uncommitted work in them is lost), the containers and <strong>volumes</strong>, so every database in it, and the directory and state file. The shared clones are untouched. To stop a universe and keep everything, use <code>universe down 3</code>.</p>
 </section>
 
 <section id="hw-prune">
   <h2 id="hw-prune"><a href="#hw-prune">Clear out every universe on the machine</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe prune --dry-run                    <span class="c"># show what it would remove, and stop</span>
-<span class="p">$ </span>multiversectl universe prune            <span class="c"># remove the idle ones, asking first</span>
-<span class="p">$ </span>multiversectl universe prune --all --yes <span class="c"># everything, running ones included, no question</span></pre></div>
-  <p><code>universe prune</code> does to each universe what <code>universe rm</code> does, in every installed project, or only the one you name with <code>-w</code>: the containers and <strong>volumes</strong>, the worktrees, the directory and the state file. It is deliberately not a way to stop containers and keep the data; that is <code>universe down</code>.</p>
-  <p>Two kinds of universe are kept unless you say otherwise, and each is listed with the reason:</p>
-  <ul class="t"><li>one with containers running, until you add <code>--all</code>;</li><li>one with uncommitted work in a worktree, until you add <code>--force</code>. <code>--yes</code> only skips the question; it never discards work.</li></ul>
-  <p>What it does not touch: the shared clones; the shared proxy; and the installed projects and catalogs. The branches a universe started are deleted only when every commit on them is already on the base branch or on a remote, so committed work is never lost, and one holding anything else is kept and named.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe prune --dry-run   <span class="c"># show what it would remove, and stop</span>
+<span class="p">$ </span>multiversectl universe prune             <span class="c"># the idle ones, asking first</span>
+<span class="p">$ </span>multiversectl universe prune --all --yes <span class="c"># everything, running included, no question</span></pre></div>
+  <p><code>prune</code> does what <code>rm</code> does, to every universe of every installed project, or only the one named with <code>-w</code>. Two kinds are kept unless you say otherwise, each listed with the reason: one with containers running, until <code>--all</code>; one with uncommitted work, until <code>--force</code>. <code>--yes</code> only skips the question and never discards work.</p>
+  <p>It does not touch the clones, the proxy, or the installed projects and catalogs. Branches a universe started are deleted only when every commit on them is already on the base or on a remote; one holding anything else is kept and named.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">

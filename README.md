@@ -14,14 +14,13 @@ stepping on your own checkouts.
 
 ## What it solves
 
-A multi-repository project usually has exactly one development stack, and that
-stack can only be in one state at a time. The moment you want a second one — a
-branch to review while yours keeps running, a migration to try on a throwaway
-database, an agent that needs a whole environment to itself — you hit the same
-wall: the ports are taken, the containers and volumes have the same names, and
-the database already has the other branch's schema in it.
+A multi-repository project usually has one development stack, and it can only be
+in one state at a time. The moment you want a second — a branch to review while
+yours keeps running, a migration to try on a throwaway database, an agent that
+needs a whole environment — the ports are taken, the containers and volumes have
+the same names, and the database holds the other branch's schema.
 
-multiversectl makes the second copy cheap, by **namespacing instead of
+multiversectl makes the second copy cheap by **namespacing instead of
 virtualizing**: nothing is nested, duplicated or emulated.
 
 - One compose project per app per universe, so the runtime itself
@@ -39,19 +38,17 @@ same daemon and the same image cache you already use.
 
 ## Why not a VM, LXC or nested containers
 
-Those give you isolation, and charge for it: a guest OS per environment, GBs of
-RAM and disk, a provisioning step that has to stay in sync with your real setup,
-another image cache, slower filesystem access to your source, and tooling —
-editor, debugger, language server — that now has to reach inside the guest. For
-"run my own project twice" that is a lot of machinery to maintain, and it makes
-each new copy expensive enough that you stop making them.
+Those give you isolation and charge for it: a guest OS per environment, GBs of
+RAM and disk, a provisioning step to keep in sync, another image cache, slower
+access to your source, and tooling that has to reach inside the guest. For "run
+my own project twice" that is enough machinery to make each new copy expensive
+enough that you stop making them.
 
-The honest trade-off: this is **not** isolation. Universes share your kernel,
-your container daemon and your user, so one can saturate the CPU or fill the
-disk, and the security boundary is only the one your runtime already gives you.
-If you need to run code you do not trust, or a different kernel, or
-byte-reproducible machine state, use a VM — that is a different problem. This
-tool is for when you trust your own code and want many copies of it, cheaply.
+The trade-off, plainly: this is **not** isolation. Universes share your kernel,
+daemon and user, so one can saturate the CPU or fill the disk, and the security
+boundary is only your runtime's. To run code you do not trust, or a different
+kernel, use a VM. This is for when you trust your own code and want many cheap
+copies of it.
 
 ## Install
 
@@ -68,11 +65,9 @@ mise use -g ubi:cristiansteib/multiversectl
 
 A `.deb` is on the [releases page](https://github.com/cristiansteib/multiversectl/releases),
 and `make install` builds from source into `~/.local/bin`. The script and the
-`.deb` also provide a short alias, `mvctl`. Later, `multiversectl self-update`
-replaces the binary with the latest release.
-
-See [Install](https://multiversectl.dev/start/install.html)
-for what it needs on the machine.
+`.deb` also provide the alias `mvctl`; `multiversectl self-update` replaces the
+binary later. [Install](https://multiversectl.dev/start/install.html) lists what
+the machine needs.
 
 ## Projects and catalogs
 
@@ -97,9 +92,8 @@ multiversectl project update                    # catch up: manifests and new re
 
 See [Catalogs](https://multiversectl.dev/concepts/catalogs.html).
 
-To see all of it in a live page (the tree, what is installed, every universe and
-what runs in it, and the versions of what it all runs on), and to start, stop,
-create and remove universes from it:
+All of it is also a live page — the tree, every universe and what runs in it —
+with buttons for the same operations:
 
 ```sh
 multiversectl server start --open   # a live page: versions, and start/stop/create/remove, behind a token
@@ -107,10 +101,9 @@ multiversectl server stop
 ```
 
 An agent needs only the command line: `multiversectl universe ls -o json` prints
-one compact line with the project's paths and, per universe, its state, the folder
-of every repository and its URLs. `--json` works on every command, and
-`--help --json` describes any of them as a document, lean by default (`--less`
-and `--full` pick the least or the whole tree).
+one compact line with the project's paths and, per universe, its state, folders
+and URLs. `--json` works on every command, and `--help --json` describes any of
+them as a document.
 
 ## Quick start
 
@@ -131,10 +124,10 @@ walks through the same thing with a manifest to copy.
 
 ## Manifest
 
-One file describes the project: the repositories a project is made of, how a
-universe is addressed, and only the apps that need something other than the
-defaults. It does not describe containers — the repositories' own compose files
-already do, and multiversectl reads them rather than making you repeat them.
+One file describes the project: its repositories, how a universe is addressed,
+and only the apps that need something other than the defaults. It does not
+describe containers — the repositories' compose files already do, and
+multiversectl reads them rather than making you repeat them.
 
 ```yaml
 apiVersion: multiverse/v1alpha1
@@ -160,11 +153,10 @@ and in the generated [schema](schema/project.v1alpha1.yaml).
 
 ## How it works
 
-Each universe is a git worktree of every repository in the manifest plus one
-compose project per app. Universes are reached through a shared
-reverse proxy on per-universe hostnames, and the routing labels, the proxy
-network and the dropping of published ports are generated per universe — your
-compose files stay the ones you already run.
+Each universe is a git worktree of every repository plus one compose project per
+app, reached through a shared reverse proxy on per-universe hostnames. The
+routing labels, the proxy network and the dropping of published ports are
+generated per universe, so your compose files stay the ones you already run.
 
 The documentation goes into
 [networking](https://multiversectl.dev/concepts/networking.html),

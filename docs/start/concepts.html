@@ -103,13 +103,13 @@
 │       └── service app-dev  <span class="c">host app  → app-u3.example.test</span>
 └── universe fix/login       <span class="c">~/acme/universes/fix-login</span>
     └── ...                  <span class="c">the same shape, its own everything</span></pre></div>
-  <p>Each level namespaces the one below it. The project name prefixes every compose project, the universe adds its own part, and the app adds a third, so a container is <code>acme-u3-api-web-1</code> and two repositories can both call a service <code>app</code> without meeting.</p>
+  <p>Each level namespaces the one below: project, universe, app. A container is <code>acme-u3-api-web-1</code>, so two repositories can both call a service <code>app</code> without meeting.</p>
 </section>
 
 <section id="not-vm">
   <h2 id="not-vm"><a href="#not-vm">It is not a virtual machine</a></h2>
-  <p>A universe is a namespace, not a sandbox. It shares the machine's kernel, its container runtime, its image cache and its git object store &mdash; which is why a new one costs seconds rather than minutes, and why the second one does not double your disk use. What it does not share is the four things that actually collide: checkouts, container names, volumes and hostnames.</p>
-  <p>Two consequences worth knowing. A universe is not isolated for security purposes: anything running in one can reach the others' containers over the proxy network. And a universe is not reproducible the way an image is &mdash; it is your machine, with your daemon and your caches.</p>
+  <p>A universe is a namespace, not a sandbox. It shares the kernel, the runtime, the image cache and the git object store — which is why a new one costs seconds and the second does not double your disk use — and keeps apart the four things that collide: checkouts, container names, volumes and hostnames.</p>
+  <p>So it is not isolated for security: anything in one universe can reach another's containers over the proxy network. And it is not reproducible the way an image is — it is your machine, with your daemon and your caches.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">
