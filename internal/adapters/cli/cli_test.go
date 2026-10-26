@@ -352,3 +352,72 @@ func (noBranches) RefExists(context.Context, string, string) (app.RefKind, error
 type nothingOnDisk struct{ app.Files }
 
 func (nothingOnDisk) Exists(string) bool { return false }
+
+// The tree is read off the commands themselves, so the way to test it is
+// against them: every command the tool has must be in it, nested where it is
+// typed, and the ones that are hidden on purpose must not be.
+func TestHelpTreeShowsEveryCommandWhereItIsTyped(t *testing.T) {
+	root, _ := New(Factory{})
+	var buf bytes.Buffer
+	run := runner{g: &Globals{}, out: NewOutput(&buf, false), f: Factory{}}
+	cmd := run.helpTreeCmd(root)
+	cmd.SetContext(context.Background())
+	if err := cmd.Flags().Set("flat", "true"); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.RunE(cmd, nil); err != nil {
+		t.Fatalf("help-tree: %v", err)
+	}
+	flat := buf.String()
+
+	for _, want := range []string{
+		"start  —", "universe rm  —", "universe proxy up  —",
+		"project install  —", "server pair  —", "agents skill install  —",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("want %q in:\n%s", want, flat)
+		}
+	}
+	// Cobra's own help command is not the tool's.
+	if strings.Contains(flat, "\nhelp ") || strings.HasPrefix(flat, "help ") {
+		t.Errorf("the help command is plumbing, not part of the tree:\n%s", flat)
+	}
+}
+
+func TestHelpTreeNestsAndNamesAliases(t *testing.T) {
+	root, _ := New(Factory{})
+	var buf bytes.Buffer
+	run := runner{g: &Globals{}, out: NewOutput(&buf, false), f: Factory{}}
+	cmd := run.helpTreeCmd(root)
+	cmd.SetContext(context.Background())
+	if err := cmd.RunE(cmd, nil); err != nil {
+		t.Fatalf("help-tree: %v", err)
+	}
+	out := buf.String()
+	// Aliases, which no help screen puts beside the name they belong to.
+	if !strings.Contains(out, "rm (remove, destroy)") {
+		t.Errorf("want the aliases of rm beside it:\n%s", out)
+	}
+	if !strings.Contains(out, "universe (u)") {
+		t.Errorf("want universe's alias:\n%s", out)
+	}
+	// Nested: proxy's commands hang under proxy, which hangs under universe.
+	if !strings.Contains(out, "│   ├── proxy") && !strings.Contains(out, "│   │   ├── down") {
+		t.Errorf("want proxy's children one level below it:\n%s", out)
+	}
+	// One column for every description, whatever level it is drawn at.
+	var cols []int
+	for _, d := range []string{"Print the skill", "Print version, commit", "Stop the proxy"} {
+		for _, line := range strings.Split(out, "\n") {
+			if i := strings.Index(line, d); i >= 0 {
+				cols = append(cols, len([]rune(line[:i])))
+			}
+		}
+	}
+	if len(cols) != 3 || cols[0] != cols[1] || cols[1] != cols[2] {
+		t.Errorf("descriptions are not in one column: %v\n%s", cols, out)
+	}
+	if !strings.Contains(out, " commands") {
+		t.Errorf("want a count:\n%s", out)
+	}
+}
