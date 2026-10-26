@@ -218,15 +218,17 @@ func parseLsFormat(spec string) (lsFormat, error) {
 func (r runner) lsCmd() *cobra.Command {
 	var format string
 	cmd := &cobra.Command{
-		Use:     "ls",
+		Use:     "ls [universe]",
 		Aliases: []string{"list"},
-		Short:   "List universes",
+		Short:   "List universes, or show one",
 		Example: "  multiversectl universe ls\n" +
 			"  multiversectl universe ls -o wide        # every service, its state and its volumes\n" +
 			"  multiversectl universe ls -o list        # one line per universe\n" +
 			"  multiversectl universe ls -o list,wide\n" +
-			"  multiversectl universe ls -o json        # the project, every path and every address, for a script or an agent",
-		Args: cobra.NoArgs,
+			"  multiversectl universe ls -o json        # compact, for an agent: project paths, and per universe its state, folders and URLs\n" +
+			"  multiversectl universe ls -o json,wide   # everything: services, volumes, compose names, times\n" +
+			"  multiversectl universe ls 3 -o json      # only universe 3",
+		Args: cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().StringVarP(&format, "output", "o", "table",
 		"output: table, list, wide, json, or a combination such as table,wide")
@@ -240,8 +242,23 @@ func (r runner) lsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if len(args) == 1 {
+				kept := list[:0]
+				for _, u := range list {
+					if u.Name == args[0] || u.Slug == args[0] {
+						kept = append(kept, u)
+					}
+				}
+				if len(kept) == 0 {
+					return fmt.Errorf("no universe %q: `multiversectl universe ls` lists them", args[0])
+				}
+				list = kept
+			}
 			if f.json {
-				return writeJSON(r.out.w, listView(s.Context(), list))
+				if f.wide {
+					return writeJSON(r.out.w, listView(s.Context(), list))
+				}
+				return writeCompactJSON(r.out.w, briefView(s.Context(), list))
 			}
 			// The header is for a person reading the table; -o list is for piping.
 			if f.table {
@@ -692,16 +709,24 @@ func (r runner) universeCmd() *cobra.Command {
 // universeStatusCmd is the glance: one line per universe saying whether it is
 // running, where ls says what each app is doing.
 func (r runner) universeStatusCmd() *cobra.Command {
+	var format string
 	cmd := &cobra.Command{
 		Use:     "status",
 		Short:   "One line per universe: whether it is running, how many services are up, and since when",
-		Example: "  multiversectl universe status",
+		Example: "  multiversectl universe status\n  multiversectl universe status -o json   # compact, for an agent",
 		Args:    cobra.NoArgs,
 	}
+	cmd.Flags().StringVarP(&format, "output", "o", "table", "output: table or json")
 	cmd.RunE = r.withService(func(ctx context.Context, s *app.Service) error {
+		if format != "table" && format != "json" {
+			return fmt.Errorf("unknown output %q: want table or json", format)
+		}
 		list, err := s.List(ctx, app.ListOptions{Services: true})
 		if err != nil {
 			return err
+		}
+		if format == "json" {
+			return writeCompactJSON(r.out.w, briefView(s.Context(), list))
 		}
 		projectHeader(r.out, s.Context(), false)
 		if len(list) == 0 {

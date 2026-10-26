@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -33,6 +34,9 @@ func visibleLen(s string) int { return utf8.RuneCountInString(ansi.ReplaceAllStr
 type Output struct {
 	w     io.Writer
 	color bool
+	// events turns every message and table into one JSON object per line, for
+	// --json on a command that has no document of its own.
+	events bool
 }
 
 func NewOutput(w io.Writer, color bool) *Output { return &Output{w: w, color: color} }
@@ -54,6 +58,11 @@ func (o *Output) paint(code, s string) string {
 }
 
 func (o *Output) line(code, glyph, format string, a ...any) {
+	if o.events {
+		level := map[string]string{blue: "info", green: "ok", yellow: "warn", red: "error"}[code]
+		o.event(map[string]any{"level": level, "message": Markup(fmt.Sprintf(format, a...), false)})
+		return
+	}
 	fmt.Fprintf(o.w, "%s %s\n", o.paint(code, glyph), Markup(fmt.Sprintf(format, a...), o.color))
 }
 
@@ -62,6 +71,10 @@ func (o *Output) OK(format string, a ...any)   { o.line(green, "✓", format, a.
 func (o *Output) Warn(format string, a ...any) { o.line(yellow, "!", format, a...) }
 func (o *Output) Fail(format string, a ...any) { o.line(red, "✗", format, a...) }
 func (o *Output) Plain(format string, a ...any) {
+	if o.events {
+		o.event(map[string]any{"level": "plain", "message": Markup(fmt.Sprintf(format, a...), false)})
+		return
+	}
 	fmt.Fprintln(o.w, Markup(fmt.Sprintf(format, a...), o.color))
 }
 
@@ -90,6 +103,14 @@ func Plain(texts ...string) []Cell {
 
 // Table is a column-aligned table of unstyled rows.
 func (o *Output) Table(headers []string, rows [][]string) {
+	if o.events {
+		cells := make([][]Cell, len(rows))
+		for i, row := range rows {
+			cells[i] = Plain(row...)
+		}
+		o.eventTable("", headers, cells)
+		return
+	}
 	styled := make([][]Cell, len(rows))
 	for i, row := range rows {
 		styled[i] = Plain(row...)
@@ -102,6 +123,10 @@ func (o *Output) Table(headers []string, rows [][]string) {
 // Block is a titled table under a rule as wide as its widest line, so two
 // blocks printed one after the other never read as one table.
 func (o *Output) Block(title string, headers []string, rows [][]Cell) {
+	if o.events {
+		o.eventTable(Markup(ansi.ReplaceAllString(title, ""), false), headers, rows)
+		return
+	}
 	lines := o.tableLines(headers, rows)
 	width := visibleLen(title)
 	for _, line := range lines {
@@ -153,6 +178,10 @@ func (o *Output) tableLines(headers []string, rows [][]Cell) []string {
 
 // Cells prints a column-aligned table whose cells carry their own colour.
 func (o *Output) Cells(headers []string, rows [][]Cell) {
+	if o.events {
+		o.eventTable("", headers, rows)
+		return
+	}
 	for _, line := range o.tableLines(headers, rows) {
 		fmt.Fprintln(o.w, line)
 	}
@@ -203,4 +232,28 @@ func (o *Output) Place(l domain.Location) string {
 		domain.PlatformFile:   cyan,
 	}[l.Platform]
 	return o.paint(style, prefix+":") + rest
+}
+
+func (o *Output) event(v map[string]any) {
+	b, _ := json.Marshal(v)
+	fmt.Fprintln(o.w, string(b))
+}
+
+// eventTable is a table as a list of objects keyed by the lower-cased header.
+func (o *Output) eventTable(title string, headers []string, rows [][]Cell) {
+	list := make([]map[string]string, 0, len(rows))
+	for _, row := range rows {
+		m := map[string]string{}
+		for i, c := range row {
+			if i < len(headers) {
+				m[strings.ToLower(headers[i])] = ansi.ReplaceAllString(c.Text, "")
+			}
+		}
+		list = append(list, m)
+	}
+	v := map[string]any{"level": "table", "rows": list}
+	if title != "" {
+		v["title"] = title
+	}
+	o.event(v)
 }

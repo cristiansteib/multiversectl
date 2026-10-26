@@ -25,19 +25,13 @@
 
 <section id="hw-agents">
   <h2 id="hw-agents"><a href="#hw-agents">Let a coding agent work with it</a></h2>
-  <p>The same server speaks MCP, the protocol coding agents use to call tools, at <code>/mcp</code>. It is another way to drive the tool, over the same operations the page and the command line use, so an agent and a person see each other's work live. Several agents can each have a universe of their own, running at once.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl server start
-<span class="p">$ </span>multiversectl server mcp
-<span class="c"># prints the address and the token, ready to paste:</span>
-claude mcp add --transport http multiversectl http://127.0.0.1:7777/mcp --header "Authorization: Bearer &lt;token&gt;"</pre></div>
-  <p><code>server mcp</code> also prints the same as JSON for any other client. The agent signs in with the server's token as a <code>Bearer</code> header; the token is the one in <code>server.token</code>, which stays the same across restarts, so the setup survives an update. Treat it like a password: with it an agent can start and remove this machine's universes. A server started with <code>--read-only</code> offers the reading tools only.</p>
-  <p>What it offers:</p>
-  <ul class="t">
-    <li><strong>Find its way</strong>: <code>project_context</code> (where the project lives, its definition file, where it came from, the shared clones and what each runs), <code>universe_list</code>, <code>branches</code>, <code>universe_next_number</code>, <code>doctor</code>, <code>catalog</code>.</li>
-    <li><strong>Work in isolation</strong>: <code>universe_open</code> creates a universe and starts it in one call, and returns the worktree of every repository (<code>checkouts[].path</code>, where to edit) and every address. <code>universe_new</code>, <code>universe_checkout</code> (an existing branch), <code>universe_up</code>, <code>universe_down</code> and <code>universe_rm</code> are the steps on their own. Removing needs the universe's name again as <code>confirm</code> and refuses uncommitted work unless <code>force</code> is set, as the page does.</li>
-    <li><strong>Keep up</strong>: <code>project_update</code> and <code>project_use</code>, and <code>operation_status</code> for anything still running. A start can take minutes and an agent's client gives up on a call sooner, so a tool waits up to <code>wait_seconds</code> (45 by default), then returns the running operation and how to follow it.</li>
-  </ul>
-  <p>Universes do not wait for each other. Starting, stopping or removing one holds only that universe, so agents work on different ones at the same time; creating takes the next number and new branches, so creations take turns, and an update waits for everything in its project. A call that has to wait for one of these queues behind it instead of failing.</p>
+  <p>An agent needs no server and no protocol: it runs the command line, and <code>-o json</code> gives it what it needs in few tokens. Each universe is its own folder and its own set of containers, so several agents can each work in one at the same time.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe ls -o json
+{"project":{"name":"acme","root":"/home/me/acme","manifest":"…/multiverse.yaml","universesDir":"…/universes","clones":{"api":"…/api"}},
+ "universes":[{"name":"3","state":"running","up":"3/3","dir":"…/universes/3",
+   "checkout":{"api":"…/universes/3/api"},"branch":{"api":"u3"},"urls":["https://api-3.example.test"]}]}</pre></div>
+  <p>The output is one line with no indentation, and only what an agent acts on: where the project and its clones are, and for each universe whether it runs, the folder of every repository (where to edit), the branches and the addresses. A healthy universe adds nothing more; one with services that should be up and are not lists them under <code>down</code>. <code>universe ls 3 -o json</code> shows only universe 3 and <code>universe status -o json</code> gives the same view. <code>--json</code> is the same as <code>-o json</code> on any listing, and works on every command: <code>--help --json</code> prints the command, its flags, examples and subcommands as one document (<code>multiversectl --help --json</code> is the whole tree), and a command that only acts, such as <code>universe up</code>, prints its messages and tables as one JSON object per line (<code>{"level":"ok","message":"…"}</code>), with a failure as <code>{"level":"error",…}</code> on standard error. <code>-o json,wide</code> is everything: services and their state, volumes, compose project names and times.</p>
+  <p>A typical session: <code>universe new</code>, <code>universe up</code>, then <code>universe ls &lt;name&gt; -o json</code> for the folders and addresses, edit in <code>checkout</code>, and <code>universe rm</code> when done. <code>project status -o json</code> and <code>status -o json</code> say what has drifted. Starting, stopping or removing a universe holds only that universe, so agents on different ones do not wait for each other; creating takes the next number and new branches, so creations take turns.</p>
 </section>
 
 <section id="hw-safe">

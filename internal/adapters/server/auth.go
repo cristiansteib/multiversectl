@@ -47,18 +47,6 @@ func authorized(r *http.Request, token string) bool {
 	return err == nil && sameToken(c.Value, token)
 }
 
-// bearer reports whether the request carries the token in an Authorization
-// header, which is how a program (an agent's MCP client) presents it: it has no
-// browser, so no cookie. Unlike the cookie, a header is never sent by the
-// browser on its own, so it needs none of the cross-site protection the cookie does.
-func bearer(r *http.Request, token string) bool {
-	h := r.Header.Get("Authorization")
-	if len(h) < 8 || !strings.EqualFold(h[:7], "bearer ") {
-		return false
-	}
-	return sameToken(strings.TrimSpace(h[7:]), token)
-}
-
 // exchange handles a visit with ?t=<token>: it sets the cookie and sends the
 // browser to the same page without the token in its address. It reports
 // whether it answered.

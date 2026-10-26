@@ -104,8 +104,12 @@ create and remove universes from it:
 ```sh
 multiversectl server start --open   # a live page: versions, and start/stop/create/remove, behind a token
 multiversectl server stop
-multiversectl server mcp           # connect a coding agent: it speaks MCP too, several agents can each have a universe
 ```
+
+An agent needs only the command line: `multiversectl universe ls -o json` prints
+one compact line with the project's paths and, per universe, its state, the folder
+of every repository and its URLs. `--json` works on every command, and
+`--help --json` describes any of them as a document.
 
 ## Quick start
 

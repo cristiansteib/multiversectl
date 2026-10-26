@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -204,7 +205,12 @@ func (r runner) versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version, commit, build date and Go version",
 		Args:  cobra.NoArgs,
-		Run: func(*cobra.Command, []string) {
+		Run: func(cmd *cobra.Command, _ []string) {
+			if wantsJSON(cmd) {
+				b, _ := json.Marshal(map[string]string{"version": r.f.Version, "commit": r.f.Commit, "built": r.f.Date, "go": runtime.Version()})
+				fmt.Fprintln(os.Stdout, string(b))
+				return
+			}
 			fmt.Fprintf(os.Stdout, "multiversectl %s (commit %s, built %s, %s)\n",
 				r.f.Version, r.f.Commit, r.f.Date, runtime.Version())
 		},

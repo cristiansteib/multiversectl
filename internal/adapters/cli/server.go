@@ -2,9 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"net/url"
 	"os/exec"
 	"runtime"
 
@@ -25,11 +23,11 @@ func (r runner) serverCmd() *cobra.Command {
 			"the catalog, the projects and the fleet live, their versions, and has buttons to\n" +
 			"start, stop, create and remove universes. It is opened with a link that carries a\n" +
 			"token, which `server start` and `server status` print; --read-only removes the buttons.",
-		Example: "  multiversectl server start --open\n  multiversectl server status\n  multiversectl server mcp      # connect a coding agent\n  multiversectl server restart\n  multiversectl server stop",
+		Example: "  multiversectl server start --open\n  multiversectl server status\n  multiversectl server restart\n  multiversectl server stop",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.serverStartCmd(), r.serverStopCmd(), r.serverRestartCmd(), r.serverStatusCmd(), r.serverMCPCmd())
+	cmd.AddCommand(r.serverStartCmd(), r.serverStopCmd(), r.serverRestartCmd(), r.serverStatusCmd())
 	return cmd
 }
 
@@ -162,59 +160,6 @@ func (r runner) serverStatusCmd() *cobra.Command {
 			r.out.OK("running at `%s` (pid %d, started %s); log: `%s`", info.URL, info.PID, age(info.Started), info.Log)
 			if info.Outdated {
 				r.out.Warn("it started before the installed program was replaced, so it runs an older build: `multiversectl server restart`")
-			}
-			return nil
-		},
-	}
-}
-
-// serverMCPCmd says how to point an agent at the web view's MCP endpoint, with
-// the real address and token filled in, so setting it up is one paste.
-func (r runner) serverMCPCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "mcp",
-		Short: "Print how to connect a coding agent to the web view, which speaks MCP",
-		Long: "The web view also serves MCP at /mcp, the protocol coding agents use to call\n" +
-			"tools. An agent connected to it can see the project and every universe, and\n" +
-			"start, stop, create and remove universes: the same operations as the page, so\n" +
-			"several agents can each work in a universe of their own at once. It signs in\n" +
-			"with the server's token as a Bearer header; the token is kept across restarts.\n" +
-			"A server started with --read-only offers the reading tools only.",
-		Example: "  multiversectl server start\n  multiversectl server mcp",
-		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			p, err := r.f.Server()
-			if err != nil {
-				return err
-			}
-			info, err := p.Status(cmd.Context())
-			if errors.Is(err, app.ErrServerNotRunning) {
-				r.out.Info("the server is not running, and the endpoint is part of it: `multiversectl server start`")
-				return nil
-			}
-			if err != nil {
-				return err
-			}
-			u, err := url.Parse(info.URL)
-			if err != nil {
-				return err
-			}
-			token := u.Query().Get("t")
-			endpoint := (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: "/mcp"}).String()
-			r.out.OK("MCP endpoint `%s`", endpoint)
-			r.out.Plain("")
-			r.out.Plain("%s", r.out.Bold("Claude Code"))
-			r.out.Plain("  claude mcp add --transport http multiversectl %s --header \"Authorization: Bearer %s\"", endpoint, token)
-			r.out.Plain("")
-			r.out.Plain("%s", r.out.Bold("Any other client (its MCP settings, as JSON)"))
-			cfg, _ := json.MarshalIndent(map[string]any{"mcpServers": map[string]any{"multiversectl": map[string]any{
-				"type": "http", "url": endpoint, "headers": map[string]string{"Authorization": "Bearer " + token},
-			}}}, "  ", "  ")
-			r.out.Plain("  %s", cfg)
-			r.out.Plain("")
-			r.out.Plain("The token is the one in `server.token` beside the configuration; it stays the same across restarts. Treat it like a password: with it, an agent can change this machine's universes.")
-			if info.Outdated {
-				r.out.Warn("the server is running an older build than the one installed: `multiversectl server restart`")
 			}
 			return nil
 		},
