@@ -2,10 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 func TestParseBranches(t *testing.T) {
@@ -255,3 +260,95 @@ func TestAForwardedAddressSitsBesideTheOneItMirrors(t *testing.T) {
 		t.Errorf("the marker is plumbing, not something to read:\n%s", out)
 	}
 }
+
+// start picks the universe without being told when there is no doubt: none
+// yet means a new one, exactly one means that one. Several is a question.
+func TestStartPicksTheUniverseWhenThereIsNoDoubt(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		have []string
+		want string
+		asks bool
+	}{
+		{name: "none yet", have: nil, want: "1"},
+		{name: "only one", have: []string{"3"}, want: "3"},
+		{name: "several", have: []string{"1", "fix/login"}, asks: true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			r := runner{g: &Globals{}, out: NewOutput(io.Discard, false), f: Factory{Prompter: func() app.Prompter { return noTerminal{} }}}
+			s := startService(c.have)
+			got, err := r.startUniverse(&cobra.Command{}, s, "")
+			switch {
+			case c.asks && err == nil:
+				t.Fatalf("want it to ask, got %q", got)
+			case c.asks:
+				// And the way out says which flag, since the universe is one.
+				if !strings.Contains(err.Error(), "start -u") {
+					t.Errorf("want the flag named, got %q", err)
+				}
+				for _, name := range c.have {
+					if !strings.Contains(err.Error(), name) {
+						t.Errorf("want %q among the choices, got %q", name, err)
+					}
+				}
+			case err != nil:
+				t.Fatalf("startUniverse: %v", err)
+			case got != c.want:
+				t.Errorf("= %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// Naming one skips every question, which is what a script does.
+func TestStartTakesTheUniverseItIsGiven(t *testing.T) {
+	r := runner{g: &Globals{}, out: NewOutput(io.Discard, false), f: Factory{Prompter: func() app.Prompter { return noTerminal{} }}}
+	got, err := r.startUniverse(&cobra.Command{}, startService([]string{"1", "2"}), "2")
+	if err != nil || got != "2" {
+		t.Fatalf("= %q, %v", got, err)
+	}
+}
+
+// startService is a project with the given universes and nothing else.
+func startService(names []string) *app.Service {
+	states := make([]domain.UniverseState, len(names))
+	for i, n := range names {
+		states[i] = domain.UniverseState{ID: n, Name: n, Branches: map[string]string{"api": "u" + n}}
+	}
+	m := &domain.Manifest{Name: "acme", Repos: map[string]domain.Repo{"api": {}}}
+	return app.New(app.Deps{Store: startStore(states), Git: noBranches{}, Files: nothingOnDisk{}, Out: app.Output(discard{})}, "/w", m, "test")
+}
+
+type startStore []domain.UniverseState
+
+func (s startStore) List() ([]domain.UniverseState, error) { return s, nil }
+func (s startStore) Load(id string) (domain.UniverseState, error) {
+	for _, st := range s {
+		if st.ID == id {
+			return st, nil
+		}
+	}
+	return domain.UniverseState{}, domain.ErrNotFound
+}
+func (s startStore) Save(domain.UniverseState) error { return nil }
+func (s startStore) Delete(string) error             { return nil }
+
+type discard struct{}
+
+func (discard) Info(string, ...any)        {}
+func (discard) OK(string, ...any)          {}
+func (discard) Warn(string, ...any)        {}
+func (discard) Plain(string, ...any)       {}
+func (discard) Table([]string, [][]string) {}
+
+// noBranches and nothingOnDisk say no universe has left anything behind, so
+// the next free number is simply the next one.
+type noBranches struct{ app.Git }
+
+func (noBranches) RefExists(context.Context, string, string) (app.RefKind, error) {
+	return app.RefNone, nil
+}
+
+type nothingOnDisk struct{ app.Files }
+
+func (nothingOnDisk) Exists(string) bool { return false }

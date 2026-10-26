@@ -108,6 +108,12 @@ them as a document.
 ## Quick start
 
 ```sh
+multiversectl start acme/multiverse     # install it, make universe 1, run it, print its address
+```
+
+Or the steps it takes, one at a time:
+
+```sh
 multiversectl project install ./multiverse.yaml --root ~/acme
 multiversectl universe new 1            # universe 1: a worktree of every repo on branch u1
 multiversectl universe new fix/login    # or name it after the branch it checks out
