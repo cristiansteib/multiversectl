@@ -738,9 +738,13 @@ views.stats = {
     // What has been read, newest last: one entry per reading, each holding
     // every container that answered in it.
     const samples = [];
-    let group = 'universe', only = '', span = 300000, every = 2000, paused = false;
+    let group = 'universe', span = 300000, every = 2000, paused = false;
     let timer = null, failed = null, busy = false;
+    // Which universes are left out, rather than which are in: a universe that
+    // appears while the page is open is shown without being asked for.
+    const hidden = new Set();
 
+    const colours = viz.palette();
     const root = h('div');
     const errors = h('div');
     const tiles = h('div', { class: 'cards tiles' });
@@ -759,29 +763,66 @@ views.stats = {
       return [...seen].sort();
     };
 
+    // Every universe seen within the window, so one that has just stopped can
+    // still be ticked off rather than disappearing from under the pointer.
+    const universesSeen = () => {
+      const seen = new Map();
+      for (const x of samples) {
+        if (x.t < Date.now() - span) continue;
+        for (const r of x.rows) seen.set(r.project + '/' + r.universe, r);
+      }
+      return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    };
+
+    const shown = (r) => !hidden.has(r.project + '/' + r.universe);
+    // The readings inside the window, with the universes that are ticked off
+    // taken out: everything drawn goes through here, so the numbers agree.
+    const windowed = () => samples.filter((x) => x.t >= Date.now() - span)
+      .map((x) => ({ t: x.t, rows: x.rows.filter(shown) }));
+
     const pauseBtn = h('button', { type: 'button', class: 'btn', 'aria-pressed': 'false',
       onclick: () => { paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause';
         pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.classList.toggle('primary', paused); arm(); draw(); } }, 'Pause');
 
-    // The controls are built once and left alone: a select that is rebuilt
-    // under the pointer every two seconds cannot be used.
-    const wsPick = h('span');
-    let wsShown = '';
+    // Which universes to draw. It is a menu of its own because there can be
+    // many of them and more than one is the usual answer.
+    const uniLabel = h('span');
+    const uniMenu = h('div', { class: 'menu' });
+    const uniPick = h('details', { class: 'picker' },
+      h('summary', { 'aria-label': 'Choose which universes to show' }, uniLabel),
+      uniMenu);
+    let uniShown = '';
+    const refreshUniPick = () => {
+      const all = universesSeen();
+      const n = all.filter(([k]) => !hidden.has(k)).length;
+      uniLabel.replaceChildren('Universes', h('b', null, all.length && n === all.length ? 'all' : n + ' of ' + all.length));
+      // The colour is part of what the menu shows, so it is part of what says
+      // the menu has to be drawn again: the palette is claimed by the charts.
+      const key = all.map(([k]) => k + ':' + colours.of(k)).join('\u0000') + '|' + [...hidden].sort().join('\u0000');
+      if (key === uniShown) return;
+      uniShown = key;
+      const many = projects().length > 1;
+      const set = (k, on) => { if (on) hidden.delete(k); else hidden.add(k); uniShown = ''; draw(); };
+      uniMenu.replaceChildren(
+        h('div', { class: 'menu-head' },
+          h('button', { type: 'button', class: 'btn small ghost', onclick: () => { hidden.clear(); uniShown = ''; draw(); } }, 'All'),
+          h('button', { type: 'button', class: 'btn small ghost', onclick: () => { all.forEach(([k]) => hidden.add(k)); uniShown = ''; draw(); } }, 'None')),
+        ...all.map(([k, r]) => h('label', { class: 'menu-item' },
+          h('input', { type: 'checkbox', checked: !hidden.has(k), onchange: (e) => set(k, e.target.checked) }),
+          group === 'universe' ? h('span', { class: 'swatch ' + colours.of(k) }) : null,
+          h('span', null, r.universe), many ? h('span', { class: 'muted' }, r.project) : null)));
+      if (!all.length) uniMenu.append(h('p', { class: 'muted menu-item' }, 'Nothing is running.'));
+    };
+
     const bar = h('div', { class: 'bar' },
-      wsPick,
-      pick('Group by', [['universe', 'Universe'], ['app', 'App'], ['service', 'Container']], group, (v) => { group = v; draw(); }),
+      uniPick,
+      pick('Group by', [['universe', 'Universe'], ['app', 'App'], ['service', 'Container']], group, (v) => { group = v; uniShown = ''; draw(); }),
       pick('Window', STATS_WINDOWS, span, (v) => { span = Number(v); draw(); }),
       pick('Read', STATS_EVERY, every, (v) => { every = Number(v); arm(); }),
       pauseBtn, h('span', { class: 'grow' }), note);
-    const refreshWsPick = () => {
-      const ws = projects();
-      const key = ws.join('\u0000');
-      if (key === wsShown) return;
-      wsShown = key;
-      wsPick.replaceChildren(ws.length > 1
-        ? pick('Project', [['', 'All projects'], ...ws.map((w) => [w, w])], only, (v) => { only = v; samples.length = 0; load(); })
-        : '');
-    };
+    // A menu that stays open over the page is a menu in the way.
+    document.addEventListener('click', (e) => { if (uniPick.open && !uniPick.contains(e.target)) uniPick.open = false; });
+    uniPick.addEventListener('keydown', (e) => { if (e.key === 'Escape') { uniPick.open = false; uniPick.querySelector('summary').focus(); } });
 
     host.append(h('h1', null, 'Stats'),
       h('p', { class: 'lede' }, 'What every running container of every universe is using, read live. ',
@@ -794,7 +835,7 @@ views.stats = {
       if (busy) return;
       busy = true;
       try {
-        const d = await api('stats' + (only ? '?project=' + encodeURIComponent(only) : ''));
+        const d = await api('stats');
         const t = Date.parse(d.at) || Date.now();
         samples.push({ t, rows: d.rows || [] });
         // Nothing older than the longest window is kept: it can never be drawn.
@@ -803,7 +844,7 @@ views.stats = {
         failed = (d.sources || []).length ? d.sources : null;
         draw();
       } catch (e) {
-        failed = [{ project: only || 'this machine', error: e.message }];
+        failed = [{ project: 'this machine', error: e.message }];
         draw();
       } finally { busy = false; }
     }
@@ -824,13 +865,12 @@ views.stats = {
       return group === 'universe' ? uni : group === 'app' ? uni + ' ' + r.app : uni + ' ' + r.app + '/' + r.service;
     };
 
-    const colours = viz.palette();
 
     // series sums each group at each reading. Everything past the eighth group
     // is one line called “other”: a ninth colour nobody could tell apart would
     // be worse than saying “the rest”.
     function build(field) {
-      const within = samples.filter((s) => s.t >= Date.now() - span);
+      const within = windowed();
       const labels = new Map();
       const order = [];
       const many = projects().length > 1;
@@ -863,14 +903,14 @@ views.stats = {
 
     // ---- drawing
     function draw() {
-      refreshWsPick();
+      refreshUniPick();
       errors.replaceChildren(...(failed || []).map((f) => h('p', { class: 'error', role: 'alert' }, f.project + ': ' + f.error)));
       const last = samples.length ? samples[samples.length - 1] : null;
       note.replaceChildren(paused ? badge('warn', 'paused') : badge('ok', 'reading ' + (every / 1000) + 's'),
         last ? ' last at ' + viz.clock(last.t) : ' waiting for the first reading');
 
       if (!last) { tiles.replaceChildren(); charts.replaceChildren(h('p', { class: 'muted' }, 'Reading…')); facets.replaceChildren(); table.replaceChildren(); return; }
-      const rows = last.rows;
+      const rows = last.rows.filter(shown);
       const cpu = rows.reduce((n, r) => n + r.cpu, 0);
       const mem = rows.reduce((n, r) => n + (r.mem || 0), 0);
       const universes = new Set(rows.map((r) => r.project + '/' + r.universe));
@@ -886,6 +926,15 @@ views.stats = {
         h('div', { class: 'card' }, h('h3', null, 'Busiest'), h('div', { class: 'big mono' }, busiest ? viz.percent(busiest.cpu) : '—'),
           h('div', { class: 'muted' }, busiest ? busiest.app + '/' + busiest.service + ' in ' + busiest.universe : 'nothing is running')));
 
+      // An empty plot is a scale over nothing; say what to do instead.
+      if (!windowed().some((s) => s.rows.length)) {
+        charts.replaceChildren(empty(hidden.size
+          ? 'Every universe is ticked off. Choose one above.'
+          : ['Nothing is running on this machine. Start a universe in the ', h('a', { href: '#/fleet' }, 'fleet'), ' and its containers appear here.']));
+        facets.replaceChildren();
+        table.replaceChildren();
+        return;
+      }
       const c = build('cpu'), m = build('mem');
       charts.replaceChildren(
         plot('CPU', 'Percent of one core. A container on four cores can pass 100%.', c, viz.percent, 10),
@@ -927,7 +976,7 @@ views.stats = {
     // past a handful of lines in one plot, the answer is more plots.
     function drawFacets(last) {
       const by = new Map();
-      const within = samples.filter((s) => s.t >= Date.now() - span);
+      const within = windowed();
       for (const s of within) {
         for (const r of s.rows) {
           const k = r.project + '/' + r.universe;
@@ -939,6 +988,9 @@ views.stats = {
       if (by.size < 2) { facets.replaceChildren(); return; }
       const from = within.length ? Math.max(within[0].t, Date.now() - span) : Date.now() - span;
       const now = Date.now();
+      // One scale for all of them: side by side, their heights are compared.
+      let peak = 0;
+      for (const g of by.values()) for (const v of g.at.values()) if (v > peak) peak = v;
       const cards = [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, g]) => {
         const points = [...g.at.entries()].sort((a, b) => a[0] - b[0]);
         const current = points.length ? points[points.length - 1][1] : 0;
@@ -950,21 +1002,21 @@ views.stats = {
         queueMicrotask(() => {
           const frame = card.querySelector('.plot-frame');
           frame.replaceChildren(viz.chart([{ key: k, label: g.universe, cls: colours.of(k), points }], from, now,
-            { width: frame.clientWidth || 220, height: 70, format: viz.percent, compact: true, label: 'CPU of ' + g.universe }));
+            { width: frame.clientWidth || 220, height: 70, format: viz.percent, compact: true, floor: peak, label: 'CPU of ' + g.universe }));
         });
         return card;
       });
-      facets.replaceChildren(h('h2', null, 'Per universe'), h('div', { class: 'facets' }, cards));
+      facets.replaceChildren(h('div', { class: 'ws-head tight' }, h('h2', null, 'Per universe'),
+        h('span', { class: 'muted small' }, 'processor time, all on the same scale')),
+        h('div', { class: 'facets' }, cards));
     }
 
     // The table is the chart's other half: every value a line holds is here as
     // a number, in an order that does not move while it is read.
     function drawTable(last) {
-      const cutoff = Date.now() - span;
       const history = new Map();
       let from = Date.now();
-      for (const s of samples) {
-        if (s.t < cutoff) continue;
+      for (const s of windowed()) {
         from = Math.min(from, s.t);
         for (const r of s.rows) {
           const k = r.project + '/' + r.universe + '/' + r.app + '/' + r.service;
@@ -972,7 +1024,7 @@ views.stats = {
           history.get(k).push([s.t, r.cpu]);
         }
       }
-      const rows = last.rows.slice().sort((a, b) =>
+      const rows = last.rows.filter(shown).sort((a, b) =>
         a.project.localeCompare(b.project) || a.universe.localeCompare(b.universe, undefined, { numeric: true })
         || a.app.localeCompare(b.app) || a.service.localeCompare(b.service));
       table.replaceChildren(h('h2', null, 'Containers'),

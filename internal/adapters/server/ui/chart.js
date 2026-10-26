@@ -94,7 +94,7 @@ const viz = (() => {
   // chart draws one plot. series is [{ key, label, cls, points: [[t, v]] }]
   // over the window [from, to]; every series shares the one y scale.
   //
-  // opts: { width, height, format, base, label, compact, onhover }
+  // opts: { width, height, format, base, floor, label, compact, onhover }
   function chart(series, from, to, opts) {
     const o = Object.assign({ width: 640, height: 190, format: percent, label: '', compact: false }, opts);
     const pad = o.compact
@@ -102,8 +102,11 @@ const viz = (() => {
       : { t: 10, r: 14, b: 20, l: 52 };
     const w = Math.max(160, o.width), h = o.height;
     const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
-    let peak = 0;
+    let peak = o.floor || 0;
     for (const s of series) for (const p of s.points) if (p[1] > peak) peak = p[1];
+    // floor is how small multiples share one scale: side by side they are
+    // compared, and two charts of the same height that mean different things
+    // are worse than no charts.
     const sc = scale(peak, o.base);
     const top = sc.top;
     const span = Math.max(1, to - from);

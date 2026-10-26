@@ -296,3 +296,20 @@ body:has(.dock:not([hidden])) main { padding-bottom: 300px; }
   .facets { grid-template-columns: 1fr; }
   .logout { height: calc(100vh - 300px); }
 }
+
+/* A menu of checkboxes: more than one universe at a time is the usual answer,
+   which no <select> says well. */
+.picker { position: relative; }
+.picker > summary { list-style: none; cursor: pointer; font: 600 13px var(--sans); color: var(--text);
+  background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; }
+.picker > summary::-webkit-details-marker { display: none; }
+.picker > summary::after { content: "▾"; color: var(--muted); }
+.picker > summary:hover { border-color: var(--accent); }
+.picker > summary > span { display: inline-flex; align-items: baseline; gap: 6px; }
+.picker > summary b { font-weight: 650; color: var(--accent); }
+.picker .menu { position: absolute; z-index: 8; top: calc(100% + 4px); left: 0; min-width: 220px; max-height: 320px; overflow: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .22); padding: 6px; }
+.menu-head { display: flex; gap: 6px; padding: 2px 4px 6px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.menu-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 13px; cursor: pointer; }
+.menu-item:hover { background: var(--sunk); }
+.menu-item input { accent-color: var(--accent); }
