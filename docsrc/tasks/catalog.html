@@ -44,7 +44,16 @@
   <p>The default place is the deepest catalog in a repository with the same owner as the project, otherwise the root. <code>--at &lt;path&gt;</code> names it (<code>/</code> is the root); with <code>--yes</code> and no <code>--at</code> the entry goes to the root, never into a repository nobody named. A <code>--at</code> that names no catalog lists the places instead.</p>
   <p>The source can be a repository, a local checkout (added by its <code>origin</code>, so other machines can fetch it), or a manifest file. A file has no repository, so it needs one — a copy in the catalog's own, or one of its own:</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl catalog add ./acme.yaml --new-repo acme-org/multiverse</pre></div>
-  <p>Writes go to the file that owns the place you chose, are committed, and are pushed after one confirmation, taken before anything is written. A rejected push is reported and leaves your copy clean. <code>catalog create &lt;name&gt;</code> makes an empty catalog to group under; <code>catalog rm &lt;path&gt;</code> removes an entry and touches nothing it pointed at.</p>
+  <p>Writes go to the file that owns the place you chose, are committed, and are pushed after one confirmation, taken before anything is written. A rejected push is reported and leaves your copy clean. <code>catalog create &lt;name&gt;</code> makes an empty catalog to group under.</p>
+  <p><code>catalog rm &lt;path&gt;</code> removes an entry and touches nothing it pointed at, but it is a commit on a branch other people update from, so it says what will happen before it asks, and a bare Enter is <em>no</em>:</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl catalog rm acme/backend
+› remove acme/backend from the catalog
+›   removes: the entry acme/backend (a catalog), and with it everything listed under it — 3 projects: acme/backend/billing, acme/backend/auth, acme/backend/mail
+›   leaves alone: the catalog file and the repositories it points at; only the link to them goes
+›   installed here from it, and staying installed: billing
+›   it is committed and pushed straight to main of github:acme/index, not through a pull request, so everyone who updates their catalog sees it gone; `git revert` on that commit brings it back
+? remove acme/backend from the catalog: commit and push to github:acme/index (main)? (y/N)</pre></div>
+  <p>Where nothing can bring it back — a catalog file that is not in a git repository — it says that instead of promising a revert. Without a terminal it stops after saying so, until <code>--yes</code>.</p>
 </section>
 
 <section id="hw-install">

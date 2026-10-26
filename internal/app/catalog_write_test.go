@@ -649,3 +649,131 @@ func TestAddTakesTheDirectoryTheManifestIsIn(t *testing.T) {
 		t.Errorf("the entry should point at the manifest inside the directory: %+v", n)
 	}
 }
+
+// remoteRig is a root catalog on a remote with one project listed in it.
+func remoteRig(t *testing.T, at string) (*rig, *fakeRepos) {
+	t.Helper()
+	remote := t.TempDir()
+	write(t, remote, "catalog.yaml", string(catalog.Editor{}.Scaffold("acme")))
+	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/index.git": remote}}
+	r := newRig(t, git)
+	r.Yes = true
+	r.cfg.c.Catalog = "git@example.test:acme/index.git"
+	repo := t.TempDir()
+	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: pay\n")
+	git.repos["git@example.test:acme/pay.git"] = repo
+	if at != "/" {
+		if _, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: at, Same: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: at, AtGiven: true}); err != nil {
+		t.Fatal(err)
+	}
+	return r, git
+}
+
+// Taking something out of a catalog other people read is a commit on a branch
+// they update from. It says so, and what goes and what stays, and nothing is
+// pushed on a bare Enter.
+func TestRemovingFromARemoteCatalogSaysWhatWillHappenAndDefaultsToNo(t *testing.T) {
+	r, git := remoteRig(t, "/")
+	pushedBefore := len(git.pushed)
+	r.Yes = false // an Enter, as at a terminal
+
+	err := r.Remove(context.Background(), "pay")
+	if !errors.Is(err, app.ErrCancelled) {
+		t.Fatalf("want it cancelled on a bare Enter, got %v", err)
+	}
+	if len(git.pushed) != pushedBefore {
+		t.Errorf("it pushed without being told to: %v", git.pushed)
+	}
+	said := strings.Join(r.out.infos, "\n")
+	for _, want := range []string{
+		"remove pay from the catalog",
+		"removes: the entry pay (a project)",
+		"the repository it points at is not touched",
+		"pushed straight to main of",
+		"not through a pull request",
+		"git revert",
+	} {
+		if !strings.Contains(said, want) {
+			t.Errorf("want %q said before asking:\n%s", want, said)
+		}
+	}
+}
+
+func TestRemovingGoesAheadOnceTheyAgree(t *testing.T) {
+	r, git := remoteRig(t, "/")
+	pushedBefore := len(git.pushed)
+	r.Yes = false
+	r.prompt.confirms = []bool{true}
+
+	if err := r.Remove(context.Background(), "pay"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if len(git.pushed) != pushedBefore+1 {
+		t.Errorf("want one push, got %v", git.pushed)
+	}
+	if _, ok := r.tree(t).Find("pay"); ok {
+		t.Error("still listed")
+	}
+}
+
+// The name on the command line is one word, and a catalog takes everything
+// under it along. That is the part that is easy to miss.
+func TestRemovingACatalogNamesTheProjectsThatGoWithIt(t *testing.T) {
+	r, _ := remoteRig(t, "team")
+	r.Yes = false
+
+	if err := r.Remove(context.Background(), "team"); !errors.Is(err, app.ErrCancelled) {
+		t.Fatalf("want it cancelled, got %v", err)
+	}
+	said := strings.Join(r.out.infos, "\n")
+	for _, want := range []string{
+		"the entry team (a catalog)",
+		"everything listed under it",
+		"1 project: team/pay",
+		"the repositories it points at",
+	} {
+		if !strings.Contains(said, want) {
+			t.Errorf("want %q:\n%s", want, said)
+		}
+	}
+}
+
+// Where nothing can undo it, the plan says that instead of promising a revert.
+func TestRemovingFromAFileOutsideGitSaysNothingCanBringItBack(t *testing.T) {
+	r := newRig(t, &fakeRepos{})
+	r.Yes = true
+	if _, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal", Same: true}); err != nil {
+		t.Fatal(err)
+	}
+	r.Yes = false
+	if err := r.Remove(context.Background(), "personal"); !errors.Is(err, app.ErrCancelled) {
+		t.Fatalf("want it cancelled, got %v", err)
+	}
+	said := strings.Join(r.out.infos, "\n")
+	if !strings.Contains(said, "not in a git repository") || strings.Contains(said, "git revert") {
+		t.Errorf("want it said that nothing can bring it back:\n%s", said)
+	}
+}
+
+// Adding is easy to take back, and keeps its one-line question and its yes.
+func TestAddingStillAsksOneQuestionAndDefaultsToYes(t *testing.T) {
+	remote := t.TempDir()
+	write(t, remote, "catalog.yaml", string(catalog.Editor{}.Scaffold("acme")))
+	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/index.git": remote}}
+	r := newRig(t, git)
+	r.cfg.c.Catalog = "git@example.test:acme/index.git"
+	repo := t.TempDir()
+	write(t, repo, "multiverse.yaml", "apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: pay\n")
+	git.repos["git@example.test:acme/pay.git"] = repo
+
+	if _, err := r.AddWorkspace(context.Background(), app.AddWorkspaceInput{Repo: "git@example.test:acme/pay.git", At: "/", AtGiven: true}); err != nil {
+		t.Fatalf("a bare Enter should have added it: %v", err)
+	}
+	if strings.Contains(strings.Join(r.out.infos, "\n"), "not through a pull request") {
+		t.Error("an addition should not be given the speech meant for a removal")
+	}
+}
