@@ -173,7 +173,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 		ms.Attention = append(ms.Attention, "the root catalog is only on this machine, so it is lost with it: `git -C "+filepath.Dir(rep.Root.Source)+" remote add origin <url>`")
 	}
 	if universesRunning > 0 && !ms.Proxy.Running {
-		ms.Attention = append(ms.Attention, "universes are running but the shared proxy is not, so their addresses do not answer: `multiversectl universe proxy up`")
+		ms.Attention = append(ms.Attention, "universes are running but the shared proxy is not, so their addresses do not answer: `multiversectl system proxy up`")
 	}
 	// What doctor warns about is attention too; its manifest warning is the same
 	// thing as "nothing installed", which the header already says.

@@ -15,14 +15,18 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-// cleanupCmd answers "what would I delete to get rid of all of this?". It only
+// footprintCmd answers "what would I delete to get rid of all of this?". It only
 // lists: removing the clones of your repositories is the one thing here that can
 // lose work, so each is shown with what it holds before anyone decides.
-func (r runner) cleanupCmd() *cobra.Command {
+//
+// It is called footprint, and was called cleanup, because it removes nothing: a
+// command named for an action that sits beside `prune`, which does delete, is a
+// mistake waiting to be typed.
+func (r runner) footprintCmd() *cobra.Command {
 	var script bool
 	var format string
 	cmd := &cobra.Command{
-		Use:   "cleanup",
+		Use:   "footprint",
 		Short: "List everything multiversectl put on this machine, and how to remove it (removes nothing)",
 		Long: "Lists what this tool has created: the web server and proxy that may be running,\n" +
 			"every universe with its containers, volumes and worktrees, the clones of your\n" +
@@ -33,7 +37,7 @@ func (r runner) cleanupCmd() *cobra.Command {
 			"commands come last, in the order that is safe to run them. It removes nothing.\n\n" +
 			"A project's folder may hold files this tool did not create; those are not\n" +
 			"listed. The root catalog's repository, on GitHub or GitLab, is not touched.",
-		Example: "  multiversectl cleanup\n  multiversectl cleanup --script > clean.sh\n  multiversectl cleanup -o json",
+		Example: "  multiversectl system footprint\n  multiversectl system footprint --script > clean.sh\n  multiversectl system footprint -o json",
 		Args:    cobra.NoArgs,
 	}
 	cmd.Flags().BoolVar(&script, "script", false, "print only the commands, one per line, to read and run")
@@ -104,7 +108,7 @@ func (r runner) collectFootprint(ctx context.Context) ([]app.Item, error) {
 				}
 				sort.Strings(names)
 				items = append(items, app.Item{Kind: "proxy", What: "the shared proxy", Path: "multiverse-proxy", Size: -1,
-					Note: "running, " + strings.Join(names, ", "), Remove: "multiversectl universe proxy down && docker network rm " + firstNonEmpty(svc.Manifest.Proxy.Network, "multiversenet")})
+					Note: "running, " + strings.Join(names, ", "), Remove: "multiversectl system proxy down && docker network rm " + firstNonEmpty(svc.Manifest.Proxy.Network, "multiversenet")})
 			}
 		}
 		pi, err := svc.ProjectFootprint(ctx, w.Name)
@@ -194,7 +198,7 @@ func (r runner) printFootprint(items []app.Item) {
 			risky++
 		}
 	}
-	o.Plain("%s  %s", o.Bold("multiversectl cleanup"), o.Dim("(this lists; it removes nothing)"))
+	o.Plain("%s  %s", o.Bold("multiversectl system footprint"), o.Dim("(this lists; it removes nothing)"))
 
 	printed := map[string]bool{}
 	for _, s := range sections {
@@ -265,7 +269,7 @@ func (r runner) printFootprint(items []app.Item) {
 	if risky > 0 {
 		line += fmt.Sprintf("; %s marked ⚠ would lose work that is nowhere else", plural(risky, "thing"))
 	}
-	o.Info("%s. Run `multiversectl cleanup --script` for just the commands.", line)
+	o.Info("%s. Run `multiversectl system footprint --script` for just the commands.", line)
 }
 
 type step struct {

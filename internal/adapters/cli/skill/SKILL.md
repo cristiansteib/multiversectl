@@ -30,7 +30,7 @@ Fixing it is part of the job. Run `universe doctor <universe>`, read the error (
 ## Care
 
 - `--json` for anything you parse. Messages and tables come as one JSON object per line; errors on stderr.
-- You may `universe down` and `universe rm` the universes you created. Ask first for any other, and for `prune`, `reset` and `cleanup`, which reach beyond one universe.
+- You may `universe down` and `universe rm` the universes you created. Ask first for any other, and for `system prune`, `system proxy` and `reset`, which reach beyond one universe.
 - Secrets (`.env`, keys): you may look at which keys exist, but do not print their values or commit them. If `up` says a secret file is missing, tell the user where it goes.
 - The proxy and the web server are shared with other agents and with the user: diagnose them with `doctor` and say what to run; do not stop or restart them yourself.
 - No force pushes, and no resets of a branch you did not start. Never touch another universe or anything under the project's `.multiverse/`.

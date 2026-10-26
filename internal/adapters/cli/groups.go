@@ -20,14 +20,14 @@ const (
 
 // startHere is what leads the help and the tree of commands, in this order. A
 // help lists commands alphabetically within a group, which puts `init` after
-// `completion` and `cleanup`; the first thing to run should not have to be
+// `completion` and `agents`; the first thing to run should not have to be
 // found among the housekeeping.
 var startHere = []string{"init"}
 
 var commandGroups = map[string]string{
 	"help-tree": groupSetup, "init": groupStart, "reset": groupSetup, "cleanup": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup, "agents": groupSetup,
 	"catalog": groupCatalog, "project": groupCatalog,
-	"start": groupUniverse, "universe": groupUniverse, "status": groupUniverse, "server": groupUniverse,
+	"start": groupUniverse, "system": groupUniverse, "universe": groupUniverse, "status": groupUniverse, "server": groupUniverse,
 }
 
 // groupCommands sorts the help into those groups and colours it. Each group

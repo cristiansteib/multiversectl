@@ -126,9 +126,9 @@ http://api-fix-login.10-0-0-5.traefik.me
 
 <section id="hw-prune">
   <h2 id="hw-prune"><a href="#hw-prune">Clear out every universe on the machine</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe prune --dry-run   <span class="c"># show what it would remove, and stop</span>
-<span class="p">$ </span>multiversectl universe prune             <span class="c"># the idle ones, asking first</span>
-<span class="p">$ </span>multiversectl universe prune --all --yes <span class="c"># everything, running included, no question</span></pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl system prune --dry-run   <span class="c"># show what it would remove, and stop</span>
+<span class="p">$ </span>multiversectl system prune             <span class="c"># the idle ones, asking first</span>
+<span class="p">$ </span>multiversectl system prune --all --yes <span class="c"># everything, running included, no question</span></pre></div>
   <p><code>prune</code> does what <code>rm</code> does, to every universe of every installed project, or only the one named with <code>-w</code>. Two kinds are kept unless you say otherwise, each listed with the reason: one with containers running, until <code>--all</code>; one with uncommitted work, until <code>--force</code>. <code>--yes</code> only skips the question and never discards work.</p>
   <p>It does not touch the clones, the proxy, or the installed projects and catalogs. Branches a universe started are deleted only when every commit on them is already on the base or on a remote; one holding anything else is kept and named.</p>
 </section>
