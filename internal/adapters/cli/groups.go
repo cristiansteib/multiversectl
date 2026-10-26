@@ -38,7 +38,7 @@ func groupCommands(root *cobra.Command, g *Globals) {
 		&cobra.Group{ID: groupStart, Title: "Get started:"},
 		&cobra.Group{ID: groupUniverse, Title: "Universe management:"},
 		&cobra.Group{ID: groupSetup, Title: "Tool initialization:"},
-		&cobra.Group{ID: groupCatalog, Title: "Catalog and project management:"},
+		&cobra.Group{ID: groupCatalog, Title: "Catalog management:"},
 	)
 	for _, c := range root.Commands() {
 		if id, ok := commandGroups[c.Name()]; ok {

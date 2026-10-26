@@ -188,7 +188,7 @@ func post(t *testing.T, h http.Handler, body string) *httptest.ResponseRecorder 
 
 func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 	f := &fake{
-		status:  app.StatusReport{Next: "multiversectl project update acme", Workspaces: []app.WorkspaceStatus{{Name: "acme", Stale: true}}},
+		status:  app.StatusReport{Next: "multiversectl catalog update acme", Workspaces: []app.WorkspaceStatus{{Name: "acme", Stale: true}}},
 		catalog: catalogView{Root: nodeView{Name: "me", Kind: "catalog"}, Installs: 1},
 		fleet:   fleetView{Workspaces: []fleetWorkspace{{Name: "acme", Universes: []universeView{{Name: "1"}}}}},
 		ws:      workspaceView{Name: "acme"},
@@ -196,7 +196,7 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 	}
 	_, h := serve(t, f, Options{Version: "v9"})
 	for _, tt := range []struct{ path, want string }{
-		{"/api/overview", `"next":"multiversectl project update acme"`},
+		{"/api/overview", `"next":"multiversectl catalog update acme"`},
 		{"/api/overview", `"version":"v9"`},
 		{"/api/catalog", `"installed":1`},
 		{"/api/fleet", `"name":"1"`},

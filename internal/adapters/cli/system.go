@@ -108,7 +108,7 @@ func (r runner) prune(ctx context.Context, o app.PruneOptions, yes, dry bool) er
 		list = []app.WorkspaceInfo{w}
 	}
 	if len(list) == 0 {
-		r.out.Info("nothing installed: `multiversectl project install <owner/repo>`")
+		r.out.Info("nothing installed: `multiversectl catalog install <owner/repo>`")
 		return nil
 	}
 

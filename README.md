@@ -74,7 +74,7 @@ the machine needs.
 A project someone points you at needs one command, with nothing set up first:
 
 ```sh
-multiversectl project install acme/multiverse   # owner/repo, any git URL, or a path
+multiversectl catalog install acme/multiverse   # owner/repo, any git URL, or a path
 multiversectl universe new 1 && multiversectl universe up 1
 ```
 
@@ -84,10 +84,10 @@ catalog. It is a git repository of pointers, private if you let `init` create it
 ```sh
 multiversectl init                      # asks where it should live
 multiversectl catalog add acme/billing  # asks which node of the tree it goes in
-multiversectl project init              # a guide: pick its repositories, create its repository, list it
+multiversectl catalog new              # a guide: pick its repositories, create its repository, list it
 multiversectl catalog list              # the tree, with what is installed marked
-multiversectl project status                    # what is installed here, and what has drifted
-multiversectl project update                    # catch up: manifests and new repositories
+multiversectl catalog status                    # what is installed here, and what has drifted
+multiversectl catalog update                    # catch up: manifests and new repositories
 ```
 
 See [Catalogs](https://multiversectl.dev/concepts/catalogs.html).
@@ -114,7 +114,7 @@ multiversectl start acme/multiverse     # install it, make universe 1, run it, p
 Or the steps it takes, one at a time:
 
 ```sh
-multiversectl project install ./multiverse.yaml --root ~/acme
+multiversectl catalog install ./multiverse.yaml --root ~/acme
 multiversectl universe new 1            # universe 1: a worktree of every repo on branch u1
 multiversectl universe new fix/login    # or name it after the branch it checks out
 multiversectl universe up fix/login     # start its containers

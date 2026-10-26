@@ -36,28 +36,52 @@ func TestUniverseCommandsLiveUnderUniverse(t *testing.T) {
 
 func TestEachCommandLivesWhereItsSubjectDoes(t *testing.T) {
 	root, _ := New(Factory{})
-	// The tree of catalogs is edited under catalog; what is installed here, and
-	// how it is kept, is a project's.
-	for parent, names := range map[string][]string{
-		"catalog": {"add", "create", "rm"},
-		"project": {"list", "init", "add", "install", "uninstall", "use", "status", "update"},
-	} {
-		for _, name := range names {
-			c, _, err := root.Find([]string{parent, name})
-			if err != nil || c.Name() != name {
-				t.Errorf("%s %s: not found (%v)", parent, name, err)
-			}
-			// status and init are also top-level commands, but different ones: the
-			// machine's overview and its root, not a project's drift or start.
-			if top, _, _ := root.Find([]string{name}); name != "status" && name != "init" && top != root {
-				t.Errorf("%s is still a top-level command", name)
-			}
+	// A project is a node of the catalog, so everything about a node — looking
+	// at the tree, editing it, and what of it is on this machine — is the
+	// catalog's. There is no second noun to look under.
+	for _, name := range []string{"list", "add", "create", "rm", "new", "install", "uninstall", "use", "status", "update"} {
+		c, _, err := root.Find([]string{"catalog", name})
+		if err != nil || c.Name() != name || c.Hidden {
+			t.Errorf("catalog %s: not found as a visible command (%v)", name, err)
+		}
+		// status is also a top-level command, but a different one: the
+		// machine's overview, not the catalog's drift.
+		if top, _, _ := root.Find([]string{name}); name != "status" && top != root {
+			t.Errorf("%s is a top-level command", name)
 		}
 	}
-	for _, gone := range []string{"install", "use", "update"} {
-		if c, _, _ := root.Find([]string{"catalog", gone}); c.Name() == gone {
-			t.Errorf("catalog %s should be project %s", gone, gone)
+}
+
+// What was under project still runs, out of the help, and says where it went.
+// `project list` keeps its own output, which a script may be reading, so it is
+// the old command and not an alias of the new one.
+func TestProjectIsKeptOnlyAsADeprecatedWayIn(t *testing.T) {
+	root, _ := New(Factory{})
+	p, _, err := root.Find([]string{"project"})
+	if err != nil || p.Name() != "project" || !p.Hidden {
+		t.Fatalf("project should exist and be hidden (%v)", err)
+	}
+	for old, want := range map[string]string{
+		"install":   "catalog install",
+		"uninstall": "catalog uninstall",
+		"use":       "catalog use",
+		"status":    "catalog status",
+		"update":    "catalog update",
+		"add":       "catalog add",
+		"list":      "catalog list",
+		"init":      "catalog new", // renamed on the way: what made a project is `new`
+	} {
+		c, _, err := root.Find([]string{"project", old})
+		if err != nil || c.Name() != old {
+			t.Errorf("project %s: gone (%v)", old, err)
+			continue
 		}
+		if !strings.Contains(c.Deprecated, want) {
+			t.Errorf("project %s: deprecation says %q, want it to name %q", old, c.Deprecated, want)
+		}
+	}
+	if q, _, _ := root.Find([]string{"p", "install"}); q.Name() != "install" {
+		t.Error("`p` still reaches it")
 	}
 }
 

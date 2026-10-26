@@ -15,7 +15,7 @@ import (
 
 // startCmd is the whole of getting going, in one command.
 //
-// Everything it does can be done with `project install`, `universe new` and
+// Everything it does can be done with `catalog install`, `universe new` and
 // `universe up`, and those stay the commands for doing one of those things.
 // This is for the first five minutes, when somebody has been handed a
 // repository and wants to see the thing run before learning what a universe
@@ -27,7 +27,7 @@ func (r runner) startCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start [source]",
 		Short: "Install a project, make a universe and start it, in one command",
-		Long: "From nothing to something running. The source is anything `project install`\n" +
+		Long: "From nothing to something running. The source is anything `catalog install`\n" +
 			"takes: a node in your catalog, a path, a git URL, or owner/repo. A project\n" +
 			"already installed is used as it is.\n\n" +
 			"Then it picks the universe: the one you name, the only one there is, or a new\n" +
@@ -82,7 +82,7 @@ func (r runner) startProject(cmd *cobra.Command, args []string, base string, yes
 		}
 		return r.f.Workspace(*r.g, r.out)
 	}
-	// Where it goes is asked only when nothing has said, as `project install`
+	// Where it goes is asked only when nothing has said, as `catalog install`
 	// does it.
 	ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
 	r.quietHints = true // it is about to make the universe and start it

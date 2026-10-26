@@ -461,7 +461,7 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 	}
 	// Removing an entry does not touch what is installed from it.
 	for _, name := range installed {
-		c.Out.Info("still installed here: `multiversectl project uninstall %s`", name)
+		c.Out.Info("still installed here: `multiversectl catalog uninstall %s`", name)
 	}
 	return nil
 }
@@ -932,7 +932,7 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	}
 	if cfg.Catalog != "" {
 		if n := dependents(cfg); n > 0 {
-			return fmt.Errorf("%d installed projects come from `%s`, and would point into a root that is no longer used.\n  start over with `multiversectl reset` (it forgets the root and the projects, and deletes no file), or remove them one by one with `multiversectl project uninstall <name>`, then run init again", n, cfg.Catalog)
+			return fmt.Errorf("%d installed projects come from `%s`, and would point into a root that is no longer used.\n  start over with `multiversectl reset` (it forgets the root and the projects, and deletes no file), or remove them one by one with `multiversectl catalog uninstall <name>`, then run init again", n, cfg.Catalog)
 		}
 		if ok, err := c.confirm(fmt.Sprintf("This machine already uses `%s` as its root catalog. Replace it?", shortRepo(cfg.Catalog)), false); err != nil {
 			return err

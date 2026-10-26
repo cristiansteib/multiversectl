@@ -13,32 +13,37 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-func (r runner) projectCmd() *cobra.Command {
+// oldProject is `project`, which held what is now under `catalog`: a project
+// is a node of the catalog, so what looks after nodes is the catalog's. It stays
+// out of the help and the tree, runs as it always did — `list` keeps its own
+// output, which a script may be reading — and says where each command moved.
+func (r runner) oldProject() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "project",
 		Aliases: []string{"p"},
-		Short:   "List, start and add projects: the repositories that say what a project is made of",
-		Long: "A project is a set of repositories that run together, described by a\n" +
-			"multiverse.yaml. A project repository holds that file and a catalog.yaml listing\n" +
-			"it, so anyone can join with `project install owner/repo`. `list` shows the\n" +
-			"projects in your catalog and which are installed here, `init` starts a new one,\n" +
-			"`add` puts an existing one in your catalog, and `install`, `use`, `update`,\n" +
-			"`status` and `uninstall` look after what is on this machine.",
-		Example: "  multiversectl project list\n  multiversectl p init\n  multiversectl p add acme/multiverse",
+		Short:   "Moved: what is under `catalog` now",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.projectListCmd(), r.projectInitCmd(), r.projectAddCmd(),
+	init := r.catalogNewCmd()
+	init.Use = "init [dir]"
+	cmd.AddCommand(r.projectListCmd(), init, r.projectAddCmd(),
 		r.installCmd(), r.uninstallCmd(), r.useCmd(), r.statusCmd(), r.updateCmd())
+	moved(cmd, "catalog")
+	// The one that was renamed in the move: what made a project is `new`.
+	init.Deprecated = "it moved: use `multiversectl catalog new`"
 	return cmd
 }
 
-func (r runner) projectInitCmd() *cobra.Command {
+// catalogNewCmd is the guide that makes a project and lists it in the catalog.
+// It was `catalog new`; `init` is the root catalog's, and a new node is `new`
+// in the way a new universe is.
+func (r runner) catalogNewCmd() *cobra.Command {
 	var in app.ProjectInput
 	var repos []string
 	var yes, noInstall bool
 	cmd := &cobra.Command{
-		Use:   "init [dir]",
+		Use:   "new [dir]",
 		Short: "Guide the setup of a project: pick its repositories, where it lives, and where to list it",
 		Long: "Run it in the directory the project's repository will be (an empty one, or a\n" +
 			"checkout of a repository you made for it). It asks, in turn:\n" +
@@ -52,9 +57,9 @@ func (r runner) projectInitCmd() *cobra.Command {
 			"It then writes multiverse.yaml and catalog.yaml, commits them and pushes. Nothing\n" +
 			"is created or pushed until you have seen the plan and said yes.\n\n" +
 			"Every answer has a flag, so with all of them it asks nothing and runs in a script.",
-		Example: "  multiversectl project init\n" +
-			"  multiversectl project init ~/acme/multiverse --scan --create acme-org/multiverse\n" +
-			"  multiversectl project init --name acme --repo acme-org/api --repo https://gitlab.com/acme/web.git --local",
+		Example: "  multiversectl catalog new\n" +
+			"  multiversectl catalog new ~/acme/multiverse --scan --create acme-org/multiverse\n" +
+			"  multiversectl catalog new --name acme --repo acme-org/api --repo https://gitlab.com/acme/web.git --local",
 		Args: cobra.MaximumNArgs(1),
 	}
 	f := cmd.Flags()
@@ -103,7 +108,7 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 	if list, err := bare.Workspaces(); err == nil {
 		for _, w := range list {
 			if w.Name == res.Name {
-				r.out.Info("a project named `%s` is already installed (`%s`); to follow the new repository instead: `multiversectl project uninstall %s`, then `multiversectl project install %s`",
+				r.out.Info("a project named `%s` is already installed (`%s`); to follow the new repository instead: `multiversectl catalog uninstall %s`, then `multiversectl catalog install %s`",
 					res.Name, firstNonEmpty(w.From, w.Manifest), res.Name, installSource(res))
 				return nil
 			}
@@ -126,7 +131,7 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 		}
 	}
 	if !ok {
-		hint := "multiversectl project install " + src
+		hint := "multiversectl catalog install " + src
 		if res.Root != "" {
 			hint += " --root " + res.Root
 		}
@@ -151,14 +156,14 @@ func installSource(res app.ProjectResult) string {
 func (r runner) projectAddCmd() *cobra.Command {
 	cmd := r.catalogAddCmd()
 	cmd.Use = "add [owner/repo | url | path]"
-	cmd.Short = "Put an existing project in your catalog, in the place you pick"
-	cmd.Example = "  multiversectl project add acme/multiverse\n" +
-		"  multiversectl project add ~/code/billing --at acme/backend\n" +
-		"  multiversectl project add ./acme.yaml --new-repo acme-org/multiverse"
+	cmd.Short = "Moved: `catalog add`"
+	cmd.Example = "  multiversectl catalog add acme/multiverse\n" +
+		"  multiversectl catalog add ~/code/billing --at acme/backend\n" +
+		"  multiversectl catalog add ./acme.yaml --new-repo acme-org/multiverse"
 	return cmd
 }
 
-// projectRow is one project as `project list` shows it.
+// projectRow is one project as `catalog list` shows it.
 type projectRow struct {
 	Project     string `json:"project"`
 	Repository  string `json:"repository,omitempty"`
@@ -179,7 +184,7 @@ func (r runner) projectListCmd() *cobra.Command {
 			"it is installed under on this machine and whether it has drifted. Projects\n" +
 			"installed here from outside the catalog are listed too. It reads what was last\n" +
 			"fetched unless --fetch.",
-		Example: "  multiversectl project list\n  multiversectl p ls --fetch\n  multiversectl p ls -o json",
+		Example: "  multiversectl catalog list\n  multiversectl p ls --fetch\n  multiversectl p ls -o json",
 		Args:    cobra.NoArgs,
 	}
 	cmd.Flags().BoolVar(&fetch, "fetch", false, "fetch the catalogs first")
@@ -203,7 +208,7 @@ func (r runner) projectListCmd() *cobra.Command {
 			return enc.Encode(rows)
 		}
 		if len(rows) == 0 {
-			r.out.Info("no projects yet: `multiversectl project init` starts one, `multiversectl project add <owner/repo>` adds one you have")
+			r.out.Info("no projects yet: `multiversectl catalog new` starts one, `multiversectl catalog add <owner/repo>` adds one you have")
 			return nil
 		}
 		cells := make([][]Cell, len(rows))

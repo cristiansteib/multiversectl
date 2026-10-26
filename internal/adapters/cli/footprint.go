@@ -264,7 +264,7 @@ func (r runner) printFootprint(items []app.Item) {
 		o.Plain("  %2d. `%s`", n, step.text)
 	}
 	o.Plain("")
-	o.Info("this lists what is still installed: the folder of a project you already forgot with `reset` or `project uninstall` is not known any more, so look in the folder you installed it into (`~/multiverse` by default)")
+	o.Info("this lists what is still installed: the folder of a project you already forgot with `reset` or `catalog uninstall` is not known any more, so look in the folder you installed it into (`~/multiverse` by default)")
 	line := fmt.Sprintf("about %s in all", humanBytes(total))
 	if risky > 0 {
 		line += fmt.Sprintf("; %s marked ⚠ would lose work that is nowhere else", plural(risky, "thing"))

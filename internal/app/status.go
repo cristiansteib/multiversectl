@@ -34,7 +34,7 @@ type WorkspaceStatus struct {
 	RepoURL string   `json:"repoUrl,omitempty"`
 	Ref     string   `json:"ref,omitempty"`
 	Notes   []string `json:"notes,omitempty"`
-	// Stale is when `project update` would bring the manifest forward.
+	// Stale is when `catalog update` would bring the manifest forward.
 	Stale bool `json:"stale,omitempty"`
 	// Dirty, Diverged, Ahead and Behind say how the manifest compares with its
 	// remote; Advice is what to do about it, empty when nothing is pending.
@@ -111,13 +111,13 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 	}
 	switch {
 	case len(stale) > 0:
-		rep.Next = "multiversectl project update " + strings.Join(stale, " ")
+		rep.Next = "multiversectl catalog update " + strings.Join(stale, " ")
 	case advised != "":
 		rep.Next = advised
 	case len(rep.Workspaces) == 0 && cfg.Catalog == "":
-		rep.Next = "multiversectl project install <owner/repo>  ·  multiversectl init"
+		rep.Next = "multiversectl catalog install <owner/repo>  ·  multiversectl init"
 	case len(rep.Workspaces) == 0:
-		rep.Next = "multiversectl catalog list  ·  multiversectl project install <path>"
+		rep.Next = "multiversectl catalog list  ·  multiversectl catalog install <path>"
 	}
 	return rep, nil
 }
@@ -199,7 +199,7 @@ func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e Workspac
 		return res, nil
 	}
 	if clean, err := c.Git.IsClean(ctx, dir); err != nil || !clean {
-		return res, fmt.Errorf("%s: local changes in `%s`, which an update never overwrites; commit or stash them, then `multiversectl project update %s`", name, dir, name)
+		return res, fmt.Errorf("%s: local changes in `%s`, which an update never overwrites; commit or stash them, then `multiversectl catalog update %s`", name, dir, name)
 	}
 	if err := c.Progress.Do("Checking "+name+" for changes", func(ctx context.Context) error { return c.Git.Fetch(ctx, dir) }); err != nil {
 		return res, fmt.Errorf("%s: fetch %s: %s", name, shortRepo(e.Source.Repo), reason(err, e.Source.Repo))

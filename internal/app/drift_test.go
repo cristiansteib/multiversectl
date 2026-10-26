@@ -35,7 +35,7 @@ func TestAnEditedManifestIsSaidAndUpdateIsNotSuggestedToRefuse(t *testing.T) {
 		t.Errorf("advice = %q", w.Advice)
 	}
 	rep, _ := r.Status(context.Background(), false)
-	if rep.Next == "multiversectl project update acme" || !strings.Contains(rep.Next, "stash") {
+	if rep.Next == "multiversectl catalog update acme" || !strings.Contains(rep.Next, "stash") {
 		t.Errorf("next = %q: an update that would refuse is not what to run", rep.Next)
 	}
 }
@@ -69,7 +69,7 @@ func TestWorkingInAProjectSaysWhatIsWaitingUpstream(t *testing.T) {
 	r, _ := installedRig(t)
 	r.git.behind, r.git.lastFetch = 2, time.Now()
 	msg := noticeService(r, nil).ManifestNotice(context.Background())
-	if !strings.Contains(msg, "`acme`: 2 upstream changes to its manifest: `multiversectl project update acme`") {
+	if !strings.Contains(msg, "`acme`: 2 upstream changes to its manifest: `multiversectl catalog update acme`") {
 		t.Errorf("notice = %q", msg)
 	}
 	if len(r.git.fetched) != 0 {
