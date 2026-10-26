@@ -41,6 +41,8 @@ type Factory struct {
 	Server func() (app.ServerProcess, error)
 	// Completions builds the use case that installs and refreshes completions.
 	Completions func(out app.Output) *app.Completions
+	// Skills builds the use case that installs the agent skill.
+	Skills func(out app.Output) *app.Skills
 }
 
 // New returns the root command and the globals its flags fill in.
@@ -58,6 +60,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			*out = *NewOutput(os.Stdout, ColorEnabled(os.Stdout, g.NoColor))
 			run.refreshCompletions(root, cmd)
+			run.refreshSkills(cmd)
 			return applyJSON(cmd, out)
 		},
 	}
@@ -76,7 +79,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run = runner{g: g, out: out, f: f}
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
-		run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.projectCmd(), run.initCmd(), run.resetCmd(), run.cleanupCmd(), run.completionCmd(root),
+		run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.projectCmd(), run.initCmd(), run.resetCmd(), run.cleanupCmd(), run.completionCmd(root), run.aiCmd(),
 		run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("project", run.completeWorkspaces)
