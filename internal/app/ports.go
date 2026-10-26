@@ -518,6 +518,21 @@ type ServerProcess interface {
 	// Restart stops the running server and starts it again with the options it
 	// had, so a new build is the one that runs. ErrServerNotRunning when none is.
 	Restart(ctx context.Context) (ServerInfo, error)
+	// Pair asks the running server for a code that lets another machine in
+	// without the link. ErrServerNotRunning when none is.
+	Pair(ctx context.Context) (ServerInvite, error)
+}
+
+// ServerInvite is a way into the running web view for a machine that cannot be
+// handed the link: a short code, said out loud or typed, and where to type it.
+type ServerInvite struct {
+	Code    string
+	Expires time.Time
+	// At is where another machine on this network would open it, best first.
+	// Empty, or loopback only, when the server was not started with --expose.
+	At []string
+	// Exposed says whether the server answers anywhere but this machine.
+	Exposed bool
 }
 
 // ServerStart says where the server listens.

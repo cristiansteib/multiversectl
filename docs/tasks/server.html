@@ -137,6 +137,17 @@
   <p>An update replaces the program on disk but not the one already running, so <code>self-update</code> and the install script restart it for you, and after a package upgrade <code>server status</code> says it is still on the older build. <code>server restart</code> brings it back with the address and flags it had, and the link stays the same. The flags are in the <a href="../reference/cli.html">command reference</a>.</p>
 </section>
 
+<section id="hw-elsewhere">
+  <h2 id="hw-elsewhere"><a href="#hw-elsewhere">Open it on another machine</a></h2>
+  <p>Start it with <code>--expose</code> and it listens on every interface, so a laptop on the same network can watch what the desktop is running. The link is 192 bits of base64, which nobody is going to read across a desk, so ask the running server for a code instead:</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl server pair
+✓ code 418 902 — type it into the page on the other machine
+  open http://192.168.1.23:7777/
+ℹ it opens one machine, once, and runs out in 5 minutes</pre></div>
+  <p>The other machine opens that address, is asked for the code, and types it in. It then has what this machine has: a page that can start, stop and remove universes. The code opens one machine, is spent by the first use, dies after five wrong guesses and is forgotten after five minutes; nothing hands one out but a request that already has the link, so there is nothing to guess at unless you are in the middle of letting someone in. An agent asked for access runs the same command and reads out what it printed.</p>
+  <p><code>--expose</code> is still the decision to be reachable: the page is served over plain HTTP, so keep it to a network you trust, and <code>--read-only</code> is there for a machine you only want to be watched from.</p>
+</section>
+
 <section id="hw-agents">
   <h2 id="hw-agents"><a href="#hw-agents">Let a coding agent work with it</a></h2>
   <p>An agent needs no server and no protocol: it runs the command line, and <code>-o json</code> gives it what it needs in few tokens. Each universe is its own folder and its own set of containers, so several agents can each work in one at the same time.</p>
@@ -169,6 +180,7 @@
       <li><a href="#hw-stats">Watch what it is using</a></li>
       <li><a href="#hw-act">Act from the page</a></li>
       <li><a href="#hw-run">Running it</a></li>
+      <li><a href="#hw-elsewhere">Open it on another machine</a></li>
       <li><a href="#hw-agents">Let a coding agent work with it</a></li>
       <li><a href="#hw-safe">Who can use it</a></li>
     </ul>
