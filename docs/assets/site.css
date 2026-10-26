@@ -200,11 +200,35 @@ pre .c{color:var(--muted)}pre .k{color:var(--addr)}pre .p{color:var(--num);user-
 :not(pre)>code{font-size:.875em;background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:1px 6px;overflow-wrap:anywhere}
 
 /* tables */
-.tw{margin:0 0 16px}
+.tw{margin:0 0 16px;overflow-x:auto}
+/* A table a page marks as a list of entries rather than a grid of values:
+   when its own column is too narrow for its columns to be read, each row
+   becomes a block of labelled lines. The measure is the table's width, not the
+   window's, because this site's middle column stays about the same at every
+   desktop size. */
+.tw.entries{container-type:inline-size}
 table{width:100%;border-collapse:collapse;font-size:.9rem}
 th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
 th{font:600 .8125rem var(--mono);color:var(--muted)}
-td code{white-space:normal}
+/* break-word, not anywhere: a word that fits must not be broken, and a column
+   whose contents can break anywhere has a minimum width of one character, so
+   the layout squeezes it to nothing and spells `multiversectl` down the page. */
+td code{white-space:normal;overflow-wrap:break-word}
+
+/* A row reads as a block of labelled lines when there is no room for columns.
+   The page's middle column is about 680px at every desktop size, and a table
+   of commands spends two of its three columns on monospace, so the measure
+   that matters is the table's own width rather than the window's. */
+@container (max-width:56rem){
+  .entries table{display:block}
+  .entries thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .entries tr{display:block;border-bottom:1px solid var(--line);padding:12px 0}
+  .entries tr:last-child{border-bottom:0}
+  .entries td{display:block;border:0;padding:3px 0}
+  .entries td[data-l]::before{content:attr(data-l) ": ";font:600 .75rem var(--mono);color:var(--muted)}
+  .entries td:first-child code{font-size:.9375rem}
+}
+/* The same, for a window too narrow for any table at all. */
 @media (max-width:639px){
   thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
   tr{display:block;border-bottom:1px solid var(--line);padding:10px 0}

@@ -1,7 +1,7 @@
 <section id="commands">
   <h2 id="all"><a href="#all">Every command</a></h2>
   <p>Everything that acts on a universe lives under <code>universe</code>, which <code>u</code> shortens: <code>multiversectl u new 3</code> is <code>multiversectl universe new 3</code>. That is the lifecycle (<code>new</code>, <code>checkout</code>, <code>up</code>, <code>down</code>, <code>rm</code>, <code>ls</code>, <code>status</code>, <code>urls</code>, <code>env</code>, <code>run</code>, <code>exec</code>) and what looks after them: <code>doctor</code>, <code>proxy</code> and <code>prune</code>. Everything about which projects exist and which are on this machine lives under <code>catalog</code> and <code>project</code>. <code>status</code>, <code>server</code>, <code>init</code>, <code>reset</code>, <code>completion</code>, <code>self-update</code> and <code>version</code> stay at the top level. A command's aliases are listed beside it in <code>multiversectl --help</code>.</p>
-  <div class="tw"><table>
+  <div class="tw entries"><table>
   <thead><tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col">Example</th></tr></thead>
   <tbody>
   <tr><td data-l="Command"><code>catalog list [node-path]</code></td><td data-l="What it does">Show the catalog as a tree (alias <code>ls</code>; a bare <code>catalog</code> shows its help), or the part under a node. Projects already installed are marked, and a layer that cannot be read is listed as unavailable with the reason. <code>--fetch</code> refreshes first, <code>-o json</code> is for scripts, <code>--from</code> shows another catalog.</td><td data-l="Example"><code>multiversectl catalog list acme/backend</code></td></tr>
