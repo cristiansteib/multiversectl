@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"sort"
 	"sync"
 )
 
@@ -42,6 +41,16 @@ func (s *Service) UniverseCode(ctx context.Context, name string) ([]CodeStatus, 
 	if err != nil {
 		return nil, err
 	}
+	// Asking a service whether it can be used is a process of its own and a
+	// call over the network; one answer serves every repository of the
+	// universe, so each host is asked once however many repositories it owns.
+	ready := make([]func() error, len(s.Hosts))
+	for i := range s.Hosts {
+		host := s.Hosts[i]
+		ready[i] = sync.OnceValue(func() error { return host.Available(ctx) })
+	}
+	// checkouts comes in the repositories' own order, which is the order the
+	// rows keep.
 	checkouts := s.checkouts(st)
 	out := make([]CodeStatus, len(checkouts))
 	var wg sync.WaitGroup
@@ -49,15 +58,14 @@ func (s *Service) UniverseCode(ctx context.Context, name string) ([]CodeStatus, 
 		wg.Add(1)
 		go func(i int, c Checkout) {
 			defer wg.Done()
-			out[i] = s.codeOf(ctx, c)
+			out[i] = s.codeOf(ctx, c, ready)
 		}(i, c)
 	}
 	wg.Wait()
-	sort.Slice(out, func(i, j int) bool { return out[i].Repo < out[j].Repo })
 	return out, nil
 }
 
-func (s *Service) codeOf(ctx context.Context, c Checkout) CodeStatus {
+func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) CodeStatus {
 	cs := CodeStatus{Repo: c.Repo, App: c.App, Branch: c.Branch, Path: c.Path}
 	if s.Manifest == nil {
 		return cs
@@ -78,23 +86,23 @@ func (s *Service) codeOf(ctx context.Context, c Checkout) CodeStatus {
 			cs.Uncommitted = d
 		}
 	}
-	cs.Review, cs.ReviewError = s.reviewOf(ctx, cs.URL, c.Branch)
+	cs.Review, cs.ReviewError = s.reviewOf(ctx, ready, cs.URL, c.Branch)
 	return cs
 }
 
 // reviewOf asks the service the repository is on, and only that one: a URL no
 // host owns is a repository nobody can have opened a review on.
-func (s *Service) reviewOf(ctx context.Context, repoURL, branch string) (*Review, string) {
+func (s *Service) reviewOf(ctx context.Context, ready []func() error, repoURL, branch string) (*Review, string) {
 	if repoURL == "" || branch == "" {
 		return nil, ""
 	}
-	for _, h := range s.Hosts {
+	for i, h := range s.Hosts {
 		if !h.Owns(repoURL) {
 			continue
 		}
 		// A service that is not installed or not signed in is not an error
 		// worth showing on every repository of every universe.
-		if err := h.Available(ctx); err != nil {
+		if err := ready[i](); err != nil {
 			return nil, ""
 		}
 		r, err := h.OpenReview(ctx, repoURL, branch)

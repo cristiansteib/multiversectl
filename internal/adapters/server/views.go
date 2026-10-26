@@ -129,10 +129,7 @@ type codeView struct {
 
 type codeRow struct {
 	Repo   string `json:"repo"`
-	App    string `json:"app,omitempty"`
 	Branch string `json:"branch,omitempty"`
-	Path   string `json:"path"`
-	URL    string `json:"url,omitempty"`
 	// Follows is the branch of origin this one is measured against.
 	Follows     string      `json:"follows,omitempty"`
 	Behind      int         `json:"behind,omitempty"`

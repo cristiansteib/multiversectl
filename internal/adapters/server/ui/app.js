@@ -18,6 +18,8 @@ const h = (tag, props, ...kids) => {
   return el;
 };
 const main = document.getElementById('main');
+// One way to write a query string, for every caller that needs one.
+const query = (o) => new URLSearchParams(o).toString();
 const REFRESH_MS = 10000;
 
 // What the page knows, fed by the websocket. A view reads from it and is told
@@ -110,6 +112,8 @@ const empty = (...kids) => h('div', { class: 'empty' }, kids);
 // The shape of what is coming, while it is read. A page that holds its layout
 // is a page that does not jump when the numbers land, and “Loading…” holds
 // nothing: the word is for the screen reader, which cannot see the shape.
+// Counting out loud, in the one place that knows the rule.
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 const skeleton = (cls) => h('span', { class: 'skel ' + (cls || ''), 'aria-hidden': 'true' });
 const cmd = (c) => h('code', null, c);
 const errorBox = (e) => h('div', { class: 'error', role: 'alert' }, String(e.message || e));
@@ -397,7 +401,7 @@ async function loadCode(key, again) {
   fillCode(key);
   const [project, universe] = JSON.parse(key);
   try {
-    const d = await api('universe/code?project=' + encodeURIComponent(project) + '&universe=' + encodeURIComponent(universe));
+    const d = await api('universe/code?' + query({ project, universe }));
     codeState.set(key, { rows: d.rows || [], at: Date.now() });
   } catch (e) {
     codeState.set(key, { rows: had.rows, error: e.message, at: Date.now() });
@@ -425,7 +429,7 @@ function codeSection(w, u) {
   const key = codeKey(w.name, u.name);
   const sec = h('section', { class: 'code', 'data-key': key },
     h('div', { class: 'code-head' }, h('b', null, 'Code'),
-      h('span', { class: 'muted small' }, u.checkouts.length + (u.checkouts.length === 1 ? ' repository' : ' repositories')),
+      h('span', { class: 'muted small' }, plural(u.checkouts.length, 'repository', 'repositories')),
       h('span', { class: 'grow' }),
       copyable(u.dir, 'folder'),
       h('button', { type: 'button', class: 'btn small ghost', title: 'Read the branches and their requests again', onclick: () => loadCode(key, true) }, 'Reread')),
@@ -467,12 +471,12 @@ function diffOf(r) {
   if (r.work) {
     out.push(h('span', { class: 'diff', title: r.work.files + ' files changed against ' + r.follows },
       h('b', { class: 'add' }, '+' + r.work.added), h('b', { class: 'del' }, '−' + r.work.removed),
-      h('span', { class: 'muted' }, r.work.files + (r.work.files === 1 ? ' file' : ' files'))));
+      h('span', { class: 'muted' }, plural(r.work.files, 'file', 'files'))));
   }
   if (r.behind) out.push(badge('warn', r.behind + ' behind', 'It lacks ' + r.behind + ' commits of ' + r.follows + ', as of the last fetch'));
   if (r.uncommitted) {
     const n = r.uncommitted;
-    out.push(badge('mute', 'edited', n.files + (n.files === 1 ? ' file' : ' files') + ' changed and not committed: +' + n.added + ' \u2212' + n.removed));
+    out.push(badge('mute', 'edited', plural(n.files, 'file', 'files') + ' changed and not committed: +' + n.added + ' \u2212' + n.removed));
   }
   if (!out.length) out.push(h('span', { class: 'muted small' }, r.follows ? 'no change from ' + r.follows : 'nothing to compare it with'));
   return out;
@@ -502,8 +506,7 @@ async function runDoctor(into, project, universe, btn) {
   const key = project + '/' + universe;
   into.replaceChildren(h('p', { class: 'muted' }, 'Checking…'));
   try {
-    const q = 'doctor?project=' + encodeURIComponent(project) + (universe ? '&universe=' + encodeURIComponent(universe) : '');
-    const rep = await api(q);
+    const rep = await api('doctor?' + query(universe ? { project, universe } : { project }));
     const kind = { ok: 'ok', warn: 'warn', fail: 'bad' };
     const result = h('div', { class: 'panel' },
       h('div', { class: 'ws-head tight' }, h('b', null, rep.ok ? 'No failures' : 'Something failed'), h('span', { class: 'grow' }),
@@ -940,12 +943,12 @@ views.stats = {
       const seen = new Map();
       for (const x of samples) {
         if (x.t < Date.now() - span) continue;
-        for (const r of x.rows) seen.set(r.project + '/' + r.universe, r);
+        for (const r of x.rows) seen.set(uniOf(r), r);
       }
       return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
     };
 
-    const shown = (r) => !hidden.has(r.project + '/' + r.universe);
+    const shown = (r) => !hidden.has(uniOf(r));
     // The readings inside the window, with the universes that are ticked off
     // taken out: everything drawn goes through here, so the numbers agree.
     const windowed = () => samples.filter((x) => x.t >= Date.now() - span)
@@ -1027,9 +1030,11 @@ views.stats = {
     }
 
     // ---- grouping
-    const keyOf = (r) => group === 'universe' ? r.project + '/' + r.universe
-      : group === 'app' ? r.project + '/' + r.universe + '/' + r.app
-        : r.project + '/' + r.universe + '/' + r.app + '/' + r.service;
+    // A universe is a project and a name; a container is that and an app and a
+    // service. Everything here files rows under one of the two.
+    const uniOf = (r) => r.project + '/' + r.universe;
+    const svcOf = (r) => uniOf(r) + '/' + r.app + '/' + r.service;
+    const keyOf = (r) => group === 'universe' ? uniOf(r) : group === 'app' ? uniOf(r) + '/' + r.app : svcOf(r);
     // With one project its name adds nothing to every label; with two it is
     // what tells one project's universe 1 from the other's.
     const labelOf = (r, many) => {
@@ -1086,12 +1091,12 @@ views.stats = {
       const rows = last.rows.filter(shown);
       const cpu = rows.reduce((n, r) => n + r.cpu, 0);
       const mem = rows.reduce((n, r) => n + (r.mem || 0), 0);
-      const universes = new Set(rows.map((r) => r.project + '/' + r.universe));
+      const universes = new Set(rows.map(uniOf));
       const busiest = rows.slice().sort((a, b) => b.cpu - a.cpu)[0];
 
       tiles.replaceChildren(
         h('div', { class: 'card' }, h('h3', null, 'Running'), h('div', { class: 'big' }, rows.length),
-          h('div', { class: 'muted' }, rows.length === 1 ? 'container' : 'containers', ' in ', universes.size, universes.size === 1 ? ' universe' : ' universes')),
+          h('div', { class: 'muted' }, rows.length === 1 ? 'container' : 'containers', ' in ', plural(universes.size, 'universe', 'universes'))),
         h('div', { class: 'card' }, h('h3', null, 'CPU'), h('div', { class: 'big' }, viz.percent(cpu)),
           h('div', { class: 'muted' }, 'of one core, added up')),
         h('div', { class: 'card' }, h('h3', null, 'Memory'), h('div', { class: 'big' }, viz.bytes(mem)),
@@ -1169,7 +1174,7 @@ views.stats = {
       const within = windowed();
       for (const s of within) {
         for (const r of s.rows) {
-          const k = r.project + '/' + r.universe;
+          const k = uniOf(r);
           if (!by.has(k)) by.set(k, { project: r.project, universe: r.universe, at: new Map() });
           const g = by.get(k);
           g.at.set(s.t, (g.at.get(s.t) || 0) + r.cpu);
@@ -1184,7 +1189,7 @@ views.stats = {
       const cards = [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, g]) => {
         const points = [...g.at.entries()].sort((a, b) => a[0] - b[0]);
         const current = points.length ? points[points.length - 1][1] : 0;
-        const live = last.rows.some((r) => r.project + '/' + r.universe === k);
+        const live = last.rows.some((r) => uniOf(r) === k);
         const card = h('article', { class: 'card facet' },
           h('div', { class: 'facet-head' }, h('span', { class: 'dot ' + (live ? 'ok' : '') }), h('b', null, g.universe),
             h('span', { class: 'muted' }, g.project), h('span', { class: 'grow' }), h('b', { class: 'mono' }, viz.percent(current))),
@@ -1209,7 +1214,7 @@ views.stats = {
       for (const s of windowed()) {
         from = Math.min(from, s.t);
         for (const r of s.rows) {
-          const k = r.project + '/' + r.universe + '/' + r.app + '/' + r.service;
+          const k = svcOf(r);
           if (!history.has(k)) history.set(k, []);
           history.get(k).push([s.t, r.cpu]);
         }
@@ -1221,7 +1226,7 @@ views.stats = {
         rows.length ? h('div', { class: 'scroll' }, h('table', { class: 'stats-table' },
           h('thead', null, h('tr', null, ['Universe', 'Service', 'CPU', 'Last ' + (span / 60000) + ' min', 'Memory', 'Network', 'PIDs', ''].map((t) => h('th', null, t)))),
           h('tbody', null, rows.map((r) => {
-            const k = r.project + '/' + r.universe + '/' + r.app + '/' + r.service;
+            const k = svcOf(r);
             const cls = colours.of(keyOf(r));
             return h('tr', null,
               h('td', null, h('b', null, r.universe), ' ', h('span', { class: 'muted' }, r.project)),
@@ -1408,7 +1413,7 @@ const sidePanel = (() => {
     scrim.hidden = !on;
   }
 
-  const query = (c, extra) => new URLSearchParams({ project: c.project, universe: c.universe, ...extra }).toString();
+  const of = (c, extra) => query({ project: c.project, universe: c.universe, ...extra });
 
   function close() {
     if (!cur) return;
@@ -1452,7 +1457,7 @@ const sidePanel = (() => {
 
   async function loadRows() {
     const c = cur;
-    try { const r = await api('universe/containers?' + query(c)); if (cur === c) { c.rows = r.containers; c.error = null; } }
+    try { const r = await api('universe/containers?' + of(c)); if (cur === c) { c.rows = r.containers; c.error = null; } }
     catch (e) { if (cur === c) c.error = e.message; }
     if (cur === c) draw();
   }
@@ -1461,7 +1466,7 @@ const sidePanel = (() => {
     const c = cur;
     if (!c || document.hidden || c.tab !== 'containers' || !(c.rows || []).some((r) => r.running)) return;
     try {
-      const r = await api('universe/stats?' + query(c));
+      const r = await api('universe/stats?' + of(c));
       if (cur !== c) return;
       c.stats = Object.fromEntries(r.stats.map((s) => [s.name, s]));
       const now = Date.now();
@@ -1493,7 +1498,7 @@ const sidePanel = (() => {
     c.tab = 'logs';
     draw();
     try {
-      const res = await fetch('/api/universe/logs?' + query(c, { app: appKey, service, tail: log.tail, follow: log.follow ? '1' : '0' }), { signal: log.abort.signal });
+      const res = await fetch('/api/universe/logs?' + of(c, { app: appKey, service, tail: log.tail, follow: log.follow ? '1' : '0' }), { signal: log.abort.signal });
       if (!res.ok) { let b = {}; try { b = await res.json(); } catch (_) { /* empty */ } throw new Error(b.error || res.statusText); }
       log.state = log.follow ? 'following' : 'loaded';
       drawLogState();
@@ -1746,7 +1751,6 @@ const sidePanel = (() => {
 
   function containersTab() {
     rowsBody = h('div', { class: 'crows' });
-    meterEls = new Map();
     drawRows();
     return rowsBody;
   }
@@ -1871,7 +1875,13 @@ const sidePanel = (() => {
       h('div', { class: 'log-wrap' }, logOut, jump),
       h('div', { class: 'bar' },
         h('button', { type: 'button', class: 'btn small', onclick: () => { log.lines = []; log.drawn = 0; drawLog(); } }, 'Clear'),
-        h('button', { type: 'button', class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(asText(log)); toast('Copied ' + visible(log).length + ' lines'); } catch (_) { toast('Copy failed'); } } }, 'Copy'),
+        h('button', {
+          type: 'button', class: 'btn small',
+          onclick: async () => {
+            const n = visible(log).length;
+            toast(await wrote(asText(log)) ? 'Copied ' + plural(n, 'line', 'lines') : 'Copy failed; select the lines and press ctrl-C');
+          },
+        }, 'Copy'),
         h('button', { type: 'button', class: 'btn small', onclick: () => download(log) }, 'Download'),
         h('span', { class: 'grow' }),
         h('span', { class: 'muted small' }, 'docker logs of ', log.appKey, '/', log.service)));
@@ -1909,7 +1919,7 @@ const sidePanel = (() => {
     log.drawn = log.lines.length;
     if (add.length) logOut.append(...add);
     const shown = logOut.childElementCount;
-    logCount.textContent = log.filter ? shown + ' of ' + log.lines.length + ' lines' : shown + (shown === 1 ? ' line' : ' lines');
+    logCount.textContent = log.filter ? shown + ' of ' + log.lines.length + ' lines' : plural(shown, 'line', 'lines');
     if (!shown) logOut.append(h('p', { class: 'muted log-note' }, log.filter ? 'No line contains that.' : 'Nothing logged yet.'));
     if (stick) logOut.scrollTop = logOut.scrollHeight;
     if (jump) jump.hidden = atEnd();

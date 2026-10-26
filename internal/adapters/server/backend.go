@@ -278,14 +278,9 @@ func (s Services) Code(ctx context.Context, workspace, universe string) (codeVie
 	}
 	v := codeView{Rows: []codeRow{}}
 	for _, r := range rows {
-		row := codeRow{Repo: r.Repo, App: r.App, Branch: r.Branch, Path: r.Path, URL: r.URL,
-			Follows: r.Follows, Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError}
-		if !r.Work.Empty() {
-			row.Work = &diffView{Files: r.Work.Files, Added: r.Work.Added, Removed: r.Work.Removed}
-		}
-		if !r.Uncommitted.Empty() {
-			row.Uncommitted = &diffView{Files: r.Uncommitted.Files, Added: r.Uncommitted.Added, Removed: r.Uncommitted.Removed}
-		}
+		row := codeRow{Repo: r.Repo, Branch: r.Branch, Follows: r.Follows,
+			Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError,
+			Work: diffOf(r.Work), Uncommitted: diffOf(r.Uncommitted)}
 		if r.Review != nil {
 			row.Review = &reviewView{Number: r.Review.Number, Mark: reviewMark(r.URL), Title: r.Review.Title,
 				URL: r.Review.URL, Draft: r.Review.Draft, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
@@ -293,6 +288,14 @@ func (s Services) Code(ctx context.Context, workspace, universe string) (codeVie
 		v.Rows = append(v.Rows, row)
 	}
 	return v, nil
+}
+
+// diffOf leaves out a change of nothing, so a page can ask whether there is one.
+func diffOf(d app.DiffStat) *diffView {
+	if d.Empty() {
+		return nil
+	}
+	return &diffView{Files: d.Files, Added: d.Added, Removed: d.Removed}
 }
 
 // reviewMark is how the service writes a review's number: GitLab's merge

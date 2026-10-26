@@ -117,31 +117,30 @@ func (c *Compose) Stats(ctx context.Context, containers []string) ([]app.Contain
 	}
 	args := append([]string{"stats", "--no-stream", "--format", "{{json .}}"}, containers...)
 	out, err := c.capture(ctx, "docker", args...)
-	if err != nil {
-		// A container asked for by name may have stopped since it was listed,
-		// and docker then reports nothing at all rather than the rest. Reading
-		// every running container and keeping the ones asked for still answers.
-		out, err = c.capture(ctx, "docker", "stats", "--no-stream", "--format", "{{json .}}")
-		if err != nil {
-			return nil, err
-		}
-		wanted := make(map[string]bool, len(containers))
-		for _, name := range containers {
-			wanted[name] = true
-		}
-		all, perr := parseStats(out)
-		if perr != nil {
-			return nil, perr
-		}
-		kept := all[:0]
-		for _, s := range all {
-			if wanted[s.Name] {
-				kept = append(kept, s)
-			}
-		}
-		return kept, nil
+	if err == nil {
+		return parseStats(out)
 	}
-	return parseStats(out)
+	// A container asked for by name may have stopped since it was listed, and
+	// docker then reports nothing at all rather than the rest. Reading every
+	// running container and keeping the ones asked for still answers.
+	if out, err = c.capture(ctx, "docker", "stats", "--no-stream", "--format", "{{json .}}"); err != nil {
+		return nil, err
+	}
+	all, err := parseStats(out)
+	if err != nil {
+		return nil, err
+	}
+	wanted := make(map[string]bool, len(containers))
+	for _, name := range containers {
+		wanted[name] = true
+	}
+	kept := all[:0]
+	for _, s := range all {
+		if wanted[s.Name] {
+			kept = append(kept, s)
+		}
+	}
+	return kept, nil
 }
 
 func parseStats(out []byte) ([]app.ContainerStats, error) {

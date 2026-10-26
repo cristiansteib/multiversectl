@@ -6,14 +6,14 @@
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --radius: 10px;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
-  --a1: #c0352b; --a2: #1a7f4b; --a3: #8a5300; --a4: #2f63c4; --a5: #8035c8; --a6: #077b8e; --a7: #5d6877;
+  --a1: #c0352b; --a2: #1a7f4b; --a3: #8a5300; --a4: #2f63c4; --a5: #8035c8; --a6: #077b8e;
 }
 :root[data-theme="dark"] {
   --bg: #0e1116; --panel: #151a22; --sunk: #0b0e13; --line: #262d38; --text: #e8ecf1; --muted: #8b97a8;
   --accent: #45d6b5; --accent-ink: #06231c; --ok: #4fd18a; --warn: #f0b24a; --bad: #ff7b72; --info: #7aa7ff;
   --ok-bg: #12301f; --warn-bg: #33270d; --bad-bg: #3a1714; --info-bg: #14264a;
   --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
-  --a1: #ff7b72; --a2: #4fd18a; --a3: #f0b24a; --a4: #7aa7ff; --a5: #c795f5; --a6: #39c5cf; --a7: #8b97a8;
+  --a1: #ff7b72; --a2: #4fd18a; --a3: #f0b24a; --a4: #7aa7ff; --a5: #c795f5; --a6: #39c5cf;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -21,7 +21,7 @@
     --accent: #45d6b5; --accent-ink: #06231c; --ok: #4fd18a; --warn: #f0b24a; --bad: #ff7b72; --info: #7aa7ff;
     --ok-bg: #12301f; --warn-bg: #33270d; --bad-bg: #3a1714; --info-bg: #14264a;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
-  --a1: #ff7b72; --a2: #4fd18a; --a3: #f0b24a; --a4: #7aa7ff; --a5: #c795f5; --a6: #39c5cf; --a7: #8b97a8;
+  --a1: #ff7b72; --a2: #4fd18a; --a3: #f0b24a; --a4: #7aa7ff; --a5: #c795f5; --a6: #39c5cf;
   }
 }
 * { box-sizing: border-box; }
@@ -165,7 +165,6 @@ details[open] > summary .node::before { transform: rotate(90deg); }
 .skel-rows { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
 .skel-row { display: flex; gap: 24px; padding: 6px 14px; border-bottom: 1px solid var(--line); }
 .skel-row:last-child { border-bottom: 0; }
-@media (prefers-reduced-motion: reduce) { .skel::after { animation: none; } }
 
 .checks { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .checks li { display: grid; grid-template-columns: 70px 150px 1fr; gap: 10px; align-items: start; font-size: 13px; }
@@ -316,7 +315,7 @@ html.side-over, body.side-over { overflow: hidden; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; font-size: 12px; }
 .key { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
 .key b { color: var(--text); font-variant-numeric: tabular-nums; }
-.swatch { width: 12px; height: 3px; border-radius: 2px; display: inline-block; flex: none; background: var(--muted); }
+.swatch { width: 12px; height: 3px; border-radius: 2px; display: inline-block; flex: none; }
 .readout { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; font-size: 12px; min-height: 18px; }
 .readout .hit { display: inline-flex; align-items: center; gap: 5px; }
 .readout b { font-variant-numeric: tabular-nums; }
@@ -326,19 +325,18 @@ html.side-over, body.side-over { overflow: hidden; }
 .facet { padding: 10px 12px 6px; }
 .facet-head { display: flex; align-items: center; gap: 7px; font-size: 13px; margin-bottom: 2px; }
 .spark { display: block; }
-.spark path { stroke: var(--accent); }
 
-/* One colour per series, by slot. The stylesheet holds them because the page
-   is served under a policy that allows it no style of its own. */
-.swatch.s1 { background: var(--s1); } .plot .line.s1 { stroke: var(--s1); } .plot .head.s1 { fill: var(--s1); } .spark.s1 path { stroke: var(--s1); }
-.swatch.s2 { background: var(--s2); } .plot .line.s2 { stroke: var(--s2); } .plot .head.s2 { fill: var(--s2); } .spark.s2 path { stroke: var(--s2); }
-.swatch.s3 { background: var(--s3); } .plot .line.s3 { stroke: var(--s3); } .plot .head.s3 { fill: var(--s3); } .spark.s3 path { stroke: var(--s3); }
-.swatch.s4 { background: var(--s4); } .plot .line.s4 { stroke: var(--s4); } .plot .head.s4 { fill: var(--s4); } .spark.s4 path { stroke: var(--s4); }
-.swatch.s5 { background: var(--s5); } .plot .line.s5 { stroke: var(--s5); } .plot .head.s5 { fill: var(--s5); } .spark.s5 path { stroke: var(--s5); }
-.swatch.s6 { background: var(--s6); } .plot .line.s6 { stroke: var(--s6); } .plot .head.s6 { fill: var(--s6); } .spark.s6 path { stroke: var(--s6); }
-.swatch.s7 { background: var(--s7); } .plot .line.s7 { stroke: var(--s7); } .plot .head.s7 { fill: var(--s7); } .spark.s7 path { stroke: var(--s7); }
-.swatch.s8 { background: var(--s8); } .plot .line.s8 { stroke: var(--s8); } .plot .head.s8 { fill: var(--s8); } .spark.s8 path { stroke: var(--s8); }
-.swatch.so { background: var(--muted); } .plot .line.so { stroke: var(--muted); } .plot .head.so { fill: var(--muted); } .spark.so path { stroke: var(--muted); }
+/* One colour per series, named once by its slot and read by everything that
+   draws the series: a swatch, a line, the dot at its head, a sparkline. The
+   stylesheet holds them because the page is served under a policy that allows
+   it no style of its own, and a ninth slot would be one more line here. */
+.s1 { --c: var(--s1); } .s2 { --c: var(--s2); } .s3 { --c: var(--s3); } .s4 { --c: var(--s4); }
+.s5 { --c: var(--s5); } .s6 { --c: var(--s6); } .s7 { --c: var(--s7); } .s8 { --c: var(--s8); }
+.so { --c: var(--muted); }
+.swatch { background: var(--c, var(--muted)); }
+.plot .line { stroke: var(--c, var(--accent)); }
+.plot .head { fill: var(--c, var(--accent)); }
+.spark path { stroke: var(--c, var(--accent)); }
 .stats-table td { vertical-align: middle; padding: 7px 12px; }
 .stats-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stats-table .swatch { margin-right: 7px; }

@@ -145,7 +145,7 @@ func contextWithCancel() (context.Context, context.CancelFunc) {
 
 func TestTheCodeOfAUniverseIsItsOwnRequest(t *testing.T) {
 	f := &fake{code: codeView{Rows: []codeRow{
-		{Repo: "api", App: "api", Branch: "u3", Follows: "main", Behind: 2,
+		{Repo: "api", Branch: "u3", Follows: "main", Behind: 2,
 			Work:   &diffView{Files: 4, Added: 120, Removed: 30},
 			Review: &reviewView{Number: 12, Mark: "#", Title: "Keep the tax column", URL: "https://example.test/pull/12"}},
 	}}}
