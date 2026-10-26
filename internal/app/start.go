@@ -50,7 +50,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	// the result for the commands that only read.
 	rules, err := s.resolveRules(ctx, u, st.Domain)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w%s", err, s.behindHint(ctx, st))
 	}
 	st.Rules, st.Hosts = rules, hostnames(rules)
 	st.LastStarted = time.Now().UTC()

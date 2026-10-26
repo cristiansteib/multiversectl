@@ -151,7 +151,7 @@ func bad(code int, msg string) *opError {
 	return &opError{code: code, body: map[string]any{"error": msg}}
 }
 
-var needsUniverse = map[string]bool{"up": true, "down": true, "rm": true}
+var needsUniverse = map[string]bool{"up": true, "down": true, "rm": true, "sync": true}
 
 func title(r opRequest) string {
 	switch r.Action {
@@ -161,6 +161,8 @@ func title(r opRequest) string {
 		return "Stop " + r.Universe + " in " + r.Workspace
 	case "rm":
 		return "Remove " + r.Universe + " from " + r.Workspace
+	case "sync":
+		return "Bring " + r.Universe + " up to date in " + r.Workspace
 	case "new":
 		if strings.TrimSpace(r.Name) == "" {
 			return "Create a universe in " + r.Workspace
@@ -184,7 +186,7 @@ func title(r opRequest) string {
 // in it, and everything waits for it.
 func scopeOf(r opRequest) string {
 	switch r.Action {
-	case "up", "down", "rm":
+	case "up", "down", "rm", "sync":
 		return r.Workspace + "/" + r.Universe
 	case "new", "checkout":
 		return r.Workspace + "#create"
@@ -212,7 +214,7 @@ func (m *ops) conflict(r opRequest, key string) (string, bool) {
 // start checks a request and begins it.
 func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	switch r.Action {
-	case "up", "down", "rm", "new", "checkout", "update", "use":
+	case "up", "down", "rm", "sync", "new", "checkout", "update", "use":
 	default:
 		return opView{}, bad(http.StatusBadRequest, fmt.Sprintf("unknown action %q", r.Action))
 	}

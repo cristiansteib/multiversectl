@@ -331,3 +331,11 @@ func (g Git) FastForward(ctx context.Context, dir, branch string) error {
 	_, err := g.run(ctx, "-C", dir, "merge", "--ff-only", "--quiet", "origin/"+branch)
 	return err
 }
+
+func (g Git) Merge(ctx context.Context, dir, branch string) error {
+	if _, err := g.run(ctx, "-C", dir, "merge", "--no-edit", "--quiet", "origin/"+branch); err != nil {
+		_, _ = g.run(ctx, "-C", dir, "merge", "--abort")
+		return err
+	}
+	return nil
+}

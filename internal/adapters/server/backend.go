@@ -132,7 +132,7 @@ func (s Services) fleetOf(ctx context.Context, w app.WorkspaceInfo) fleetWorkspa
 		fw.Error = err.Error()
 		return fw
 	}
-	list, err := svc.List(ctx, app.ListOptions{Services: true})
+	list, err := svc.List(ctx, app.ListOptions{Services: true, Freshness: true})
 	if err != nil {
 		fw.Error = err.Error()
 		return fw
@@ -159,7 +159,12 @@ func toUniverse(u app.Summary) universeView {
 		v.Apps = append(v.Apps, av)
 	}
 	for _, c := range u.Checkouts {
-		v.Checkouts = append(v.Checkouts, checkoutView{Repo: c.Repo, Branch: c.Branch, Path: c.Path, App: c.App})
+		cv := checkoutView{Repo: c.Repo, Branch: c.Branch, Path: c.Path, App: c.App}
+		if f := c.Freshness; f != nil {
+			cv.Follows, cv.Behind, cv.Ahead, cv.Dirty = f.Follows, f.Behind, f.Ahead, f.Dirty
+			v.Behind += f.Behind
+		}
+		v.Checkouts = append(v.Checkouts, cv)
 	}
 	return v
 }
@@ -185,9 +190,11 @@ func (s Services) Workspace(ctx context.Context, name string) (workspaceView, er
 	v := workspaceView{Name: w.Name, Current: w.Current, Root: w.Root, Manifest: ctxInfo.Manifest, From: ctxInfo.From, Source: ctxInfo.Source,
 		UniversesDir: ctxInfo.UniversesDir, Domain: m.Domain, Expose: string(m.Expose),
 		Network: m.Proxy.Network, Proxy: m.Proxy.Entrypoints, Env: m.Env, Repos: []repoView{}, Apps: []appDefView{}}
+	fresh := svc.CloneFreshness(ctx)
 	for _, key := range sortedKeys(m.Repos) {
 		r := m.Repos[key]
-		v.Repos = append(v.Repos, repoView{Key: key, Clone: m.CloneDir(w.Root, key), Loc: locOf(domain.Locate(r.URL, "")), URL: r.URL, Dir: r.Dir, Runtime: string(r.Runtime),
+		f := fresh[key]
+		v.Repos = append(v.Repos, repoView{Follows: f.Follows, Behind: f.Behind, Ahead: f.Ahead, Dirty: f.Dirty, Key: key, Clone: m.CloneDir(w.Root, key), Loc: locOf(domain.Locate(r.URL, "")), URL: r.URL, Dir: r.Dir, Runtime: string(r.Runtime),
 			Cloned: svc.Files.Exists(m.CloneDir(w.Root, key))})
 	}
 	for _, key := range sortedKeys(m.Apps) {
@@ -316,6 +323,19 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 		return svc.Start(ctx, app.StartInput{Universe: r.Universe})
 	case "down":
 		return svc.Stop(ctx, app.StopInput{Universe: r.Universe})
+	case "sync":
+		res, err := svc.Sync(ctx, r.Universe, app.SyncOptions{})
+		if err != nil {
+			return err
+		}
+		for _, x := range res {
+			if x.Moved > 0 {
+				k.OK("%s: %s (%d commits)", x.Repo, x.Detail, x.Moved)
+			} else {
+				k.Info("%s: %s", x.Repo, x.Detail)
+			}
+		}
+		return nil
 	case "rm":
 		if err := svc.Remove(ctx, app.RemoveInput{Universe: r.Universe}); err != nil {
 			return err
@@ -371,6 +391,17 @@ func (s Services) update(ctx context.Context, w app.WorkspaceInfo, svc *app.Serv
 	}
 	for _, key := range missing {
 		did = append(did, key+" cloned")
+	}
+	clones, err := svc.UpdateClones(ctx)
+	if err != nil {
+		return err
+	}
+	for _, c := range clones {
+		if c.Moved > 0 {
+			did = append(did, fmt.Sprintf("%s %s", c.Repo, c.Detail))
+		} else {
+			k.Warn("%s: %s: %s", w.Name, c.Repo, c.Detail)
+		}
 	}
 	if len(did) == 0 {
 		k.OK("%s: up to date", w.Name)

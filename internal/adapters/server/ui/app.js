@@ -294,6 +294,7 @@ function universeCard(w, u) {
   const actions = state.readOnly ? null : h('div', { class: 'actions' },
     u.running < total || !u.running ? act('up', 'Start', 'primary') : null,
     u.running ? act('down', 'Stop') : null,
+    u.behind ? act('sync', 'Update code') : null,
     h('button', { type: 'button', class: 'btn small danger', disabled: busy, onclick: () => removeDialog(w, u) }, 'Remove…'));
   const apps = u.apps.map((a) => h('div', { class: 'app' },
     h('div', { class: 'app-head' }, h('b', null, a.key),
@@ -305,13 +306,15 @@ function universeCard(w, u) {
     a.urls && a.urls.length ? h('div', { class: 'urls' }, a.urls.map((x) =>
       h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer', title: x.service }, x.url))) : null));
   const dir = h('div', { class: 'paths' }, h('span', null, 'universe'), copyable(u.dir),
-    u.checkouts.map((c) => h('span', null, [c.repo + (c.branch ? ' @ ' + c.branch : '') + ' ', copyable(c.path)])));
+    u.checkouts.map((c) => h('span', null, [c.repo + (c.branch ? ' @ ' + c.branch : '') + ' ', copyable(c.path),
+      c.behind ? badge('warn', c.behind + ' behind ' + c.follows) : null, c.dirty ? badge('mute', 'edited') : null])));
   const panel = h('div');
   const saved = doctorResults.get(w.name + '/' + u.name);
   if (saved) panel.append(saved);
   return h('article', { class: 'card uni' },
     h('header', null, h('span', { class: 'dot ' + (u.running ? 'ok' : '') }), h('h3', null, u.name),
       badge(u.running ? 'ok' : 'mute', u.running ? u.running + (total ? '/' + total : '') + ' running' : 'stopped'),
+      u.behind ? badge('warn', u.behind + ' behind', 'Its code lacks commits of the branches it follows (as of the last fetch). “Update code” brings them in; restart to run them.') : null,
       h('span', { class: 'grow' }),
       h('button', { type: 'button', class: 'btn small', onclick: (e) => runDoctor(panel, w.name, u.name, e.target) }, 'Doctor')),
     actions,
@@ -419,7 +422,7 @@ views.project = {
             h('div', { class: 'scroll' }, h('table', null,
               h('thead', null, h('tr', null, ['Name', 'Repository', 'Runtime', 'Clone'].map((t) => h('th', null, t)))),
               h('tbody', null, w.repos.map((r) => h('tr', null, h('td', null, r.key), h('td', null, place(r.loc) || h('span', { class: 'mono' }, r.url)),
-                h('td', null, r.runtime || 'compose'), h('td', null, r.cloned ? badge('ok', 'cloned') : badge('warn', 'not cloned'))))))),
+                h('td', null, r.runtime || 'compose'), h('td', null, r.cloned ? badge('ok', 'cloned') : badge('warn', 'not cloned'), r.behind ? badge('warn', r.behind + ' behind ' + r.follows, 'The shared clone lacks these commits; “Update” on the project brings them in.') : null)))))),
             h('h2', null, 'Apps'),
             h('div', { class: 'cards' }, w.apps.map((a) => h('div', { class: 'card' }, h('h3', null, a.key),
               h('div', null, 'repo ', h('b', null, a.repo)),

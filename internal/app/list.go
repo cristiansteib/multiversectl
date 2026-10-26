@@ -15,6 +15,9 @@ import (
 // without them.
 type ListOptions struct {
 	Services bool
+	// Freshness asks how each checkout stands against the branch it follows:
+	// a few git calls per repository, so only for the views that show it.
+	Freshness bool
 }
 
 // Summary is one universe as `list` shows it.
@@ -44,6 +47,8 @@ type Checkout struct {
 	Branch string
 	Path   string
 	App    string // the app that runs it; empty when it has none
+	// Freshness is set only when the listing asked for it.
+	Freshness *Freshness
 }
 
 // AppSummary is one app of one universe: where its code is, how to reach it
@@ -135,7 +140,7 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 			Hosts:       st.Hosts,
 			Running:     countRunning(containers),
 			Apps:        s.appSummaries(ctx, st, containers, volumes, opts),
-			Checkouts:   s.checkouts(st),
+			Checkouts:   s.withFreshness(ctx, st, s.checkouts(st), opts),
 			Created:     st.Created,
 			LastStarted: st.LastStarted,
 			Note:        st.Note,

@@ -238,7 +238,7 @@ func (r runner) lsCmd() *cobra.Command {
 			return err
 		}
 		return r.withService(func(ctx context.Context, s *app.Service) error {
-			list, err := s.List(ctx, app.ListOptions{Services: f.wide || f.json})
+			list, err := s.List(ctx, app.ListOptions{Services: f.wide || f.json, Freshness: f.wide || f.json})
 			if err != nil {
 				return err
 			}
@@ -341,7 +341,7 @@ func lsTable(o *Output, list []app.Summary, wide bool) {
 			o.Plain("%s", o.Dim(metaLine(u)))
 			o.Plain("")
 			o.Block(o.Dim("on disk"),
-				[]string{"REPO", "WORKTREE", "COMPOSE", "VOLUMES"}, diskRows(u))
+				[]string{"REPO", "WORKTREE", "CODE", "COMPOSE", "VOLUMES"}, diskRows(u))
 		}
 	}
 }
@@ -360,6 +360,7 @@ func diskRows(u app.Summary) [][]Cell {
 		row := []Cell{
 			{Text: c.Repo, Style: bold},
 			{Text: shortPath(c.Path), Style: dim},
+			codeCell(c.Freshness),
 		}
 		a, runs := byRepo[c.Repo]
 		switch {
@@ -373,6 +374,21 @@ func diskRows(u app.Summary) [][]Cell {
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// codeCell says whether a checkout has what the branch it follows has.
+func codeCell(f *app.Freshness) Cell {
+	switch {
+	case f == nil || f.Follows == "":
+		return Cell{Text: "-", Style: dim}
+	case f.Behind > 0 && f.Dirty:
+		return Cell{Text: fmt.Sprintf("%d behind origin/%s, edited", f.Behind, f.Follows), Style: yellow}
+	case f.Behind > 0:
+		return Cell{Text: fmt.Sprintf("%d behind origin/%s", f.Behind, f.Follows), Style: yellow}
+	case f.Dirty:
+		return Cell{Text: "edited", Style: dim}
+	}
+	return Cell{Text: "current", Style: dim}
 }
 
 // universeTitle heads a universe's block: which universe, why it exists if
@@ -701,7 +717,7 @@ func (r runner) universeCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.proxyCmd(), r.pruneCmd(), r.downCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
+	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.proxyCmd(), r.pruneCmd(), r.downCmd(), r.syncCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
 		r.envCmd(), r.runCmd(), r.execCmd())
 	return cmd
 }
@@ -721,7 +737,7 @@ func (r runner) universeStatusCmd() *cobra.Command {
 		if format != "table" && format != "json" {
 			return fmt.Errorf("unknown output %q: want table or json", format)
 		}
-		list, err := s.List(ctx, app.ListOptions{Services: true})
+		list, err := s.List(ctx, app.ListOptions{Services: true, Freshness: true})
 		if err != nil {
 			return err
 		}
@@ -744,6 +760,17 @@ func (r runner) universeStatusCmd() *cobra.Command {
 				{Text: joinPairs(u.Branches)}, {Text: u.Note, Style: dim}})
 		}
 		r.out.Cells([]string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCHES", "NOTE"}, rows)
+		for _, u := range list {
+			var behind []string
+			for _, c := range u.Checkouts {
+				if c.Freshness != nil && c.Freshness.Behind > 0 {
+					behind = append(behind, fmt.Sprintf("%s %d", c.Repo, c.Freshness.Behind))
+				}
+			}
+			if len(behind) > 0 {
+				r.out.Warn("universe %s runs older code than origin has (%s commits behind): `multiversectl universe sync %s`", u.Name, strings.Join(behind, ", "), u.Name)
+			}
+		}
 		return nil
 	})
 	return cmd
@@ -766,4 +793,59 @@ func standing(u app.Summary) (state, style, up string) {
 		return "created", dim, up
 	}
 	return "stopped", dim, up
+}
+
+func (r runner) syncCmd() *cobra.Command {
+	var all, merge bool
+	cmd := &cobra.Command{
+		Use:   "sync [universe]",
+		Short: "Bring a universe's code up to date with the branches it follows",
+		Long: "A universe's checkouts keep the commit they were made from, so a fix that reached\n" +
+			"main since is not in them. sync fetches and moves each checkout forward when that\n" +
+			"loses nothing: a checkout with uncommitted changes is never touched, and one with\n" +
+			"commits of its own is left alone unless --merge brings the branch in with a merge.\n" +
+			"Restart the universe afterwards to run the new code.",
+		Example: "  multiversectl universe sync 1\n  multiversectl universe sync --all\n  multiversectl universe sync fix/login --merge",
+		Args:    cobra.MaximumNArgs(1),
+	}
+	cmd.Flags().BoolVar(&all, "all", false, "every universe")
+	cmd.Flags().BoolVar(&merge, "merge", false, "merge the branch into a checkout that has commits of its own")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			var names []string
+			if all {
+				states, err := s.Store.List()
+				if err != nil {
+					return err
+				}
+				for _, st := range states {
+					names = append(names, st.Name)
+				}
+			} else {
+				args, err := r.universeArgs(cmd, args, s)
+				if err != nil {
+					return err
+				}
+				names = args
+			}
+			for _, name := range names {
+				res, err := s.Sync(ctx, name, app.SyncOptions{Merge: merge})
+				if err != nil {
+					return err
+				}
+				for _, x := range res {
+					switch {
+					case x.Moved > 0:
+						r.out.OK("%s/%s: %s (%d commits)", name, x.Repo, x.Detail, x.Moved)
+					case strings.HasPrefix(x.Detail, "up to date"):
+						r.out.Plain("%s", r.out.Dim(name+"/"+x.Repo+": "+x.Detail))
+					default:
+						r.out.Warn("%s/%s: %s", name, x.Repo, x.Detail)
+					}
+				}
+			}
+			return nil
+		})(cmd, args)
+	}
+	return cmd
 }

@@ -101,6 +101,12 @@ type CheckoutView struct {
 	Repo   string `json:"repo"`
 	Branch string `json:"branch"`
 	Path   string `json:"path"`
+	// Follows is the branch of origin it is compared with, and Behind and Ahead
+	// the commits it lacks and has, as of the last fetch.
+	Follows string `json:"follows,omitempty"`
+	Behind  int    `json:"behind,omitempty"`
+	Ahead   int    `json:"ahead,omitempty"`
+	Dirty   bool   `json:"dirty,omitempty"`
 }
 
 // ListView is what `universe ls -o json` prints: the project and its universes.
@@ -132,7 +138,11 @@ func universeView(u app.Summary) UniverseView {
 		v.Apps = append(v.Apps, av)
 	}
 	for _, c := range u.Checkouts {
-		v.Checkouts = append(v.Checkouts, CheckoutView{Repo: c.Repo, Branch: c.Branch, Path: c.Path})
+		cv := CheckoutView{Repo: c.Repo, Branch: c.Branch, Path: c.Path}
+		if f := c.Freshness; f != nil {
+			cv.Follows, cv.Behind, cv.Ahead, cv.Dirty = f.Follows, f.Behind, f.Ahead, f.Dirty
+		}
+		v.Checkouts = append(v.Checkouts, cv)
 	}
 	return v
 }
@@ -182,7 +192,10 @@ type BriefUniverse struct {
 	// Down names the services that should be up and are not, so a healthy
 	// universe costs nothing and a broken one says where to look.
 	Down []string `json:"down,omitempty"`
-	Note string   `json:"note,omitempty"`
+	// Behind is, per repository, how many commits of the branch it follows the
+	// checkout lacks. Absent when it is current: `universe sync` fixes it.
+	Behind map[string]int `json:"behind,omitempty"`
+	Note   string         `json:"note,omitempty"`
 }
 
 func briefView(c app.ProjectContext, list []app.Summary) BriefView {
@@ -207,6 +220,12 @@ func briefView(c app.ProjectContext, list []app.Summary) BriefView {
 		}
 		for _, c := range u.Checkouts {
 			b.Checkout[c.Repo] = c.Path
+			if c.Freshness != nil && c.Freshness.Behind > 0 {
+				if b.Behind == nil {
+					b.Behind = map[string]int{}
+				}
+				b.Behind[c.Repo] = c.Freshness.Behind
+			}
 		}
 		for _, a := range u.Apps {
 			for _, h := range a.URLs {

@@ -75,6 +75,9 @@ type Git interface {
 	LastFetch(ctx context.Context, dir string) time.Time
 	// FastForward moves dir's branch to origin's, and refuses anything else.
 	FastForward(ctx context.Context, dir, branch string) error
+	// Merge brings origin's branch into dir's HEAD with a merge commit. A merge
+	// that conflicts is abandoned, leaving dir as it was.
+	Merge(ctx context.Context, dir, branch string) error
 }
 
 // RuntimeRequest is one invocation of the container runtime.
