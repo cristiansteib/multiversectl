@@ -11,7 +11,7 @@ Each **universe** is a numbered (or named) copy of the whole project: one git wo
 ## Discover
 
 - `multiversectl --json` lists the commands; `multiversectl <command> --help --json` describes one (`--full` for every command at once).
-- `multiversectl universe ls -o json,less` is the least you need: per universe its state, folder and `urls` (`<app>/<host>` to its address: `api/devapi` is not `api/api`, so you need not guess which one is the API). `-o json` adds the folder of each repository, branches, what is behind, each universe's `note` and `pr`, and `containers` (`<app>/<service>` to the name of its running container). `-o json,wide` is everything.
+- `multiversectl universe ls -o json,less` is the least you need: per universe its state, folder and `urls` (`<app>/<host>` to its address: `api/devapi` is not `api/api`, so you need not guess which one is the API; `<app>/<host>:forward` is the same host by IP and port, the one a phone or another client that refuses plain http to a hostname must use, present when the manifest lists the host in the app's `portForward`). `-o json` adds the folder of each repository, branches, what is behind, each universe's `note` and `pr`, and `containers` (`<app>/<service>` to the name of its running container). `-o json,wide` is everything.
 - `multiversectl universe ls <universe> -o json` is one universe. Prefer it to the table.
 
 ## Work
