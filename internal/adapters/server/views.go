@@ -252,3 +252,23 @@ type branchView struct {
 	Name  string   `json:"name"`
 	Repos []string `json:"repos"`
 }
+
+// containerView is one container of a universe, for the side panel.
+type containerView struct {
+	App     string `json:"app"`
+	Service string `json:"service"`
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Running bool   `json:"running"`
+	Ports   string `json:"ports,omitempty"`
+}
+
+// statView is one reading of a container's resource use.
+type statView struct {
+	Name     string  `json:"name"`
+	CPU      float64 `json:"cpu"`
+	Memory   float64 `json:"memory"`
+	MemUsage string  `json:"memUsage"`
+	NetIO    string  `json:"netIO"`
+	PIDs     int     `json:"pids"`
+}

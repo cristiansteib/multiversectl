@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"sort"
 	"time"
@@ -102,6 +103,17 @@ type Container struct {
 	Published string
 }
 
+// ContainerStats is one reading of a container's resource use, as the runtime
+// reports it: CPU and Memory are percentages, MemUsage is "used / limit".
+type ContainerStats struct {
+	Name     string
+	CPU      float64
+	Memory   float64
+	MemUsage string
+	NetIO    string
+	PIDs     int
+}
+
 // Volume is one named volume the runtime holds for a project. A universe's
 // data lives in volumes named after its project, which is what a wide listing
 // shows to prove two universes share nothing.
@@ -120,6 +132,13 @@ type Runtime interface {
 	// Exec runs a command inside an already running container, which is what a
 	// database shell or a log tail wants; Run would start a fresh one.
 	Exec(ctx context.Context, r RuntimeRequest, service string, args []string) error
+	// Restart restarts one service in place, reporting to the runtime's output.
+	Restart(ctx context.Context, r RuntimeRequest, service string) error
+	// Logs writes the last tail lines of one container to w, and with follow
+	// keeps writing as it logs until ctx ends. Both streams arrive on w.
+	Logs(ctx context.Context, container string, tail int, follow bool, w io.Writer) error
+	// Stats takes one reading of the named containers' resource use.
+	Stats(ctx context.Context, containers []string) ([]ContainerStats, error)
 	// Inspect reports the merged configuration of the given files: the
 	// services defined for the active profiles, their labels and whether they
 	// build an image. It is what lets a compose file describe itself instead

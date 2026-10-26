@@ -25,11 +25,14 @@ import (
 // opRequest is what a page may ask for. Every action is a use case the command
 // line has too.
 type opRequest struct {
-	Action    string `json:"action"` // up, down, rm, new, checkout, update, use
+	Action    string `json:"action"` // up, down, rm, sync, restart, new, checkout, update, use
 	Workspace string `json:"project"`
 	Universe  string `json:"universe,omitempty"`
-	Name      string `json:"name,omitempty"` // new: the number or name, empty for the next free number
-	Note      string `json:"note,omitempty"`
+	// App and Service name what restart acts on: a service of one app.
+	App     string `json:"app,omitempty"`
+	Service string `json:"service,omitempty"`
+	Name    string `json:"name,omitempty"` // new: the number or name, empty for the next free number
+	Note    string `json:"note,omitempty"`
 	// Branch is, for new, the name of the new branch in every repository (it must
 	// not exist yet) and, for checkout, the existing branch to check out.
 	Branch string `json:"branch,omitempty"`
@@ -151,7 +154,7 @@ func bad(code int, msg string) *opError {
 	return &opError{code: code, body: map[string]any{"error": msg}}
 }
 
-var needsUniverse = map[string]bool{"up": true, "down": true, "rm": true, "sync": true}
+var needsUniverse = map[string]bool{"up": true, "down": true, "rm": true, "sync": true, "restart": true}
 
 func title(r opRequest) string {
 	switch r.Action {
@@ -161,6 +164,8 @@ func title(r opRequest) string {
 		return "Stop " + r.Universe + " in " + r.Workspace
 	case "rm":
 		return "Remove " + r.Universe + " from " + r.Workspace
+	case "restart":
+		return "Restart " + r.App + "/" + r.Service + " in " + r.Universe
 	case "sync":
 		return "Bring " + r.Universe + " up to date in " + r.Workspace
 	case "new":
@@ -186,7 +191,7 @@ func title(r opRequest) string {
 // in it, and everything waits for it.
 func scopeOf(r opRequest) string {
 	switch r.Action {
-	case "up", "down", "rm", "sync":
+	case "up", "down", "rm", "sync", "restart":
 		return r.Workspace + "/" + r.Universe
 	case "new", "checkout":
 		return r.Workspace + "#create"
@@ -214,7 +219,7 @@ func (m *ops) conflict(r opRequest, key string) (string, bool) {
 // start checks a request and begins it.
 func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	switch r.Action {
-	case "up", "down", "rm", "sync", "new", "checkout", "update", "use":
+	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update", "use":
 	default:
 		return opView{}, bad(http.StatusBadRequest, fmt.Sprintf("unknown action %q", r.Action))
 	}
@@ -223,6 +228,9 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	}
 	if needsUniverse[r.Action] && r.Universe == "" {
 		return opView{}, bad(http.StatusBadRequest, "universe is required")
+	}
+	if r.Action == "restart" && (r.App == "" || r.Service == "") {
+		return opView{}, bad(http.StatusBadRequest, "the app and the service to restart are required")
 	}
 	if r.Action == "checkout" && strings.TrimSpace(r.Branch) == "" {
 		return opView{}, bad(http.StatusBadRequest, "the branch to check out is required")

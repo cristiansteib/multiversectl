@@ -58,6 +58,8 @@ type Server struct {
 	runCtx  context.Context // what operations run under: the server's lifetime
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
+	// logSlots caps the log streams open at once (see maxLogStreams).
+	logSlots chan struct{}
 }
 
 // New builds a server and starts what watches the fleet for changes. Close it.
@@ -66,7 +68,7 @@ func New(b Backend, o Options) *Server {
 		o.Token = newToken()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{b: b, o: o, started: time.Now(), look: make(chan struct{}, 1), runCtx: ctx, cancel: cancel}
+	s := &Server{b: b, o: o, started: time.Now(), look: make(chan struct{}, 1), runCtx: ctx, cancel: cancel, logSlots: make(chan struct{}, maxLogStreams)}
 	s.hub = newHub()
 	s.ops = newOps(s)
 	s.wg.Add(1)
@@ -98,6 +100,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/next", s.next)
 	mux.HandleFunc("/api/branches", s.branches)
 	mux.HandleFunc("/api/ops", s.opsEndpoint)
+	mux.HandleFunc("/api/universe/containers", s.containers)
+	mux.HandleFunc("/api/universe/stats", s.stats)
+	mux.HandleFunc("/api/universe/logs", s.logs)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "no such endpoint") })
 	mux.HandleFunc("/ws", s.ws)
 

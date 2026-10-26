@@ -188,3 +188,26 @@ body:has(.dock:not([hidden])) main { padding-bottom: 300px; }
   .checks li { grid-template-columns: 56px 1fr; } .checks li span:last-child { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* The side panel of a universe */
+.side { position: fixed; top: 53px; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--panel); border-left: 1px solid var(--line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, .12); z-index: 6; overflow: auto; padding: 14px 16px 32px; }
+.side[hidden] { display: none; }
+.side-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.side-head h3 { margin: 0; font-size: 17px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.tab { font: 600 13px var(--sans); color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 12px; cursor: pointer; }
+.tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.crow { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px; }
+.crow-head { display: flex; align-items: center; gap: 8px; }
+.meters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.meter { display: inline-flex; align-items: center; gap: 6px; }
+.meter-l { color: var(--muted); font-size: 12px; width: 28px; }
+.bar-track { width: 70px; height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; display: inline-block; }
+.bar-fill { display: block; height: 100%; background: var(--accent); }
+.bar-fill.w0 { width: 2%; } .bar-fill.w1 { width: 10%; } .bar-fill.w2 { width: 20%; } .bar-fill.w3 { width: 30%; } .bar-fill.w4 { width: 40%; }
+.bar-fill.w5 { width: 50%; } .bar-fill.w6 { width: 60%; background: var(--warn); } .bar-fill.w7 { width: 70%; background: var(--warn); }
+.bar-fill.w8 { width: 80%; background: var(--bad); } .bar-fill.w9 { width: 90%; background: var(--bad); } .bar-fill.w10 { width: 100%; background: var(--bad); }
+.small { font-size: 12px; }
+.logout { background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 0; height: calc(100vh - 290px); min-height: 220px;
+  overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.45; }

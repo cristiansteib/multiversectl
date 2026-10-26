@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -41,6 +42,12 @@ type fake struct {
 	hold chan struct{}
 	// doErr is what Do returns.
 	doErr error
+	// containers, stats and logText answer the side panel; logHold keeps a log
+	// stream open until the request ends.
+	containers []containerView
+	stats      []statView
+	logText    string
+	logHold    bool
 }
 
 func (f *fake) ask(s string) {
@@ -73,6 +80,25 @@ func (f *fake) Workspace(_ context.Context, name string) (workspaceView, error) 
 func (f *fake) Doctor(_ context.Context, ws, u string) (doctorView, error) {
 	f.ask("doctor:" + ws + ":" + u)
 	return f.doctor, f.err
+}
+func (f *fake) Containers(_ context.Context, ws, u string) ([]containerView, error) {
+	f.ask("containers:" + ws + ":" + u)
+	return f.containers, f.err
+}
+func (f *fake) Stats(_ context.Context, ws, u string) ([]statView, error) {
+	f.ask("stats:" + ws + ":" + u)
+	return f.stats, f.err
+}
+func (f *fake) Logs(ctx context.Context, ws, u, appKey, service string, tail int, follow bool, w io.Writer) error {
+	f.ask(fmt.Sprintf("logs:%s:%s:%s/%s:%d:%v", ws, u, appKey, service, tail, follow))
+	if f.err != nil {
+		return f.err
+	}
+	_, _ = io.WriteString(w, f.logText)
+	if f.logHold {
+		<-ctx.Done()
+	}
+	return nil
 }
 func (f *fake) System(context.Context) (systemView, error) { return f.system, f.err }
 func (f *fake) NextFree(_ context.Context, ws string) (nextView, error) {

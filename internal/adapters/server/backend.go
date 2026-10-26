@@ -33,6 +33,11 @@ type Backend interface {
 	NextFree(ctx context.Context, workspace string) (nextView, error)
 	// Branches lists the branches across a project's repositories.
 	Branches(ctx context.Context, workspace string) ([]branchView, error)
+	// Containers lists a universe's containers; Stats reads their resource use;
+	// Logs writes one service's log to w, until ctx ends when it follows.
+	Containers(ctx context.Context, workspace, universe string) ([]containerView, error)
+	Stats(ctx context.Context, workspace, universe string) ([]statView, error)
+	Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error
 	// Do carries out an action, reporting to the sink as it goes.
 	Do(ctx context.Context, r opRequest, k Sink) error
 }
@@ -239,6 +244,47 @@ func (s Services) Doctor(ctx context.Context, workspace, universe string) (docto
 	return v, nil
 }
 
+func (s Services) Containers(ctx context.Context, workspace, universe string) ([]containerView, error) {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := svc.UniverseContainers(ctx, universe)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]containerView, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, containerView{App: r.App, Service: r.Service, Name: r.Name, Status: r.Status, Running: r.Running, Ports: r.Ports})
+	}
+	return out, nil
+}
+
+func (s Services) Stats(ctx context.Context, workspace, universe string) ([]statView, error) {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return nil, err
+	}
+	stats, err := svc.Stats(ctx, universe)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]statView, 0, len(stats))
+	for _, c := range stats {
+		out = append(out, statView{Name: c.Name, CPU: c.CPU, Memory: c.Memory, MemUsage: c.MemUsage, NetIO: c.NetIO, PIDs: c.PIDs})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (s Services) Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return err
+	}
+	return svc.Logs(ctx, app.LogsInput{Universe: universe, App: appKey, Service: service, Tail: tail, Follow: follow}, w)
+}
+
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -323,6 +369,12 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 		return svc.Start(ctx, app.StartInput{Universe: r.Universe})
 	case "down":
 		return svc.Stop(ctx, app.StopInput{Universe: r.Universe})
+	case "restart":
+		if err := svc.Restart(ctx, app.RestartInput{Universe: r.Universe, App: r.App, Service: r.Service}); err != nil {
+			return err
+		}
+		k.OK("%s/%s restarted", r.App, r.Service)
+		return nil
 	case "sync":
 		res, err := svc.Sync(ctx, r.Universe, app.SyncOptions{})
 		if err != nil {

@@ -316,6 +316,7 @@ function universeCard(w, u) {
       badge(u.running ? 'ok' : 'mute', u.running ? u.running + (total ? '/' + total : '') + ' running' : 'stopped'),
       u.behind ? badge('warn', u.behind + ' behind', 'Its code lacks commits of the branches it follows (as of the last fetch). “Update code” brings them in; restart to run them.') : null,
       h('span', { class: 'grow' }),
+      h('button', { type: 'button', class: 'btn small', title: 'Containers, stats and logs', onclick: () => sidePanel.open(w.name, u.name) }, 'Details'),
       h('button', { type: 'button', class: 'btn small', onclick: (e) => runDoctor(panel, w.name, u.name, e.target) }, 'Doctor')),
     actions,
     h('div', { class: 'meta' }, [u.created && 'created ' + ago(u.created), u.lastStarted && 'started ' + ago(u.lastStarted), u.domain].filter(Boolean).join(' · ')),
@@ -830,3 +831,175 @@ window.addEventListener('hashchange', route);
 route();
 connect();
 schedule();
+
+
+// The side panel of one universe: its containers with their resource use, and a
+// log per service. It is outside what the fleet redraws, and everything in it is
+// fetched when it opens and stopped when it closes, so a universe nobody is
+// looking at costs nothing.
+const sidePanel = (() => {
+  const root = document.getElementById('side');
+  const STATS_MS = 3000;
+  const MAX_LOG_LINES = 3000;
+  let cur = null;  // { project, universe, rows, stats, tab, log, statsTimer, confirm }
+
+  const query = (c, extra) => new URLSearchParams({ project: c.project, universe: c.universe, ...extra }).toString();
+
+  function close() {
+    if (!cur) return;
+    stopLog();
+    clearInterval(cur.statsTimer);
+    cur = null;
+    root.hidden = true;
+    root.replaceChildren();
+  }
+
+  async function open(project, universe) {
+    if (cur && cur.project === project && cur.universe === universe) return;
+    close();
+    cur = { project, universe, rows: null, stats: {}, tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
+    root.hidden = false;
+    draw();
+    await loadRows();
+    pollStats();
+    cur.statsTimer = setInterval(pollStats, STATS_MS);
+  }
+
+  async function loadRows() {
+    const c = cur;
+    try { const r = await api('universe/containers?' + query(c)); if (cur === c) { c.rows = r.containers; c.error = null; } }
+    catch (e) { if (cur === c) c.error = e.message; }
+    if (cur === c) draw();
+  }
+
+  async function pollStats() {
+    const c = cur;
+    if (!c || document.hidden || c.tab !== 'containers' || !(c.rows || []).some((r) => r.running)) return;
+    try {
+      const r = await api('universe/stats?' + query(c));
+      if (cur !== c) return;
+      c.stats = Object.fromEntries(r.stats.map((s) => [s.name, s]));
+      drawRows();
+    } catch (_) { /* the next tick tries again */ }
+  }
+
+  // ---- logs
+  function stopLog() { if (cur && cur.log && cur.log.abort) cur.log.abort.abort(); }
+
+  async function startLog(appKey, service) {
+    const c = cur;
+    stopLog();
+    const log = { appKey, service, lines: [], tail: (c.log && c.log.tail) || 200, follow: true, filter: '', abort: new AbortController(), status: 'loading…' };
+    c.log = log; c.tab = 'logs';
+    draw();
+    try {
+      const res = await fetch('/api/universe/logs?' + query(c, { app: appKey, service, tail: log.tail, follow: log.follow ? '1' : '0' }), { signal: log.abort.signal });
+      if (!res.ok) { let b = {}; try { b = await res.json(); } catch (_) { /* empty */ } throw new Error(b.error || res.statusText); }
+      log.status = log.follow ? 'following' : 'done';
+      drawLogStatus();
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let rest = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const text = rest + dec.decode(value, { stream: true });
+        const parts = text.split('\n');
+        rest = parts.pop();
+        if (parts.length) { log.lines.push(...parts); if (log.lines.length > MAX_LOG_LINES) log.lines.splice(0, log.lines.length - MAX_LOG_LINES); drawLog(); }
+      }
+      if (rest) { log.lines.push(rest); drawLog(); }
+      log.status = 'ended'; drawLogStatus();
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      log.status = 'stopped: ' + e.message; drawLogStatus();
+    }
+  }
+
+  // ---- drawing
+  let rowsBody, logOut, logStatus;
+
+  function draw() {
+    if (!cur) return;
+    const c = cur;
+    const tab = (id, label) => h('button', { type: 'button', role: 'tab', class: 'tab' + (c.tab === id ? ' on' : ''), 'aria-selected': c.tab === id ? 'true' : 'false',
+      onclick: () => { c.tab = id; if (id === 'containers') { stopLog(); c.log = null; pollStats(); } draw(); } }, label);
+    root.replaceChildren(
+      h('header', { class: 'side-head' }, h('h3', null, c.universe), h('span', { class: 'muted' }, c.project), h('span', { class: 'grow' }),
+        h('button', { type: 'button', class: 'btn small ghost', 'aria-label': 'Close the panel', onclick: close }, 'Close')),
+      h('div', { class: 'tabs', role: 'tablist' }, tab('containers', 'Containers'), tab('logs', 'Logs')),
+      ...(c.error ? [errorBox(c.error)] : []),
+      c.tab === 'containers' ? containersTab() : logsTab());
+  }
+
+  function containersTab() {
+    rowsBody = h('div', { class: 'crows' });
+    drawRows();
+    return rowsBody;
+  }
+
+  function drawRows() {
+    if (!rowsBody || !cur) return;
+    const c = cur;
+    if (!c.rows) { rowsBody.replaceChildren(h('p', { class: 'muted' }, 'Loading…')); return; }
+    if (!c.rows.length) { rowsBody.replaceChildren(h('p', { class: 'muted' }, 'No containers: the universe is not started.')); return; }
+    rowsBody.replaceChildren(...c.rows.map((r) => {
+      const st = c.stats[r.name];
+      const key = r.app + '/' + r.service;
+      const restart = state.readOnly || !r.running ? null : (c.confirm === key
+        ? h('button', { type: 'button', class: 'btn small danger', onclick: async () => { c.confirm = null; try { await run({ action: 'restart', project: c.project, universe: c.universe, app: r.app, service: r.service }); } catch (e) { toast(e.message); } drawRows(); } }, 'Confirm restart')
+        : h('button', { type: 'button', class: 'btn small', disabled: isBusy(c.project), onclick: () => { c.confirm = key; drawRows(); setTimeout(() => { if (c.confirm === key) { c.confirm = null; drawRows(); } }, 4000); } }, 'Restart'));
+      return h('div', { class: 'crow' },
+        h('div', { class: 'crow-head' }, h('span', { class: 'dot ' + (r.running ? 'ok' : 'warn') }), h('b', null, key), h('span', { class: 'grow' }),
+          h('span', { class: 'muted' }, r.status)),
+        st ? h('div', { class: 'meters' }, meter('CPU', st.cpu, st.cpu.toFixed(1) + '%'), meter('Mem', st.memory, st.memUsage), h('span', { class: 'muted' }, 'net ' + st.netIO + ' · ' + st.pids + ' pids'))
+           : (r.running ? h('div', { class: 'muted' }, 'reading…') : null),
+        r.ports ? h('div', { class: 'muted mono small' }, r.ports) : null,
+        h('div', { class: 'actions' },
+          h('button', { type: 'button', class: 'btn small', onclick: () => startLog(r.app, r.service) }, 'Logs'),
+          restart,
+          copyable('multiversectl universe exec ' + c.universe + ' ' + r.app + ' --service ' + r.service + ' -- sh', 'copy shell command')),
+        h('div', { class: 'muted mono small' }, r.name));
+    }));
+  }
+
+  const meter = (label, pct, text) => h('span', { class: 'meter', title: label + ' ' + text },
+    h('span', { class: 'meter-l' }, label), h('span', { class: 'bar-track' }, h('span', { class: 'bar-fill w' + Math.min(10, Math.round(pct / 10)) })), h('span', { class: 'mono small' }, text));
+
+  function logsTab() {
+    const c = cur;
+    const log = c.log;
+    if (!log) {
+      const choices = (c.rows || []);
+      return h('div', null, choices.length ? h('p', { class: 'muted' }, 'Pick a service:') : h('p', { class: 'muted' }, 'Start the universe to see logs.'),
+        h('div', { class: 'actions' }, choices.map((r) => h('button', { type: 'button', class: 'btn small', onclick: () => startLog(r.app, r.service) }, r.app + '/' + r.service))));
+    }
+    logStatus = h('span', { class: 'muted' }, log.status);
+    logOut = h('pre', { class: 'logout mono', tabindex: '0' });
+    const tailSel = h('select', { 'aria-label': 'Lines of history', onchange: (e) => { log.tail = Number(e.target.value); startLog(log.appKey, log.service); } },
+      [100, 200, 500, 1000, 2000].map((n) => h('option', { value: n, selected: n === log.tail }, n + ' lines')));
+    const followBox = h('input', { type: 'checkbox', checked: log.follow, onchange: (e) => { log.follow = e.target.checked; startLog(log.appKey, log.service); } });
+    const filter = h('input', { type: 'search', placeholder: 'Filter these lines', value: log.filter, oninput: (e) => { log.filter = e.target.value; drawLog(); } });
+    setTimeout(drawLog);
+    return h('div', { class: 'logs' },
+      h('div', { class: 'bar' }, h('b', null, log.appKey + '/' + log.service), logStatus, h('span', { class: 'grow' }), tailSel,
+        h('label', { class: 'switch' }, followBox, 'follow')),
+      h('div', { class: 'bar' }, filter,
+        h('button', { type: 'button', class: 'btn small', onclick: () => { log.lines = []; drawLog(); } }, 'Clear'),
+        h('button', { type: 'button', class: 'btn small', onclick: async () => { try { await navigator.clipboard.writeText(visible(log).join('\n')); toast('Copied the visible lines'); } catch (_) { toast('Copy failed'); } } }, 'Copy')),
+      logOut);
+  }
+
+  const visible = (log) => log.filter ? log.lines.filter((l) => l.toLowerCase().includes(log.filter.toLowerCase())) : log.lines;
+
+  function drawLog() {
+    if (!cur || !cur.log || !logOut) return;
+    const atEnd = logOut.scrollHeight - logOut.scrollTop - logOut.clientHeight < 40;
+    logOut.textContent = visible(cur.log).join('\n');
+    if (atEnd) logOut.scrollTop = logOut.scrollHeight;
+  }
+  function drawLogStatus() { if (cur && cur.log && logStatus) logStatus.textContent = cur.log.status; }
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && cur) close(); });
+  return { open, close };
+})();

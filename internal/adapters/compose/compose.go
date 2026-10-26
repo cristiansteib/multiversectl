@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
@@ -72,6 +73,78 @@ func (c *Compose) Exec(ctx context.Context, r app.RuntimeRequest, service string
 // attached is this adapter with the process's own streams.
 func (c *Compose) attached() *Compose {
 	return &Compose{stdout: os.Stdout, stderr: os.Stderr}
+}
+
+func (c *Compose) Restart(ctx context.Context, r app.RuntimeRequest, service string) error {
+	return c.stream(ctx, r, nil, "restart", service)
+}
+
+// Logs asks docker for the container by name, so the caller must have taken the
+// name from the universe's own containers: it is never a page's word.
+func (c *Compose) Logs(ctx context.Context, container string, tail int, follow bool, w io.Writer) error {
+	if _, err := exec.LookPath("docker"); err != nil {
+		return errors.New("docker CLI not found on PATH")
+	}
+	args := []string{"logs", "--timestamps", "--tail", strconv.Itoa(tail)}
+	if follow {
+		args = append(args, "--follow")
+	}
+	cmd := exec.CommandContext(ctx, "docker", append(args, container)...)
+	// docker writes a container's stderr to its own stderr: one writer keeps
+	// the lines in the order they arrived.
+	lw := &lockedWriter{w: w}
+	cmd.Stdout, cmd.Stderr = lw, lw
+	if err := cmd.Run(); err != nil && ctx.Err() == nil {
+		return fmt.Errorf("docker logs: %w", err)
+	}
+	return nil
+}
+
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}
+
+func (c *Compose) Stats(ctx context.Context, containers []string) ([]app.ContainerStats, error) {
+	if len(containers) == 0 {
+		return nil, nil
+	}
+	args := append([]string{"stats", "--no-stream", "--format", "{{json .}}"}, containers...)
+	out, err := c.capture(ctx, "docker", args...)
+	if err != nil {
+		return nil, err
+	}
+	var stats []app.ContainerStats
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var row struct{ Name, CPUPerc, MemPerc, MemUsage, NetIO, PIDs string }
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			return nil, fmt.Errorf("parsing docker stats output: %w", err)
+		}
+		pids, _ := strconv.Atoi(row.PIDs)
+		stats = append(stats, app.ContainerStats{
+			Name: row.Name, CPU: percent(row.CPUPerc), Memory: percent(row.MemPerc),
+			MemUsage: row.MemUsage, NetIO: row.NetIO, PIDs: pids,
+		})
+	}
+	return stats, nil
+}
+
+// percent reads docker's "12.34%"; a container that is not running reports
+// "--", which is zero here.
+func percent(s string) float64 {
+	v, _ := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(s), "%"), 64)
+	return v
 }
 
 func (c *Compose) Containers(ctx context.Context, namePrefix string) ([]app.Container, error) {
