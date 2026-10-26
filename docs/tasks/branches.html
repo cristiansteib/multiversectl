@@ -119,7 +119,8 @@ http://api-fix-login.10-0-0-5.traefik.me
   <h2 id="hw-rm"><a href="#hw-rm">Remove a universe and its data</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl universe rm 3
 <span class="p">$ </span>multiversectl universe rm 3 --yes     <span class="c"># skip the prompt</span></pre></div>
-  <p><code>rm</code> lists what it will destroy and asks you to type the number back. It removes the worktrees (uncommitted work in them is lost), the containers and <strong>volumes</strong>, so every database in it, and the directory and state file. The shared clones are untouched. To stop a universe and keep everything, use <code>universe down 3</code>.</p>
+  <p><code>rm</code> lists what it will destroy and asks you to type the number back. It removes the worktrees, the containers and <strong>volumes</strong>, so every database in it, and the directory and state file. The shared clones are untouched. To stop a universe and keep everything, use <code>universe down 3</code>.</p>
+  <p>Work that is only in a worktree is a second question, with its own answer: a universe holding uncommitted changes is refused, and named, until <code>--force</code>. Typing a universe's name back says "yes, this universe", not "yes, and the afternoon's work in it". <code>--yes</code> skips the question; it never discards.</p>
 </section>
 
 <section id="hw-prune">

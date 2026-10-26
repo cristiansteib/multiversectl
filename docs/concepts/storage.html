@@ -167,7 +167,7 @@ web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</pre></d
   <p><code>rm</code> is the one destructive command, so it prints what it will do and asks for the universe's name typed back:</p>
   <ul class="t">
     <li><strong>Containers, networks and volumes</strong> of every app — gone, with the data in them.</li>
-    <li><strong>Worktrees</strong> — gone, and <em>uncommitted work in them is lost</em>.</li>
+    <li><strong>Worktrees</strong> — gone. A worktree holding uncommitted work stops the removal until <code>--force</code>, and then it is lost.</li>
     <li><strong>The state file</strong> — gone.</li>
     <li><strong>Branches</strong> — kept, so committed work survives and a universe of the same name picks the branch up again.</li>
     <li><strong>The clones, the images, the proxy</strong> — untouched.</li>

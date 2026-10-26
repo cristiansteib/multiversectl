@@ -12,7 +12,7 @@ import (
 )
 
 func (r runner) rmCmd() *cobra.Command {
-	var yes bool
+	var yes, force bool
 	cmd := &cobra.Command{
 		Use:     "rm <universe>",
 		Aliases: []string{"remove", "destroy"},
@@ -21,6 +21,7 @@ func (r runner) rmCmd() *cobra.Command {
 		Args:    cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "skip the confirmation prompt")
+	cmd.Flags().BoolVar(&force, "force", false, "remove it even with uncommitted work in a worktree, discarding that work")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
 			args, err := r.universeArgs(cmd, args, s)
@@ -32,7 +33,10 @@ func (r runner) rmCmd() *cobra.Command {
 					return err
 				}
 			}
-			return s.Remove(ctx, app.RemoveInput{Universe: args[0]})
+			// --yes answers the question that was asked, which is about the
+			// universe. Work that is only in a worktree is a second question,
+			// and it has its own flag.
+			return s.Remove(ctx, app.RemoveInput{Universe: args[0], Force: force})
 		})(cmd, args)
 	}
 	return cmd
@@ -51,9 +55,21 @@ func (r runner) confirm(ctx context.Context, s *app.Service, arg string) error {
 	out.Plain("")
 	out.Plain("%s", out.Red(out.Bold(fmt.Sprintf("!! THIS DESTROYS UNIVERSE %s AND CANNOT BE UNDONE !!", st.Name))))
 	out.Plain("")
-	out.Plain("  worktrees (uncommitted work in them is lost):")
+	dirty, err := s.Unsaved(ctx, st.Name)
+	if err != nil {
+		return err
+	}
+	unsaved := map[string]bool{}
+	for _, key := range dirty {
+		unsaved[key] = true
+	}
+	out.Plain("  worktrees:")
 	for _, repoKey := range sortedKeys(st.Branches) {
-		out.Plain("    %s  branch %s", u.RepoDir(repoKey), st.Branches[repoKey])
+		mark := ""
+		if unsaved[repoKey] {
+			mark = "  " + out.Red("← uncommitted work here")
+		}
+		out.Plain("    %s  branch %s%s", u.RepoDir(repoKey), st.Branches[repoKey], mark)
 	}
 	out.Plain("  containers of project %s:", st.Project)
 	containers, err := s.Runtime.Containers(ctx, st.Project)

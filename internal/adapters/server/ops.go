@@ -239,6 +239,10 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 		if r.Confirm != r.Universe {
 			return opView{}, bad(http.StatusBadRequest, "type the universe's name to confirm removing it")
 		}
+		// Asked here as well as in the use case, which refuses too: the page
+		// needs the list of repositories to put in front of the person before
+		// it offers to go ahead, and an operation that has already started is
+		// too late to be offering anything.
 		if !r.Force {
 			c, cancel := context.WithTimeout(ctx, requestTimeout)
 			dirty, err := m.s.b.Unsaved(c, r.Workspace, r.Universe)
