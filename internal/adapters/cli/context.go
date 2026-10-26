@@ -95,6 +95,7 @@ type ServiceView struct {
 	State     string `json:"state"`
 	Detail    string `json:"detail,omitempty"`
 	Published string `json:"published,omitempty"`
+	Container string `json:"container,omitempty"`
 }
 
 // CheckoutView is one repository's worktree in a universe: the directory to edit in.
@@ -134,7 +135,7 @@ func universeView(u app.Summary) UniverseView {
 			av.URLs = append(av.URLs, URLView{Host: h.Host, Service: h.Service, URL: h.URL})
 		}
 		for _, sv := range a.Services {
-			av.Services = append(av.Services, ServiceView{Name: sv.Name, State: string(sv.State), Detail: sv.Detail, Published: sv.Published})
+			av.Services = append(av.Services, ServiceView{Name: sv.Name, State: string(sv.State), Detail: sv.Detail, Published: sv.Published, Container: sv.Container})
 		}
 		v.Apps = append(v.Apps, av)
 	}
@@ -189,10 +190,12 @@ type BriefUniverse struct {
 	Dir      string            `json:"dir"`
 	Checkout map[string]string `json:"checkout"`
 	Branch   map[string]string `json:"branch"`
-	URLs     []string          `json:"urls"`
-	// URLsByHost says which address is which: "<app>/<host>" to its URL, so an
-	// agent need not guess that one of three hostnames is the API.
-	URLsByHost map[string]string `json:"urlsByHost,omitempty"`
+	// URLs says which address is which: "<app>/<host>" to its URL, so an agent
+	// need not guess that one of three hostnames is the API.
+	URLs map[string]string `json:"urls"`
+	// Containers names the running container of each service, "<app>/<service>"
+	// to its name, for the docker commands exec does not cover (logs, cp).
+	Containers map[string]string `json:"containers,omitempty"`
 	// Down names the services that should be up and are not, so a healthy
 	// universe costs nothing and a broken one says where to look.
 	Down []string `json:"down,omitempty"`
@@ -220,7 +223,7 @@ func briefView(c app.ProjectContext, list []app.Summary) BriefView {
 		state, _, up := standing(u)
 		b := BriefUniverse{
 			Name: u.Name, State: state, Up: up, Dir: u.Dir, Note: u.Note, PR: u.PR,
-			Checkout: map[string]string{}, Branch: u.Branches, URLs: []string{},
+			Checkout: map[string]string{}, Branch: u.Branches, URLs: map[string]string{},
 		}
 		if b.Branch == nil {
 			b.Branch = map[string]string{}
@@ -236,17 +239,19 @@ func briefView(c app.ProjectContext, list []app.Summary) BriefView {
 		}
 		for _, a := range u.Apps {
 			for _, h := range a.URLs {
-				b.URLs = append(b.URLs, h.URL)
-				if b.URLsByHost == nil {
-					b.URLsByHost = map[string]string{}
-				}
 				name := a.Key
 				if h.Host != "" {
 					name += "/" + h.Host
 				}
-				b.URLsByHost[name] = h.URL
+				b.URLs[name] = h.URL
 			}
 			for _, sv := range a.Services {
+				if sv.Up() && sv.Container != "" {
+					if b.Containers == nil {
+						b.Containers = map[string]string{}
+					}
+					b.Containers[a.Key+"/"+sv.Name] = sv.Container
+				}
 				if sv.Counted() && !sv.Up() && u.Running > 0 {
 					b.Down = append(b.Down, a.Key+"/"+sv.Name)
 				}
@@ -270,21 +275,20 @@ type LessView struct {
 
 // LessUniverse is one universe in a LessView.
 type LessUniverse struct {
-	Name  string   `json:"name"`
-	State string   `json:"state"`
-	Dir   string   `json:"dir"`
-	URLs  []string `json:"urls"`
-	// URLsByHost is BriefUniverse's: "<app>/<host>" to its URL.
-	URLsByHost map[string]string `json:"urlsByHost,omitempty"`
-	Down       []string          `json:"down,omitempty"`
-	Behind     map[string]int    `json:"behind,omitempty"`
+	Name  string `json:"name"`
+	State string `json:"state"`
+	Dir   string `json:"dir"`
+	// URLs is BriefUniverse's: "<app>/<host>" to its URL.
+	URLs   map[string]string `json:"urls"`
+	Down   []string          `json:"down,omitempty"`
+	Behind map[string]int    `json:"behind,omitempty"`
 }
 
 func lessView(c app.ProjectContext, list []app.Summary) LessView {
 	full := briefView(c, list)
 	v := LessView{Root: c.Root, Universes: make([]LessUniverse, 0, len(full.Universes))}
 	for _, u := range full.Universes {
-		v.Universes = append(v.Universes, LessUniverse{Name: u.Name, State: u.State, Dir: u.Dir, URLs: u.URLs, URLsByHost: u.URLsByHost, Down: u.Down, Behind: u.Behind})
+		v.Universes = append(v.Universes, LessUniverse{Name: u.Name, State: u.State, Dir: u.Dir, URLs: u.URLs, Down: u.Down, Behind: u.Behind})
 	}
 	return v
 }

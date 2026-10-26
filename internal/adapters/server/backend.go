@@ -33,6 +33,16 @@ type Backend interface {
 	NextFree(ctx context.Context, workspace string) (nextView, error)
 	// Branches lists the branches across a project's repositories.
 	Branches(ctx context.Context, workspace string) ([]branchView, error)
+	// Containers lists a universe's containers; Stats reads their resource use;
+	// Logs writes one service's log to w, until ctx ends when it follows.
+	Containers(ctx context.Context, workspace, universe string) ([]containerView, error)
+	Stats(ctx context.Context, workspace, universe string) ([]statView, error)
+	// Code reads a universe's repositories: branch, how far it has moved from
+	// what it follows, and the pull or merge request open for it.
+	Code(ctx context.Context, workspace, universe string) (codeView, error)
+	Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error
+	// FleetStats reads every running container of one project, or of all.
+	FleetStats(ctx context.Context, workspace string) (fleetStatsView, error)
 	// Do carries out an action, reporting to the sink as it goes.
 	Do(ctx context.Context, r opRequest, k Sink) error
 }
@@ -239,6 +249,133 @@ func (s Services) Doctor(ctx context.Context, workspace, universe string) (docto
 	return v, nil
 }
 
+func (s Services) Containers(ctx context.Context, workspace, universe string) ([]containerView, error) {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := svc.UniverseContainers(ctx, universe)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]containerView, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, containerView{App: r.App, Service: r.Service, Name: r.Name, Status: r.Status, Running: r.Running, Ports: r.Ports})
+	}
+	return out, nil
+}
+
+// Code reads one universe's repositories: the branches, how far they have
+// moved, and the review each has open.
+func (s Services) Code(ctx context.Context, workspace, universe string) (codeView, error) {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return codeView{}, err
+	}
+	rows, err := svc.UniverseCode(ctx, universe)
+	if err != nil {
+		return codeView{}, err
+	}
+	v := codeView{Rows: []codeRow{}}
+	for _, r := range rows {
+		row := codeRow{Repo: r.Repo, Branch: r.Branch, Follows: r.Follows,
+			Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError,
+			Work: diffOf(r.Work), Uncommitted: diffOf(r.Uncommitted)}
+		if r.Review != nil {
+			row.Review = &reviewView{Number: r.Review.Number, Mark: reviewMark(r.URL), Title: r.Review.Title,
+				URL: r.Review.URL, Draft: r.Review.Draft, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
+		}
+		v.Rows = append(v.Rows, row)
+	}
+	return v, nil
+}
+
+// diffOf leaves out a change of nothing, so a page can ask whether there is one.
+func diffOf(d app.DiffStat) *diffView {
+	if d.Empty() {
+		return nil
+	}
+	return &diffView{Files: d.Files, Added: d.Added, Removed: d.Removed}
+}
+
+// reviewMark is how the service writes a review's number: GitLab's merge
+// requests are !12, and everything else is a pull request, #12.
+func reviewMark(repoURL string) string {
+	if domain.Locate(repoURL, "").Platform == domain.PlatformGitLab {
+		return "!"
+	}
+	return "#"
+}
+
+func (s Services) Stats(ctx context.Context, workspace, universe string) ([]statView, error) {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return nil, err
+	}
+	stats, err := svc.Stats(ctx, universe)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]statView, 0, len(stats))
+	for _, c := range stats {
+		out = append(out, statOf(c))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+// FleetStats asks every project at once, as Fleet does, and says which ones
+// could not answer rather than leaving their containers out silently.
+func (s Services) FleetStats(ctx context.Context, workspace string) (fleetStatsView, error) {
+	list, err := s.infos(workspace)
+	if err != nil {
+		return fleetStatsView{}, err
+	}
+	rows := make([][]fleetStatRow, len(list))
+	fails := make([]fleetStatError, len(list))
+	var wg sync.WaitGroup
+	for i, w := range list {
+		wg.Add(1)
+		go func(i int, w app.WorkspaceInfo) {
+			defer wg.Done()
+			svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+			if err == nil {
+				var read []app.StatRow
+				if read, err = svc.ProjectStats(ctx); err == nil {
+					for _, r := range read {
+						rows[i] = append(rows[i], fleetStatRow{Workspace: w.Name, Universe: r.Universe, App: r.App, Service: r.Service, statView: statOf(r.ContainerStats)})
+					}
+				}
+			}
+			if err != nil {
+				fails[i] = fleetStatError{Workspace: w.Name, Error: err.Error()}
+			}
+		}(i, w)
+	}
+	wg.Wait()
+	v := fleetStatsView{At: time.Now().UTC().Format(time.RFC3339), Rows: []fleetStatRow{}}
+	for i := range list {
+		v.Rows = append(v.Rows, rows[i]...)
+		if fails[i].Error != "" {
+			v.Sources = append(v.Sources, fails[i])
+		}
+	}
+	return v, nil
+}
+
+func (s Services) Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return err
+	}
+	return svc.Logs(ctx, app.LogsInput{Universe: universe, App: appKey, Service: service, Tail: tail, Follow: follow}, w)
+}
+
+func statOf(c app.ContainerStats) statView {
+	return statView{Name: c.Name, CPU: c.CPU, Memory: c.Memory, MemUsage: c.MemUsage,
+		Mem: c.MemBytes, MemLimit: c.MemLimit, NetIO: c.NetIO, PIDs: c.PIDs}
+}
+
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -323,6 +460,12 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 		return svc.Start(ctx, app.StartInput{Universe: r.Universe})
 	case "down":
 		return svc.Stop(ctx, app.StopInput{Universe: r.Universe})
+	case "restart":
+		if err := svc.Restart(ctx, app.RestartInput{Universe: r.Universe, App: r.App, Service: r.Service}); err != nil {
+			return err
+		}
+		k.OK("%s/%s restarted", r.App, r.Service)
+		return nil
 	case "sync":
 		res, err := svc.Sync(ctx, r.Universe, app.SyncOptions{})
 		if err != nil {

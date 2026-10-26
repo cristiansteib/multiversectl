@@ -90,7 +90,7 @@ func TestLessKeepsOnlyWhereAUniverseIsAndWhatItAnswersOn(t *testing.T) {
 	}}
 	b, _ := json.Marshal(lessView(app.ProjectContext{Root: "/r", Manifest: "/r/m.yaml"}, list))
 	got := string(b)
-	want := `{"root":"/r","universes":[{"name":"3","state":"running","dir":"/r/universes/3","urls":["http://a.example.test"],"urlsByHost":{"api":"http://a.example.test"}}]}`
+	want := `{"root":"/r","universes":[{"name":"3","state":"running","dir":"/r/universes/3","urls":{"api":"http://a.example.test"}}]}`
 	if got != want {
 		t.Errorf("got %s", got)
 	}
@@ -131,8 +131,31 @@ func TestEachAddressIsNamedByItsAppAndHost(t *testing.T) {
 		}}},
 	}}
 	b, _ := json.Marshal(briefView(app.ProjectContext{}, list))
-	want := `"urlsByHost":{"api/api":"http://api-3.example.test","api/devapi":"http://devapi-3.example.test:8001"}`
+	want := `"urls":{"api/api":"http://api-3.example.test","api/devapi":"http://devapi-3.example.test:8001"}`
 	if !strings.Contains(string(b), want) {
 		t.Errorf("missing %s in %s", want, b)
+	}
+}
+
+func TestTheBriefViewNamesTheRunningContainerOfEachService(t *testing.T) {
+	list := []app.Summary{{
+		Name: "3", Running: 2,
+		Apps: []app.AppSummary{{Key: "api", Expected: 3, Services: []app.ServiceStatus{
+			{Name: "web", State: app.StateRunning, Container: "acme-u3-api-web-1"},
+			{Name: "db", State: app.StateRunning, Container: "acme-u3-api-db-1"},
+			{Name: "worker", State: app.StateStopped, Container: "acme-u3-api-worker-1"},
+		}}},
+	}}
+	b, _ := json.Marshal(briefView(app.ProjectContext{}, list))
+	want := `"containers":{"api/db":"acme-u3-api-db-1","api/web":"acme-u3-api-web-1"}`
+	if !strings.Contains(string(b), want) {
+		t.Errorf("missing %s in %s", want, b)
+	}
+	if strings.Contains(string(b), "acme-u3-api-worker-1") {
+		t.Errorf("a stopped container is not something to exec into: %s", b)
+	}
+	less, _ := json.Marshal(lessView(app.ProjectContext{}, list))
+	if strings.Contains(string(less), "containers") {
+		t.Errorf("the least view stays least: %s", less)
 	}
 }

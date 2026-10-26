@@ -83,6 +83,7 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 		Config:    cfg,
 		Manifests: ManifestLoader{},
 		Releases:  release.New(),
+		Hosts:     []app.RepoHost{githost.New(), gitlabhost.New()},
 		Out:       out,
 		Progress:  m.Progress(),
 	}

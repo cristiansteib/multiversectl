@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"errors"
+	"io"
 	"io/fs"
 	"sort"
 	"time"
@@ -78,7 +79,22 @@ type Git interface {
 	// Merge brings origin's branch into dir's HEAD with a merge commit. A merge
 	// that conflicts is abandoned, leaving dir as it was.
 	Merge(ctx context.Context, dir, branch string) error
+	// DiffStat measures how much has changed. With a ref it is the work on
+	// dir's HEAD that origin's branch lacks, counted from where the two
+	// parted; with none it is what is edited in dir and not committed.
+	DiffStat(ctx context.Context, dir, ref string) (DiffStat, error)
 }
+
+// DiffStat is a change measured in files and lines, as `git diff --stat` says
+// it: what a branch amounts to, where Ahead only says how many commits.
+type DiffStat struct {
+	Files   int
+	Added   int
+	Removed int
+}
+
+// Empty says nothing changed.
+func (d DiffStat) Empty() bool { return d.Files == 0 && d.Added == 0 && d.Removed == 0 }
 
 // RuntimeRequest is one invocation of the container runtime.
 type RuntimeRequest struct {
@@ -102,6 +118,21 @@ type Container struct {
 	Published string
 }
 
+// ContainerStats is one reading of a container's resource use, as the runtime
+// reports it: CPU and Memory are percentages, MemUsage is "used / limit", and
+// MemBytes and MemLimit are that pair in bytes, so it can be totalled and
+// plotted rather than only printed.
+type ContainerStats struct {
+	Name     string
+	CPU      float64
+	Memory   float64
+	MemUsage string
+	MemBytes float64
+	MemLimit float64
+	NetIO    string
+	PIDs     int
+}
+
 // Volume is one named volume the runtime holds for a project. A universe's
 // data lives in volumes named after its project, which is what a wide listing
 // shows to prove two universes share nothing.
@@ -120,6 +151,13 @@ type Runtime interface {
 	// Exec runs a command inside an already running container, which is what a
 	// database shell or a log tail wants; Run would start a fresh one.
 	Exec(ctx context.Context, r RuntimeRequest, service string, args []string) error
+	// Restart restarts one service in place, reporting to the runtime's output.
+	Restart(ctx context.Context, r RuntimeRequest, service string) error
+	// Logs writes the last tail lines of one container to w, and with follow
+	// keeps writing as it logs until ctx ends. Both streams arrive on w.
+	Logs(ctx context.Context, container string, tail int, follow bool, w io.Writer) error
+	// Stats takes one reading of the named containers' resource use.
+	Stats(ctx context.Context, containers []string) ([]ContainerStats, error)
 	// Inspect reports the merged configuration of the given files: the
 	// services defined for the active profiles, their labels and whether they
 	// build an image. It is what lets a compose file describe itself instead
@@ -362,6 +400,25 @@ type RepoHost interface {
 	AddTopic(ctx context.Context, repoURL, topic string) error
 	// Owns says whether a repository URL is on this service.
 	Owns(repoURL string) bool
+	// OpenReview is the open pull or merge request whose source is branch, nil
+	// when there is none. It only reads: it opens nothing and signs nobody in,
+	// and a service that cannot be reached is an error, not an absence.
+	OpenReview(ctx context.Context, repoURL, branch string) (*Review, error)
+}
+
+// Review is a pull request on GitHub or a merge request on GitLab: the one
+// thing about a universe's branch that is neither in the checkout nor in the
+// clone, and the thing people most want to know about it.
+type Review struct {
+	// Number is as the service counts them, drawn as #12 or !12.
+	Number int
+	Title  string
+	URL    string
+	// Draft says it is not asking to be merged yet.
+	Draft bool
+	// Author is who opened it, Updated when it last moved.
+	Author  string
+	Updated time.Time
 }
 
 // Account is a user, organization or group on a hosting service.

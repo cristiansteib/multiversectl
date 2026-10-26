@@ -44,3 +44,38 @@ func TestPublishedPortsIgnoresExposedOnes(t *testing.T) {
 		}
 	}
 }
+
+// Memory as docker prints it is two sizes in one string, and a page can only
+// total or plot it once it is a number of bytes.
+func TestMemoryUsageIsReadAsBytes(t *testing.T) {
+	for usage, want := range map[string][2]float64{
+		"123.4MiB / 7.654GiB": {123.4 * (1 << 20), 7.654 * (1 << 30)},
+		"512KiB / 1GiB":       {512 << 10, 1 << 30},
+		"0B / 0B":             {0, 0},
+		"--":                  {0, 0},
+	} {
+		used, limit := sizePair(usage)
+		if used != want[0] || limit != want[1] {
+			t.Errorf("sizePair(%q) = %v, %v, want %v", usage, used, limit, want)
+		}
+	}
+}
+
+func TestStatsLinesAreParsed(t *testing.T) {
+	out := []byte(`{"Name":"acme-u3-api-web-1","CPUPerc":"12.34%","MemPerc":"3.10%","MemUsage":"64MiB / 2GiB","NetIO":"1.2kB / 3.4kB","PIDs":"7"}
+{"Name":"acme-u3-api-db-1","CPUPerc":"--","MemPerc":"--","MemUsage":"--","NetIO":"--","PIDs":"0"}
+`)
+	got, err := parseStats(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d rows", len(got))
+	}
+	if got[0].CPU != 12.34 || got[0].MemBytes != 64<<20 || got[0].PIDs != 7 {
+		t.Errorf("first row = %+v", got[0])
+	}
+	if got[1].CPU != 0 || got[1].MemBytes != 0 {
+		t.Errorf("a container with no reading = %+v", got[1])
+	}
+}

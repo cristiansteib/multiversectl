@@ -120,6 +120,46 @@ type checkoutView struct {
 	Dirty   bool   `json:"dirty,omitempty"`
 }
 
+// codeView is a universe's repositories as the page draws them: one row each,
+// and the failures of the hosting services kept apart from the rows so a
+// branch with no review is never confused with one nobody could ask about.
+type codeView struct {
+	Rows []codeRow `json:"rows"`
+}
+
+type codeRow struct {
+	Repo   string `json:"repo"`
+	Branch string `json:"branch,omitempty"`
+	// Follows is the branch of origin this one is measured against.
+	Follows     string      `json:"follows,omitempty"`
+	Behind      int         `json:"behind,omitempty"`
+	Ahead       int         `json:"ahead,omitempty"`
+	Dirty       bool        `json:"dirty,omitempty"`
+	Work        *diffView   `json:"work,omitempty"`
+	Uncommitted *diffView   `json:"uncommitted,omitempty"`
+	Review      *reviewView `json:"review,omitempty"`
+	ReviewError string      `json:"reviewError,omitempty"`
+}
+
+type diffView struct {
+	Files   int `json:"files"`
+	Added   int `json:"added"`
+	Removed int `json:"removed"`
+}
+
+// reviewView carries Mark, the character the service writes a review's number
+// with, so the page draws #12 for GitHub and !12 for GitLab without knowing
+// which service anything is on.
+type reviewView struct {
+	Number  int    `json:"number"`
+	Mark    string `json:"mark"`
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Draft   bool   `json:"draft,omitempty"`
+	Author  string `json:"author,omitempty"`
+	Updated string `json:"updated,omitempty"`
+}
+
 type workspaceView struct {
 	Name    string `json:"name"`
 	Current bool   `json:"current,omitempty"`
@@ -251,4 +291,51 @@ type nextView struct {
 type branchView struct {
 	Name  string   `json:"name"`
 	Repos []string `json:"repos"`
+}
+
+// containerView is one container of a universe, for the side panel.
+type containerView struct {
+	App     string `json:"app"`
+	Service string `json:"service"`
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	Running bool   `json:"running"`
+	Ports   string `json:"ports,omitempty"`
+}
+
+// statView is one reading of a container's resource use. CPU and memory are
+// percentages; mem and memLimit are bytes, which is what can be added up.
+type statView struct {
+	Name     string  `json:"name"`
+	CPU      float64 `json:"cpu"`
+	Memory   float64 `json:"memory"`
+	MemUsage string  `json:"memUsage"`
+	Mem      float64 `json:"mem,omitempty"`
+	MemLimit float64 `json:"memLimit,omitempty"`
+	NetIO    string  `json:"netIO"`
+	PIDs     int     `json:"pids"`
+}
+
+// fleetStatsView is one reading of every running container this machine holds
+// for the installed projects, flat: the page groups it as it likes.
+type fleetStatsView struct {
+	At      string           `json:"at"`
+	Rows    []fleetStatRow   `json:"rows"`
+	Sources []fleetStatError `json:"sources,omitempty"`
+}
+
+// fleetStatRow says where the container is before it says what it is using.
+type fleetStatRow struct {
+	Workspace string `json:"project"`
+	Universe  string `json:"universe"`
+	App       string `json:"app"`
+	Service   string `json:"service"`
+	statView
+}
+
+// fleetStatError is a project whose reading failed, so the page can say which
+// numbers are missing instead of showing a gap.
+type fleetStatError struct {
+	Workspace string `json:"project"`
+	Error     string `json:"error"`
 }

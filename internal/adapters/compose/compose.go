@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
@@ -72,6 +73,133 @@ func (c *Compose) Exec(ctx context.Context, r app.RuntimeRequest, service string
 // attached is this adapter with the process's own streams.
 func (c *Compose) attached() *Compose {
 	return &Compose{stdout: os.Stdout, stderr: os.Stderr}
+}
+
+func (c *Compose) Restart(ctx context.Context, r app.RuntimeRequest, service string) error {
+	return c.stream(ctx, r, nil, "restart", service)
+}
+
+// Logs asks docker for the container by name, so the caller must have taken the
+// name from the universe's own containers: it is never a page's word.
+func (c *Compose) Logs(ctx context.Context, container string, tail int, follow bool, w io.Writer) error {
+	if _, err := exec.LookPath("docker"); err != nil {
+		return errors.New("docker CLI not found on PATH")
+	}
+	args := []string{"logs", "--timestamps", "--tail", strconv.Itoa(tail)}
+	if follow {
+		args = append(args, "--follow")
+	}
+	cmd := exec.CommandContext(ctx, "docker", append(args, container)...)
+	// docker writes a container's stderr to its own stderr: one writer keeps
+	// the lines in the order they arrived.
+	lw := &lockedWriter{w: w}
+	cmd.Stdout, cmd.Stderr = lw, lw
+	if err := cmd.Run(); err != nil && ctx.Err() == nil {
+		return fmt.Errorf("docker logs: %w", err)
+	}
+	return nil
+}
+
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}
+
+func (c *Compose) Stats(ctx context.Context, containers []string) ([]app.ContainerStats, error) {
+	if len(containers) == 0 {
+		return nil, nil
+	}
+	args := append([]string{"stats", "--no-stream", "--format", "{{json .}}"}, containers...)
+	out, err := c.capture(ctx, "docker", args...)
+	if err == nil {
+		return parseStats(out)
+	}
+	// A container asked for by name may have stopped since it was listed, and
+	// docker then reports nothing at all rather than the rest. Reading every
+	// running container and keeping the ones asked for still answers.
+	if out, err = c.capture(ctx, "docker", "stats", "--no-stream", "--format", "{{json .}}"); err != nil {
+		return nil, err
+	}
+	all, err := parseStats(out)
+	if err != nil {
+		return nil, err
+	}
+	wanted := make(map[string]bool, len(containers))
+	for _, name := range containers {
+		wanted[name] = true
+	}
+	kept := all[:0]
+	for _, s := range all {
+		if wanted[s.Name] {
+			kept = append(kept, s)
+		}
+	}
+	return kept, nil
+}
+
+func parseStats(out []byte) ([]app.ContainerStats, error) {
+	var stats []app.ContainerStats
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	scanner.Buffer(nil, 1<<20)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var row struct{ Name, CPUPerc, MemPerc, MemUsage, NetIO, PIDs string }
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			return nil, fmt.Errorf("parsing docker stats output: %w", err)
+		}
+		pids, _ := strconv.Atoi(row.PIDs)
+		used, limit := sizePair(row.MemUsage)
+		stats = append(stats, app.ContainerStats{
+			Name: row.Name, CPU: percent(row.CPUPerc), Memory: percent(row.MemPerc),
+			MemUsage: row.MemUsage, MemBytes: used, MemLimit: limit, NetIO: row.NetIO, PIDs: pids,
+		})
+	}
+	return stats, scanner.Err()
+}
+
+// percent reads docker's "12.34%"; a container that is not running reports
+// "--", which is zero here.
+func percent(s string) float64 {
+	v, _ := strconv.ParseFloat(strings.TrimSuffix(strings.TrimSpace(s), "%"), 64)
+	return v
+}
+
+// sizePair reads docker's "123.4MiB / 7.654GiB" as bytes, so a page can total
+// and plot memory instead of only printing it. Either side may be missing.
+func sizePair(s string) (used, limit float64) {
+	before, after, _ := strings.Cut(s, "/")
+	return size(before), size(after)
+}
+
+var sizeUnits = []struct {
+	suffix string
+	mult   float64
+}{
+	{"TiB", 1 << 40}, {"GiB", 1 << 30}, {"MiB", 1 << 20}, {"KiB", 1 << 10},
+	{"TB", 1e12}, {"GB", 1e9}, {"MB", 1e6}, {"kB", 1e3}, {"KB", 1e3}, {"B", 1},
+}
+
+func size(s string) float64 {
+	s = strings.TrimSpace(s)
+	for _, u := range sizeUnits {
+		if rest, ok := strings.CutSuffix(s, u.suffix); ok {
+			v, err := strconv.ParseFloat(strings.TrimSpace(rest), 64)
+			if err != nil {
+				return 0
+			}
+			return v * u.mult
+		}
+	}
+	return 0
 }
 
 func (c *Compose) Containers(ctx context.Context, namePrefix string) ([]app.Container, error) {

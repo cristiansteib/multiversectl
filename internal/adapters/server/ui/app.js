@@ -18,6 +18,8 @@ const h = (tag, props, ...kids) => {
   return el;
 };
 const main = document.getElementById('main');
+// One way to write a query string, for every caller that needs one.
+const query = (o) => new URLSearchParams(o).toString();
 const REFRESH_MS = 10000;
 
 // What the page knows, fed by the websocket. A view reads from it and is told
@@ -56,19 +58,63 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
 }
 
-// A value people want in a terminal: one click copies it.
+// A value people want in a terminal: one click copies it, and the button says
+// so where it was pressed. A message at the foot of the page is not an answer:
+// the operations dock and the side panel both sit there, and a copy that
+// reports itself behind them reads as a button that does nothing.
 function copyable(text, label) {
-  return h('button', {
-    type: 'button', class: 'copy mono', title: 'Copy',
+  const name = label || text;
+  let said;
+  const b = h('button', {
+    type: 'button', class: 'copy mono', title: 'Copy ' + text,
     onclick: async () => {
-      try { await navigator.clipboard.writeText(text); toast('Copied: ' + text); }
-      catch (_) { toast('Copy failed; select it by hand'); }
+      const ok = await wrote(text);
+      b.classList.remove('copied', 'failed');
+      b.classList.add(ok ? 'copied' : 'failed');
+      b.replaceChildren(ok ? 'Copied' : 'Press ctrl-C to copy');
+      if (!ok) select(b, text);
+      clearTimeout(said);
+      said = setTimeout(() => { b.classList.remove('copied', 'failed'); b.replaceChildren(name); }, 1400);
     },
-  }, label || text);
+  }, name);
+  return b;
+}
+
+// The clipboard's promise is raced against a second of patience. A browser
+// that will not write does not always refuse: asked while the page is not the
+// focused one, it answers neither way, and a button that waits on it forever
+// is a button that does nothing when pressed.
+function wrote(text) {
+  const clip = navigator.clipboard;
+  if (!clip) return Promise.resolve(false);
+  return Promise.race([
+    clip.writeText(text).then(() => true, () => false),
+    new Promise((say) => setTimeout(() => say(false), 1000)),
+  ]);
+}
+
+// When the clipboard is refused — it is, on a page served over plain http to
+// something other than localhost — the next best thing is to select the text
+// so the keyboard can take it.
+function select(near, text) {
+  const hold = h('span', { class: 'picked mono' }, text);
+  near.after(hold);
+  const range = document.createRange();
+  range.selectNodeContents(hold);
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  setTimeout(() => hold.remove(), 8000);
 }
 
 const badge = (kind, text, title) => h('span', { class: 'badge ' + kind, title }, text);
 const empty = (...kids) => h('div', { class: 'empty' }, kids);
+// The shape of what is coming, while it is read. A page that holds its layout
+// is a page that does not jump when the numbers land, and “Loading…” holds
+// nothing: the word is for the screen reader, which cannot see the shape.
+// Counting out loud, in the one place that knows the rule.
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+const skeleton = (cls) => h('span', { class: 'skel ' + (cls || ''), 'aria-hidden': 'true' });
 const cmd = (c) => h('code', null, c);
 const errorBox = (e) => h('div', { class: 'error', role: 'alert' }, String(e.message || e));
 
@@ -298,31 +344,157 @@ function universeCard(w, u) {
     h('button', { type: 'button', class: 'btn small danger', disabled: busy, onclick: () => removeDialog(w, u) }, 'Remove…'));
   const apps = u.apps.map((a) => h('div', { class: 'app' },
     h('div', { class: 'app-head' }, h('b', null, a.key),
-      a.branch ? h('span', { class: 'chip' }, a.repo + ' @ ' + a.branch) : null,
+      // The branch is the same for every app of a universe in all but the
+      // rarest case, and it is in the header; the repository is only worth
+      // naming when it is not the app's own name.
+      a.repo && a.repo !== a.key ? h('span', { class: 'muted small' }, a.repo) : null,
       a.expected ? badge(a.running === a.expected ? 'ok' : a.running ? 'warn' : 'mute', a.running + '/' + a.expected + ' up') : null),
     a.services && a.services.length ? h('div', { class: 'svcs' }, a.services.map((s) =>
       h('span', { class: 'svc', title: [s.state, s.detail, s.published && 'publishes ' + s.published].filter(Boolean).join(' · ') },
         h('span', { class: 'dot ' + (STATE_DOT[s.state] || '') }), s.name, s.published ? h('span', { class: 'badge warn' }, s.published) : null))) : null,
     a.urls && a.urls.length ? h('div', { class: 'urls' }, a.urls.map((x) =>
       h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer', title: x.service }, x.url))) : null));
-  const dir = h('div', { class: 'paths' }, h('span', null, 'universe'), copyable(u.dir),
-    u.checkouts.map((c) => h('span', null, [c.repo + (c.branch ? ' @ ' + c.branch : '') + ' ', copyable(c.path),
-      c.behind ? badge('warn', c.behind + ' behind ' + c.follows) : null, c.dirty ? badge('mute', 'edited') : null])));
   const panel = h('div');
   const saved = doctorResults.get(w.name + '/' + u.name);
   if (saved) panel.append(saved);
   return h('article', { class: 'card uni' },
     h('header', null, h('span', { class: 'dot ' + (u.running ? 'ok' : '') }), h('h3', null, u.name),
+      branchChip(u),
       badge(u.running ? 'ok' : 'mute', u.running ? u.running + (total ? '/' + total : '') + ' running' : 'stopped'),
       u.behind ? badge('warn', u.behind + ' behind', 'Its code lacks commits of the branches it follows (as of the last fetch). “Update code” brings them in; restart to run them.') : null,
       h('span', { class: 'grow' }),
+      h('button', { type: 'button', class: 'btn small', title: 'Containers, stats and logs', onclick: () => sidePanel.open(w.name, u.name) }, 'Details'),
       h('button', { type: 'button', class: 'btn small', onclick: (e) => runDoctor(panel, w.name, u.name, e.target) }, 'Doctor')),
     actions,
     h('div', { class: 'meta' }, [u.created && 'created ' + ago(u.created), u.lastStarted && 'started ' + ago(u.lastStarted), u.domain].filter(Boolean).join(' · ')),
     // Only a web address becomes a link: the field is free text that anyone with a shell wrote.
     u.pr ? h('p', { class: 'note' }, /^https?:\/\//.test(u.pr) ? h('a', { href: u.pr, target: '_blank', rel: 'noopener noreferrer' }, u.pr) : u.pr) : null,
     u.note ? h('p', { class: 'note' }, u.note) : null,
-    apps, dir, panel);
+    apps, codeSection(w, u), panel);
+}
+
+// The branch is the universe's own name for its work, and in all but the
+// rarest case every repository is on the same one: say it once in the header
+// rather than once per app and again per path.
+function branchChip(u) {
+  const names = [...new Set(Object.values(u.branches || {}).filter(Boolean))];
+  if (!names.length) return null;
+  if (names.length === 1) return h('span', { class: 'chip branch', title: 'Every repository is on ' + names[0] }, names[0]);
+  return h('span', { class: 'chip branch', title: names.join(', ') }, names.length + ' branches');
+}
+
+// ── what the branches have become ──────────────────────────────────────
+//
+// How far each repository of a universe has moved from the branch it follows,
+// how much work that is, and the pull or merge request open for it. It is a
+// request of its own, made once a universe is in view: every row costs a few
+// git calls and a question to GitHub or GitLab, and the fleet listing this
+// page draws from is pushed at it whenever anything on the machine changes.
+const codeState = new Map();
+const CODE_STALE = 300000;
+const codeKey = (project, universe) => JSON.stringify([project, universe]);
+
+async function loadCode(key, again) {
+  const had = codeState.get(key) || {};
+  if (had.loading || (!again && had.at && Date.now() - had.at < CODE_STALE)) return;
+  codeState.set(key, { rows: had.rows, loading: true });
+  fillCode(key);
+  const [project, universe] = JSON.parse(key);
+  try {
+    const d = await api('universe/code?' + query({ project, universe }));
+    codeState.set(key, { rows: d.rows || [], at: Date.now() });
+  } catch (e) {
+    codeState.set(key, { rows: had.rows, error: e.message, at: Date.now() });
+  }
+  fillCode(key);
+}
+
+// A card is built again whenever anything in the fleet changes, so what was
+// read is filled into whatever element is on the page now, found by its key
+// rather than kept in a closure that outlives the card it was made for.
+function fillCode(key) {
+  for (const sec of document.querySelectorAll('.code')) if (sec.dataset.key === key) drawCode(sec);
+}
+
+// Nothing is read for a universe nobody has scrolled to.
+const codeWatch = self.IntersectionObserver ? new IntersectionObserver((seen, obs) => {
+  for (const e of seen) {
+    if (!e.isIntersecting) continue;
+    obs.unobserve(e.target);
+    loadCode(e.target.dataset.key);
+  }
+}, { rootMargin: '200px' }) : null;
+
+function codeSection(w, u) {
+  const key = codeKey(w.name, u.name);
+  const sec = h('section', { class: 'code', 'data-key': key },
+    h('div', { class: 'code-head' }, h('b', null, 'Code'),
+      h('span', { class: 'muted small' }, plural(u.checkouts.length, 'repository', 'repositories')),
+      h('span', { class: 'grow' }),
+      copyable(u.dir, 'folder'),
+      h('button', { type: 'button', class: 'btn small ghost', title: 'Read the branches and their requests again', onclick: () => loadCode(key, true) }, 'Reread')),
+    h('div', { class: 'code-body' }));
+  drawCode(sec);
+  if (codeWatch) codeWatch.observe(sec); else loadCode(key);
+  return sec;
+}
+
+function drawCode(sec) {
+  const st = codeState.get(sec.dataset.key) || {};
+  const body = sec.querySelector('.code-body');
+  if (!st.rows) {
+    body.replaceChildren(st.error ? errorBox({ message: st.error })
+      : h('div', { class: 'crepo' }, skeleton('line w3'), skeleton('line w2'), skeleton('line w4'), skeleton('line w3')));
+    return;
+  }
+  // The shared branch is named once, in the card's header; a row says its own
+  // only when it is not that one, which is the row worth noticing.
+  const common = [...new Set(st.rows.map((r) => r.branch).filter(Boolean))];
+  body.replaceChildren(...[
+    st.error ? h('p', { class: 'muted small' }, badge('warn', 'the last read failed'), ' ', st.error) : null,
+    ...st.rows.map((r) => codeRow(r, common.length === 1)),
+  ].filter(Boolean));
+}
+
+function codeRow(r, shared) {
+  return h('div', { class: 'crepo' },
+    h('b', { class: 'crepo-name' }, r.repo),
+    shared || !r.branch ? null : h('span', { class: 'chip branch' }, r.branch),
+    ...diffOf(r),
+    reviewOf(r));
+}
+
+// How much work is in a branch: +120 −30 over four files answers that where
+// “3 ahead” only says how often somebody committed.
+function diffOf(r) {
+  const out = [];
+  if (r.work) {
+    out.push(h('span', { class: 'diff', title: r.work.files + ' files changed against ' + r.follows },
+      h('b', { class: 'add' }, '+' + r.work.added), h('b', { class: 'del' }, '−' + r.work.removed),
+      h('span', { class: 'muted' }, plural(r.work.files, 'file', 'files'))));
+  }
+  if (r.behind) out.push(badge('warn', r.behind + ' behind', 'It lacks ' + r.behind + ' commits of ' + r.follows + ', as of the last fetch'));
+  if (r.uncommitted) {
+    const n = r.uncommitted;
+    out.push(badge('mute', 'edited', plural(n.files, 'file', 'files') + ' changed and not committed: +' + n.added + ' \u2212' + n.removed));
+  }
+  if (!out.length) out.push(h('span', { class: 'muted small' }, r.follows ? 'no change from ' + r.follows : 'nothing to compare it with'));
+  return out;
+}
+
+// Only a web address becomes a link, as everywhere else on this page.
+function reviewOf(r) {
+  const v = r.review;
+  if (v && /^https?:\/\//.test(v.url)) {
+    return h('a', { class: 'chip pr' + (v.draft ? ' draft' : ''), href: v.url, target: '_blank', rel: 'noopener noreferrer',
+      title: [v.title, v.author && 'opened by ' + v.author, v.updated && 'moved ' + ago(v.updated)].filter(Boolean).join(' \u00b7 ') },
+      h('b', null, v.mark + v.number), v.draft ? h('span', { class: 'muted' }, 'draft') : null,
+      h('span', { class: 'prtitle' }, v.title));
+  }
+  // No chip is the answer when there is no open request: a line saying so on
+  // every repository of every universe would drown the ones that have one.
+  if (r.reviewError) return badge('warn', 'unanswered', 'The hosting service could not be asked: ' + r.reviewError);
+  return null;
 }
 
 // What a doctor run said, kept by what it ran on, because the fleet is redrawn
@@ -334,8 +506,7 @@ async function runDoctor(into, project, universe, btn) {
   const key = project + '/' + universe;
   into.replaceChildren(h('p', { class: 'muted' }, 'Checking…'));
   try {
-    const q = 'doctor?project=' + encodeURIComponent(project) + (universe ? '&universe=' + encodeURIComponent(universe) : '');
-    const rep = await api(q);
+    const rep = await api('doctor?' + query(universe ? { project, universe } : { project }));
     const kind = { ok: 'ok', warn: 'warn', fail: 'bad' };
     const result = h('div', { class: 'panel' },
       h('div', { class: 'ws-head tight' }, h('b', null, rep.ok ? 'No failures' : 'Something failed'), h('span', { class: 'grow' }),
@@ -369,6 +540,10 @@ views.fleet = {
         body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl project install <owner/repo>')));
         return;
       }
+      // The cards about to be thrown away are no longer worth watching, and an
+      // observer keeps hold of what it watches: the fleet is redrawn whenever
+      // anything on the machine moves.
+      if (codeWatch) codeWatch.disconnect();
       body.replaceChildren(...data.projects.map((w) => {
         const list = w.universes.filter(wanted);
         const panel = h('div');
@@ -664,6 +839,7 @@ function onOp(op) {
   renderDock();
   if (before && before.state === 'running' && op.state !== 'running') {
     toast(op.state === 'done' ? op.title + ': done' : op.title + ': failed');
+    sidePanel.reload();
   }
   if (current && current.onOps) current.onOps();
 }
@@ -719,6 +895,371 @@ function showVersion() {
     ? 'Read-only: started with --read-only.'
     : 'Start, stop, create and remove universes here; the command line does the same.';
 }
+
+// ── stats ──────────────────────────────────────────────────────────────
+// Every running container of every project, read over and over and drawn as
+// lines. The server keeps no history — one reading is all it has — so the
+// window is what this page has seen since it was opened, and saying so is
+// part of the view.
+
+const STATS_WINDOWS = [[120000, '2 min'], [300000, '5 min'], [900000, '15 min']];
+const STATS_EVERY = [[2000, 'every 2s'], [5000, 'every 5s'], [10000, 'every 10s'], [30000, 'every 30s']];
+const MAX_SAMPLES = 600;
+
+views.stats = {
+  title: 'Stats',
+  mount(host) {
+    // What has been read, newest last: one entry per reading, each holding
+    // every container that answered in it.
+    const samples = [];
+    let group = 'universe', span = 300000, every = 2000, paused = false;
+    let timer = null, failed = null, busy = false;
+    // Which universes are left out, rather than which are in: a universe that
+    // appears while the page is open is shown without being asked for.
+    const hidden = new Set();
+
+    const colours = viz.palette();
+    const root = h('div');
+    const errors = h('div');
+    const tiles = h('div', { class: 'cards tiles' });
+    const charts = h('div', { class: 'charts' });
+    const facets = h('div');
+    const table = h('div');
+    const note = h('span', { class: 'muted' });
+
+    const pick = (label, options, value, onpick) => h('label', { class: 'pick' }, h('span', null, label),
+      h('select', { 'aria-label': label, onchange: (e) => onpick(e.target.value) },
+        options.map(([v, t]) => h('option', { value: v, selected: String(v) === String(value) }, t))));
+
+    const projects = () => {
+      const seen = new Set();
+      for (const s of samples) for (const r of s.rows) seen.add(r.project);
+      return [...seen].sort();
+    };
+
+    // Every universe seen within the window, so one that has just stopped can
+    // still be ticked off rather than disappearing from under the pointer.
+    const universesSeen = () => {
+      const seen = new Map();
+      for (const x of samples) {
+        if (x.t < Date.now() - span) continue;
+        for (const r of x.rows) seen.set(uniOf(r), r);
+      }
+      return [...seen.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
+    };
+
+    const shown = (r) => !hidden.has(uniOf(r));
+    // The readings inside the window, with the universes that are ticked off
+    // taken out: everything drawn goes through here, so the numbers agree.
+    const windowed = () => samples.filter((x) => x.t >= Date.now() - span)
+      .map((x) => ({ t: x.t, rows: x.rows.filter(shown) }));
+
+    const pauseBtn = h('button', { type: 'button', class: 'btn', 'aria-pressed': 'false',
+      onclick: () => { paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause';
+        pauseBtn.setAttribute('aria-pressed', String(paused)); pauseBtn.classList.toggle('primary', paused); arm(); draw(); } }, 'Pause');
+
+    // Which universes to draw. It is a menu of its own because there can be
+    // many of them and more than one is the usual answer.
+    const uniLabel = h('span');
+    const uniMenu = h('div', { class: 'menu' });
+    const uniPick = h('details', { class: 'picker' },
+      h('summary', { 'aria-label': 'Choose which universes to show' }, uniLabel),
+      uniMenu);
+    let uniShown = '';
+    const refreshUniPick = () => {
+      const all = universesSeen();
+      const n = all.filter(([k]) => !hidden.has(k)).length;
+      uniLabel.replaceChildren('Universes',
+        h('b', null, !samples.length ? '…' : all.length && n === all.length ? 'all' : n + ' of ' + all.length));
+      // The colour is part of what the menu shows, so it is part of what says
+      // the menu has to be drawn again: the palette is claimed by the charts.
+      const key = all.map(([k]) => k + ':' + colours.of(k)).join('\u0000') + '|' + [...hidden].sort().join('\u0000');
+      if (key === uniShown) return;
+      uniShown = key;
+      const many = projects().length > 1;
+      const set = (k, on) => { if (on) hidden.delete(k); else hidden.add(k); uniShown = ''; draw(); };
+      uniMenu.replaceChildren(
+        h('div', { class: 'menu-head' },
+          h('button', { type: 'button', class: 'btn small ghost', onclick: () => { hidden.clear(); uniShown = ''; draw(); } }, 'All'),
+          h('button', { type: 'button', class: 'btn small ghost', onclick: () => { all.forEach(([k]) => hidden.add(k)); uniShown = ''; draw(); } }, 'None')),
+        ...all.map(([k, r]) => h('label', { class: 'menu-item' },
+          h('input', { type: 'checkbox', checked: !hidden.has(k), onchange: (e) => set(k, e.target.checked) }),
+          group === 'universe' ? h('span', { class: 'swatch ' + colours.of(k) }) : null,
+          h('span', null, r.universe), many ? h('span', { class: 'muted' }, r.project) : null)));
+      if (!all.length) uniMenu.append(h('p', { class: 'muted menu-item' }, 'Nothing is running.'));
+    };
+
+    const bar = h('div', { class: 'bar' },
+      uniPick,
+      pick('Group by', [['universe', 'Universe'], ['app', 'App'], ['service', 'Container']], group, (v) => { group = v; uniShown = ''; draw(); }),
+      pick('Window', STATS_WINDOWS, span, (v) => { span = Number(v); draw(); }),
+      pick('Read', STATS_EVERY, every, (v) => { every = Number(v); arm(); }),
+      pauseBtn, h('span', { class: 'grow' }), note);
+    // A menu that stays open over the page is a menu in the way. The listener
+    // is on the document, so it is this view's to take away again: a mount
+    // that leaves one behind leaves its readings behind with it.
+    const shut = (e) => { if (uniPick.open && !uniPick.contains(e.target)) uniPick.open = false; };
+    document.addEventListener('click', shut);
+    uniPick.addEventListener('keydown', (e) => { if (e.key === 'Escape') { uniPick.open = false; uniPick.querySelector('summary').focus(); } });
+
+    host.append(h('h1', null, 'Stats'),
+      h('p', { class: 'lede' }, 'What every running container of every universe is using, read live. ',
+        'The history is this page’s own: it starts when the page opens and is lost when it closes.'),
+      bar, root);
+    root.append(errors, tiles, charts, facets, table);
+
+    // ---- reading
+    async function load() {
+      if (busy) return;
+      busy = true;
+      try {
+        const d = await api('stats');
+        const t = Date.parse(d.at) || Date.now();
+        samples.push({ t, rows: d.rows || [] });
+        // Nothing older than the longest window is kept: it can never be drawn.
+        const oldest = Date.now() - STATS_WINDOWS[STATS_WINDOWS.length - 1][0];
+        while (samples.length && (samples[0].t < oldest || samples.length > MAX_SAMPLES)) samples.shift();
+        failed = (d.sources || []).length ? d.sources : null;
+        draw();
+      } catch (e) {
+        failed = [{ project: 'this machine', error: e.message }];
+        draw();
+      } finally { busy = false; }
+    }
+
+    function arm() {
+      clearInterval(timer);
+      timer = paused ? null : setInterval(() => { if (!document.hidden) load(); }, every);
+    }
+
+    // ---- grouping
+    // A universe is a project and a name; a container is that and an app and a
+    // service. Everything here files rows under one of the two.
+    const uniOf = (r) => r.project + '/' + r.universe;
+    const svcOf = (r) => uniOf(r) + '/' + r.app + '/' + r.service;
+    const keyOf = (r) => group === 'universe' ? uniOf(r) : group === 'app' ? uniOf(r) + '/' + r.app : svcOf(r);
+    // With one project its name adds nothing to every label; with two it is
+    // what tells one project's universe 1 from the other's.
+    const labelOf = (r, many) => {
+      const uni = (many ? r.project + ' · ' : '') + r.universe;
+      return group === 'universe' ? uni : group === 'app' ? uni + ' ' + r.app : uni + ' ' + r.app + '/' + r.service;
+    };
+
+
+    // series sums each group at each reading. Everything past the eighth group
+    // is one line called “other”: a ninth colour nobody could tell apart would
+    // be worse than saying “the rest”.
+    function build(field) {
+      const within = windowed();
+      const labels = new Map();
+      const order = [];
+      const many = projects().length > 1;
+      for (const s of within) {
+        for (const r of s.rows) {
+          const k = keyOf(r);
+          if (!labels.has(k)) { labels.set(k, labelOf(r, many)); order.push(k); }
+        }
+      }
+      const live = new Set(within.length ? within[within.length - 1].rows.map(keyOf) : []);
+      // Those still running keep their colour first; a group that has gone
+      // quiet does not take one from a group that is busy.
+      colours.claim([...order].sort((a, b) => (live.has(b) ? 1 : 0) - (live.has(a) ? 1 : 0) || a.localeCompare(b)));
+      const named = order.filter((k) => colours.has(k));
+      const rest = order.filter((k) => !colours.has(k));
+      const series = named.map((k) => ({ key: k, label: labels.get(k), cls: colours.of(k), points: [] }));
+      if (rest.length) series.push({ key: '\u0000other', label: rest.length + ' more', cls: 'so', points: [], other: true });
+      for (const s of within) {
+        const sum = new Map();
+        for (const r of s.rows) {
+          const k = colours.has(keyOf(r)) ? keyOf(r) : '\u0000other';
+          sum.set(k, (sum.get(k) || 0) + (r[field] || 0));
+        }
+        for (const line of series) line.points.push([s.t, sum.get(line.key) || 0]);
+      }
+      // Until the page has watched for a whole window, the plot shows what it
+      // has: a line crammed against the right edge is not history.
+      return { series, from: within.length ? Math.max(within[0].t, Date.now() - span) : Date.now() - span, to: Date.now() };
+    }
+
+    // ---- drawing
+    function draw() {
+      refreshUniPick();
+      errors.replaceChildren(...(failed || []).map((f) => h('p', { class: 'error', role: 'alert' }, f.project + ': ' + f.error)));
+      const last = samples.length ? samples[samples.length - 1] : null;
+      note.replaceChildren(paused ? badge('warn', 'paused') : badge('ok', 'reading ' + (every / 1000) + 's'),
+        last ? ' last at ' + viz.clock(last.t) : ' waiting for the first reading');
+
+      if (!last) { drawWaiting(); return; }
+      root.removeAttribute('aria-busy');
+      const rows = last.rows.filter(shown);
+      const cpu = rows.reduce((n, r) => n + r.cpu, 0);
+      const mem = rows.reduce((n, r) => n + (r.mem || 0), 0);
+      const universes = new Set(rows.map(uniOf));
+      const busiest = rows.slice().sort((a, b) => b.cpu - a.cpu)[0];
+
+      tiles.replaceChildren(
+        h('div', { class: 'card' }, h('h3', null, 'Running'), h('div', { class: 'big' }, rows.length),
+          h('div', { class: 'muted' }, rows.length === 1 ? 'container' : 'containers', ' in ', plural(universes.size, 'universe', 'universes'))),
+        h('div', { class: 'card' }, h('h3', null, 'CPU'), h('div', { class: 'big' }, viz.percent(cpu)),
+          h('div', { class: 'muted' }, 'of one core, added up')),
+        h('div', { class: 'card' }, h('h3', null, 'Memory'), h('div', { class: 'big' }, viz.bytes(mem)),
+          h('div', { class: 'muted' }, 'resident, added up')),
+        h('div', { class: 'card' }, h('h3', null, 'Busiest'), h('div', { class: 'big mono' }, busiest ? viz.percent(busiest.cpu) : '—'),
+          h('div', { class: 'muted' }, busiest ? busiest.app + '/' + busiest.service + ' in ' + busiest.universe : 'nothing is running')));
+
+      // An empty plot is a scale over nothing; say what to do instead.
+      if (!windowed().some((s) => s.rows.length)) {
+        charts.replaceChildren(empty(hidden.size
+          ? 'Every universe is ticked off. Choose one above.'
+          : ['Nothing is running on this machine. Start a universe in the ', h('a', { href: '#/fleet' }, 'fleet'), ' and its containers appear here.']));
+        facets.replaceChildren();
+        table.replaceChildren();
+        return;
+      }
+      const c = build('cpu'), m = build('mem');
+      charts.replaceChildren(
+        plot('CPU', 'Percent of one core. A container on four cores can pass 100%.', c, viz.percent, 10),
+        plot('Memory', 'Resident memory, added up.', m, viz.bytes, 1024));
+
+      drawFacets(last);
+      drawTable(last);
+    }
+
+    // The first reading takes a moment, and a reading that fails takes longer.
+    // What is drawn meanwhile is the shape of the page that is coming, so the
+    // tiles, the charts and the table do not drop into place one by one.
+    function drawWaiting() {
+      root.setAttribute('aria-busy', 'true');
+      tiles.replaceChildren(...['Running', 'CPU', 'Memory', 'Busiest'].map((t) =>
+        h('div', { class: 'card' }, h('h3', null, t), skeleton('big'), skeleton('line w3'))));
+      charts.replaceChildren(...['CPU', 'Memory'].map((t) =>
+        h('section', { class: 'card chart' },
+          h('div', { class: 'chart-head' }, h('h3', null, t), skeleton('line w4')),
+          skeleton('plot'))));
+      facets.replaceChildren();
+      table.replaceChildren(h('h2', null, 'Containers'),
+        h('div', { class: 'skel-rows' }, [0, 1, 2, 3].map(() => h('div', { class: 'skel-row' },
+          skeleton('line w2'), skeleton('line w3'), skeleton('line w1'), skeleton('line w3'), skeleton('line w1')))));
+    }
+
+    // plot is one chart with its legend and its hover readout. The legend is
+    // always there: two lines must never be told apart by colour alone.
+    function plot(title, why, data, format, base) {
+      const readout = h('div', { class: 'readout', role: 'status' });
+      const frame = h('div', { class: 'plot-frame' });
+      const card = h('section', { class: 'card chart' },
+        h('div', { class: 'chart-head' }, h('h3', null, title), h('span', { class: 'muted' }, why), h('span', { class: 'grow' }), readout),
+        frame,
+        h('div', { class: 'legend' }, data.series.map((s) => h('span', { class: 'key' + (s.other ? ' other' : '') },
+          h('span', { class: 'swatch ' + s.cls }), s.label,
+          h('b', { class: 'mono' }, format(s.points.length ? s.points[s.points.length - 1][1] : 0))))));
+      const render = () => {
+        const width = frame.clientWidth || card.clientWidth - 32 || 600;
+        frame.replaceChildren(viz.chart(data.series, data.from, data.to, {
+          width, height: 190, format, base, label: title,
+          onhover: (hits, t) => {
+            if (!hits) { readout.replaceChildren(); return; }
+            const top = hits.slice().sort((a, b) => b.p[1] - a.p[1]).slice(0, 5);
+            readout.replaceChildren(h('span', { class: 'muted' }, viz.clock(t)),
+              ...top.map((x) => h('span', { class: 'hit' }, h('span', { class: 'swatch ' + x.s.cls }),
+                h('b', null, format(x.p[1])), h('span', { class: 'muted' }, x.s.label))));
+          },
+        }));
+      };
+      queueMicrotask(render);
+      return card;
+    }
+
+    // One small chart per universe, all on their own scale but side by side:
+    // past a handful of lines in one plot, the answer is more plots.
+    function drawFacets(last) {
+      const by = new Map();
+      const within = windowed();
+      for (const s of within) {
+        for (const r of s.rows) {
+          const k = uniOf(r);
+          if (!by.has(k)) by.set(k, { project: r.project, universe: r.universe, at: new Map() });
+          const g = by.get(k);
+          g.at.set(s.t, (g.at.get(s.t) || 0) + r.cpu);
+        }
+      }
+      if (by.size < 2) { facets.replaceChildren(); return; }
+      const from = within.length ? Math.max(within[0].t, Date.now() - span) : Date.now() - span;
+      const now = Date.now();
+      // One scale for all of them: side by side, their heights are compared.
+      let peak = 0;
+      for (const g of by.values()) for (const v of g.at.values()) if (v > peak) peak = v;
+      const cards = [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, g]) => {
+        const points = [...g.at.entries()].sort((a, b) => a[0] - b[0]);
+        const current = points.length ? points[points.length - 1][1] : 0;
+        const live = last.rows.some((r) => uniOf(r) === k);
+        const card = h('article', { class: 'card facet' },
+          h('div', { class: 'facet-head' }, h('span', { class: 'dot ' + (live ? 'ok' : '') }), h('b', null, g.universe),
+            h('span', { class: 'muted' }, g.project), h('span', { class: 'grow' }), h('b', { class: 'mono' }, viz.percent(current))),
+          h('div', { class: 'plot-frame' }));
+        queueMicrotask(() => {
+          const frame = card.querySelector('.plot-frame');
+          frame.replaceChildren(viz.chart([{ key: k, label: g.universe, cls: colours.of(k), points }], from, now,
+            { width: frame.clientWidth || 220, height: 70, format: viz.percent, compact: true, floor: peak, label: 'CPU of ' + g.universe }));
+        });
+        return card;
+      });
+      facets.replaceChildren(h('div', { class: 'ws-head tight' }, h('h2', null, 'Per universe'),
+        h('span', { class: 'muted small' }, 'processor time, all on the same scale')),
+        h('div', { class: 'facets' }, cards));
+    }
+
+    // The table is the chart's other half: every value a line holds is here as
+    // a number, in an order that does not move while it is read.
+    function drawTable(last) {
+      const history = new Map();
+      let from = Date.now();
+      for (const s of windowed()) {
+        from = Math.min(from, s.t);
+        for (const r of s.rows) {
+          const k = svcOf(r);
+          if (!history.has(k)) history.set(k, []);
+          history.get(k).push([s.t, r.cpu]);
+        }
+      }
+      const rows = last.rows.filter(shown).sort((a, b) =>
+        a.project.localeCompare(b.project) || a.universe.localeCompare(b.universe, undefined, { numeric: true })
+        || a.app.localeCompare(b.app) || a.service.localeCompare(b.service));
+      table.replaceChildren(h('h2', null, 'Containers'),
+        rows.length ? h('div', { class: 'scroll' }, h('table', { class: 'stats-table' },
+          h('thead', null, h('tr', null, ['Universe', 'Service', 'CPU', 'Last ' + (span / 60000) + ' min', 'Memory', 'Network', 'PIDs', ''].map((t) => h('th', null, t)))),
+          h('tbody', null, rows.map((r) => {
+            const k = svcOf(r);
+            const cls = colours.of(keyOf(r));
+            return h('tr', null,
+              h('td', null, h('b', null, r.universe), ' ', h('span', { class: 'muted' }, r.project)),
+              h('td', null, h('span', { class: 'swatch ' + cls }), r.app + '/' + r.service),
+              h('td', { class: 'mono num' }, viz.percent(r.cpu)),
+              h('td', null, viz.sparkline(history.get(k) || [], from, Date.now(), cls, 110, 20)),
+              h('td', { class: 'mono num', title: r.memUsage }, viz.bytes(r.mem || 0),
+                r.memLimit ? h('span', { class: 'muted' }, ' ' + viz.percent(r.memory)) : null),
+              h('td', { class: 'mono num muted' }, r.netIO || '—'),
+              h('td', { class: 'mono num muted' }, r.pids || 0),
+              h('td', { class: 'row-actions' },
+                h('button', { type: 'button', class: 'btn small', onclick: () => sidePanel.open(r.project, r.universe, { service: r.app + '/' + r.service }) }, 'Logs')));
+          }))))
+          : empty('Nothing is running. Start a universe in the ', h('a', { href: '#/fleet' }, 'fleet'), '.'));
+    }
+
+    let sized;
+    const onResize = () => { clearTimeout(sized); sized = setTimeout(draw, 150); };
+    addEventListener('resize', onResize);
+
+    arm();
+    // Drawn before anything has been read, so the view is the shape of itself
+    // while it waits rather than an empty page that fills in all at once.
+    draw();
+    return {
+      refresh: load,
+      stop() { clearInterval(timer); removeEventListener('resize', onResize); document.removeEventListener('click', shut); },
+    };
+  },
+};
 
 // ── system ─────────────────────────────────────────────────────────────
 
@@ -780,6 +1321,7 @@ function route() {
     if (a.dataset.route === (key === 'project' ? 'overview' : key)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
+  if (current && current.stop) current.stop();
   main.replaceChildren();
   current = view.mount(main, arg ? decodeURIComponent(arg) : undefined);
   document.title = view.title + ' · multiversectl';
@@ -830,3 +1372,594 @@ window.addEventListener('hashchange', route);
 route();
 connect();
 schedule();
+
+
+// ── the side panel of one universe ─────────────────────────────────────
+// Its containers with what they are using, and a log per service. It is
+// outside what the fleet redraws, and everything in it is fetched when it
+// opens and stopped when it closes, so a universe nobody is looking at costs
+// nothing. Only the numbers are redrawn as they arrive: a row that is rebuilt
+// under the pointer cannot be clicked or read.
+
+const sidePanel = (() => {
+  const root = document.getElementById('side');
+  const STATS_MS = 3000;
+  const MAX_LOG_LINES = 3000;
+  const SPARK_POINTS = 40;
+  let cur = null;
+  let opener = null;
+  // Wide is the panel over the page instead of beside it, which is what
+  // reading a log wants: a terminal's width, and nothing moving behind it.
+  // The choice is the reader's and it is remembered, since someone who reads
+  // logs reads them again.
+  let wide = false;
+  try { wide = localStorage.getItem('side-wide') === '1'; } catch (_) { /* a private window is no reason to fail */ }
+  const scrim = h('div', { class: 'scrim', hidden: true, onclick: close });
+  document.body.append(scrim);
+
+  function setWide(on) {
+    wide = on;
+    try { localStorage.setItem('side-wide', on ? '1' : '0'); } catch (_) { /* nothing is lost but the preference */ }
+    applyWide();
+    draw(); // the button says which way it goes next
+  }
+
+  // The page behind must not scroll under the panel: a wheel over a panel that
+  // has reached its end should not carry on to the page below it.
+  function applyWide() {
+    const on = !!cur && wide;
+    root.classList.toggle('wide', on);
+    // Both, because a page scrolls from whichever of the two the browser
+    // decided was the scrolling element.
+    document.body.classList.toggle('side-over', on);
+    document.documentElement.classList.toggle('side-over', on);
+    scrim.hidden = !on;
+  }
+
+  const of = (c, extra) => query({ project: c.project, universe: c.universe, ...extra });
+
+  function close() {
+    if (!cur) return;
+    stopLog();
+    clearInterval(cur.statsTimer);
+    cur = null;
+    root.hidden = true;
+    root.replaceChildren();
+    document.body.classList.remove('with-side');
+    applyWide();
+    if (opener && opener.isConnected) opener.focus();
+    opener = null;
+  }
+
+  // open(project, universe, { service }) — with a service it opens straight on
+  // that log, which is what a row elsewhere on the page links to.
+  async function open(project, universe, opts) {
+    const want = (opts || {}).service;
+    if (cur && cur.project === project && cur.universe === universe) {
+      if (want) startLog(...want.split('/'));
+      return;
+    }
+    const from = document.activeElement;
+    close();
+    opener = from;
+    const c = { project, universe, rows: null, stats: {}, history: new Map(), tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
+    cur = c;
+    root.hidden = false;
+    document.body.classList.add('with-side');
+    applyWide();
+    draw();
+    root.querySelector('.side-head h3').focus();
+    await loadRows();
+    // Closed, or another universe opened, while the containers were being
+    // read: there is nothing left to poll for, and a timer started now would
+    // be one nobody holds the handle of.
+    if (cur !== c) return;
+    if (want) startLog(...want.split('/'));
+    pollStats();
+    c.statsTimer = setInterval(pollStats, STATS_MS);
+  }
+
+  // reload is what an operation elsewhere calls: a service that was just
+  // restarted or started should not still read “Exited” here.
+  function reload() { if (cur) loadRows(); }
+
+  async function loadRows() {
+    const c = cur;
+    try { const r = await api('universe/containers?' + of(c)); if (cur === c) { c.rows = r.containers; c.error = null; } }
+    catch (e) { if (cur === c) c.error = e.message; }
+    if (cur === c) draw();
+  }
+
+  async function pollStats() {
+    const c = cur;
+    if (!c || document.hidden || c.tab !== 'containers' || !(c.rows || []).some((r) => r.running)) return;
+    try {
+      const r = await api('universe/stats?' + of(c));
+      if (cur !== c) return;
+      c.stats = Object.fromEntries(r.stats.map((s) => [s.name, s]));
+      const now = Date.now();
+      for (const s of r.stats) {
+        if (!c.history.has(s.name)) c.history.set(s.name, []);
+        const points = c.history.get(s.name);
+        points.push([now, s.cpu]);
+        if (points.length > SPARK_POINTS) points.shift();
+      }
+      drawStats();
+    } catch (_) { /* the next reading tries again */ }
+  }
+
+  // ---- logs
+  function stopLog() { if (cur && cur.log && cur.log.abort) cur.log.abort.abort(); }
+
+  async function startLog(appKey, service) {
+    const c = cur;
+    if (!c) return;
+    const was = c.log;
+    stopLog();
+    const log = {
+      appKey, service, lines: [], drawn: 0,
+      tail: was ? was.tail : 200, follow: was ? was.follow : true, filter: was ? was.filter : '',
+      wrap: was ? was.wrap : true, times: was ? was.times : true,
+      abort: new AbortController(), state: 'loading', detail: '',
+    };
+    c.log = log;
+    c.tab = 'logs';
+    draw();
+    try {
+      const res = await fetch('/api/universe/logs?' + of(c, { app: appKey, service, tail: log.tail, follow: log.follow ? '1' : '0' }), { signal: log.abort.signal });
+      if (!res.ok) { let b = {}; try { b = await res.json(); } catch (_) { /* empty */ } throw new Error(b.error || res.statusText); }
+      log.state = log.follow ? 'following' : 'loaded';
+      drawLogState();
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let rest = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const text = rest + dec.decode(value, { stream: true });
+        const parts = text.split('\n');
+        rest = parts.pop();
+        if (parts.length) { push(log, parts); drawLog(); }
+      }
+      if (rest) { push(log, [rest]); drawLog(); }
+      log.state = 'ended';
+      drawLogState();
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      log.state = 'failed';
+      log.detail = e.message;
+      drawLogState();
+    }
+  }
+
+  // A line as docker hands it over: an RFC 3339 stamp, a space, the rest. The
+  // stamp is split off so it can be shown as a clock time, or not at all.
+  const STAMP = /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?) (.*)$/s;
+  // What a line looks like when it is bad news. Only a word on its own, near
+  // the front, counts: "errors: 0" in the middle of a line is not an error.
+  const LEVEL = [
+    [/(^|[\s[|"'(])(error|fatal|critical|panic|exception|traceback)([\s\]:|"')]|$)/i, 'err'],
+    [/(^|[\s[|"'(])(warn|warning|deprecated)([\s\]:|"')]|$)/i, 'warn'],
+    [/(^|[\s[|"'(])(debug|trace)([\s\]:|"')]|$)/i, 'dim'],
+  ];
+
+  function push(log, raw) {
+    for (const line of raw) {
+      const m = STAMP.exec(line);
+      const { text, parts } = ansi(m ? m[2] : line);
+      let level = '';
+      const head = text.slice(0, 160);
+      for (const [re, name] of LEVEL) if (re.test(head)) { level = name; break; }
+      log.lines.push({ at: m ? Date.parse(m[1]) : 0, text, parts, level });
+    }
+    if (log.lines.length > MAX_LOG_LINES) {
+      const gone = log.lines.splice(0, log.lines.length - MAX_LOG_LINES);
+      // The window moved: the oldest lines leave the view, and the ones
+      // already drawn stay drawn. Rebuilding all three thousand on every
+      // chunk would undo the incremental draw exactly when a log is busy
+      // enough to need it.
+      log.drawn -= gone.length;
+      log.shed = (log.shed || 0) + gone.filter((l) => shows(log, l)).length;
+    }
+  }
+
+  // docker hands a log over exactly as the program wrote it, escape codes and
+  // all. A page that prints what it wrote shows “[32m” where the terminal
+  // showed green, and a spinner as every frame it ever drew.
+  //
+  // So a line is built the way a terminal builds one: what the program painted
+  // it in is kept, as classes rather than styles because the page's content
+  // security policy allows no style of its own, and what moves the cursor,
+  // erases or rewrites is carried out. A spinner then leaves the word it
+  // finished on, which is the only one that was ever meant to be read.
+  //
+  // The groups are a control sequence's parameters and its final byte; after
+  // it, an operating system command ended by a bell or a string terminator,
+  // and last the two-byte escapes.
+  const ANSI = /\x1b(?:\[([0-9;:?<=>]*)[ -/]*([@-~])|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-Z\\-_])/g;
+  const FG = ['ac0', 'ac1', 'ac2', 'ac3', 'ac4', 'ac5', 'ac6', 'ac7'];
+  const TAB = 8;
+  // The furthest a program may send the cursor along a line it is writing.
+  const MAX_COLS = 4096;
+
+  function ansi(raw) {
+    const on = { fg: '', bold: false, dim: false, italic: false, under: false };
+    const cls = () => [on.fg, on.bold && 'ab', on.dim && 'ad', on.italic && 'ai', on.under && 'au'].filter(Boolean).join(' ');
+    // One slot per column, so writing at a column that was written before
+    // replaces what was there, as a terminal would. Writing is not capped —
+    // a log line may be as long as it likes — but moving the cursor is, since
+    // every column jumped over is a blank that has to be made and then read
+    // back, and `ESC[5000000C` is a line nobody is going to read.
+    const cells = [];
+    let col = 0;
+    const put = (ch) => { cells[col] = { ch, cls: cls() }; col++; };
+    const plain = (run) => {
+      for (const ch of run) {
+        if (ch === '\r') col = 0;
+        else if (ch === '\b') col = Math.max(0, col - 1);
+        else if (ch === '\t') { do { put(' '); } while (col % TAB); }
+        else if (ch >= ' ' || ch === '\u00a0') put(ch);
+      }
+    };
+
+    let at = 0, m;
+    ANSI.lastIndex = 0;
+    while ((m = ANSI.exec(raw))) {
+      if (m.index > at) plain(raw.slice(at, m.index));
+      col = move(on, cells, col, m[1], m[2]);
+      at = ANSI.lastIndex;
+    }
+    if (at < raw.length) {
+      // An escape the line ends in the middle of has nothing to act on, and
+      // the letters it was going to use are not text.
+      const tail = raw.slice(at);
+      const half = tail.indexOf('\u001b');
+      plain(half < 0 ? tail : tail.slice(0, half));
+    }
+
+    // Trailing blanks are what erasing a longer line left behind. Counted
+    // backwards over the columns: asking a regular expression where the
+    // whitespace at the end of a line starts is quadratic in the length of
+    // that whitespace, and a log line can carry a great deal of it.
+    let end = cells.length;
+    while (end > 0 && (!cells[end - 1] || cells[end - 1].ch === ' ')) end--;
+    // A hole is a column the program skipped over; it reads as a space.
+    const parts = [];
+    let text = '';
+    for (let i = 0; i < end; i++) {
+      const c = cells[i] || { ch: ' ', cls: '' };
+      const last = parts[parts.length - 1];
+      if (last && last.cls === c.cls) last.s += c.ch;
+      else parts.push({ s: c.ch, cls: c.cls });
+      text += c.ch;
+    }
+    return { text, parts };
+  }
+
+  // What one control sequence does, as far as a log line is concerned: colour,
+  // the cursor along its one line, and erasing. Anything that would need more
+  // than a line — moving between them, scrolling, a saved position — cannot be
+  // honoured here and is left out rather than half done.
+  function move(on, cells, col, params, final) {
+    const n = (i, or) => { const v = Number((params || '').split(';')[i]); return Number.isFinite(v) && (params || '').split(';')[i] !== '' ? v : or; };
+    switch (final) {
+      case 'm': paint(on, params); return col;
+      case 'G': return Math.min(MAX_COLS, Math.max(0, n(0, 1) - 1));
+      // A move of no columns is a move of one, which is what a terminal does
+      // with a parameter of zero.
+      case 'C': return Math.min(MAX_COLS, col + Math.max(1, n(0, 1)));
+      case 'D': return Math.max(0, col - Math.max(1, n(0, 1)));
+      case 'K': {
+        // Erasing leaves the cursor where it is, however much it erases.
+        const how = n(0, 0);
+        if (how === 0) cells.length = col;
+        else if (how === 1) for (let i = 0; i <= col; i++) cells[i] = { ch: ' ', cls: '' };
+        else cells.length = 0;
+        return col;
+      }
+      default: return col;
+    }
+  }
+
+  // What one “ESC [ … m” does. Backgrounds are left alone: a log that paints
+  // its own background fights the page it is read on, and the page wins.
+  function paint(on, params) {
+    const codes = (params || '0').split(';').map((x) => Number(x) || 0);
+    for (let i = 0; i < codes.length; i++) {
+      const n = codes[i];
+      if (n === 0) { on.fg = ''; on.bold = on.dim = on.italic = on.under = false; }
+      else if (n === 1) on.bold = true;
+      else if (n === 2) on.dim = true;
+      else if (n === 3) on.italic = true;
+      else if (n === 4) on.under = true;
+      else if (n === 22) on.bold = on.dim = false;
+      else if (n === 23) on.italic = false;
+      else if (n === 24) on.under = false;
+      else if (n >= 30 && n <= 37) on.fg = FG[n - 30];
+      else if (n >= 90 && n <= 97) on.fg = FG[n - 90];
+      else if (n === 39) on.fg = '';
+      else if (n === 38 || n === 48) {
+        // An extended colour carries its own parameters, which are not codes.
+        const taken = codes[i + 1] === 5 ? 2 : codes[i + 1] === 2 ? 4 : 1;
+        if (n === 38 && codes[i + 1] === 5 && codes[i + 2] < 16) on.fg = FG[codes[i + 2] % 8];
+        i += taken;
+      }
+    }
+  }
+
+  const shows = (log, l) => !log.filter || l.text.toLowerCase().includes(log.filter.toLowerCase());
+  const visible = (log) => log.lines.filter((l) => shows(log, l));
+  const asText = (log) => visible(log).map((l) => (log.times && l.at ? new Date(l.at).toISOString() + ' ' : '') + l.text).join('\n');
+
+  // One line, in the colours the program wrote it in, with the part that
+  // matched the filter marked in it.
+  function lineEl(log, l) {
+    const body = h('span', { class: 'lm' });
+    for (const p of l.parts) {
+      const kids = log.filter ? marked(p.s, log.filter) : [p.s];
+      if (p.cls) body.append(h('span', { class: p.cls }, kids));
+      else for (const k of kids) body.append(k instanceof Node ? k : document.createTextNode(k));
+    }
+    return h('div', { class: 'll ' + l.level },
+      log.times && l.at ? h('span', { class: 'lt' }, new Date(l.at).toLocaleTimeString(undefined, { hour12: false })) : null,
+      body);
+  }
+
+  // The filter is marked inside each coloured run of the line, not across the
+  // line: a match that straddles a colour change would have to be split up to
+  // be drawn anyway.
+  function marked(s, f) {
+    const out = [];
+    const low = s.toLowerCase(), needle = f.toLowerCase();
+    let i = 0;
+    for (;;) {
+      const at = low.indexOf(needle, i);
+      if (at < 0) { if (i < s.length) out.push(s.slice(i)); break; }
+      if (at > i) out.push(s.slice(i, at));
+      out.push(h('mark', null, s.slice(at, at + f.length)));
+      i = at + f.length;
+    }
+    return out;
+  }
+
+  // ---- drawing
+  let rowsBody, logOut, logState, logCount, jump;
+
+  function draw() {
+    if (!cur) return;
+    const c = cur;
+    const tab = (id, label, count) => h('button', {
+      type: 'button', role: 'tab', id: 'tab-' + id, 'aria-controls': 'tabpanel', class: 'tab' + (c.tab === id ? ' on' : ''),
+      'aria-selected': c.tab === id ? 'true' : 'false',
+      onclick: () => { c.tab = id; if (id === 'containers') { stopLog(); c.log = null; pollStats(); } draw(); },
+    }, label, count != null ? h('span', { class: 'count' }, count) : null);
+    const running = (c.rows || []).filter((r) => r.running).length;
+    const uni = universeIn(c.project, c.universe);
+    root.replaceChildren(
+      h('header', { class: 'side-head' },
+        h('h3', { tabindex: '-1' }, c.universe),
+        h('span', { class: 'muted' }, c.project),
+        c.rows ? badge(running ? 'ok' : 'mute', running ? running + ' running' : 'stopped') : null,
+        h('span', { class: 'grow' }),
+        h('button', {
+          type: 'button', class: 'btn small ghost', 'aria-pressed': String(wide),
+          title: wide ? 'Put it back beside the page' : 'Widen it over the page, for reading logs',
+          'aria-label': wide ? 'Narrow the panel' : 'Widen the panel',
+          onclick: () => setWide(!wide),
+        }, wide ? 'Narrow' : 'Wide'),
+        h('button', { type: 'button', class: 'btn small ghost close', 'aria-label': 'Close the panel (Esc)', title: 'Close (Esc)', onclick: close }, '✕')),
+      // Named by the hostname, not by the service behind it: two hosts of one
+      // app often share a service, and two chips both reading “web” say
+      // nothing. These stay even when nothing runs, where the rows below are
+      // the containers and there are none.
+      uni && uni.apps ? h('div', { class: 'side-urls' }, uni.apps.flatMap((a) => (a.urls || []).map((x) =>
+        h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer', class: 'chip', title: x.url + ' \u2192 ' + a.key + '/' + x.service },
+          x.host || x.service || a.key)))) : null,
+      h('div', { class: 'tabs', role: 'tablist' }, tab('containers', 'Containers', c.rows ? c.rows.length : null), tab('logs', 'Logs')),
+      ...(c.error ? [errorBox(c.error)] : []),
+      h('div', { id: 'tabpanel', role: 'tabpanel', 'aria-labelledby': 'tab-' + c.tab, class: 'side-body' },
+        c.tab === 'containers' ? containersTab() : logsTab()));
+  }
+
+  // What the fleet already knows about this universe, when it knows it: the
+  // panel does not ask again for what is on the page.
+  function universeIn(project, universe) {
+    const w = ((state.fleet || {}).projects || []).find((x) => x.name === project);
+    return w && (w.universes || []).find((u) => u.name === universe);
+  }
+
+  // Each row is built once; only its numbers change as readings come in.
+  let meterEls;
+
+  function containersTab() {
+    rowsBody = h('div', { class: 'crows' });
+    drawRows();
+    return rowsBody;
+  }
+
+  function drawRows() {
+    if (!rowsBody || !cur) return;
+    const c = cur;
+    meterEls = new Map();
+    if (!c.rows) { rowsBody.replaceChildren(h('p', { class: 'muted' }, 'Loading…')); return; }
+    if (!c.rows.length) {
+      rowsBody.replaceChildren(empty('No containers yet — the universe is not started.',
+        state.readOnly ? null : h('div', { class: 'actions' },
+          h('button', { type: 'button', class: 'btn small primary', onclick: () => runSafely({ action: 'up', project: c.project, universe: c.universe }) }, 'Start it'))));
+      return;
+    }
+    rowsBody.replaceChildren(...c.rows.map((r) => {
+      const key = r.app + '/' + r.service;
+      const numbers = h('div', { class: 'meters' });
+      meterEls.set(r.name, numbers);
+      return h('div', { class: 'crow' + (r.running ? '' : ' off') },
+        h('div', { class: 'crow-head' }, h('span', { class: 'dot ' + (r.running ? 'ok' : 'warn') }), h('b', null, key),
+          h('span', { class: 'grow' }), h('span', { class: 'muted small' }, r.status)),
+        numbers,
+        ...urlsFor(c, r),
+        r.ports ? h('div', { class: 'muted mono small' }, r.ports) : null,
+        h('div', { class: 'actions' },
+          h('button', { type: 'button', class: 'btn small', onclick: () => startLog(r.app, r.service) }, 'Logs'),
+          restartButton(c, r, key),
+          copyable('multiversectl universe exec ' + c.universe + ' ' + r.app + ' --service ' + r.service + ' -- sh', 'shell command'),
+          h('span', { class: 'grow' }),
+          copyable(r.name, 'name')));
+    }));
+    drawStats();
+  }
+
+  // Where this container is reached: the addresses the proxy routes to this
+  // very service, which is what somebody looking at a container wants to open.
+  // Only a web address becomes a link, as everywhere else on this page.
+  function urlsFor(c, r) {
+    const uni = universeIn(c.project, c.universe);
+    const app = uni && (uni.apps || []).find((a) => a.key === r.app);
+    if (!app) return [];
+    return (app.urls || []).filter((x) => x.service === r.service && /^https?:\/\//.test(x.url))
+      .map((x) => h('div', { class: 'crow-url' },
+        h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer' }, x.url)));
+  }
+
+  function restartButton(c, r, key) {
+    if (state.readOnly || !r.running) return null;
+    if (c.confirm === key) {
+      return h('button', {
+        type: 'button', class: 'btn small danger',
+        onclick: async () => {
+          c.confirm = null;
+          try { await run({ action: 'restart', project: c.project, universe: c.universe, app: r.app, service: r.service }); }
+          catch (e) { toast(e.message); }
+          drawRows();
+        },
+      }, 'Restart, really');
+    }
+    return h('button', {
+      type: 'button', class: 'btn small', disabled: isBusy(c.project),
+      title: 'Restart the container in place; it does not pick up a changed image',
+      onclick: () => { c.confirm = key; drawRows(); setTimeout(() => { if (cur === c && c.confirm === key) { c.confirm = null; drawRows(); } }, 4000); },
+    }, 'Restart');
+  }
+
+  function drawStats() {
+    if (!cur || !meterEls) return;
+    const c = cur;
+    for (const [name, into] of meterEls) {
+      const st = c.stats[name];
+      const row = (c.rows || []).find((r) => r.name === name);
+      if (!st) { into.replaceChildren(row && row.running ? h('span', { class: 'muted small' }, 'reading…') : h('span', { class: 'muted small' }, 'not running')); continue; }
+      into.replaceChildren(
+        meter('CPU', st.cpu, viz.percent(st.cpu)),
+        meter('Mem', st.memory, viz.bytes(st.mem || 0), st.memUsage),
+        viz.sparkline(c.history.get(name) || [], Date.now() - SPARK_POINTS * STATS_MS, Date.now(), '', 70, 18),
+        h('span', { class: 'muted small' }, 'net ' + (st.netIO || '—') + ' · ' + st.pids + ' pids'));
+    }
+  }
+
+  const meter = (label, pct, text, title) => h('span', { class: 'meter', title: title || label + ' ' + text },
+    h('span', { class: 'meter-l' }, label),
+    h('span', { class: 'bar-track' }, h('span', { class: 'bar-fill w' + Math.min(10, Math.max(0, Math.round(pct / 10))) })),
+    h('span', { class: 'mono small' }, text));
+
+  const LOG_STATE = { loading: ['mute', 'opening…'], loaded: ['ok', 'last lines'], following: ['ok', 'following'], ended: ['mute', 'ended'], failed: ['bad', 'stopped'] };
+
+  function logsTab() {
+    const c = cur;
+    const log = c.log;
+    if (!log) {
+      const choices = (c.rows || []);
+      if (!choices.length) return h('p', { class: 'muted' }, 'Start the universe to read its logs.');
+      return h('div', null, h('p', { class: 'muted' }, 'Which service?'),
+        h('div', { class: 'actions wrap' }, choices.map((r) => h('button', {
+          type: 'button', class: 'btn small', onclick: () => startLog(r.app, r.service),
+        }, h('span', { class: 'dot ' + (r.running ? 'ok' : 'warn') }), r.app + '/' + r.service))));
+    }
+    logState = h('span', { class: 'log-state' });
+    logCount = h('span', { class: 'muted small' });
+    logOut = h('div', { class: 'logout mono' + (log.wrap ? ' wrap' : ''), tabindex: '0', role: 'log', 'aria-label': 'Log of ' + log.appKey + '/' + log.service });
+    log.drawn = 0;
+    logOut.addEventListener('scroll', () => { if (jump) jump.hidden = atEnd(); });
+
+    const services = h('select', {
+      'aria-label': 'Service', onchange: (e) => startLog(...e.target.value.split('/')),
+    }, (c.rows || []).map((r) => h('option', { value: r.app + '/' + r.service, selected: r.app === log.appKey && r.service === log.service }, r.app + '/' + r.service)));
+    const tailSel = h('select', { 'aria-label': 'Lines of history', onchange: (e) => { log.tail = Number(e.target.value); startLog(log.appKey, log.service); } },
+      [100, 200, 500, 1000, 2000].map((n) => h('option', { value: n, selected: n === log.tail }, 'last ' + n)));
+    const filter = h('input', { type: 'search', placeholder: 'Only lines containing…', value: log.filter, 'aria-label': 'Filter the lines', oninput: (e) => { log.filter = e.target.value; log.drawn = 0; drawLog(); } });
+    const toggle = (name, on, set) => h('label', { class: 'switch' }, h('input', { type: 'checkbox', checked: on, onchange: (e) => set(e.target.checked) }), name);
+    jump = h('button', { type: 'button', class: 'btn small jump', hidden: true, onclick: () => { logOut.scrollTop = logOut.scrollHeight; jump.hidden = true; } }, '↓ latest');
+
+    const panel = h('div', { class: 'logs' },
+      h('div', { class: 'bar' }, services, logState, h('span', { class: 'grow' }), tailSel,
+        toggle('follow', log.follow, (on) => { log.follow = on; startLog(log.appKey, log.service); })),
+      h('div', { class: 'bar' }, filter, logCount, h('span', { class: 'grow' }),
+        toggle('wrap', log.wrap, (on) => { log.wrap = on; logOut.classList.toggle('wrap', on); }),
+        toggle('times', log.times, (on) => { log.times = on; log.drawn = 0; drawLog(); })),
+      h('div', { class: 'log-wrap' }, logOut, jump),
+      h('div', { class: 'bar' },
+        h('button', { type: 'button', class: 'btn small', onclick: () => { log.lines = []; log.drawn = 0; drawLog(); } }, 'Clear'),
+        h('button', {
+          type: 'button', class: 'btn small',
+          onclick: async () => {
+            const n = visible(log).length;
+            toast(await wrote(asText(log)) ? 'Copied ' + plural(n, 'line', 'lines') : 'Copy failed; select the lines and press ctrl-C');
+          },
+        }, 'Copy'),
+        h('button', { type: 'button', class: 'btn small', onclick: () => download(log) }, 'Download'),
+        h('span', { class: 'grow' }),
+        h('span', { class: 'muted small' }, 'docker logs of ', log.appKey, '/', log.service)));
+    drawLogState();
+    queueMicrotask(drawLog);
+    return panel;
+  }
+
+  function download(log) {
+    const name = cur.project + '-' + cur.universe + '-' + log.appKey + '-' + log.service + '.log';
+    const url = URL.createObjectURL(new Blob([asText(log)], { type: 'text/plain' }));
+    const a = h('a', { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
+
+  const atEnd = () => !logOut || logOut.scrollHeight - logOut.scrollTop - logOut.clientHeight < 40;
+
+  // Only what is new is added: a log that is followed must not rebuild three
+  // thousand lines every time one arrives.
+  function drawLog() {
+    if (!cur || !cur.log || !logOut) return;
+    const log = cur.log;
+    const stick = atEnd();
+    if (log.drawn <= 0) { logOut.replaceChildren(); log.drawn = 0; log.shed = 0; }
+    const note = logOut.querySelector('.log-note');
+    if (note) note.remove();
+    for (let i = log.shed || 0; i > 0 && logOut.firstElementChild; i--) logOut.firstElementChild.remove();
+    log.shed = 0;
+    const add = [];
+    for (let i = log.drawn; i < log.lines.length; i++) {
+      const l = log.lines[i];
+      if (shows(log, l)) add.push(lineEl(log, l));
+    }
+    log.drawn = log.lines.length;
+    if (add.length) logOut.append(...add);
+    const shown = logOut.childElementCount;
+    logCount.textContent = log.filter ? shown + ' of ' + log.lines.length + ' lines' : plural(shown, 'line', 'lines');
+    if (!shown) logOut.append(h('p', { class: 'muted log-note' }, log.filter ? 'No line contains that.' : 'Nothing logged yet.'));
+    if (stick) logOut.scrollTop = logOut.scrollHeight;
+    if (jump) jump.hidden = atEnd();
+  }
+
+  function drawLogState() {
+    if (!cur || !cur.log || !logState) return;
+    const log = cur.log;
+    const [kind, text] = LOG_STATE[log.state] || ['mute', log.state];
+    logState.replaceChildren(h('span', { class: 'dot ' + (kind === 'bad' ? 'warn' : kind === 'ok' ? 'ok' : '') }),
+      h('span', { class: 'muted small' }, text + (log.detail ? ': ' + log.detail : '')));
+  }
+
+  // Escape closes the panel, but a dialog on top of it gets it first.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && cur && !document.querySelector('dialog[open]')) close();
+  });
+  return { open, close, reload };
+})();
