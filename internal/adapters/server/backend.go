@@ -146,7 +146,7 @@ func (s Services) fleetOf(ctx context.Context, w app.WorkspaceInfo) fleetWorkspa
 
 func toUniverse(u app.Summary) universeView {
 	v := universeView{Name: u.Name, Slug: u.Slug, Project: u.Project, Domain: u.Domain, Dir: u.Dir, Running: u.Running,
-		Note: u.Note, Branches: u.Branches, Apps: []appView{}, Checkouts: []checkoutView{},
+		Note: u.Note, PR: u.PR, Branches: u.Branches, Apps: []appView{}, Checkouts: []checkoutView{},
 		Created: stamp(u.Created), LastStarted: stamp(u.LastStarted)}
 	for _, a := range u.Apps {
 		av := appView{Key: a.Key, Repo: a.Repo, Branch: a.Branch, Path: a.Path, Running: a.Running, Expected: a.Expected}

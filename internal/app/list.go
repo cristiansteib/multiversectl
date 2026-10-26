@@ -39,6 +39,7 @@ type Summary struct {
 	Created     time.Time
 	LastStarted time.Time
 	Note        string
+	PR          string
 }
 
 // Checkout is one repository's worktree inside a universe.
@@ -144,6 +145,7 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 			Created:     st.Created,
 			LastStarted: st.LastStarted,
 			Note:        st.Note,
+			PR:          st.PR,
 		})
 	}
 	return out, nil

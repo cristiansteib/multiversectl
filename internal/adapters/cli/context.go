@@ -65,6 +65,7 @@ type UniverseView struct {
 	Created     *time.Time        `json:"created,omitempty"`
 	LastStarted *time.Time        `json:"lastStarted,omitempty"`
 	Note        string            `json:"note,omitempty"`
+	PR          string            `json:"pr,omitempty"`
 }
 
 // AppView is one app of a universe.
@@ -118,7 +119,7 @@ type ListView struct {
 func universeView(u app.Summary) UniverseView {
 	v := UniverseView{
 		Name: u.Name, Slug: u.Slug, Compose: u.Project, Domain: u.Domain, Dir: u.Dir, Running: u.Running,
-		Branches: u.Branches, Hosts: u.Hosts, Note: u.Note,
+		Branches: u.Branches, Hosts: u.Hosts, Note: u.Note, PR: u.PR,
 		Apps: []AppView{}, Checkouts: []CheckoutView{},
 	}
 	if !u.Created.IsZero() {
@@ -195,7 +196,10 @@ type BriefUniverse struct {
 	// Behind is, per repository, how many commits of the branch it follows the
 	// checkout lacks. Absent when it is current: `universe sync` fixes it.
 	Behind map[string]int `json:"behind,omitempty"`
-	Note   string         `json:"note,omitempty"`
+	// Note and PR are what whoever works in it left: why it exists, and the
+	// request its work is going to.
+	Note string `json:"note,omitempty"`
+	PR   string `json:"pr,omitempty"`
 }
 
 func briefView(c app.ProjectContext, list []app.Summary) BriefView {
@@ -212,7 +216,7 @@ func briefView(c app.ProjectContext, list []app.Summary) BriefView {
 	for _, u := range list {
 		state, _, up := standing(u)
 		b := BriefUniverse{
-			Name: u.Name, State: state, Up: up, Dir: u.Dir, Note: u.Note,
+			Name: u.Name, State: state, Up: up, Dir: u.Dir, Note: u.Note, PR: u.PR,
 			Checkout: map[string]string{}, Branch: u.Branches, URLs: []string{},
 		}
 		if b.Branch == nil {

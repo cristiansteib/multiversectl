@@ -112,3 +112,12 @@ func TestHelpIsLeanUnlessFull(t *testing.T) {
 		t.Errorf("lean %d bytes vs full %d: the index should be a fraction of the whole tree", lean, full)
 	}
 }
+
+func TestTheBriefViewCarriesWhatSomeoneSaidTheUniverseIsFor(t *testing.T) {
+	b, _ := json.Marshal(briefView(app.ProjectContext{}, []app.Summary{{Name: "3", Note: "fixing login", PR: "https://example.test/pull/1"}}))
+	for _, want := range []string{`"note":"fixing login"`, `"pr":"https://example.test/pull/1"`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("missing %s in %s", want, b)
+		}
+	}
+}

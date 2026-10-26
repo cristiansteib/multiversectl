@@ -44,8 +44,11 @@ type UniverseState struct {
 	Created     time.Time `yaml:"created"`
 	LastStarted time.Time `yaml:"lastStarted,omitempty"`
 	Note        string    `yaml:"note,omitempty"`
-	Manifest    string    `yaml:"manifest,omitempty"`
-	Version     string    `yaml:"version,omitempty"`
+	// PR is the pull or merge request the work in this universe is going to,
+	// which is what someone finding it a week later wants to open first.
+	PR       string `yaml:"pr,omitempty"`
+	Manifest string `yaml:"manifest,omitempty"`
+	Version  string `yaml:"version,omitempty"`
 }
 
 // Universe rebuilds the identity this state belongs to.

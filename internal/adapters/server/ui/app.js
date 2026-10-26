@@ -319,6 +319,8 @@ function universeCard(w, u) {
       h('button', { type: 'button', class: 'btn small', onclick: (e) => runDoctor(panel, w.name, u.name, e.target) }, 'Doctor')),
     actions,
     h('div', { class: 'meta' }, [u.created && 'created ' + ago(u.created), u.lastStarted && 'started ' + ago(u.lastStarted), u.domain].filter(Boolean).join(' · ')),
+    // Only a web address becomes a link: the field is free text that anyone with a shell wrote.
+    u.pr ? h('p', { class: 'note' }, /^https?:\/\//.test(u.pr) ? h('a', { href: u.pr, target: '_blank', rel: 'noopener noreferrer' }, u.pr) : u.pr) : null,
     u.note ? h('p', { class: 'note' }, u.note) : null,
     apps, dir, panel);
 }

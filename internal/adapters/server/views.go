@@ -75,6 +75,7 @@ type universeView struct {
 	Created     string            `json:"created,omitempty"`
 	LastStarted string            `json:"lastStarted,omitempty"`
 	Note        string            `json:"note,omitempty"`
+	PR          string            `json:"pr,omitempty"`
 	Branches    map[string]string `json:"branches,omitempty"`
 	// Behind is the commits its checkouts lack of the branches they follow,
 	// summed; `sync` brings them forward.
