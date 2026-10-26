@@ -28,7 +28,10 @@ type Git interface {
 	Clone(ctx context.Context, url, dest string) error
 	Fetch(ctx context.Context, repoDir string) error
 	AddWorktree(ctx context.Context, repoDir, dest, branch, base string) error
-	RemoveWorktree(ctx context.Context, repoDir, dest string) error
+	// RemoveWorktree takes a worktree away. discard says whether to throw away
+	// work that is only in it: git refuses otherwise, and whether that refusal
+	// is right is a question for the use case, not for this port.
+	RemoveWorktree(ctx context.Context, repoDir, dest string, discard bool) error
 	CurrentBranch(ctx context.Context, dir string) (string, error)
 	RefExists(ctx context.Context, repoDir, ref string) (RefKind, error)
 	DefaultBranch(ctx context.Context, repoDir string) (string, error)

@@ -422,20 +422,10 @@ func (s Services) Unsaved(ctx context.Context, workspace, universe string) ([]st
 	if err != nil {
 		return nil, err
 	}
-	st, err := svc.Resolve(universe)
-	if err != nil {
-		return nil, err
-	}
-	items, err := svc.PrunePlan(ctx, app.PruneOptions{})
-	if err != nil {
-		return nil, err
-	}
-	for _, it := range items {
-		if it.Name == st.Name {
-			return it.Dirty, nil
-		}
-	}
-	return nil, nil
+	// The use case answers this for one universe. It used to be read out of a
+	// prune plan, which is the same question asked of every universe of the
+	// project to throw all but one of the answers away.
+	return svc.Unsaved(ctx, universe)
 }
 
 // Do runs one action as the command line would, with the sink as its terminal.
@@ -480,7 +470,7 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 		}
 		return nil
 	case "rm":
-		if err := svc.Remove(ctx, app.RemoveInput{Universe: r.Universe}); err != nil {
+		if err := svc.Remove(ctx, app.RemoveInput{Universe: r.Universe, Force: r.Force}); err != nil {
 			return err
 		}
 		k.OK("%s removed", r.Universe)

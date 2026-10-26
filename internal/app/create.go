@@ -48,6 +48,11 @@ const (
 	detached            // the base itself, with no branch
 )
 
+// rollbackGrace is how long taking back a half-made universe may take. It is
+// generous: the work is a handful of local git commands, and the only reason
+// to stop is a git that has wedged.
+const rollbackGrace = 30 * time.Second
+
 type repoPlan struct {
 	key, clone, dest string
 	branch, base     string
@@ -421,20 +426,46 @@ func mergeKeys(a, b []string) []string {
 }
 
 // rollback takes back the worktrees and branches a failed Create added, so a
-// universe that could not be made does not leave half of one behind, and returns
-// the error it was given.
+// universe that could not be made does not leave half of one behind.
+//
+// It runs on a context of its own. The usual reason Create fails is that the
+// caller pressed Ctrl-C, and a cleanup on that same cancelled context does
+// nothing at all: every command it runs returns at once, silently, and the
+// half-made universe stays on disk. Its own deadline keeps that from becoming
+// a hang instead.
+//
+// What it cannot take back it says, in the error it returns: a worktree left
+// behind is a directory somebody has to deal with, and a branch left behind
+// takes its number out of the sequence. Silence there sends them looking for a
+// universe the tool has already said it did not make.
 func (s *Service) rollback(ctx context.Context, made []repoPlan, u domain.Universe, dirExisted bool, cause error) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackGrace)
+	defer cancel()
+	var left []string
 	for i := len(made) - 1; i >= 0; i-- {
 		p := made[i]
-		_ = s.Git.RemoveWorktree(ctx, p.clone, p.dest)
+		// Discarding: these worktrees were made moments ago by this call, and
+		// anything in them was put there by what failed.
+		if err := s.Git.RemoveWorktree(ctx, p.clone, p.dest, true); err != nil {
+			left = append(left, fmt.Sprintf("%s: worktree %s (%v)", p.key, p.dest, err))
+			continue // the branch is still checked out in it, so it cannot go either
+		}
 		if p.created() {
-			_, _, _ = s.Git.DeleteBranchIfSafe(ctx, p.clone, p.branch, p.base)
+			if _, _, err := s.Git.DeleteBranchIfSafe(ctx, p.clone, p.branch, p.base); err != nil {
+				left = append(left, fmt.Sprintf("%s: branch %s (%v)", p.key, p.branch, err))
+			}
 		}
 	}
 	if !dirExisted {
-		_ = s.Files.RemoveAll(u.Dir())
+		if err := s.Files.RemoveAll(u.Dir()); err != nil {
+			left = append(left, fmt.Sprintf("the universe's folder %s (%v)", u.Dir(), err))
+		}
 	}
-	return cause
+	if len(left) == 0 {
+		return cause
+	}
+	return fmt.Errorf("%w\n  what was made could not all be taken back, and is still there:\n    %s",
+		cause, strings.Join(left, "\n    "))
 }
 
 func firstNonEmpty(values ...string) string {

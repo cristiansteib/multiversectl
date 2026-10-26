@@ -164,8 +164,14 @@ func (g Git) Unpushed(ctx context.Context, repoDir string) (int, error) {
 	return n, nil
 }
 
-func (g Git) RemoveWorktree(ctx context.Context, repoDir, dest string) error {
-	_, err := g.run(ctx, "-C", repoDir, "worktree", "remove", "--force", dest)
+func (g Git) RemoveWorktree(ctx context.Context, repoDir, dest string, discard bool) error {
+	args := []string{"-C", repoDir, "worktree", "remove"}
+	if discard {
+		// Without it git refuses a worktree holding work that is nowhere
+		// else, which is the refusal the caller asked to go past.
+		args = append(args, "--force")
+	}
+	_, err := g.run(ctx, append(args, dest)...)
 	return err
 }
 
