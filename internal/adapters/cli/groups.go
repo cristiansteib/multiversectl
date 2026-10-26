@@ -13,10 +13,19 @@ const (
 	groupSetup    = "setup"
 	groupCatalog  = "catalog"
 	groupUniverse = "universe"
+	// groupStart is first, and is what somebody who has just installed this
+	// reads first: the commands to run before any other makes sense.
+	groupStart = "start-here"
 )
 
+// startHere is what leads the help and the tree of commands, in this order. A
+// help lists commands alphabetically within a group, which puts `init` after
+// `completion` and `cleanup`; the first thing to run should not have to be
+// found among the housekeeping.
+var startHere = []string{"init"}
+
 var commandGroups = map[string]string{
-	"help-tree": groupSetup, "init": groupSetup, "reset": groupSetup, "cleanup": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup, "agents": groupSetup,
+	"help-tree": groupSetup, "init": groupStart, "reset": groupSetup, "cleanup": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup, "agents": groupSetup,
 	"catalog": groupCatalog, "project": groupCatalog,
 	"start": groupUniverse, "universe": groupUniverse, "status": groupUniverse, "server": groupUniverse,
 }
@@ -26,6 +35,7 @@ var commandGroups = map[string]string{
 // follows the same rules as everywhere else (NO_COLOR, --no-color, a pipe).
 func groupCommands(root *cobra.Command, g *Globals) {
 	root.AddGroup(
+		&cobra.Group{ID: groupStart, Title: "Get started:"},
 		&cobra.Group{ID: groupUniverse, Title: "Universe management:"},
 		&cobra.Group{ID: groupSetup, Title: "Tool initialization:"},
 		&cobra.Group{ID: groupCatalog, Title: "Catalog and project management:"},
@@ -43,6 +53,8 @@ func groupCommands(root *cobra.Command, g *Globals) {
 	cobra.AddTemplateFunc("groupTitle", func(id, title string) string {
 		o := paint()
 		switch id {
+		case groupStart:
+			return o.paint(bold+cyan, title)
 		case groupUniverse:
 			return o.Bold(o.Green(title))
 		case groupCatalog:
