@@ -16,7 +16,7 @@
 <span class="p">$ </span>multiversectl init --local ~/multiverse-index</pre></div>
   <p><code>--create</code> makes the repository through <code>gh</code>, <strong>private</strong> unless you add <code>--public</code>. Without <code>gh</code>, make it yourself and pass it. A repository that already holds a <code>catalog.yaml</code> is used as it is. Creating and pushing ask first; <code>--yes</code> accepts for scripts. A root that lives only here works, and <code>status</code> keeps saying nobody else can use it.</p>
   <p>On a fresh machine <code>init</code> looks for a repository tagged <code>multiversectl-root</code> on the services you are signed in to and offers those first. On a machine already set up it says what the root is and what is installed from it, and tags the repository if an older root was never marked.</p>
-  <p>Moving to another root is refused while projects from the current one are installed. <code>multiversectl reset</code> forgets the root and the installed projects without deleting a file, checkout or universe; <code>system --prune</code> first if you want those gone too.</p>
+  <p>Moving to another root is refused while projects from the current one are installed. <code>multiversectl reset</code> forgets the root and the installed projects without deleting a file, checkout or universe; <code>system prune</code> first if you want those gone too.</p>
 </section>
 
 <section id="hw-restore">

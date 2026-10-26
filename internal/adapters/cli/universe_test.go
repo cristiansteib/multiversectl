@@ -18,7 +18,7 @@ func (noTerminal) Input(string, string) (string, error)            { return "", 
 
 func TestUniverseCommandsLiveUnderUniverse(t *testing.T) {
 	root, _ := New(Factory{})
-	for _, name := range []string{"new", "checkout", "up", "down", "rm", "ls", "status", "urls", "env", "run", "exec", "doctor", "proxy", "prune"} {
+	for _, name := range []string{"new", "checkout", "up", "down", "rm", "ls", "status", "urls", "env", "run", "exec", "doctor"} {
 		c, _, err := root.Find([]string{"u", name})
 		if err != nil || c.Name() != name {
 			t.Errorf("u %s: not found under universe (%v)", name, err)

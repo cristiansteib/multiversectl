@@ -12,8 +12,50 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-// systemCmd is the machine-wide view: every installed project, not the one
-// commands act on by default, which is what makes a prune across them possible.
+// systemCmd holds what acts on the machine rather than on one project: the
+// shared proxy there is one of, the universes of every installed project, and
+// what this tool has put on the disk.
+//
+// `universe` is for one project, chosen with -p; these three were under it
+// although none of them is. There is one proxy per machine, and prune and the
+// footprint walk every installed project.
+func (r runner) systemCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "system",
+		Short: "What acts on the whole machine: the shared proxy, pruning universes, what this tool left on disk",
+		Long: "`universe` works on one project. These work on the machine: the one proxy every\n" +
+			"universe is reached through, universes across every installed project, and\n" +
+			"everything this tool has put on the disk.",
+		Example: "  multiversectl system proxy status\n  multiversectl system prune --dry-run\n  multiversectl system footprint",
+		Args:    cobra.NoArgs,
+		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
+	}
+	cmd.AddCommand(r.proxyCmd(), r.pruneCmd(), r.footprintCmd())
+	return cmd
+}
+
+// moved is a command under its old name: still there, out of the help, and
+// saying where it went. Scripts and muscle memory keep working, and the tree of
+// commands shows only the new one. A command with subcommands is moved leaf by
+// leaf, since cobra says "deprecated" only for the one that runs.
+func moved(old *cobra.Command, to string) *cobra.Command {
+	old.Hidden = true
+	if old.Runnable() {
+		old.Deprecated = "it moved: use `multiversectl " + to + "`"
+	}
+	for _, k := range old.Commands() {
+		moved(k, to+" "+k.Name())
+	}
+	return old
+}
+
+// oldCleanup is `cleanup`, which is what `system footprint` was called.
+func (r runner) oldCleanup() *cobra.Command {
+	c := r.footprintCmd()
+	c.Use = "cleanup"
+	return moved(c, "system footprint")
+}
+
 func (r runner) pruneCmd() *cobra.Command {
 	var all, force, yes, dry bool
 	cmd := &cobra.Command{
@@ -29,7 +71,7 @@ func (r runner) pruneCmd() *cobra.Command {
 			"on the base branch or a remote; one with anything else is kept and named, so\n" +
 			"committed work survives. It asks before removing anything, unless --yes;\n" +
 			"--dry-run shows the list and stops.",
-		Example: "  multiversectl universe prune --dry-run\n  multiversectl universe prune\n  multiversectl u prune --all --yes\n  multiversectl u prune --all --force -w acme",
+		Example: "  multiversectl system prune --dry-run\n  multiversectl system prune\n  multiversectl system prune --all --yes\n  multiversectl system prune --all --force -w acme",
 		Args:    cobra.NoArgs,
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "include universes that are running")
