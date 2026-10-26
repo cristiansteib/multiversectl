@@ -52,6 +52,29 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# The checksum file is what `self-update` verifies every download against, and
+# signing it is what makes it more than a convenience: with the signature,
+# somebody who swapped an asset would have to swap the list with it and then
+# produce a signature for the new list, which keyless signing ties to this
+# repository's workflow rather than to a key anyone could steal.
+#
+#   cosign verify-blob checksums.txt \
+#     --signature checksums.txt.sig --certificate checksums.txt.pem \
+#     --certificate-identity-regexp '^https://github.com/cristiansteib/multiversectl/' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    artifacts: checksum
+    output: true
+    args:
+      - sign-blob
+      - "--yes"
+      - "--output-signature=${signature}"
+      - "--output-certificate=${certificate}"
+      - "${artifact}"
+
 nfpms:
   - id: deb
     package_name: multiversectl

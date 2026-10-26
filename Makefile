@@ -8,7 +8,7 @@ CATALOG_SCHEMA = schema/catalog.v1alpha1.yaml
 ROOT_SCHEMA = schema/catalogroot.v1alpha1.yaml
 CATALOG_TYPES = internal/adapters/catalog/v1alpha1/types.go
 
-.PHONY: help build install test lint schema schema-check docs docs-check tidy clean
+.PHONY: help build install test lint vulns schema schema-check docs docs-check tidy clean
 .DEFAULT_GOAL := help
 
 help: ## Show this help
@@ -30,6 +30,9 @@ test: ## Run the tests
 lint: ## gofmt and go vet
 	@test -z "$$(gofmt -l . | tee /dev/stderr)" || { echo "gofmt needed"; exit 1; }
 	$(GO) vet ./...
+
+vulns: ## report known vulnerabilities whose code is reachable from here
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 schema: ## Generate $(SCHEMA) and $(CATALOG_SCHEMA) from the Go types
 	$(GO) run ./internal/tools/schemagen $(TYPES) > $(SCHEMA)
