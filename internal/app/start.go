@@ -52,6 +52,9 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if err != nil {
 		return fmt.Errorf("%w%s", err, s.behindHint(ctx, st))
 	}
+	if err := s.forwardPorts(ctx, st, rules); err != nil {
+		return err
+	}
 	st.Rules, st.Hosts = rules, hostnames(rules)
 	st.LastStarted = time.Now().UTC()
 	if err := s.Store.Save(st); err != nil {
@@ -85,6 +88,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 			Routes:    s.Routes(st, appKey),
 			Unpublish: s.unpublished(appKey, defined, cfg),
 			Env:       serviceEnv,
+			Bind:      s.Manifest.BindAddress(),
 		})
 		if err != nil {
 			return fmt.Errorf("%s: routing: %w", appKey, err)
@@ -300,4 +304,87 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 		return s.Runtime.Exec(ctx, req, service, in.Args)
 	}
 	return s.Runtime.Run(ctx, req, service, in.Args)
+}
+
+// forwardPorts gives every host that asked for portForward a host port and the
+// address that port is reached at. The port is chosen once, from a free one,
+// and kept in the universe's state: a phone given the address keeps working
+// across restarts, and a stopped universe keeps its port from being handed to
+// another. A kept port is only replaced when something else took it while the
+// universe was down.
+func (s *Service) forwardPorts(ctx context.Context, st domain.UniverseState, rules map[string]domain.RouteRule) error {
+	keys := make([]string, 0, len(rules))
+	for hostKey, rule := range rules {
+		if rule.PortForward == domain.PortForwardAuto {
+			keys = append(keys, hostKey)
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	sort.Strings(keys)
+
+	address := "127.0.0.1"
+	if !s.Manifest.LocalOnly() {
+		ip, err := s.System.LANIP(ctx)
+		if err != nil {
+			return fmt.Errorf("portForward: %w", err)
+		}
+		address = ip
+	}
+
+	taken := map[int]bool{}
+	if all, err := s.Store.List(); err == nil {
+		for _, other := range all {
+			if other.ID == st.ID {
+				continue
+			}
+			for _, rule := range other.Rules {
+				if rule.HostPort != 0 {
+					taken[rule.HostPort] = true
+				}
+			}
+		}
+	}
+	running := s.universeRunning(ctx, st)
+
+	for _, hostKey := range keys {
+		rule := rules[hostKey]
+		port := st.Rules[hostKey].HostPort
+		if port != 0 && st.Rules[hostKey].PortForward == domain.PortForwardAuto && !taken[port] {
+			// Our own containers hold the port while the universe runs, which
+			// reads as "in use"; only a stopped universe proves a clash.
+			if free, err := s.System.PortFree(ctx, port); err != nil || free || running {
+				taken[port] = true
+				rule.HostPort = port
+			}
+		}
+		for rule.HostPort == 0 {
+			picked, err := s.System.FreePort(ctx)
+			if err != nil {
+				return fmt.Errorf("%s: portForward: %w", hostKey, err)
+			}
+			if !taken[picked] {
+				taken[picked] = true
+				rule.HostPort = picked
+			}
+		}
+		rule.ForwardURL = fmt.Sprintf("http://%s:%d", address, rule.HostPort)
+		rules[hostKey] = rule
+	}
+	return nil
+}
+
+// universeRunning reports whether any container of the universe is up.
+func (s *Service) universeRunning(ctx context.Context, st domain.UniverseState) bool {
+	containers, err := s.Runtime.Containers(ctx, st.Project)
+	if err != nil {
+		return false
+	}
+	for _, c := range containers {
+		if isRunning(c) {
+			return true
+		}
+	}
+	return false
 }

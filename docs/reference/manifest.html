@@ -124,6 +124,13 @@
     <span class="k">port</span>: 8001
     <span class="k">entrypoint</span>: devapi    <span class="c"># default: web</span>
     <span class="k">alsoMatch</span>: [app, adm]  <span class="c"># other host keys, same service</span></pre></div>
+  <h2 id="portforward"><a href="#portforward">portForward: reachable by IP and port</a></h2>
+  <p>A client that refuses plain http to a hostname (an iPhone app) needs an address it may call. <code>portForward</code> on an app lists host keys, from the manifest, labels or the single exposed port, that are also published on a free host port:</p>
+  <div class="code"><pre><span class="k">apps</span>:
+  - <span class="k">name</span>: api
+    <span class="k">repo</span>: api
+    <span class="k">portForward</span>: [api]    <span class="c"># http://&lt;this machine's address&gt;:&lt;free port&gt;</span></pre></div>
+  <p>The kernel picks the port once; it is kept in the universe's state, so the address survives restarts, and no other universe gets it. It binds like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>. The same thing can be asked from a compose label, <code>multiverse.host.api.portForward: auto</code>.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">
@@ -136,6 +143,7 @@
     <ul>
       <li><a href="#older-names">Older names</a></li>
       <li><a href="#hosts">hosts: for repositories you cannot change</a></li>
+      <li><a href="#portforward">portForward: reachable by IP and port</a></li>
     </ul>
   </aside>
 </div>

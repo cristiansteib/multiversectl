@@ -228,6 +228,10 @@ type Route struct {
 	Entrypoint string
 	Project    string
 	Network    string
+	// HostPort, when set, is the host port the service is also published on
+	// (bound to OverrideRequest.Bind). ForwardURL is the address that gives.
+	HostPort   int
+	ForwardURL string
 }
 
 // Router materialises routing for a universe's apps. Returning extra runtime
@@ -246,6 +250,8 @@ type OverrideRequest struct {
 	Routes    []Route
 	Unpublish []string
 	Env       []ServiceEnv
+	// Bind is the address forwarded host ports are published on.
+	Bind string
 }
 
 // ServiceEnv is the environment one service asked for with labels.
@@ -285,6 +291,8 @@ type System interface {
 	LANIP(ctx context.Context) (string, error)
 	Resolve(ctx context.Context, host string) ([]string, error)
 	PortFree(ctx context.Context, port int) (bool, error)
+	// FreePort asks the kernel for a port nothing is listening on.
+	FreePort(ctx context.Context) (int, error)
 	// Probe asks url once and returns the HTTP status it answered with, without
 	// following redirects: any answer means something is listening.
 	Probe(ctx context.Context, url string) (int, error)

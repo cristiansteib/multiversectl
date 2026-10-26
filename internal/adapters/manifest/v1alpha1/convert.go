@@ -111,6 +111,7 @@ func convertApp(a App) (domain.App, error) {
 		Services:       a.Services,
 		Secrets:        a.Secrets,
 		Publish:        a.Publish,
+		PortForward:    a.PortForward,
 		Build:          a.Build,
 		DefaultService: a.DefaultService,
 		Optional:       map[string][]string{},

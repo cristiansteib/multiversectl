@@ -13,7 +13,10 @@
       <span class="k">multiverse.host.app</span>: <span class="s">"4200"</span>              <span class="c"># app-u3.&lt;domain&gt; → 4200</span>
       <span class="k">multiverse.host.api</span>: <span class="s">"8001"</span>
       <span class="k">multiverse.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
-      <span class="k">multiverse.host.api.aliases</span>: app,adm     <span class="c"># same service, more names</span></pre></div>
+      <span class="k">multiverse.host.api.aliases</span>: app,adm     <span class="c"># same service, more names</span>
+      <span class="k">multiverse.host.api.portForward</span>: auto    <span class="c"># also at &lt;ip&gt;:&lt;free port&gt;</span></pre></div>
+  <h3 id="host-forward">By IP and port: <code>portForward</code></h3>
+  <p>Some clients refuse plain http to a hostname: an iPhone app's transport security allows an IP address but not <code>api-u3.&lt;domain&gt;</code>. <code>multiverse.host.api.portForward: auto</code> also publishes that service on a free host port, so it answers at <code>http://&lt;this machine's address&gt;:&lt;port&gt;</code> next to its hostname. The kernel picks the port once, it is kept in the universe's state (so the address you gave a phone survives restarts) and no other universe is given it. It is bound like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>.</p>
   <p><code>aliases</code> is how one API answers under each front-end's own hostname on a second entrypoint, which makes a hard-coded <code>:8001</code> work in every universe.</p>
   <h3 id="host-none">With no labels at all</h3>
   <p>A service exposing exactly one port is reached at the app's own name, so the common case needs nothing. Anything ambiguous is an error naming the label to add, not a guess:</p>
