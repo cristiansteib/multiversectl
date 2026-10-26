@@ -308,7 +308,11 @@ type Release struct {
 // Releases is the self-update port.
 type Releases interface {
 	Latest(ctx context.Context) (Release, error)
-	Download(ctx context.Context, url, dest string) error
+	// Download writes the URL to dest and returns the SHA-256 of what it
+	// wrote, in lower-case hex. The digest is taken from the bytes as they
+	// land, so it describes the file that is there and not a second read of
+	// something that may have changed.
+	Download(ctx context.Context, url, dest string) (sum string, err error)
 }
 
 // Origin is where a project's manifest came from. It is recorded at install

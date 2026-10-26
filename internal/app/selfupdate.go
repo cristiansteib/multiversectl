@@ -9,6 +9,13 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
+const (
+	// checksumsAsset is what the release pipeline publishes the digests as.
+	checksumsAsset = "checksums.txt"
+	releasesPage   = "https://github.com/cristiansteib/multiversectl/releases"
+	sha256Hex      = 64
+)
+
 // SelfUpdateInput describes the running binary: its version, the platform it
 // was built for and where it lives on disk.
 type SelfUpdateInput struct {
@@ -48,20 +55,28 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 		return result, nil
 	}
 
+	// What the release says its files should hash to, read before anything is
+	// downloaded: a release that cannot say is a release nothing is taken from.
+	sums, err := s.checksums(ctx, latest)
+	if err != nil {
+		return result, err
+	}
+
 	name := fmt.Sprintf("multiversectl_%s_%s", in.OS, in.Arch)
 	url, ok := latest.Assets[name]
 	if !ok {
 		return result, fmt.Errorf("release %s has no asset %s: %w", latest.Version, name, domain.ErrNotFound)
 	}
-	if err := s.install(ctx, "Downloading multiversectl "+latest.Version, url, in.BinaryPath); err != nil {
+	if err := s.install(ctx, "Downloading multiversectl "+latest.Version, url, name, sums, in.BinaryPath); err != nil {
 		return result, err
 	}
 	result.Updated = true
 
 	// The web view is a separate program that `server start` looks for beside
 	// this one, so it has to move with it or the page runs an older release.
-	if server, ok := latest.Assets[fmt.Sprintf("multiversectl-server_%s_%s", in.OS, in.Arch)]; ok && in.ServerPath != "" {
-		if err := s.install(ctx, "Downloading the web view", server, in.ServerPath); err != nil {
+	serverName := fmt.Sprintf("multiversectl-server_%s_%s", in.OS, in.Arch)
+	if server, ok := latest.Assets[serverName]; ok && in.ServerPath != "" {
+		if err := s.install(ctx, "Downloading the web view", server, serverName, sums, in.ServerPath); err != nil {
 			return result, fmt.Errorf("multiversectl is updated, but the web view is not: %w", err)
 		}
 		result.Server = true
@@ -69,18 +84,80 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 	return result, nil
 }
 
-// install downloads to a temp file and only then swaps it in, so the binary
-// is never left half-written.
-func (s *Service) install(ctx context.Context, label, url, binaryPath string) error {
+// checksums is the release's own list of what each of its files should hash
+// to.
+//
+// It is not proof of who built them — anyone who could swap an asset could
+// swap this file with it — but it is what makes a download verifiable at all:
+// a file that arrives altered is caught here instead of being run, and the
+// list is what a signature covers, since the release pipeline signs it.
+//
+// A release with no list stops the update. There is no reason for that to
+// happen, and "the check was missing, so it was skipped" is the shape of the
+// problem the check exists to prevent.
+func (s *Service) checksums(ctx context.Context, rel Release) (map[string]string, error) {
+	url, ok := rel.Assets[checksumsAsset]
+	if !ok {
+		return nil, fmt.Errorf("release %s has no %s, so what it offers cannot be checked; download it by hand from %s",
+			rel.Version, checksumsAsset, releasesPage)
+	}
+	tmp, err := s.Files.TempFile("multiversectl-checksums-*")
+	if err != nil {
+		return nil, err
+	}
+	defer s.Files.RemoveAll(tmp)
+	if _, err := s.Releases.Download(ctx, url, tmp); err != nil {
+		return nil, fmt.Errorf("downloading %s: %w", checksumsAsset, err)
+	}
+	body, err := s.Files.ReadFile(tmp)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", checksumsAsset, err)
+	}
+	return parseChecksums(string(body)), nil
+}
+
+// parseChecksums reads the "<hex>  <name>" lines sha256sum writes. A line it
+// cannot read is skipped rather than failing the lot: the file is a list, and
+// the name being looked for is either in it or it is not.
+func parseChecksums(body string) map[string]string {
+	out := map[string]string{}
+	for _, line := range strings.Split(body, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || len(fields[0]) != sha256Hex {
+			continue
+		}
+		// sha256sum marks a binary read with a leading * on the name.
+		out[strings.TrimPrefix(fields[1], "*")] = strings.ToLower(fields[0])
+	}
+	return out
+}
+
+// install downloads to a temp file, checks it against what the release says it
+// should be, and only then swaps it in: the binary is never left half-written,
+// and never written at all from bytes that are not the ones published.
+func (s *Service) install(ctx context.Context, label, url, asset string, sums map[string]string, binaryPath string) error {
+	want, ok := sums[asset]
+	if !ok {
+		return fmt.Errorf("%s is not listed in %s, so it cannot be checked; download it by hand from %s",
+			asset, checksumsAsset, releasesPage)
+	}
 	tmp, err := s.Files.TempFile("multiversectl-*")
 	if err != nil {
 		return err
 	}
 	defer s.Files.RemoveAll(tmp)
 
-	err = s.progress().Do(label, func(ctx context.Context) error { return s.Releases.Download(ctx, url, tmp) })
+	var got string
+	err = s.progress().Do(label, func(ctx context.Context) (err error) {
+		got, err = s.Releases.Download(ctx, url, tmp)
+		return err
+	})
 	if err != nil {
 		return fmt.Errorf("downloading %s: %w", url, err)
+	}
+	if !strings.EqualFold(got, want) {
+		return fmt.Errorf("%s does not match the checksum the release publishes for it "+
+			"(expected %s, got %s): nothing was installed", asset, want, got)
 	}
 	if err := s.Files.Chmod(tmp, 0o755); err != nil {
 		return err

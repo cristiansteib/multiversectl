@@ -111,6 +111,17 @@
   <p>Run it before <code>reset</code>: once a project is forgotten the tool no longer knows its folder. The root catalog's repository is not touched.</p>
 </section>
 
+<section id="verify">
+  <h2 id="verify"><a href="#verify">Checking what you downloaded</a></h2>
+  <p>Every release publishes <code>checksums.txt</code>, and <code>self-update</code> verifies each file against it before replacing anything: a download that does not match is not installed, and a release without the list is not installed from either.</p>
+  <p>The list itself is signed, with a short-lived certificate tied to the workflow that built the release rather than to a key anyone could take, so you can check it yourself:</p>
+  <div class="code"><pre><span class="p">$ </span>cosign verify-blob checksums.txt \
+    --signature checksums.txt.sig --certificate checksums.txt.pem \
+    --certificate-identity-regexp <span class="s">'^https://github.com/cristiansteib/multiversectl/'</span> \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com
+<span class="p">$ </span>sha256sum -c checksums.txt --ignore-missing</pre></div>
+</section>
+
 <section id="completion">
   <h2 id="completion"><a href="#completion">Shell completions</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl completion</pre></div>
@@ -145,6 +156,7 @@
       <li><a href="#binary">Ready-made binaries</a></li>
       <li><a href="#build">From source</a></li>
       <li><a href="#remove">Remove it, completely</a></li>
+      <li><a href="#verify">Checking what you downloaded</a></li>
       <li><a href="#completion">Shell completions</a></li>
       <li><a href="#needs">What it needs on the machine</a></li>
     </ul>
