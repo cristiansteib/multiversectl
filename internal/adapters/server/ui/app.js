@@ -1560,8 +1560,13 @@ const sidePanel = (() => {
         c.rows ? badge(running ? 'ok' : 'mute', running ? running + ' running' : 'stopped') : null,
         h('span', { class: 'grow' }),
         h('button', { type: 'button', class: 'btn small ghost close', 'aria-label': 'Close the panel (Esc)', title: 'Close (Esc)', onclick: close }, '✕')),
+      // Named by the hostname, not by the service behind it: two hosts of one
+      // app often share a service, and two chips both reading “web” say
+      // nothing. These stay even when nothing runs, where the rows below are
+      // the containers and there are none.
       uni && uni.apps ? h('div', { class: 'side-urls' }, uni.apps.flatMap((a) => (a.urls || []).map((x) =>
-        h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer', class: 'chip' }, x.service || a.key)))) : null,
+        h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer', class: 'chip', title: x.url + ' \u2192 ' + a.key + '/' + x.service },
+          x.host || x.service || a.key)))) : null,
       h('div', { class: 'tabs', role: 'tablist' }, tab('containers', 'Containers', c.rows ? c.rows.length : null), tab('logs', 'Logs')),
       ...(c.error ? [errorBox(c.error)] : []),
       h('div', { id: 'tabpanel', role: 'tabpanel', 'aria-labelledby': 'tab-' + c.tab, class: 'side-body' },
@@ -1604,6 +1609,7 @@ const sidePanel = (() => {
         h('div', { class: 'crow-head' }, h('span', { class: 'dot ' + (r.running ? 'ok' : 'warn') }), h('b', null, key),
           h('span', { class: 'grow' }), h('span', { class: 'muted small' }, r.status)),
         numbers,
+        ...urlsFor(c, r),
         r.ports ? h('div', { class: 'muted mono small' }, r.ports) : null,
         h('div', { class: 'actions' },
           h('button', { type: 'button', class: 'btn small', onclick: () => startLog(r.app, r.service) }, 'Logs'),
@@ -1613,6 +1619,18 @@ const sidePanel = (() => {
           copyable(r.name, 'name')));
     }));
     drawStats();
+  }
+
+  // Where this container is reached: the addresses the proxy routes to this
+  // very service, which is what somebody looking at a container wants to open.
+  // Only a web address becomes a link, as everywhere else on this page.
+  function urlsFor(c, r) {
+    const uni = universeIn(c.project, c.universe);
+    const app = uni && (uni.apps || []).find((a) => a.key === r.app);
+    if (!app) return [];
+    return (app.urls || []).filter((x) => x.service === r.service && /^https?:\/\//.test(x.url))
+      .map((x) => h('div', { class: 'crow-url' },
+        h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer' }, x.url)));
   }
 
   function restartButton(c, r, key) {

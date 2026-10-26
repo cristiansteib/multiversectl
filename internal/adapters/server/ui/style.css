@@ -251,6 +251,7 @@ body:has(.dock:not([hidden])) main { padding-bottom: 300px; }
 .crow.off { background: var(--sunk); }
 .crow-head { display: flex; align-items: center; gap: 8px; }
 .crow .actions { margin: 0; align-items: center; }
+.crow-url { font: 13px var(--mono); overflow-wrap: anywhere; }
 .meters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-height: 18px; }
 .meter { display: inline-flex; align-items: center; gap: 6px; }
 .meter-l { color: var(--muted); font-size: 12px; width: 28px; }
