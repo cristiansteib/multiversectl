@@ -2,7 +2,13 @@
 services:
 {{- range .Services}}
   {{.Name}}:
-{{- if .Unpublish}}
+{{- if .Ports}}
+    # portForward: only these host ports, chosen by multiversectl and kept.
+    ports: !override
+{{- range .Ports}}
+      - {{q .}}
+{{- end}}
+{{- else if .Unpublish}}
     ports: !reset []
 {{- end}}
 {{- if .Env}}

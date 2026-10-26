@@ -223,6 +223,13 @@ type App struct {
 	// port is reached at the app's own name with no configuration at all.
 	// Declaring hosts here wins over both.
 	Hosts []Host `yaml:"hosts"`
+
+	// Host keys that are also published on a free host port, so a client that
+	// refuses plain http to a hostname (an iPhone app) can call
+	// http://<this machine's address>:<port>. The port is chosen once and kept;
+	// `universe ls` shows the address as <host>:forward. Works with hosts from
+	// labels too, so the repository's own labels need not be repeated here.
+	PortForward []string `yaml:"portForward"`
 }
 
 type Optional struct {

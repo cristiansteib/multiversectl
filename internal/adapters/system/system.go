@@ -69,6 +69,18 @@ func (System) PortFree(ctx context.Context, port int) (bool, error) {
 	return true, l.Close()
 }
 
+// FreePort lets the kernel choose: it knows every port in use, and an address
+// nobody hard-coded cannot clash with one somebody did.
+func (System) FreePort(ctx context.Context) (int, error) {
+	var lc net.ListenConfig
+	l, err := lc.Listen(ctx, "tcp", "0.0.0.0:0")
+	if err != nil {
+		return 0, fmt.Errorf("finding a free port: %w", err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
 // probeTimeout keeps a dead address from stalling doctor: it only has to tell
 // "answers" from "does not".
 const probeTimeout = 3 * time.Second

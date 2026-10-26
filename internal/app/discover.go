@@ -18,6 +18,7 @@ import (
 //	  multiverse.host.api: "8001"
 //	  multiverse.host.api.entrypoint: devapi   # default: web
 //	  multiverse.host.api.aliases: app,adm     # same service, other hostnames
+//	  multiverse.host.api.portForward: auto    # also reachable at <ip>:<free port>
 //	  multiverse.publish: "true"               # keep my published ports
 //
 // With no labels at all, a service that exposes exactly one port is reached at
@@ -165,7 +166,32 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			return nil, err
 		}
 	}
+	for _, appKey := range s.Manifest.RunnableApps() {
+		for _, hostKey := range s.Manifest.Apps[appKey].PortForward {
+			rule, ok := rules[hostKey]
+			if !ok || rule.App != appKey {
+				return nil, fmt.Errorf("apps.%s.portForward: %q is not one of its hosts (%s)", appKey, hostKey, hostsOf(rules, appKey))
+			}
+			rule.PortForward = domain.PortForwardAuto
+			rules[hostKey] = rule
+		}
+	}
 	return rules, nil
+}
+
+// hostsOf names an app's hosts for an error message.
+func hostsOf(rules map[string]domain.RouteRule, appKey string) string {
+	var keys []string
+	for hostKey, rule := range rules {
+		if rule.App == appKey {
+			keys = append(keys, hostKey)
+		}
+	}
+	sort.Strings(keys)
+	if len(keys) == 0 {
+		return "none"
+	}
+	return strings.Join(keys, ", ")
 }
 
 // soleExposedPort is the no-configuration case: exactly one service exposing
@@ -214,6 +240,8 @@ func rulesFromLabels(labels map[string]string) map[string]domain.RouteRule {
 			rule.Port, _ = strconv.Atoi(labels[key])
 		case field == "entrypoint":
 			rule.Entrypoint = labels[key]
+		case field == "portForward":
+			rule.PortForward = labels[key]
 		case field == "aliases":
 			for _, alias := range strings.Split(labels[key], ",") {
 				if alias = strings.TrimSpace(alias); alias != "" {

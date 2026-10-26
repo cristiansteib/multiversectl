@@ -12,6 +12,15 @@ type RouteRule struct {
 	Entrypoint string   `yaml:"entrypoint"`
 	Aliases    []string `yaml:"aliases,omitempty"`
 	Hostname   string   `yaml:"hostname"`
+
+	// PortForward is "auto" when the service is also published on a host port.
+	// HostPort is the port chosen the first time and kept for the life of the
+	// universe, so the address a phone was given keeps working across restarts;
+	// ForwardURL is that address, stored like Hostname so reading commands need
+	// no network lookup.
+	PortForward string `yaml:"portForward,omitempty"`
+	HostPort    int    `yaml:"hostPort,omitempty"`
+	ForwardURL  string `yaml:"forwardURL,omitempty"`
 }
 
 // UniverseState is what survives between commands: enough to act on a
