@@ -407,6 +407,9 @@ func universeTitle(o *Output, u app.Summary) string {
 		state = o.Yellow("stopped")
 	}
 	parts := []string{o.paint(bold+cyan, "universe "+u.Name)}
+	if u.PR != "" {
+		parts = append(parts, o.Accent(u.PR))
+	}
 	if u.Note != "" {
 		parts = append(parts, o.Yellow(truncate(u.Note, 48)))
 	}
@@ -724,7 +727,7 @@ func (r runner) universeCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.proxyCmd(), r.pruneCmd(), r.downCmd(), r.syncCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
+	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.proxyCmd(), r.pruneCmd(), r.downCmd(), r.syncCmd(), r.noteCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
 		r.envCmd(), r.runCmd(), r.execCmd())
 	return cmd
 }
@@ -768,7 +771,7 @@ func (r runner) universeStatusCmd() *cobra.Command {
 				started = age(u.LastStarted)
 			}
 			rows = append(rows, []Cell{{Text: u.Name}, {Text: state, Style: style}, {Text: up}, {Text: started},
-				{Text: joinPairs(u.Branches)}, {Text: u.Note, Style: dim}})
+				{Text: joinPairs(u.Branches)}, {Text: strings.TrimSpace(u.PR + " " + u.Note), Style: dim}})
 		}
 		r.out.Cells([]string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCHES", "NOTE"}, rows)
 		for _, u := range list {
@@ -855,6 +858,70 @@ func (r runner) syncCmd() *cobra.Command {
 					}
 				}
 			}
+			return nil
+		})(cmd, args)
+	}
+	return cmd
+}
+
+func (r runner) noteCmd() *cobra.Command {
+	var pr string
+	var clear bool
+	cmd := &cobra.Command{
+		Use:   "note <universe> [text]",
+		Short: "Say what a universe is for, and which pull request its work is going to",
+		Long: "The note and the PR are kept with the universe and shown by ls, status, -o json and\n" +
+			"the web page, so a person or another agent finding it later knows what it is doing\n" +
+			"without asking. With neither text nor --pr it prints what is there; --clear empties both.",
+		Example: "  multiversectl universe note 3 \"fixing the login redirect\"\n" +
+			"  multiversectl universe note 3 --pr https://github.com/acme/api/pull/42\n" +
+			"  multiversectl universe note 3",
+		Args: cobra.MinimumNArgs(1),
+	}
+	cmd.Flags().StringVar(&pr, "pr", "", "the pull or merge request the work is going to (a URL)")
+	cmd.Flags().BoolVar(&clear, "clear", false, "remove the note and the PR")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			name, text := args[0], strings.Join(args[1:], " ")
+			var in app.NoteInput
+			switch {
+			case clear:
+				empty := ""
+				in = app.NoteInput{Text: &empty, PR: &empty}
+			default:
+				if text != "" {
+					in.Text = &text
+				}
+				if cmd.Flags().Changed("pr") {
+					in.PR = &pr
+				}
+			}
+			if in.Text == nil && in.PR == nil {
+				t, p, err := s.Note(name)
+				if err != nil {
+					return err
+				}
+				if t == "" && p == "" {
+					r.out.Info("no note on %s: `multiversectl universe note %s \"what it is for\" --pr <url>`", name, name)
+					return nil
+				}
+				if p != "" {
+					r.out.Plain("pr   %s", p)
+				}
+				if t != "" {
+					r.out.Plain("note %s", t)
+				}
+				return nil
+			}
+			st, err := s.SetNote(name, in)
+			if err != nil {
+				return err
+			}
+			if st.PR == "" && st.Note == "" {
+				r.out.OK("universe %s: note cleared", st.Name)
+				return nil
+			}
+			r.out.OK("universe %s: %s", st.Name, strings.TrimSpace(st.PR+" "+st.Note))
 			return nil
 		})(cmd, args)
 	}

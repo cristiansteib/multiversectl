@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,5 +83,34 @@ func TestUninstallRemovesTheSkillAndForgetsIt(t *testing.T) {
 	}
 	if len(s.Status()) != 0 {
 		t.Errorf("status = %+v", s.Status())
+	}
+}
+
+func TestTheNoteAndPRAreKeptWithAUniverse(t *testing.T) {
+	b := newBench(t)
+	if _, err := b.create(app.CreateInput{Name: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	text, pr := "fixing the login redirect", "https://example.test/acme/api/pull/42"
+	if _, err := b.svc.SetNote("1", app.NoteInput{Text: &text}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := b.svc.SetNote("1", app.NoteInput{PR: &pr}); err != nil { // leaves the text
+		t.Fatal(err)
+	}
+	gotText, gotPR, err := b.svc.Note("1")
+	if err != nil || gotText != text || gotPR != pr {
+		t.Fatalf("%q %q %v", gotText, gotPR, err)
+	}
+	list, _ := b.svc.List(context.Background(), app.ListOptions{})
+	if len(list) != 1 || list[0].Note != text || list[0].PR != pr {
+		t.Errorf("list = %+v", list)
+	}
+	empty := ""
+	if _, err := b.svc.SetNote("1", app.NoteInput{Text: &empty, PR: &empty}); err != nil {
+		t.Fatal(err)
+	}
+	if gotText, gotPR, _ = b.svc.Note("1"); gotText != "" || gotPR != "" {
+		t.Errorf("not cleared: %q %q", gotText, gotPR)
 	}
 }
