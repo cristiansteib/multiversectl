@@ -76,8 +76,11 @@ type universeView struct {
 	LastStarted string            `json:"lastStarted,omitempty"`
 	Note        string            `json:"note,omitempty"`
 	Branches    map[string]string `json:"branches,omitempty"`
-	Apps        []appView         `json:"apps"`
-	Checkouts   []checkoutView    `json:"checkouts"`
+	// Behind is the commits its checkouts lack of the branches they follow,
+	// summed; `sync` brings them forward.
+	Behind    int            `json:"behind,omitempty"`
+	Apps      []appView      `json:"apps"`
+	Checkouts []checkoutView `json:"checkouts"`
 }
 
 type appView struct {
@@ -109,6 +112,11 @@ type checkoutView struct {
 	Branch string `json:"branch,omitempty"`
 	Path   string `json:"path"`
 	App    string `json:"app,omitempty"`
+	// Against the branch it follows, as last fetched.
+	Follows string `json:"follows,omitempty"`
+	Behind  int    `json:"behind,omitempty"`
+	Ahead   int    `json:"ahead,omitempty"`
+	Dirty   bool   `json:"dirty,omitempty"`
 }
 
 type workspaceView struct {
@@ -139,6 +147,11 @@ type repoView struct {
 	Dir     string   `json:"dir"`
 	Runtime string   `json:"runtime"`
 	Cloned  bool     `json:"cloned"`
+	// How the clone stands against origin's default branch, as last fetched.
+	Follows string `json:"follows,omitempty"`
+	Behind  int    `json:"behind,omitempty"`
+	Ahead   int    `json:"ahead,omitempty"`
+	Dirty   bool   `json:"dirty,omitempty"`
 }
 
 type appDefView struct {

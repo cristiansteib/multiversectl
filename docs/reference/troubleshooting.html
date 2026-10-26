@@ -80,6 +80,14 @@
   </nav>
   <h1>Troubleshooting</h1>
   <p class="lede">Hostnames that do not resolve, ports in use, missing secrets and dev servers that answer 403.</p>
+<section id="ts-old">
+  <h2 id="ts-old"><a href="#ts-old">A universe runs old code, or a label that exists is not found</a></h2>
+  <p><code>up</code> says <em>service "mailpit" exposes 2 ports, so which one serves api is a guess — add a label</em>, yet the repository's compose file on <code>main</code> already has that label. A universe's checkouts keep the commit they were made from; they do not follow <code>main</code>. When the error may come from that, it ends with <em>this universe's code is out of date</em> and names the repositories and how far behind they are.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe sync 1
+<span class="p">$ </span>multiversectl universe up 1</pre></div>
+  <p><code>sync</code> never touches uncommitted changes, and leaves commits of the universe's own alone unless <code>--merge</code> is given. <code>universe status</code> and the web page warn when a universe is behind, and <code>project update</code> keeps the shared clones current.</p>
+</section>
+
 <section id="ts-dns">
   <h2 id="ts-dns"><a href="#ts-dns">Hostnames do not resolve</a></h2>
   <p><code>doctor</code> warns: <em>does not resolve; a router or local DNS server may be stripping private-IP answers</em>. Some routers and resolvers drop DNS answers that point to private addresses. Compare your resolver with a public one:</p>
@@ -125,6 +133,7 @@
   <aside class="toc" aria-labelledby="toch">
     <p class="toc-h" id="toch">On this page</p>
     <ul>
+      <li><a href="#ts-old">A universe runs old code, or a label that exists is not found</a></li>
       <li><a href="#ts-dns">Hostnames do not resolve</a></li>
       <li><a href="#ts-ports">Port 80 or 8001 is already in use</a></li>
       <li><a href="#ts-secret">A secret file is missing</a></li>

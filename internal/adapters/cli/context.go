@@ -101,6 +101,12 @@ type CheckoutView struct {
 	Repo   string `json:"repo"`
 	Branch string `json:"branch"`
 	Path   string `json:"path"`
+	// Follows is the branch of origin it is compared with, and Behind and Ahead
+	// the commits it lacks and has, as of the last fetch.
+	Follows string `json:"follows,omitempty"`
+	Behind  int    `json:"behind,omitempty"`
+	Ahead   int    `json:"ahead,omitempty"`
+	Dirty   bool   `json:"dirty,omitempty"`
 }
 
 // ListView is what `universe ls -o json` prints: the project and its universes.
@@ -132,7 +138,11 @@ func universeView(u app.Summary) UniverseView {
 		v.Apps = append(v.Apps, av)
 	}
 	for _, c := range u.Checkouts {
-		v.Checkouts = append(v.Checkouts, CheckoutView{Repo: c.Repo, Branch: c.Branch, Path: c.Path})
+		cv := CheckoutView{Repo: c.Repo, Branch: c.Branch, Path: c.Path}
+		if f := c.Freshness; f != nil {
+			cv.Follows, cv.Behind, cv.Ahead, cv.Dirty = f.Follows, f.Behind, f.Ahead, f.Dirty
+		}
+		v.Checkouts = append(v.Checkouts, cv)
 	}
 	return v
 }
@@ -182,7 +192,10 @@ type BriefUniverse struct {
 	// Down names the services that should be up and are not, so a healthy
 	// universe costs nothing and a broken one says where to look.
 	Down []string `json:"down,omitempty"`
-	Note string   `json:"note,omitempty"`
+	// Behind is, per repository, how many commits of the branch it follows the
+	// checkout lacks. Absent when it is current: `universe sync` fixes it.
+	Behind map[string]int `json:"behind,omitempty"`
+	Note   string         `json:"note,omitempty"`
 }
 
 func briefView(c app.ProjectContext, list []app.Summary) BriefView {
@@ -207,6 +220,12 @@ func briefView(c app.ProjectContext, list []app.Summary) BriefView {
 		}
 		for _, c := range u.Checkouts {
 			b.Checkout[c.Repo] = c.Path
+			if c.Freshness != nil && c.Freshness.Behind > 0 {
+				if b.Behind == nil {
+					b.Behind = map[string]int{}
+				}
+				b.Behind[c.Repo] = c.Freshness.Behind
+			}
 		}
 		for _, a := range u.Apps {
 			for _, h := range a.URLs {
@@ -225,3 +244,30 @@ func briefView(c app.ProjectContext, list []app.Summary) BriefView {
 
 // writeCompactJSON is for the agent's context: no indentation.
 func writeCompactJSON(w io.Writer, v any) error { return json.NewEncoder(w).Encode(v) }
+
+// LessView is the least an agent needs to work: where each universe is, whether
+// it runs and its addresses. A checkout is at <dir>/<repo> by construction, so
+// the paths, branches and clones are left out.
+type LessView struct {
+	Root      string         `json:"root"`
+	Universes []LessUniverse `json:"universes"`
+}
+
+// LessUniverse is one universe in a LessView.
+type LessUniverse struct {
+	Name   string         `json:"name"`
+	State  string         `json:"state"`
+	Dir    string         `json:"dir"`
+	URLs   []string       `json:"urls"`
+	Down   []string       `json:"down,omitempty"`
+	Behind map[string]int `json:"behind,omitempty"`
+}
+
+func lessView(c app.ProjectContext, list []app.Summary) LessView {
+	full := briefView(c, list)
+	v := LessView{Root: c.Root, Universes: make([]LessUniverse, 0, len(full.Universes))}
+	for _, u := range full.Universes {
+		v.Universes = append(v.Universes, LessUniverse{Name: u.Name, State: u.State, Dir: u.Dir, URLs: u.URLs, Down: u.Down, Behind: u.Behind})
+	}
+	return v
+}

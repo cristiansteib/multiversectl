@@ -14,6 +14,11 @@ import (
 // that instead of scraping help text.
 const jsonFlag = "json"
 
+func flagOn(cmd *cobra.Command, name string) bool {
+	f := cmd.Flags().Lookup(name)
+	return f != nil && f.Value.String() == "true"
+}
+
 // wantsJSON reports whether --json was given.
 func wantsJSON(cmd *cobra.Command) bool {
 	f := cmd.Flags().Lookup(jsonFlag)
@@ -29,7 +34,11 @@ func applyJSON(cmd *cobra.Command, out *Output) error {
 	}
 	if o := cmd.Flags().Lookup("output"); o != nil {
 		if !o.Changed {
-			return cmd.Flags().Set("output", "json")
+			v := "json"
+			if flagOn(cmd, "less") {
+				v = "json,less"
+			}
+			return cmd.Flags().Set("output", v)
 		}
 		return nil
 	}
@@ -59,14 +68,21 @@ type FlagDoc struct {
 	Global    bool   `json:"global,omitempty"`
 }
 
-func commandDoc(cmd *cobra.Command, top bool) CommandDoc {
-	d := CommandDoc{
-		Command: cmd.CommandPath(), Short: cmd.Short, Long: strings.TrimSpace(cmd.Long),
-		Usage: cmd.UseLine(), Aliases: cmd.Aliases,
+// commandDoc describes a command. By default it is lean, for an agent's
+// context: what the command is for, its usage, its own flags and, for a group,
+// the names and one-liners of its subcommands (ask one of them for more).
+// full is the whole tree with every long text and example.
+func commandDoc(cmd *cobra.Command, top, full bool) CommandDoc {
+	d := CommandDoc{Command: cmd.CommandPath(), Short: cmd.Short, Usage: cmd.UseLine(), Aliases: cmd.Aliases}
+	if full {
+		d.Long = strings.TrimSpace(cmd.Long)
 	}
-	for _, l := range strings.Split(strings.TrimSpace(cmd.Example), "\n") {
-		if l = strings.TrimSpace(l); l != "" {
-			d.Examples = append(d.Examples, l)
+	leaf := !cmd.HasAvailableSubCommands()
+	if full || leaf {
+		for _, l := range strings.Split(strings.TrimSpace(cmd.Example), "\n") {
+			if l = strings.TrimSpace(l); l != "" {
+				d.Examples = append(d.Examples, l)
+			}
 		}
 	}
 	add := func(set *pflag.FlagSet, global bool) {
@@ -74,7 +90,14 @@ func commandDoc(cmd *cobra.Command, top bool) CommandDoc {
 			if f.Hidden || f.Name == "help" {
 				return
 			}
-			d.Flags = append(d.Flags, FlagDoc{Name: f.Name, Shorthand: f.Shorthand, Type: f.Value.Type(), Default: f.DefValue, Usage: f.Usage, Global: global})
+			fd := FlagDoc{Name: f.Name, Shorthand: f.Shorthand, Type: f.Value.Type(), Default: f.DefValue, Usage: f.Usage, Global: global}
+			if fd.Type == "bool" {
+				fd.Type = "" // a switch: the type says nothing
+			}
+			if fd.Default == "false" || fd.Default == "[]" {
+				fd.Default = ""
+			}
+			d.Flags = append(d.Flags, fd)
 		})
 	}
 	add(cmd.LocalNonPersistentFlags(), false)
@@ -85,13 +108,14 @@ func commandDoc(cmd *cobra.Command, top bool) CommandDoc {
 		add(cmd.PersistentFlags(), true)
 	}
 	for _, c := range cmd.Commands() {
-		if c.Hidden || !c.IsAvailableCommand() && c.Name() != "help" {
+		if c.Hidden || c.Name() == "help" || !c.IsAvailableCommand() {
 			continue
 		}
-		if c.Name() == "help" {
-			continue
+		if full {
+			d.Commands = append(d.Commands, commandDoc(c, false, true))
+		} else {
+			d.Commands = append(d.Commands, CommandDoc{Command: c.CommandPath(), Short: c.Short})
 		}
-		d.Commands = append(d.Commands, commandDoc(c, false))
 	}
 	return d
 }
@@ -99,13 +123,15 @@ func commandDoc(cmd *cobra.Command, top bool) CommandDoc {
 // jsonHelp makes -h/--help (and `help <command>`) print the command's document
 // when --json is given, and the usual text otherwise.
 func jsonHelp(root *cobra.Command, _ any) {
+	root.PersistentFlags().Bool("less", false, "with --json: only what an agent must have (listings drop everything it can work out)")
+	root.PersistentFlags().Bool("full", false, "with --help --json: every command with its long text and examples, not the lean index")
 	text := root.HelpFunc()
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		if !wantsJSON(cmd) {
 			text(cmd, args)
 			return
 		}
-		b, _ := json.Marshal(commandDoc(cmd, true))
+		b, _ := json.Marshal(commandDoc(cmd, true, flagOn(cmd, "full")))
 		fmt.Fprintln(cmd.OutOrStdout(), string(b))
 	})
 }

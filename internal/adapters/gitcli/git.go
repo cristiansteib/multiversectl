@@ -331,3 +331,17 @@ func (g Git) FastForward(ctx context.Context, dir, branch string) error {
 	_, err := g.run(ctx, "-C", dir, "merge", "--ff-only", "--quiet", "origin/"+branch)
 	return err
 }
+
+func (g Git) Merge(ctx context.Context, dir, branch string) error {
+	args := []string{"-C", dir}
+	// A merge commit needs an author. A machine that has set none still gets
+	// its merge, signed as the tool, instead of a failure that reads like a conflict.
+	if out, _ := g.run(ctx, "-C", dir, "config", "user.email"); out == "" {
+		args = append(args, "-c", "user.name=multiversectl", "-c", "user.email=multiversectl@localhost")
+	}
+	if _, err := g.run(ctx, append(args, "merge", "--no-edit", "--quiet", "origin/"+branch)...); err != nil {
+		_, _ = g.run(ctx, "-C", dir, "merge", "--abort")
+		return err
+	}
+	return nil
+}

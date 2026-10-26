@@ -81,3 +81,34 @@ func TestMessagesBecomeJSONLinesWithJSON(t *testing.T) {
 		t.Errorf("got %q", buf.String())
 	}
 }
+
+func TestLessKeepsOnlyWhereAUniverseIsAndWhatItAnswersOn(t *testing.T) {
+	list := []app.Summary{{
+		Name: "3", Dir: "/r/universes/3", Running: 1, Branches: map[string]string{"api": "u3"},
+		Checkouts: []app.Checkout{{Repo: "api", Path: "/r/universes/3/api"}},
+		Apps:      []app.AppSummary{{Key: "api", Expected: 1, URLs: []app.HostURL{{URL: "http://a.example.test"}}, Services: []app.ServiceStatus{{Name: "web", State: app.StateRunning}}}},
+	}}
+	b, _ := json.Marshal(lessView(app.ProjectContext{Root: "/r", Manifest: "/r/m.yaml"}, list))
+	got := string(b)
+	want := `{"root":"/r","universes":[{"name":"3","state":"running","dir":"/r/universes/3","urls":["http://a.example.test"]}]}`
+	if got != want {
+		t.Errorf("got %s", got)
+	}
+}
+
+func TestHelpIsLeanUnlessFull(t *testing.T) {
+	size := func(args ...string) int {
+		root, _ := New(Factory{})
+		var out strings.Builder
+		root.SetOut(&out)
+		root.SetArgs(args)
+		if err := root.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		return out.Len()
+	}
+	lean, full := size("--help", "--json"), size("--help", "--json", "--full")
+	if lean*5 > full {
+		t.Errorf("lean %d bytes vs full %d: the index should be a fraction of the whole tree", lean, full)
+	}
+}

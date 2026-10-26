@@ -740,6 +740,17 @@ func (r runner) updateOne(ctx context.Context, c *app.Catalogs, w app.WorkspaceI
 	for _, key := range missing {
 		did = append(did, key+" cloned")
 	}
+	clones, err := s.UpdateClones(ctx)
+	if err != nil {
+		return fmt.Errorf("%s: %w", w.Name, err)
+	}
+	for _, c := range clones {
+		if c.Moved > 0 {
+			did = append(did, fmt.Sprintf("%s %s", c.Repo, c.Detail))
+		} else {
+			r.out.Warn("%s: %s: %s", w.Name, c.Repo, c.Detail)
+		}
+	}
 	if len(did) == 0 {
 		r.out.OK("%s: up to date", w.Name)
 		return nil
