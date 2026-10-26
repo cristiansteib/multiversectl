@@ -328,29 +328,50 @@ func totals(u app.Summary) (up, expected, volumes int) {
 	return up, expected, volumes
 }
 
-// lsTable is the default: one block per universe, with a row per address so
-// each app's branch, service and URL are readable rather than crammed into a
-// single cell. Wide trades the addresses for every service of every app, and
-// names the volumes underneath.
+// lsTable is one block per universe. The default answers what somebody who
+// typed `ls` is nearly always after — which app, on which branch, at which
+// address — and leaves the rest to `-o wide`: the service behind each address,
+// what is up and what is not, what publishes a port, and every worktree,
+// compose project and volume on disk.
+//
+// The forward column appears only for a universe that has one, since most do
+// not and an empty column is a column to read past.
 func lsTable(o *Output, list []app.Summary, wide bool) {
-	headers := []string{"APP", "BRANCH", "RUNNING", "SERVICE", "HOST", "URL", "PATH"}
-	rows := universeRows
-	if wide {
-		headers = []string{"APP", "BRANCH", "SERVICE", "STATE", "PUBLISHED", "HOST", "URL"}
-		rows = universeWideRows
-	}
 	for i, u := range list {
 		if i > 0 {
 			o.Plain("")
 		}
-		o.Block(universeTitle(o, u), headers, rows(u))
 		if wide {
+			o.Block(universeTitle(o, u),
+				[]string{"APP", "BRANCH", "SERVICE", "STATE", "PUBLISHED", "HOST", "URL"}, universeWideRows(u))
 			o.Plain("%s", o.Dim(metaLine(u)))
 			o.Plain("")
 			o.Block(o.Dim("on disk"),
 				[]string{"REPO", "WORKTREE", "CODE", "COMPOSE", "VOLUMES"}, diskRows(u))
+			continue
+		}
+		headers := []string{"APP", "BRANCH", "URL"}
+		if anyForward(u) {
+			headers = append(headers, "FORWARDED")
+		}
+		o.Block(universeTitle(o, u), headers, universeRows(u))
+	}
+}
+
+// forwardSuffix marks the second address of a host: the one on a host port, for
+// something that cannot use a hostname. It is a sibling of the address it
+// belongs to rather than a row of its own, so the table pairs them again.
+const forwardSuffix = ":forward"
+
+func anyForward(u app.Summary) bool {
+	for _, a := range u.Apps {
+		for _, h := range a.URLs {
+			if strings.HasSuffix(h.Host, forwardSuffix) {
+				return true
+			}
 		}
 	}
+	return false
 }
 
 // diskRows is what a universe owns on disk: one row per repository, with the
@@ -464,31 +485,43 @@ func truncate(s string, n int) string {
 // the group starts at and dim after it marks the seam between groups without
 // spending a colour.
 func universeRows(u app.Summary) [][]Cell {
+	forwards := anyForward(u)
 	rows := make([][]Cell, 0, len(u.Apps)+1)
 	for _, a := range u.Apps {
 		head := []Cell{
 			{Text: a.Key, Style: bold},
 			{Text: a.Branch, Style: yellow},
-			{Text: fmt.Sprint(a.Running), Style: runningStyle(a.Running)},
 		}
-		path := Cell{Text: shortPath(a.Path), Style: dim}
-		if len(a.URLs) == 0 {
-			rows = append(rows, append(head, dashes(3)[0], dashes(3)[1], dashes(3)[2], path))
-			continue
-		}
+		// Keyed by the address they belong to, so each lands beside it.
+		forward := map[string]string{}
 		for _, h := range a.URLs {
-			rows = append(rows, append(head,
-				Cell{Text: h.Service, Style: dim},
-				Cell{Text: h.Host, Style: cyan},
-				// The URL is what gets copied, so it stays in the terminal's
-				// own foreground rather than a colour that may be dim.
-				Cell{Text: h.URL},
-				path,
-			))
-			head, path = continuation(a.Key, 2), Cell{}
+			if name, ok := strings.CutSuffix(h.Host, forwardSuffix); ok {
+				forward[name] = h.URL
+			}
+		}
+		shown := 0
+		for _, h := range a.URLs {
+			if strings.HasSuffix(h.Host, forwardSuffix) {
+				continue
+			}
+			// The URL is what gets copied, so it stays in the terminal's own
+			// foreground rather than a colour that may be dim.
+			row := append(head, Cell{Text: h.URL})
+			if forwards {
+				row = append(row, Cell{Text: forward[h.Host], Style: cyan})
+			}
+			rows = append(rows, row)
+			head, shown = continuation(a.Key, 1), shown+1
+		}
+		if shown == 0 {
+			row := append(head, Cell{Text: "no address", Style: dim})
+			if forwards {
+				row = append(row, Cell{Text: "", Style: dim})
+			}
+			rows = append(rows, row)
 		}
 	}
-	return append(rows, checkoutRows(u, false)...)
+	return append(rows, checkoutRows(u, false, forwards)...)
 }
 
 // continuation is the head of a row that belongs to the group above it: the
@@ -550,13 +583,13 @@ func universeWideRows(u app.Summary) [][]Cell {
 	if len(rows) > 0 && len(u.Checkouts) > len(u.Apps) {
 		rows = append(rows, nil)
 	}
-	return append(rows, checkoutRows(u, true)...)
+	return append(rows, checkoutRows(u, true, false)...)
 }
 
 // checkoutRows give every repository without an app a row of its own. A
 // repository with no services is still checked out for editing, and a table
 // that silently drops it reads as if the universe did not have it.
-func checkoutRows(u app.Summary, wide bool) [][]Cell {
+func checkoutRows(u app.Summary, wide, forwards bool) [][]Cell {
 	var rows [][]Cell
 	for _, c := range u.Checkouts {
 		if c.App != "" {
@@ -570,13 +603,10 @@ func checkoutRows(u app.Summary, wide bool) [][]Cell {
 		// column that would hold the URL; the columns before it are dashed.
 		if wide {
 			row = append(row, dashes(4)...)
-		} else {
-			row = append(row, dashes(3)...)
 		}
 		row = append(row, Cell{Text: "checkout only, no services", Style: dim})
-		if !wide {
-			// Wide names every worktree in its own block instead.
-			row = append(row, Cell{Text: shortPath(c.Path), Style: dim})
+		if !wide && forwards {
+			row = append(row, Cell{})
 		}
 		rows = append(rows, row)
 	}
