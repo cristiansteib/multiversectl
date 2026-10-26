@@ -47,6 +47,7 @@ type fake struct {
 	containers []containerView
 	stats      []statView
 	fleetStats fleetStatsView
+	code       codeView
 	logText    string
 	logHold    bool
 }
@@ -89,6 +90,10 @@ func (f *fake) Containers(_ context.Context, ws, u string) ([]containerView, err
 func (f *fake) Stats(_ context.Context, ws, u string) ([]statView, error) {
 	f.ask("stats:" + ws + ":" + u)
 	return f.stats, f.err
+}
+func (f *fake) Code(_ context.Context, ws, u string) (codeView, error) {
+	f.ask("code:" + ws + ":" + u)
+	return f.code, f.err
 }
 func (f *fake) FleetStats(_ context.Context, ws string) (fleetStatsView, error) {
 	f.ask("fleetstats:" + ws)

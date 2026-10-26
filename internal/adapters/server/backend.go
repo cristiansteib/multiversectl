@@ -37,6 +37,9 @@ type Backend interface {
 	// Logs writes one service's log to w, until ctx ends when it follows.
 	Containers(ctx context.Context, workspace, universe string) ([]containerView, error)
 	Stats(ctx context.Context, workspace, universe string) ([]statView, error)
+	// Code reads a universe's repositories: branch, how far it has moved from
+	// what it follows, and the pull or merge request open for it.
+	Code(ctx context.Context, workspace, universe string) (codeView, error)
 	Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error
 	// FleetStats reads every running container of one project, or of all.
 	FleetStats(ctx context.Context, workspace string) (fleetStatsView, error)
@@ -260,6 +263,45 @@ func (s Services) Containers(ctx context.Context, workspace, universe string) ([
 		out = append(out, containerView{App: r.App, Service: r.Service, Name: r.Name, Status: r.Status, Running: r.Running, Ports: r.Ports})
 	}
 	return out, nil
+}
+
+// Code reads one universe's repositories: the branches, how far they have
+// moved, and the review each has open.
+func (s Services) Code(ctx context.Context, workspace, universe string) (codeView, error) {
+	svc, err := s.service(workspace)
+	if err != nil {
+		return codeView{}, err
+	}
+	rows, err := svc.UniverseCode(ctx, universe)
+	if err != nil {
+		return codeView{}, err
+	}
+	v := codeView{Rows: []codeRow{}}
+	for _, r := range rows {
+		row := codeRow{Repo: r.Repo, App: r.App, Branch: r.Branch, Path: r.Path, URL: r.URL,
+			Follows: r.Follows, Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError}
+		if !r.Work.Empty() {
+			row.Work = &diffView{Files: r.Work.Files, Added: r.Work.Added, Removed: r.Work.Removed}
+		}
+		if !r.Uncommitted.Empty() {
+			row.Uncommitted = &diffView{Files: r.Uncommitted.Files, Added: r.Uncommitted.Added, Removed: r.Uncommitted.Removed}
+		}
+		if r.Review != nil {
+			row.Review = &reviewView{Number: r.Review.Number, Mark: reviewMark(r.URL), Title: r.Review.Title,
+				URL: r.Review.URL, Draft: r.Review.Draft, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
+		}
+		v.Rows = append(v.Rows, row)
+	}
+	return v, nil
+}
+
+// reviewMark is how the service writes a review's number: GitLab's merge
+// requests are !12, and everything else is a pull request, #12.
+func reviewMark(repoURL string) string {
+	if domain.Locate(repoURL, "").Platform == domain.PlatformGitLab {
+		return "!"
+	}
+	return "#"
 }
 
 func (s Services) Stats(ctx context.Context, workspace, universe string) ([]statView, error) {

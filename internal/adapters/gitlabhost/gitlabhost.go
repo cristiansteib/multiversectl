@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -210,6 +211,42 @@ func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
 // host is not a GitLab project.
 func (Host) Owns(repoURL string) bool {
 	return domain.Locate(repoURL, "").Platform == domain.PlatformGitLab
+}
+
+// OpenReview asks for the open merge request a branch is the source of. It
+// goes through the API rather than `glab mr list`, which prints a table meant
+// for a terminal and would have to be parsed back.
+func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
+	if branch == "" {
+		return nil, nil
+	}
+	id, err := projectID(repoURL)
+	if err != nil {
+		return nil, err
+	}
+	out, err := glab(ctx, "api", "projects/"+id+"/merge_requests?state=opened&per_page=1&source_branch="+url.QueryEscape(branch))
+	if err != nil {
+		return nil, err
+	}
+	var raw []struct {
+		IID       int    `json:"iid"`
+		Title     string `json:"title"`
+		WebURL    string `json:"web_url"`
+		Draft     bool   `json:"draft"`
+		UpdatedAt string `json:"updated_at"`
+		Author    struct {
+			Username string `json:"username"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal([]byte(out), &raw); err != nil {
+		return nil, fmt.Errorf("glab: read the merge requests: %w", err)
+	}
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	r := raw[0]
+	updated, _ := time.Parse(time.RFC3339, r.UpdatedAt)
+	return &app.Review{Number: r.IID, Title: r.Title, URL: r.WebURL, Draft: r.Draft, Author: r.Author.Username, Updated: updated}, nil
 }
 
 func glab(ctx context.Context, args ...string) (string, error) {

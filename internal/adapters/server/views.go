@@ -120,6 +120,49 @@ type checkoutView struct {
 	Dirty   bool   `json:"dirty,omitempty"`
 }
 
+// codeView is a universe's repositories as the page draws them: one row each,
+// and the failures of the hosting services kept apart from the rows so a
+// branch with no review is never confused with one nobody could ask about.
+type codeView struct {
+	Rows []codeRow `json:"rows"`
+}
+
+type codeRow struct {
+	Repo   string `json:"repo"`
+	App    string `json:"app,omitempty"`
+	Branch string `json:"branch,omitempty"`
+	Path   string `json:"path"`
+	URL    string `json:"url,omitempty"`
+	// Follows is the branch of origin this one is measured against.
+	Follows     string      `json:"follows,omitempty"`
+	Behind      int         `json:"behind,omitempty"`
+	Ahead       int         `json:"ahead,omitempty"`
+	Dirty       bool        `json:"dirty,omitempty"`
+	Work        *diffView   `json:"work,omitempty"`
+	Uncommitted *diffView   `json:"uncommitted,omitempty"`
+	Review      *reviewView `json:"review,omitempty"`
+	ReviewError string      `json:"reviewError,omitempty"`
+}
+
+type diffView struct {
+	Files   int `json:"files"`
+	Added   int `json:"added"`
+	Removed int `json:"removed"`
+}
+
+// reviewView carries Mark, the character the service writes a review's number
+// with, so the page draws #12 for GitHub and !12 for GitLab without knowing
+// which service anything is on.
+type reviewView struct {
+	Number  int    `json:"number"`
+	Mark    string `json:"mark"`
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Draft   bool   `json:"draft,omitempty"`
+	Author  string `json:"author,omitempty"`
+	Updated string `json:"updated,omitempty"`
+}
+
 type workspaceView struct {
 	Name    string `json:"name"`
 	Current bool   `json:"current,omitempty"`

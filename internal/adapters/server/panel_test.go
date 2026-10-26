@@ -142,3 +142,31 @@ func TestRestartNeedsItsAppAndService(t *testing.T) {
 func contextWithCancel() (context.Context, context.CancelFunc) {
 	return context.WithCancel(context.Background())
 }
+
+func TestTheCodeOfAUniverseIsItsOwnRequest(t *testing.T) {
+	f := &fake{code: codeView{Rows: []codeRow{
+		{Repo: "api", App: "api", Branch: "u3", Follows: "main", Behind: 2,
+			Work:   &diffView{Files: 4, Added: 120, Removed: 30},
+			Review: &reviewView{Number: 12, Mark: "#", Title: "Keep the tax column", URL: "https://example.test/pull/12"}},
+	}}}
+	_, h := serve(t, f, Options{ReadOnly: true})
+	rec := do(t, h, "GET", "/api/universe/code?project=acme&universe=3", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("= %d %s", rec.Code, rec.Body)
+	}
+	for _, want := range []string{`"repo":"api"`, `"branch":"u3"`, `"follows":"main"`, `"added":120`, `"mark":"#"`, `"number":12`} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("missing %s in %s", want, rec.Body)
+		}
+	}
+	if got := strings.Join(f.asked, ","); !strings.Contains(got, "code:acme:3") {
+		t.Errorf("asked %s", got)
+	}
+}
+
+func TestTheCodeOfNoUniverseIsNotARequest(t *testing.T) {
+	_, h := serve(t, &fake{}, Options{})
+	if rec := do(t, h, "GET", "/api/universe/code?project=acme", "", nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("= %d %s", rec.Code, rec.Body)
+	}
+}

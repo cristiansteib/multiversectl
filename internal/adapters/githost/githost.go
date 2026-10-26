@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
@@ -126,6 +127,39 @@ func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
 }
 
 func (Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "github.com") }
+
+// OpenReview asks for the open pull request a branch has. --state open is the
+// question: a merged one is history, and history is what the branch itself
+// already says.
+func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
+	if branch == "" {
+		return nil, nil
+	}
+	out, err := gh(ctx, "pr", "list", "--repo", repoURL, "--head", branch, "--state", "open",
+		"--limit", "1", "--json", "number,title,url,isDraft,author,updatedAt")
+	if err != nil {
+		return nil, err
+	}
+	var raw []struct {
+		Number    int    `json:"number"`
+		Title     string `json:"title"`
+		URL       string `json:"url"`
+		IsDraft   bool   `json:"isDraft"`
+		UpdatedAt string `json:"updatedAt"`
+		Author    struct {
+			Login string `json:"login"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal([]byte(out), &raw); err != nil {
+		return nil, fmt.Errorf("read the pull request list: %w", err)
+	}
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	r := raw[0]
+	updated, _ := time.Parse(time.RFC3339, r.UpdatedAt)
+	return &app.Review{Number: r.Number, Title: r.Title, URL: r.URL, Draft: r.IsDraft, Author: r.Author.Login, Updated: updated}, nil
+}
 
 func parseRepos(out string) ([]app.RemoteRepo, error) {
 	var raw []struct {

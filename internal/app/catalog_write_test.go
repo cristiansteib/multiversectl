@@ -99,7 +99,10 @@ func (h *fakeHost) AddTopic(_ context.Context, repoURL, topic string) error {
 	h.topics = append(h.topics, repoURL+" "+topic)
 	return nil
 }
-func (h *fakeHost) Owns(repoURL string) bool    { return strings.Contains(repoURL, "example.test") }
+func (h *fakeHost) Owns(repoURL string) bool { return strings.Contains(repoURL, "example.test") }
+func (h *fakeHost) OpenReview(context.Context, string, string) (*app.Review, error) {
+	return nil, nil
+}
 func (h *fakeHost) Login(context.Context) error { h.logins++; h.signedOut = false; return nil }
 func (h *fakeHost) Create(_ context.Context, name string, private bool) (string, error) {
 	if !private {

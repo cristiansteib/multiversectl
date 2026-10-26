@@ -345,3 +345,43 @@ func (g Git) Merge(ctx context.Context, dir, branch string) error {
 	}
 	return nil
 }
+
+// DiffStat counts what changed, from --numstat rather than --shortstat: the
+// per-file lines are what a binary file is told apart by, and summing them
+// here costs nothing.
+func (g Git) DiffStat(ctx context.Context, dir, ref string) (app.DiffStat, error) {
+	args := []string{"-C", dir, "diff", "--numstat"}
+	if ref == "" {
+		// Everything not committed, staged or not, against HEAD.
+		args = append(args, "HEAD")
+	} else {
+		// Three dots: the work done on this branch since it left the other,
+		// not the other's own commits, which Behind already counts.
+		args = append(args, "origin/"+ref+"...HEAD")
+	}
+	out, err := g.run(ctx, args...)
+	if err != nil {
+		return app.DiffStat{}, err
+	}
+	return parseNumstat(out), nil
+}
+
+// parseNumstat reads "<added>\t<removed>\t<path>" lines. A binary file has a
+// dash for both counts and still changed, so it is a file with no lines.
+func parseNumstat(out string) app.DiffStat {
+	var d app.DiffStat
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.SplitN(strings.TrimSpace(line), "\t", 3)
+		if len(fields) < 3 {
+			continue
+		}
+		d.Files++
+		if n, err := strconv.Atoi(fields[0]); err == nil {
+			d.Added += n
+		}
+		if n, err := strconv.Atoi(fields[1]); err == nil {
+			d.Removed += n
+		}
+	}
+	return d
+}

@@ -28,6 +28,10 @@ type Deps struct {
 	Out       Output
 	// Progress draws slow work; nil runs it without drawing.
 	Progress Progress
+	// Hosts are the services a repository may be on, asked about a branch's
+	// pull or merge request. Empty leaves those unanswered rather than failing:
+	// nothing else a universe shows depends on reaching a network.
+	Hosts []RepoHost
 }
 
 // Service carries out the use cases against one project.

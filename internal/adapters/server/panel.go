@@ -50,6 +50,25 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request) {
 	reply(w, map[string]any{"stats": rows})
 }
 
+// code is one universe's repositories. It is its own request because it costs
+// a handful of git calls and a call to a hosting service per repository, which
+// the fleet listing is polled far too often to carry.
+func (s *Server) code(w http.ResponseWriter, r *http.Request) {
+	project, universe := r.URL.Query().Get("project"), r.URL.Query().Get("universe")
+	if project == "" || universe == "" {
+		fail(w, http.StatusBadRequest, "project and universe are required")
+		return
+	}
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	v, err := s.b.Code(ctx, project, universe)
+	if err != nil {
+		failErr(w, err)
+		return
+	}
+	reply(w, v)
+}
+
 // fleetStats is every running container of every installed project, or of one
 // when the page asks for one: the stats view plots the whole machine.
 func (s *Server) fleetStats(w http.ResponseWriter, r *http.Request) {

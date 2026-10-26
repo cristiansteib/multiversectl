@@ -79,7 +79,22 @@ type Git interface {
 	// Merge brings origin's branch into dir's HEAD with a merge commit. A merge
 	// that conflicts is abandoned, leaving dir as it was.
 	Merge(ctx context.Context, dir, branch string) error
+	// DiffStat measures how much has changed. With a ref it is the work on
+	// dir's HEAD that origin's branch lacks, counted from where the two
+	// parted; with none it is what is edited in dir and not committed.
+	DiffStat(ctx context.Context, dir, ref string) (DiffStat, error)
 }
+
+// DiffStat is a change measured in files and lines, as `git diff --stat` says
+// it: what a branch amounts to, where Ahead only says how many commits.
+type DiffStat struct {
+	Files   int
+	Added   int
+	Removed int
+}
+
+// Empty says nothing changed.
+func (d DiffStat) Empty() bool { return d.Files == 0 && d.Added == 0 && d.Removed == 0 }
 
 // RuntimeRequest is one invocation of the container runtime.
 type RuntimeRequest struct {
@@ -385,6 +400,25 @@ type RepoHost interface {
 	AddTopic(ctx context.Context, repoURL, topic string) error
 	// Owns says whether a repository URL is on this service.
 	Owns(repoURL string) bool
+	// OpenReview is the open pull or merge request whose source is branch, nil
+	// when there is none. It only reads: it opens nothing and signs nobody in,
+	// and a service that cannot be reached is an error, not an absence.
+	OpenReview(ctx context.Context, repoURL, branch string) (*Review, error)
+}
+
+// Review is a pull request on GitHub or a merge request on GitLab: the one
+// thing about a universe's branch that is neither in the checkout nor in the
+// clone, and the thing people most want to know about it.
+type Review struct {
+	// Number is as the service counts them, drawn as #12 or !12.
+	Number int
+	Title  string
+	URL    string
+	// Draft says it is not asking to be merged yet.
+	Draft bool
+	// Author is who opened it, Updated when it last moved.
+	Author  string
+	Updated time.Time
 }
 
 // Account is a user, organization or group on a hosting service.

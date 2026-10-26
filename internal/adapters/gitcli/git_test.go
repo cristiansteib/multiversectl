@@ -213,3 +213,21 @@ func TestLastFetchIsWhenGitLastFetched(t *testing.T) {
 		t.Errorf("just fetched, got %v", at)
 	}
 }
+
+// A binary file has no lines to count and still changed, which --shortstat
+// would have hidden inside its own prose.
+func TestABinaryFileCountsAsAChangedFileWithNoLines(t *testing.T) {
+	d := parseNumstat("12\t3\tinternal/app/code.go\n-\t-\tdocs/logo.png\n0\t40\tREADME.md\n")
+	if d.Files != 3 {
+		t.Errorf("want three files, got %d", d.Files)
+	}
+	if d.Added != 12 || d.Removed != 43 {
+		t.Errorf("want +12 -43, got +%d -%d", d.Added, d.Removed)
+	}
+}
+
+func TestNothingChangedIsNoFilesAtAll(t *testing.T) {
+	if d := parseNumstat("\n"); !(d.Files == 0 && d.Added == 0 && d.Removed == 0) {
+		t.Errorf("want an empty stat, got %+v", d)
+	}
+}

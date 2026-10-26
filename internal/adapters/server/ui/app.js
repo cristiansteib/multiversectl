@@ -56,19 +56,61 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
 }
 
-// A value people want in a terminal: one click copies it.
+// A value people want in a terminal: one click copies it, and the button says
+// so where it was pressed. A message at the foot of the page is not an answer:
+// the operations dock and the side panel both sit there, and a copy that
+// reports itself behind them reads as a button that does nothing.
 function copyable(text, label) {
-  return h('button', {
-    type: 'button', class: 'copy mono', title: 'Copy',
+  const name = label || text;
+  let said;
+  const b = h('button', {
+    type: 'button', class: 'copy mono', title: 'Copy ' + text,
     onclick: async () => {
-      try { await navigator.clipboard.writeText(text); toast('Copied: ' + text); }
-      catch (_) { toast('Copy failed; select it by hand'); }
+      const ok = await wrote(text);
+      b.classList.remove('copied', 'failed');
+      b.classList.add(ok ? 'copied' : 'failed');
+      b.replaceChildren(ok ? 'Copied' : 'Press ctrl-C to copy');
+      if (!ok) select(b, text);
+      clearTimeout(said);
+      said = setTimeout(() => { b.classList.remove('copied', 'failed'); b.replaceChildren(name); }, 1400);
     },
-  }, label || text);
+  }, name);
+  return b;
+}
+
+// The clipboard's promise is raced against a second of patience. A browser
+// that will not write does not always refuse: asked while the page is not the
+// focused one, it answers neither way, and a button that waits on it forever
+// is a button that does nothing when pressed.
+function wrote(text) {
+  const clip = navigator.clipboard;
+  if (!clip) return Promise.resolve(false);
+  return Promise.race([
+    clip.writeText(text).then(() => true, () => false),
+    new Promise((say) => setTimeout(() => say(false), 1000)),
+  ]);
+}
+
+// When the clipboard is refused — it is, on a page served over plain http to
+// something other than localhost — the next best thing is to select the text
+// so the keyboard can take it.
+function select(near, text) {
+  const hold = h('span', { class: 'picked mono' }, text);
+  near.after(hold);
+  const range = document.createRange();
+  range.selectNodeContents(hold);
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  setTimeout(() => hold.remove(), 8000);
 }
 
 const badge = (kind, text, title) => h('span', { class: 'badge ' + kind, title }, text);
 const empty = (...kids) => h('div', { class: 'empty' }, kids);
+// The shape of what is coming, while it is read. A page that holds its layout
+// is a page that does not jump when the numbers land, and “Loading…” holds
+// nothing: the word is for the screen reader, which cannot see the shape.
+const skeleton = (cls) => h('span', { class: 'skel ' + (cls || ''), 'aria-hidden': 'true' });
 const cmd = (c) => h('code', null, c);
 const errorBox = (e) => h('div', { class: 'error', role: 'alert' }, String(e.message || e));
 
@@ -298,21 +340,22 @@ function universeCard(w, u) {
     h('button', { type: 'button', class: 'btn small danger', disabled: busy, onclick: () => removeDialog(w, u) }, 'Remove…'));
   const apps = u.apps.map((a) => h('div', { class: 'app' },
     h('div', { class: 'app-head' }, h('b', null, a.key),
-      a.branch ? h('span', { class: 'chip' }, a.repo + ' @ ' + a.branch) : null,
+      // The branch is the same for every app of a universe in all but the
+      // rarest case, and it is in the header; the repository is only worth
+      // naming when it is not the app's own name.
+      a.repo && a.repo !== a.key ? h('span', { class: 'muted small' }, a.repo) : null,
       a.expected ? badge(a.running === a.expected ? 'ok' : a.running ? 'warn' : 'mute', a.running + '/' + a.expected + ' up') : null),
     a.services && a.services.length ? h('div', { class: 'svcs' }, a.services.map((s) =>
       h('span', { class: 'svc', title: [s.state, s.detail, s.published && 'publishes ' + s.published].filter(Boolean).join(' · ') },
         h('span', { class: 'dot ' + (STATE_DOT[s.state] || '') }), s.name, s.published ? h('span', { class: 'badge warn' }, s.published) : null))) : null,
     a.urls && a.urls.length ? h('div', { class: 'urls' }, a.urls.map((x) =>
       h('a', { href: x.url, target: '_blank', rel: 'noopener noreferrer', title: x.service }, x.url))) : null));
-  const dir = h('div', { class: 'paths' }, h('span', null, 'universe'), copyable(u.dir),
-    u.checkouts.map((c) => h('span', null, [c.repo + (c.branch ? ' @ ' + c.branch : '') + ' ', copyable(c.path),
-      c.behind ? badge('warn', c.behind + ' behind ' + c.follows) : null, c.dirty ? badge('mute', 'edited') : null])));
   const panel = h('div');
   const saved = doctorResults.get(w.name + '/' + u.name);
   if (saved) panel.append(saved);
   return h('article', { class: 'card uni' },
     h('header', null, h('span', { class: 'dot ' + (u.running ? 'ok' : '') }), h('h3', null, u.name),
+      branchChip(u),
       badge(u.running ? 'ok' : 'mute', u.running ? u.running + (total ? '/' + total : '') + ' running' : 'stopped'),
       u.behind ? badge('warn', u.behind + ' behind', 'Its code lacks commits of the branches it follows (as of the last fetch). “Update code” brings them in; restart to run them.') : null,
       h('span', { class: 'grow' }),
@@ -323,7 +366,131 @@ function universeCard(w, u) {
     // Only a web address becomes a link: the field is free text that anyone with a shell wrote.
     u.pr ? h('p', { class: 'note' }, /^https?:\/\//.test(u.pr) ? h('a', { href: u.pr, target: '_blank', rel: 'noopener noreferrer' }, u.pr) : u.pr) : null,
     u.note ? h('p', { class: 'note' }, u.note) : null,
-    apps, dir, panel);
+    apps, codeSection(w, u), panel);
+}
+
+// The branch is the universe's own name for its work, and in all but the
+// rarest case every repository is on the same one: say it once in the header
+// rather than once per app and again per path.
+function branchChip(u) {
+  const names = [...new Set(Object.values(u.branches || {}).filter(Boolean))];
+  if (!names.length) return null;
+  if (names.length === 1) return h('span', { class: 'chip branch', title: 'Every repository is on ' + names[0] }, names[0]);
+  return h('span', { class: 'chip branch', title: names.join(', ') }, names.length + ' branches');
+}
+
+// ── what the branches have become ──────────────────────────────────────
+//
+// How far each repository of a universe has moved from the branch it follows,
+// how much work that is, and the pull or merge request open for it. It is a
+// request of its own, made once a universe is in view: every row costs a few
+// git calls and a question to GitHub or GitLab, and the fleet listing this
+// page draws from is pushed at it whenever anything on the machine changes.
+const codeState = new Map();
+const CODE_STALE = 300000;
+const codeKey = (project, universe) => JSON.stringify([project, universe]);
+
+async function loadCode(key, again) {
+  const had = codeState.get(key) || {};
+  if (had.loading || (!again && had.at && Date.now() - had.at < CODE_STALE)) return;
+  codeState.set(key, { rows: had.rows, loading: true });
+  fillCode(key);
+  const [project, universe] = JSON.parse(key);
+  try {
+    const d = await api('universe/code?project=' + encodeURIComponent(project) + '&universe=' + encodeURIComponent(universe));
+    codeState.set(key, { rows: d.rows || [], at: Date.now() });
+  } catch (e) {
+    codeState.set(key, { rows: had.rows, error: e.message, at: Date.now() });
+  }
+  fillCode(key);
+}
+
+// A card is built again whenever anything in the fleet changes, so what was
+// read is filled into whatever element is on the page now, found by its key
+// rather than kept in a closure that outlives the card it was made for.
+function fillCode(key) {
+  for (const sec of document.querySelectorAll('.code')) if (sec.dataset.key === key) drawCode(sec);
+}
+
+// Nothing is read for a universe nobody has scrolled to.
+const codeWatch = self.IntersectionObserver ? new IntersectionObserver((seen, obs) => {
+  for (const e of seen) {
+    if (!e.isIntersecting) continue;
+    obs.unobserve(e.target);
+    loadCode(e.target.dataset.key);
+  }
+}, { rootMargin: '200px' }) : null;
+
+function codeSection(w, u) {
+  const key = codeKey(w.name, u.name);
+  const sec = h('section', { class: 'code', 'data-key': key },
+    h('div', { class: 'code-head' }, h('b', null, 'Code'),
+      h('span', { class: 'muted small' }, u.checkouts.length + (u.checkouts.length === 1 ? ' repository' : ' repositories')),
+      h('span', { class: 'grow' }),
+      copyable(u.dir, 'folder'),
+      h('button', { type: 'button', class: 'btn small ghost', title: 'Read the branches and their requests again', onclick: () => loadCode(key, true) }, 'Reread')),
+    h('div', { class: 'code-body' }));
+  drawCode(sec);
+  if (codeWatch) codeWatch.observe(sec); else loadCode(key);
+  return sec;
+}
+
+function drawCode(sec) {
+  const st = codeState.get(sec.dataset.key) || {};
+  const body = sec.querySelector('.code-body');
+  if (!st.rows) {
+    body.replaceChildren(st.error ? errorBox({ message: st.error })
+      : h('div', { class: 'crepo' }, skeleton('line w3'), skeleton('line w2'), skeleton('line w4'), skeleton('line w3')));
+    return;
+  }
+  // The shared branch is named once, in the card's header; a row says its own
+  // only when it is not that one, which is the row worth noticing.
+  const common = [...new Set(st.rows.map((r) => r.branch).filter(Boolean))];
+  body.replaceChildren(...[
+    st.error ? h('p', { class: 'muted small' }, badge('warn', 'the last read failed'), ' ', st.error) : null,
+    ...st.rows.map((r) => codeRow(r, common.length === 1)),
+  ].filter(Boolean));
+}
+
+function codeRow(r, shared) {
+  return h('div', { class: 'crepo' },
+    h('b', { class: 'crepo-name' }, r.repo),
+    shared || !r.branch ? null : h('span', { class: 'chip branch' }, r.branch),
+    ...diffOf(r),
+    reviewOf(r));
+}
+
+// How much work is in a branch: +120 −30 over four files answers that where
+// “3 ahead” only says how often somebody committed.
+function diffOf(r) {
+  const out = [];
+  if (r.work) {
+    out.push(h('span', { class: 'diff', title: r.work.files + ' files changed against ' + r.follows },
+      h('b', { class: 'add' }, '+' + r.work.added), h('b', { class: 'del' }, '−' + r.work.removed),
+      h('span', { class: 'muted' }, r.work.files + (r.work.files === 1 ? ' file' : ' files'))));
+  }
+  if (r.behind) out.push(badge('warn', r.behind + ' behind', 'It lacks ' + r.behind + ' commits of ' + r.follows + ', as of the last fetch'));
+  if (r.uncommitted) {
+    const n = r.uncommitted;
+    out.push(badge('mute', 'edited', n.files + (n.files === 1 ? ' file' : ' files') + ' changed and not committed: +' + n.added + ' \u2212' + n.removed));
+  }
+  if (!out.length) out.push(h('span', { class: 'muted small' }, r.follows ? 'no change from ' + r.follows : 'nothing to compare it with'));
+  return out;
+}
+
+// Only a web address becomes a link, as everywhere else on this page.
+function reviewOf(r) {
+  const v = r.review;
+  if (v && /^https?:\/\//.test(v.url)) {
+    return h('a', { class: 'chip pr' + (v.draft ? ' draft' : ''), href: v.url, target: '_blank', rel: 'noopener noreferrer',
+      title: [v.title, v.author && 'opened by ' + v.author, v.updated && 'moved ' + ago(v.updated)].filter(Boolean).join(' \u00b7 ') },
+      h('b', null, v.mark + v.number), v.draft ? h('span', { class: 'muted' }, 'draft') : null,
+      h('span', { class: 'prtitle' }, v.title));
+  }
+  // No chip is the answer when there is no open request: a line saying so on
+  // every repository of every universe would drown the ones that have one.
+  if (r.reviewError) return badge('warn', 'unanswered', 'The hosting service could not be asked: ' + r.reviewError);
+  return null;
 }
 
 // What a doctor run said, kept by what it ran on, because the fleet is redrawn
@@ -370,6 +537,10 @@ views.fleet = {
         body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl project install <owner/repo>')));
         return;
       }
+      // The cards about to be thrown away are no longer worth watching, and an
+      // observer keeps hold of what it watches: the fleet is redrawn whenever
+      // anything on the machine moves.
+      if (codeWatch) codeWatch.disconnect();
       body.replaceChildren(...data.projects.map((w) => {
         const list = w.universes.filter(wanted);
         const panel = h('div');
@@ -795,7 +966,8 @@ views.stats = {
     const refreshUniPick = () => {
       const all = universesSeen();
       const n = all.filter(([k]) => !hidden.has(k)).length;
-      uniLabel.replaceChildren('Universes', h('b', null, all.length && n === all.length ? 'all' : n + ' of ' + all.length));
+      uniLabel.replaceChildren('Universes',
+        h('b', null, !samples.length ? '…' : all.length && n === all.length ? 'all' : n + ' of ' + all.length));
       // The colour is part of what the menu shows, so it is part of what says
       // the menu has to be drawn again: the palette is claimed by the charts.
       const key = all.map(([k]) => k + ':' + colours.of(k)).join('\u0000') + '|' + [...hidden].sort().join('\u0000');
@@ -909,7 +1081,8 @@ views.stats = {
       note.replaceChildren(paused ? badge('warn', 'paused') : badge('ok', 'reading ' + (every / 1000) + 's'),
         last ? ' last at ' + viz.clock(last.t) : ' waiting for the first reading');
 
-      if (!last) { tiles.replaceChildren(); charts.replaceChildren(h('p', { class: 'muted' }, 'Reading…')); facets.replaceChildren(); table.replaceChildren(); return; }
+      if (!last) { drawWaiting(); return; }
+      root.removeAttribute('aria-busy');
       const rows = last.rows.filter(shown);
       const cpu = rows.reduce((n, r) => n + r.cpu, 0);
       const mem = rows.reduce((n, r) => n + (r.mem || 0), 0);
@@ -942,6 +1115,23 @@ views.stats = {
 
       drawFacets(last);
       drawTable(last);
+    }
+
+    // The first reading takes a moment, and a reading that fails takes longer.
+    // What is drawn meanwhile is the shape of the page that is coming, so the
+    // tiles, the charts and the table do not drop into place one by one.
+    function drawWaiting() {
+      root.setAttribute('aria-busy', 'true');
+      tiles.replaceChildren(...['Running', 'CPU', 'Memory', 'Busiest'].map((t) =>
+        h('div', { class: 'card' }, h('h3', null, t), skeleton('big'), skeleton('line w3'))));
+      charts.replaceChildren(...['CPU', 'Memory'].map((t) =>
+        h('section', { class: 'card chart' },
+          h('div', { class: 'chart-head' }, h('h3', null, t), skeleton('line w4')),
+          skeleton('plot'))));
+      facets.replaceChildren();
+      table.replaceChildren(h('h2', null, 'Containers'),
+        h('div', { class: 'skel-rows' }, [0, 1, 2, 3].map(() => h('div', { class: 'skel-row' },
+          skeleton('line w2'), skeleton('line w3'), skeleton('line w1'), skeleton('line w3'), skeleton('line w1')))));
     }
 
     // plot is one chart with its legend and its hover readout. The legend is
@@ -1053,6 +1243,9 @@ views.stats = {
     addEventListener('resize', onResize);
 
     arm();
+    // Drawn before anything has been read, so the view is the shape of itself
+    // while it waits rather than an empty page that fills in all at once.
+    draw();
     return {
       refresh: load,
       stop() { clearInterval(timer); removeEventListener('resize', onResize); },
