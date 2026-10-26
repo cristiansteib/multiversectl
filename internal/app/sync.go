@@ -128,6 +128,14 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 	if err != nil {
 		return nil, err
 	}
+	unlock, err := s.lockUniverse(ctx, st.ID, st.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	if st, err = s.Resolve(name); err != nil {
+		return nil, err
+	}
 	if s.Manifest == nil {
 		return nil, domain.ErrNoManifest
 	}

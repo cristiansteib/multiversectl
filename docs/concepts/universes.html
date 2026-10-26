@@ -124,6 +124,14 @@
   <p><strong>Removing a universe deletes only the branches it started, and only when nothing is lost</strong> — every commit already on the base or on the branch's own remote. One holding commits that are on no remote is kept, and <code>rm</code> says how to delete it yourself. A branch a universe only checked out is never touched.</p>
 </section>
 
+<section id="busy">
+  <h2 id="busy"><a href="#busy">One thing at a time, whoever is asking</a></h2>
+  <p>A terminal, the web view and an agent are separate programs, and none of them can see what the others are halfway through. So anything that changes a universe takes a lock in the project first, and a second caller is told what has it rather than running alongside it:</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe down 2
+error: universe 2 is busy: pid 4242: multiversectl universe up 2 is working on it</pre></div>
+  <p>Creating and removing lock the project, because they change which universes exist and which numbers are free; starting, stopping, syncing and restarting lock only their own universe, so different universes still run side by side. The lock is the operating system's, so a command that is killed leaves nothing behind to clean up.</p>
+</section>
+
 <section id="metadata">
   <h2 id="metadata"><a href="#metadata">What a universe remembers</a></h2>
   <p>One left sitting for a week should still be identifiable, so the state file keeps more than the routing:</p>
@@ -162,6 +170,7 @@
       <li><a href="#made-of">What a universe is made of</a></li>
       <li><a href="#naming">Numbered or named</a></li>
       <li><a href="#branches">Branches, and never clashing</a></li>
+      <li><a href="#busy">One thing at a time, whoever is asking</a></li>
       <li><a href="#metadata">What a universe remembers</a></li>
       <li><a href="#lifecycle">Lifecycle</a></li>
     </ul>

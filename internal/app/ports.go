@@ -584,3 +584,34 @@ type Job struct {
 	Name string
 	Run  func(ctx context.Context) error
 }
+
+// Locks keeps two processes out of each other's way: the command line and the
+// web view are separate programs acting on the same universes, and nothing in
+// one can see what the other is in the middle of.
+//
+// A lock is released when it is let go, and by the operating system when the
+// process that holds it ends, however it ends — there is no stale lock to
+// clean up after a kill or a crash.
+type Locks interface {
+	// Acquire takes the lock that path names, waiting up to wait for whoever
+	// holds it. It returns ErrBusy, naming the holder when it can say, rather
+	// than waiting forever: somebody watching a command wants to be told that
+	// something else is doing the work, not to sit in silence.
+	Acquire(ctx context.Context, path string, wait time.Duration) (Unlock, error)
+}
+
+// Unlock releases a lock. It is safe to call more than once.
+type Unlock func()
+
+// Busy says something else holds the lock, and who.
+type Busy struct {
+	What   string // what is being waited for, as a person would say it
+	Holder string // the process that has it, when it could be read
+}
+
+func (e *Busy) Error() string {
+	if e.Holder == "" {
+		return e.What + " is busy: another multiversectl is working on it"
+	}
+	return e.What + " is busy: " + e.Holder + " is working on it"
+}

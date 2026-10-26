@@ -302,6 +302,15 @@ func (e *ClashError) Error() string {
 // Create scaffolds a universe: one worktree per repository, its secrets and
 // its state. It is safe to run again: existing checkouts are kept.
 func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseState, error) {
+	// Held before the number is picked: two processes asking for the next free
+	// one at the same time would otherwise both be told the same number, and
+	// the second would fail on branches the first had just made.
+	unlock, err := s.lockProject(ctx)
+	if err != nil {
+		return domain.UniverseState{}, err
+	}
+	defer unlock()
+
 	if in.Checkout && in.Branch == "" && len(in.Branches) == 0 {
 		return domain.UniverseState{}, errors.New("a checkout universe needs the branch to check out")
 	}

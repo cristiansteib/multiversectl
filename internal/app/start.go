@@ -25,6 +25,16 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if err != nil {
 		return err
 	}
+	unlock, err := s.lockUniverse(ctx, st.ID, st.Name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	// Read again now it is held: the universe may have been removed, or
+	// changed, while this was waiting for whoever had it.
+	if st, err = s.Resolve(in.Universe); err != nil {
+		return err
+	}
 	apps, err := s.appsToAct(in.Apps)
 	if err != nil {
 		return err

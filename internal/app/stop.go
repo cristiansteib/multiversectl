@@ -18,6 +18,14 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 	if err != nil {
 		return err
 	}
+	unlock, err := s.lockUniverse(ctx, st.ID, st.Name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if st, err = s.Resolve(in.Universe); err != nil {
+		return err
+	}
 	apps, err := s.appsToAct(in.Apps)
 	if err != nil {
 		return err
