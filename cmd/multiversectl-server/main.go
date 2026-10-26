@@ -75,6 +75,18 @@ func run(ctx context.Context, args []string) error {
 	if fs.NArg() > 0 {
 		return fmt.Errorf("unexpected argument %q", fs.Arg(0))
 	}
+	// --expose is the decision to be reachable from the network, and a server
+	// still bound to the loopback address is reachable from nothing. Asking
+	// for an address as well says which one, and is left alone.
+	chosen := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "addr" {
+			chosen = true
+		}
+	})
+	if *expose && !chosen {
+		*addr = "0.0.0.0:7777"
+	}
 	if *showVersion {
 		fmt.Printf("multiversectl-server %s (%s, %s)\n", version, commit, date)
 		return nil
@@ -114,7 +126,10 @@ func run(ctx context.Context, args []string) error {
 		}
 		fmt.Printf("serving %s (%s; Ctrl-C stops it)\n", url, mode)
 		if *expose {
-			fmt.Fprintln(os.Stderr, "warning: --expose: anyone who can reach this address and has the link can act on your setup")
+			for _, at := range server.ReachableAt(*addr) {
+				fmt.Printf("from this network at %s — multiversectl server pair gives a code to open it with\n", at)
+			}
+			fmt.Fprintln(os.Stderr, "warning: --expose: anyone who can reach this address and has the link or a code can act on your setup")
 		}
 		if *open {
 			openBrowser(ctx, url)

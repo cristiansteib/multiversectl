@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"html/template"
 	"net/http"
 	"net/url"
 	"os"
@@ -58,10 +59,7 @@ func exchange(w http.ResponseWriter, r *http.Request, token string) bool {
 	if !sameToken(given, token) {
 		return false
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name: cookieName, Value: token, Path: "/",
-		HttpOnly: true, SameSite: http.SameSiteStrictMode,
-	})
+	setSession(w, token)
 	q := r.URL.Query()
 	q.Del(tokenParam)
 	target := r.URL.Path
@@ -83,11 +81,54 @@ func sameOrigin(r *http.Request) bool {
 	return err == nil && strings.EqualFold(u.Host, r.Host)
 }
 
-const unauthorizedPage = `<!doctype html><meta charset="utf-8"><title>multiversectl</title>
-<style>body{font:16px system-ui,sans-serif;max-width:34rem;margin:15vh auto;padding:0 1rem;color:#222}code{background:#eee;padding:.1em .3em;border-radius:4px}</style>
-<h1>This needs the link</h1>
-<p>The page changes things on this machine, so it only opens from the link the server prints when it starts. Get it again with:</p>
-<p><code>multiversectl server status</code></p>`
+// pairPath is where the sign-in form posts: the one address a request without
+// the cookie is allowed to reach.
+const pairPath = "/api/pair/use"
+
+// signIn is what anyone without the cookie is shown. It offers the two ways
+// in: the link, for the machine the server runs on, and a code for one that
+// cannot be sent a link — read off the first machine and typed into this one.
+//
+// The form is a form and not a script because this page is served before any
+// of the server's own files have been allowed to load; its own policy allows
+// it to post to this server and nothing else. The stylesheet is let through
+// unsigned-in, so the page looks like the one it leads to.
+func (s *Server) signIn(w http.ResponseWriter, status int, trouble string) {
+	h := w.Header()
+	h.Set("Content-Type", "text/html; charset=utf-8")
+	h.Set("Content-Security-Policy", "default-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+	// The rest of the server says no-referrer, under which a browser sends the
+	// form with `Origin: null` — and a request from nowhere is one the guard
+	// refuses. This page is the server's own address and nothing else, so
+	// naming it to itself gives away nothing.
+	h.Set("Referrer-Policy", "same-origin")
+	w.WriteHeader(status)
+	page := signInPage
+	if trouble != "" {
+		page = strings.Replace(page, "<!--trouble-->", `<p class="error" role="alert">`+template.HTMLEscapeString(trouble)+`</p>`, 1)
+	}
+	_, _ = w.Write([]byte(page))
+}
+
+const signInPage = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · multiversectl</title>
+<link rel="stylesheet" href="/style.css"></head>
+<body class="signin">
+<main class="card">
+<h1>multiversectl</h1>
+<p class="lede">This page can start, stop and remove universes, so it opens for one machine at a time.</p>
+<!--trouble-->
+<form method="post" action="` + pairPath + `">
+  <label for="code">Code from the other machine</label>
+  <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 -]*"
+         maxlength="9" placeholder="123 456" autofocus required>
+  <button type="submit" class="btn primary">Open it</button>
+</form>
+<p class="muted">On the machine running the server, ask for a code:</p>
+<p><code>multiversectl server pair</code></p>
+<p class="muted">On that machine itself, the link does the same, and <code>multiversectl server status</code> prints it again.</p>
+</main></body></html>`
 
 // TokenPath is where the token is kept: beside the configuration, with the
 // other files of the server.
@@ -121,4 +162,12 @@ func PersistentToken(path string) (string, error) {
 		return "", err
 	}
 	return token, nil
+}
+
+// setSession is what both ways in end with: the link, and a pairing code.
+func setSession(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name: cookieName, Value: token, Path: "/",
+		HttpOnly: true, SameSite: http.SameSiteStrictMode,
+	})
 }

@@ -370,3 +370,20 @@ html.side-over, body.side-over { overflow: hidden; }
 .menu-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 7px; font-size: 13px; cursor: pointer; }
 .menu-item:hover { background: var(--sunk); }
 .menu-item input { accent-color: var(--accent); }
+
+/* ── the sign-in page ───────────────────────────────────────────────── */
+/* Served before anything else of this server's is allowed to load, so it has
+   no shell around it and no script of its own: one card, a field and a form. */
+body.signin { display: grid; place-items: center; min-height: 100vh; padding: 20px; }
+.signin .card { width: min(28rem, 100%); padding: 28px 30px 24px; }
+.signin h1 { margin: 0 0 4px; font-size: 19px; letter-spacing: -.01em; }
+.signin .lede { margin-bottom: 18px; }
+.signin form { display: flex; flex-direction: column; gap: 8px; margin: 0 0 20px; }
+.signin label { font-size: 13px; color: var(--muted); }
+.signin input { font: 600 26px/1 var(--mono); letter-spacing: .12em; text-align: center; color: var(--text);
+  background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 14px 12px; }
+.signin input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.signin .btn { padding: 10px; font-size: 14px; }
+.signin p { margin: 6px 0; font-size: 14px; }
+.signin code { background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; }
+.signin .error { margin-bottom: 14px; }

@@ -60,6 +60,8 @@ type Server struct {
 	wg      sync.WaitGroup
 	// logSlots caps the log streams open at once (see maxLogStreams).
 	logSlots chan struct{}
+	// pair is the code that lets a second machine in without the link.
+	pair pairing
 }
 
 // New builds a server and starts what watches the fleet for changes. Close it.
@@ -104,6 +106,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/universe/stats", s.stats)
 	mux.HandleFunc("/api/universe/logs", s.logs)
 	mux.HandleFunc("/api/universe/code", s.code)
+	mux.HandleFunc("/api/pair", s.pairNew)
 	mux.HandleFunc("/api/stats", s.fleetStats)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "no such endpoint") })
 	mux.HandleFunc("/ws", s.ws)
@@ -137,14 +140,24 @@ func (s *Server) guard(next http.Handler) http.Handler {
 		if exchange(w, r, s.o.Token) {
 			return
 		}
+		// Typing a pairing code is the one thing a request without the cookie
+		// may do, and the sign-in page's stylesheet the one thing it may read:
+		// the page is shown before anything of this server's has been allowed
+		// to load, and an unstyled page is a page nobody trusts.
+		if r.URL.Path == pairPath {
+			s.pairUse(w, r)
+			return
+		}
 		if !authorized(r, s.o.Token) {
-			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/ws" {
-				fail(w, http.StatusUnauthorized, "not signed in: open the link the server printed")
-			} else {
-				w.Header().Set("Content-Type", "text/html; charset=utf-8")
-				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write([]byte(unauthorizedPage))
+			if r.URL.Path == "/style.css" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+				next.ServeHTTP(w, r)
+				return
 			}
+			if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/ws" {
+				fail(w, http.StatusUnauthorized, "not signed in: open the link the server printed, or ask for a code with: multiversectl server pair")
+				return
+			}
+			s.signIn(w, http.StatusUnauthorized, "")
 			return
 		}
 		switch r.Method {
@@ -329,6 +342,9 @@ func Serve(ctx context.Context, b Backend, o Options, ready func(url string)) er
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", o.Addr, err)
 	}
+	// What it is actually listening on, which is not what was asked for when
+	// the port was 0: the server has to be able to say where to reach it.
+	o.Addr = ln.Addr().String()
 	srv := New(b, o)
 	defer srv.Close()
 	hs := &http.Server{

@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -259,4 +262,70 @@ func ours(pid int) bool {
 	}
 	out, err := exec.Command("ps", "-p", fmt.Sprint(pid), "-o", "command=").Output()
 	return err == nil && strings.Contains(string(out), binaryName)
+}
+
+// Pair asks the running server for a code. The state file holds the link it
+// was started with, and the token in that link is the session cookie itself,
+// so this is the same request the page would make.
+func (p *Process) Pair(ctx context.Context) (app.ServerInvite, error) {
+	info, err := p.Status(ctx)
+	if err != nil {
+		return app.ServerInvite{}, err
+	}
+	u, err := url.Parse(info.URL)
+	if err != nil {
+		return app.ServerInvite{}, fmt.Errorf("the recorded address %q cannot be read: %w", info.URL, err)
+	}
+	token := u.Query().Get("t")
+	if token == "" {
+		return app.ServerInvite{}, errors.New("the recorded address carries no token; restart the server")
+	}
+	// Whatever address it was started on, this process is on the same machine.
+	ask := &url.URL{Scheme: "http", Host: localTo(u.Host), Path: "/api/pair"}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ask.String(), nil)
+	if err != nil {
+		return app.ServerInvite{}, err
+	}
+	req.Header.Set("X-Mvctl", "1")
+	req.AddCookie(&http.Cookie{Name: "mvctl", Value: token})
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return app.ServerInvite{}, fmt.Errorf("ask the server for a code: %w", err)
+	}
+	defer res.Body.Close()
+	var body struct {
+		Code    string   `json:"code"`
+		Expires string   `json:"expires"`
+		At      []string `json:"at"`
+		Exposed bool     `json:"exposed"`
+		Error   string   `json:"error"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 1<<16)).Decode(&body); err != nil {
+		return app.ServerInvite{}, fmt.Errorf("the server answered with something unexpected: %w", err)
+	}
+	if res.StatusCode == http.StatusNotFound {
+		return app.ServerInvite{}, errors.New("the running server is an older build, from before codes: `multiversectl server restart`")
+	}
+	if res.StatusCode != http.StatusOK {
+		if body.Error == "" {
+			body.Error = res.Status
+		}
+		return app.ServerInvite{}, errors.New(body.Error)
+	}
+	expires, _ := time.Parse(time.RFC3339, body.Expires)
+	return app.ServerInvite{Code: body.Code, Expires: expires, At: body.At, Exposed: body.Exposed}, nil
+}
+
+// localTo turns the address the server reports into one this machine can
+// reach it on: a server listening on every interface answers on the loopback
+// address too, and that is the one that is certain to work from here.
+func localTo(host string) string {
+	h, port, err := net.SplitHostPort(host)
+	if err != nil {
+		return host
+	}
+	if ip := net.ParseIP(h); ip != nil && ip.IsUnspecified() {
+		return net.JoinHostPort("127.0.0.1", port)
+	}
+	return host
 }
