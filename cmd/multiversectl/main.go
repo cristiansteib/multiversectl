@@ -39,6 +39,9 @@ func main() {
 		Completions: func(out app.Output) *app.Completions {
 			return wire.Machine{Version: version, Ctx: interrupted}.Completions(out)
 		},
+		Skills: func(out app.Output) *app.Skills {
+			return wire.Machine{Version: version, Ctx: interrupted}.Skills(out)
+		},
 	})
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		if ctx.Err() != nil || errors.Is(err, context.Canceled) {

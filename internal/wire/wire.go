@@ -157,6 +157,11 @@ func (m Machine) Completions(out app.Output) *app.Completions {
 	})
 }
 
+// Skills builds the use case that installs the agent skill.
+func (m Machine) Skills(out app.Output) *app.Skills {
+	return app.NewSkills(app.SkillDeps{Files: fsx.New(), System: system.New(), Out: out, Version: m.Version})
+}
+
 // ManifestLoader adapts manifest.Load to the app.ManifestLoader port.
 type ManifestLoader struct{}
 
