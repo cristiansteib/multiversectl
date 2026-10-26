@@ -151,6 +151,16 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 	return out, nil
 }
 
+// routeURL is where a route answers, with the entrypoint port when it is not
+// the default.
+func (s *Service) routeURL(route Route) string {
+	port := s.Manifest.Proxy.Entrypoints[route.Entrypoint]
+	if port != 0 && port != 80 {
+		return fmt.Sprintf("http://%s:%d", route.Hostname, port)
+	}
+	return "http://" + route.Hostname
+}
+
 // appSummaries describes each app of a universe, with the URLs its host rules
 // resolve to — including the entrypoint port when it is not the default.
 func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, containers []Container, volumes []Volume, opts ListOptions) []AppSummary {
@@ -172,15 +182,10 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 			Running: runningFor(containers, project),
 		}
 		for _, route := range s.Routes(st, key) {
-			port := s.Manifest.Proxy.Entrypoints[route.Entrypoint]
-			url := "http://" + route.Hostname
-			if port != 0 && port != 80 {
-				url = fmt.Sprintf("http://%s:%d", route.Hostname, port)
-			}
 			summary.URLs = append(summary.URLs, HostURL{
 				Host:    strings.TrimSuffix(route.Name, "-"+u.Slug()),
 				Service: route.Service,
-				URL:     url,
+				URL:     s.routeURL(route),
 			})
 		}
 		if opts.Services {

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 type System struct{}
@@ -65,4 +67,24 @@ func (System) PortFree(ctx context.Context, port int) (bool, error) {
 		return false, nil
 	}
 	return true, l.Close()
+}
+
+// probeTimeout keeps a dead address from stalling doctor: it only has to tell
+// "answers" from "does not".
+const probeTimeout = 3 * time.Second
+
+func (System) Probe(ctx context.Context, url string) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return 0, err
+	}
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode, nil
 }

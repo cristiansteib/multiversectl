@@ -247,6 +247,9 @@ type System interface {
 	LANIP(ctx context.Context) (string, error)
 	Resolve(ctx context.Context, host string) ([]string, error)
 	PortFree(ctx context.Context, port int) (bool, error)
+	// Probe asks url once and returns the HTTP status it answered with, without
+	// following redirects: any answer means something is listening.
+	Probe(ctx context.Context, url string) (int, error)
 	Which(name string) (string, bool)
 }
 
