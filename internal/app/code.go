@@ -78,8 +78,17 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) 
 	}
 	clone := s.Manifest.CloneDir(s.Workspace, c.Repo)
 	cs.Freshness = s.freshnessOf(ctx, c.Path, s.followed(ctx, clone, c.Branch))
-	if d, err := s.Git.DiffStat(ctx, c.Path, cs.Follows); err == nil {
-		cs.Work = d
+	// Only with a branch to measure against: asked with none, DiffStat answers
+	// a different question — what is edited and not committed — and the page
+	// would draw that as work that had been committed. A repository whose
+	// clone has no usable origin has nothing to be measured against, so it is
+	// only asked whether it has been edited.
+	if cs.Follows != "" {
+		if d, err := s.Git.DiffStat(ctx, c.Path, cs.Follows); err == nil {
+			cs.Work = d
+		}
+	} else if clean, err := s.Git.IsClean(ctx, c.Path); err == nil {
+		cs.Dirty = !clean
 	}
 	if cs.Dirty {
 		if d, err := s.Git.DiffStat(ctx, c.Path, ""); err == nil {

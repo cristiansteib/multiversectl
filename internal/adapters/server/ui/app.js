@@ -995,8 +995,11 @@ views.stats = {
       pick('Window', STATS_WINDOWS, span, (v) => { span = Number(v); draw(); }),
       pick('Read', STATS_EVERY, every, (v) => { every = Number(v); arm(); }),
       pauseBtn, h('span', { class: 'grow' }), note);
-    // A menu that stays open over the page is a menu in the way.
-    document.addEventListener('click', (e) => { if (uniPick.open && !uniPick.contains(e.target)) uniPick.open = false; });
+    // A menu that stays open over the page is a menu in the way. The listener
+    // is on the document, so it is this view's to take away again: a mount
+    // that leaves one behind leaves its readings behind with it.
+    const shut = (e) => { if (uniPick.open && !uniPick.contains(e.target)) uniPick.open = false; };
+    document.addEventListener('click', shut);
     uniPick.addEventListener('keydown', (e) => { if (e.key === 'Escape') { uniPick.open = false; uniPick.querySelector('summary').focus(); } });
 
     host.append(h('h1', null, 'Stats'),
@@ -1253,7 +1256,7 @@ views.stats = {
     draw();
     return {
       refresh: load,
-      stop() { clearInterval(timer); removeEventListener('resize', onResize); },
+      stop() { clearInterval(timer); removeEventListener('resize', onResize); document.removeEventListener('click', shut); },
     };
   },
 };
@@ -1439,16 +1442,21 @@ const sidePanel = (() => {
     const from = document.activeElement;
     close();
     opener = from;
-    cur = { project, universe, rows: null, stats: {}, history: new Map(), tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
+    const c = { project, universe, rows: null, stats: {}, history: new Map(), tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
+    cur = c;
     root.hidden = false;
     document.body.classList.add('with-side');
     applyWide();
     draw();
     root.querySelector('.side-head h3').focus();
     await loadRows();
-    if (want && cur) startLog(...want.split('/'));
+    // Closed, or another universe opened, while the containers were being
+    // read: there is nothing left to poll for, and a timer started now would
+    // be one nobody holds the handle of.
+    if (cur !== c) return;
+    if (want) startLog(...want.split('/'));
     pollStats();
-    cur.statsTimer = setInterval(pollStats, STATS_MS);
+    c.statsTimer = setInterval(pollStats, STATS_MS);
   }
 
   // reload is what an operation elsewhere calls: a service that was just
@@ -1545,8 +1553,13 @@ const sidePanel = (() => {
       log.lines.push({ at: m ? Date.parse(m[1]) : 0, text, parts, level });
     }
     if (log.lines.length > MAX_LOG_LINES) {
-      log.lines.splice(0, log.lines.length - MAX_LOG_LINES);
-      log.drawn = 0; // the window moved; the whole view is redrawn
+      const gone = log.lines.splice(0, log.lines.length - MAX_LOG_LINES);
+      // The window moved: the oldest lines leave the view, and the ones
+      // already drawn stay drawn. Rebuilding all three thousand on every
+      // chunk would undo the incremental draw exactly when a log is busy
+      // enough to need it.
+      log.drawn -= gone.length;
+      log.shed = (log.shed || 0) + gone.filter((l) => shows(log, l)).length;
     }
   }
 
@@ -1563,15 +1576,20 @@ const sidePanel = (() => {
   // The groups are a control sequence's parameters and its final byte; after
   // it, an operating system command ended by a bell or a string terminator,
   // and last the two-byte escapes.
-  const ANSI = /\x1b(?:\[([0-9;?]*)[ -/]*([@-~])|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-Z\\-_])/g;
+  const ANSI = /\x1b(?:\[([0-9;:?<=>]*)[ -/]*([@-~])|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-Z\\-_])/g;
   const FG = ['ac0', 'ac1', 'ac2', 'ac3', 'ac4', 'ac5', 'ac6', 'ac7'];
   const TAB = 8;
+  // The furthest a program may send the cursor along a line it is writing.
+  const MAX_COLS = 4096;
 
   function ansi(raw) {
     const on = { fg: '', bold: false, dim: false, italic: false, under: false };
     const cls = () => [on.fg, on.bold && 'ab', on.dim && 'ad', on.italic && 'ai', on.under && 'au'].filter(Boolean).join(' ');
     // One slot per column, so writing at a column that was written before
-    // replaces what was there, as a terminal would.
+    // replaces what was there, as a terminal would. Writing is not capped —
+    // a log line may be as long as it likes — but moving the cursor is, since
+    // every column jumped over is a blank that has to be made and then read
+    // back, and `ESC[5000000C` is a line nobody is going to read.
     const cells = [];
     let col = 0;
     const put = (ch) => { cells[col] = { ch, cls: cls() }; col++; };
@@ -1591,28 +1609,29 @@ const sidePanel = (() => {
       col = move(on, cells, col, m[1], m[2]);
       at = ANSI.lastIndex;
     }
-    if (at < raw.length) plain(raw.slice(at));
+    if (at < raw.length) {
+      // An escape the line ends in the middle of has nothing to act on, and
+      // the letters it was going to use are not text.
+      const tail = raw.slice(at);
+      const half = tail.indexOf('\u001b');
+      plain(half < 0 ? tail : tail.slice(0, half));
+    }
 
+    // Trailing blanks are what erasing a longer line left behind. Counted
+    // backwards over the columns: asking a regular expression where the
+    // whitespace at the end of a line starts is quadratic in the length of
+    // that whitespace, and a log line can carry a great deal of it.
+    let end = cells.length;
+    while (end > 0 && (!cells[end - 1] || cells[end - 1].ch === ' ')) end--;
     // A hole is a column the program skipped over; it reads as a space.
     const parts = [];
     let text = '';
-    for (let i = 0; i < cells.length; i++) {
+    for (let i = 0; i < end; i++) {
       const c = cells[i] || { ch: ' ', cls: '' };
       const last = parts[parts.length - 1];
       if (last && last.cls === c.cls) last.s += c.ch;
       else parts.push({ s: c.ch, cls: c.cls });
       text += c.ch;
-    }
-    // Trailing blanks are what erasing a longer line left behind.
-    const keep = text.replace(/\s+$/, '').length;
-    if (keep < text.length) {
-      text = text.slice(0, keep);
-      let n = 0;
-      for (let i = 0; i < parts.length; i++) {
-        if (n >= keep) { parts.length = i; break; }
-        if (n + parts[i].s.length > keep) parts[i].s = parts[i].s.slice(0, keep - n);
-        n += parts[i].s.length;
-      }
     }
     return { text, parts };
   }
@@ -1625,15 +1644,18 @@ const sidePanel = (() => {
     const n = (i, or) => { const v = Number((params || '').split(';')[i]); return Number.isFinite(v) && (params || '').split(';')[i] !== '' ? v : or; };
     switch (final) {
       case 'm': paint(on, params); return col;
-      case 'G': return Math.max(0, n(0, 1) - 1);
-      case 'C': return col + n(0, 1);
-      case 'D': return Math.max(0, col - n(0, 1));
+      case 'G': return Math.min(MAX_COLS, Math.max(0, n(0, 1) - 1));
+      // A move of no columns is a move of one, which is what a terminal does
+      // with a parameter of zero.
+      case 'C': return Math.min(MAX_COLS, col + Math.max(1, n(0, 1)));
+      case 'D': return Math.max(0, col - Math.max(1, n(0, 1)));
       case 'K': {
+        // Erasing leaves the cursor where it is, however much it erases.
         const how = n(0, 0);
         if (how === 0) cells.length = col;
-        else if (how === 1) for (let i = 0; i < col; i++) cells[i] = { ch: ' ', cls: '' };
+        else if (how === 1) for (let i = 0; i <= col; i++) cells[i] = { ch: ' ', cls: '' };
         else cells.length = 0;
-        return how === 2 ? 0 : col;
+        return col;
       }
       default: return col;
     }
@@ -1908,9 +1930,11 @@ const sidePanel = (() => {
     if (!cur || !cur.log || !logOut) return;
     const log = cur.log;
     const stick = atEnd();
-    if (!log.drawn) logOut.replaceChildren();
+    if (log.drawn <= 0) { logOut.replaceChildren(); log.drawn = 0; log.shed = 0; }
     const note = logOut.querySelector('.log-note');
     if (note) note.remove();
+    for (let i = log.shed || 0; i > 0 && logOut.firstElementChild; i--) logOut.firstElementChild.remove();
+    log.shed = 0;
     const add = [];
     for (let i = log.drawn; i < log.lines.length; i++) {
       const l = log.lines[i];

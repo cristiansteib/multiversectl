@@ -10,9 +10,10 @@ import (
 
 type codeGit struct {
 	Git
-	diffs  map[string]DiffStat
-	asked  []string
-	pushed bool
+	diffs     map[string]DiffStat
+	asked     []string
+	pushed    bool
+	noDefault bool
 }
 
 // A universe's branch that has never been pushed has no counterpart on
@@ -24,9 +25,14 @@ func (g *codeGit) Behind(_ context.Context, _, ref string) (int, error) {
 	}
 	return 2, nil
 }
-func (g *codeGit) Ahead(context.Context, string, string) (int, error)    { return 3, nil }
-func (g *codeGit) IsClean(context.Context, string) (bool, error)         { return false, nil }
-func (g *codeGit) DefaultBranch(context.Context, string) (string, error) { return "main", nil }
+func (g *codeGit) Ahead(context.Context, string, string) (int, error) { return 3, nil }
+func (g *codeGit) IsClean(context.Context, string) (bool, error)      { return false, nil }
+func (g *codeGit) DefaultBranch(context.Context, string) (string, error) {
+	if g.noDefault {
+		return "", errors.New("no origin/HEAD")
+	}
+	return "main", nil
+}
 func (g *codeGit) DiffStat(_ context.Context, dir, ref string) (DiffStat, error) {
 	g.asked = append(g.asked, dir+"@"+ref)
 	return g.diffs[ref], nil
@@ -138,5 +144,30 @@ func TestAServiceThatFailsSaysSoRatherThanShowingNoReview(t *testing.T) {
 	}
 	if rows[0].ReviewError != "api rate limit exceeded" {
 		t.Errorf("want the service's own words, got %q", rows[0].ReviewError)
+	}
+}
+
+// A repository whose clone has no usable origin has nothing to measure
+// against. Asking for a diff with no ref answers "what is edited and not
+// committed", which the page would have drawn as committed work.
+func TestARepositoryWithNoOriginIsNotCreditedWithWork(t *testing.T) {
+	git := &codeGit{noDefault: true, diffs: map[string]DiffStat{"": {Files: 2, Added: 14}}}
+	rows, err := codeService(git).UniverseCode(context.Background(), "3")
+	if err != nil {
+		t.Fatalf("UniverseCode: %v", err)
+	}
+	if rows[0].Follows != "" {
+		t.Fatalf("this fake has no branch to follow, got %q", rows[0].Follows)
+	}
+	if !rows[0].Work.Empty() {
+		t.Errorf("want no committed work, got %+v", rows[0].Work)
+	}
+	if !rows[0].Dirty || rows[0].Uncommitted != (DiffStat{Files: 2, Added: 14}) {
+		t.Errorf("want the edit reported as uncommitted, got dirty=%v %+v", rows[0].Dirty, rows[0].Uncommitted)
+	}
+	for _, asked := range git.asked {
+		if asked != "/ws/universes/3/api@" && asked != "/ws/universes/3/ui@" {
+			t.Errorf("want only the uncommitted diff asked for, got %q", asked)
+		}
 	}
 }
