@@ -6,12 +6,14 @@
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --radius: 10px;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948;
+  --a1: #c0352b; --a2: #1a7f4b; --a3: #8a5300; --a4: #2f63c4; --a5: #8035c8; --a6: #077b8e; --a7: #5d6877;
 }
 :root[data-theme="dark"] {
   --bg: #0e1116; --panel: #151a22; --sunk: #0b0e13; --line: #262d38; --text: #e8ecf1; --muted: #8b97a8;
   --accent: #45d6b5; --accent-ink: #06231c; --ok: #4fd18a; --warn: #f0b24a; --bad: #ff7b72; --info: #7aa7ff;
   --ok-bg: #12301f; --warn-bg: #33270d; --bad-bg: #3a1714; --info-bg: #14264a;
   --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --a1: #ff7b72; --a2: #4fd18a; --a3: #f0b24a; --a4: #7aa7ff; --a5: #c795f5; --a6: #39c5cf; --a7: #8b97a8;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -19,6 +21,7 @@
     --accent: #45d6b5; --accent-ink: #06231c; --ok: #4fd18a; --warn: #f0b24a; --bad: #ff7b72; --info: #7aa7ff;
     --ok-bg: #12301f; --warn-bg: #33270d; --bad-bg: #3a1714; --info-bg: #14264a;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --a1: #ff7b72; --a2: #4fd18a; --a3: #f0b24a; --a4: #7aa7ff; --a5: #c795f5; --a6: #39c5cf; --a7: #8b97a8;
   }
 }
 * { box-sizing: border-box; }
@@ -234,6 +237,13 @@ body:has(.dock:not([hidden])) main { padding-bottom: 300px; }
 .side { position: fixed; top: 53px; right: 0; bottom: 0; width: min(620px, 100vw); background: var(--panel); border-left: 1px solid var(--line);
   box-shadow: -10px 0 30px rgba(0, 0, 0, .16); z-index: 7; overflow: auto; padding: 14px 18px 32px; display: flex; flex-direction: column; }
 .side[hidden] { display: none; }
+/* Wide is the panel over the page rather than beside it: a log is read at a
+   terminal's width, and what is behind it should neither show through nor
+   move. */
+.side.wide { width: min(1180px, 96vw); top: 0; box-shadow: -20px 0 60px rgba(0, 0, 0, .35); }
+.scrim { position: fixed; inset: 0; background: var(--bg); opacity: .95; z-index: 6; }
+.scrim[hidden] { display: none; }
+html.side-over, body.side-over { overflow: hidden; }
 .side-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .side-head h3 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
 .side-head h3:focus { outline: none; }
@@ -281,6 +291,13 @@ body:has(.dock:not([hidden])) main { padding-bottom: 300px; }
 .logout .ll.warn { color: var(--warn); }
 .logout .ll.dim { color: var(--muted); }
 .logout mark { background: var(--warn-bg); color: inherit; border-radius: 3px; }
+/* The colours a program wrote its log in. A line the reader has already been
+   told is an error keeps that colour: what the page says about a line outranks
+   what the line says about itself. */
+.ac0 { color: var(--muted); } .ac1 { color: var(--a1); } .ac2 { color: var(--a2); } .ac3 { color: var(--a3); }
+.ac4 { color: var(--a4); } .ac5 { color: var(--a5); } .ac6 { color: var(--a6); } .ac7 { color: var(--text); }
+.ab { font-weight: 650; } .ad { opacity: .62; } .ai { font-style: italic; } .au { text-decoration: underline; }
+.logout .ll.err span[class^="ac"], .logout .ll.err span[class*=" ac"] { color: inherit; }
 .logout .log-note { padding: 8px 2px; }
 .jump { position: absolute; right: 16px; bottom: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, .2); background: var(--panel); }
 
@@ -329,6 +346,9 @@ body:has(.dock:not([hidden])) main { padding-bottom: 300px; }
 @media (min-width: 1240px) {
   body.with-side .shell { margin-right: min(620px, 50vw); }
   body.with-side .dock { right: min(620px, 50vw); }
+  /* Nothing moves aside for a panel that is over the page. */
+  body.side-over .shell { margin-right: 0; }
+  body.side-over .dock { right: 0; }
 }
 @media (max-width: 760px) {
   .side { top: 0; width: 100vw; }

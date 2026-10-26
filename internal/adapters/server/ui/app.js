@@ -1380,6 +1380,33 @@ const sidePanel = (() => {
   const SPARK_POINTS = 40;
   let cur = null;
   let opener = null;
+  // Wide is the panel over the page instead of beside it, which is what
+  // reading a log wants: a terminal's width, and nothing moving behind it.
+  // The choice is the reader's and it is remembered, since someone who reads
+  // logs reads them again.
+  let wide = false;
+  try { wide = localStorage.getItem('side-wide') === '1'; } catch (_) { /* a private window is no reason to fail */ }
+  const scrim = h('div', { class: 'scrim', hidden: true, onclick: close });
+  document.body.append(scrim);
+
+  function setWide(on) {
+    wide = on;
+    try { localStorage.setItem('side-wide', on ? '1' : '0'); } catch (_) { /* nothing is lost but the preference */ }
+    applyWide();
+    draw(); // the button says which way it goes next
+  }
+
+  // The page behind must not scroll under the panel: a wheel over a panel that
+  // has reached its end should not carry on to the page below it.
+  function applyWide() {
+    const on = !!cur && wide;
+    root.classList.toggle('wide', on);
+    // Both, because a page scrolls from whichever of the two the browser
+    // decided was the scrolling element.
+    document.body.classList.toggle('side-over', on);
+    document.documentElement.classList.toggle('side-over', on);
+    scrim.hidden = !on;
+  }
 
   const query = (c, extra) => new URLSearchParams({ project: c.project, universe: c.universe, ...extra }).toString();
 
@@ -1391,6 +1418,7 @@ const sidePanel = (() => {
     root.hidden = true;
     root.replaceChildren();
     document.body.classList.remove('with-side');
+    applyWide();
     if (opener && opener.isConnected) opener.focus();
     opener = null;
   }
@@ -1409,6 +1437,7 @@ const sidePanel = (() => {
     cur = { project, universe, rows: null, stats: {}, history: new Map(), tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
     root.hidden = false;
     document.body.classList.add('with-side');
+    applyWide();
     draw();
     root.querySelector('.side-head h3').focus();
     await loadRows();
@@ -1504,11 +1533,11 @@ const sidePanel = (() => {
   function push(log, raw) {
     for (const line of raw) {
       const m = STAMP.exec(line);
-      const text = m ? m[2] : line;
+      const { text, parts } = ansi(m ? m[2] : line);
       let level = '';
       const head = text.slice(0, 160);
       for (const [re, name] of LEVEL) if (re.test(head)) { level = name; break; }
-      log.lines.push({ at: m ? Date.parse(m[1]) : 0, text, level });
+      log.lines.push({ at: m ? Date.parse(m[1]) : 0, text, parts, level });
     }
     if (log.lines.length > MAX_LOG_LINES) {
       log.lines.splice(0, log.lines.length - MAX_LOG_LINES);
@@ -1516,28 +1545,154 @@ const sidePanel = (() => {
     }
   }
 
+  // docker hands a log over exactly as the program wrote it, escape codes and
+  // all. A page that prints what it wrote shows “[32m” where the terminal
+  // showed green, and a spinner as every frame it ever drew.
+  //
+  // So a line is built the way a terminal builds one: what the program painted
+  // it in is kept, as classes rather than styles because the page's content
+  // security policy allows no style of its own, and what moves the cursor,
+  // erases or rewrites is carried out. A spinner then leaves the word it
+  // finished on, which is the only one that was ever meant to be read.
+  //
+  // The groups are a control sequence's parameters and its final byte; after
+  // it, an operating system command ended by a bell or a string terminator,
+  // and last the two-byte escapes.
+  const ANSI = /\x1b(?:\[([0-9;?]*)[ -/]*([@-~])|\][^\x07\x1b]*(?:\x07|\x1b\\)?|[@-Z\\-_])/g;
+  const FG = ['ac0', 'ac1', 'ac2', 'ac3', 'ac4', 'ac5', 'ac6', 'ac7'];
+  const TAB = 8;
+
+  function ansi(raw) {
+    const on = { fg: '', bold: false, dim: false, italic: false, under: false };
+    const cls = () => [on.fg, on.bold && 'ab', on.dim && 'ad', on.italic && 'ai', on.under && 'au'].filter(Boolean).join(' ');
+    // One slot per column, so writing at a column that was written before
+    // replaces what was there, as a terminal would.
+    const cells = [];
+    let col = 0;
+    const put = (ch) => { cells[col] = { ch, cls: cls() }; col++; };
+    const plain = (run) => {
+      for (const ch of run) {
+        if (ch === '\r') col = 0;
+        else if (ch === '\b') col = Math.max(0, col - 1);
+        else if (ch === '\t') { do { put(' '); } while (col % TAB); }
+        else if (ch >= ' ' || ch === '\u00a0') put(ch);
+      }
+    };
+
+    let at = 0, m;
+    ANSI.lastIndex = 0;
+    while ((m = ANSI.exec(raw))) {
+      if (m.index > at) plain(raw.slice(at, m.index));
+      col = move(on, cells, col, m[1], m[2]);
+      at = ANSI.lastIndex;
+    }
+    if (at < raw.length) plain(raw.slice(at));
+
+    // A hole is a column the program skipped over; it reads as a space.
+    const parts = [];
+    let text = '';
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i] || { ch: ' ', cls: '' };
+      const last = parts[parts.length - 1];
+      if (last && last.cls === c.cls) last.s += c.ch;
+      else parts.push({ s: c.ch, cls: c.cls });
+      text += c.ch;
+    }
+    // Trailing blanks are what erasing a longer line left behind.
+    const keep = text.replace(/\s+$/, '').length;
+    if (keep < text.length) {
+      text = text.slice(0, keep);
+      let n = 0;
+      for (let i = 0; i < parts.length; i++) {
+        if (n >= keep) { parts.length = i; break; }
+        if (n + parts[i].s.length > keep) parts[i].s = parts[i].s.slice(0, keep - n);
+        n += parts[i].s.length;
+      }
+    }
+    return { text, parts };
+  }
+
+  // What one control sequence does, as far as a log line is concerned: colour,
+  // the cursor along its one line, and erasing. Anything that would need more
+  // than a line — moving between them, scrolling, a saved position — cannot be
+  // honoured here and is left out rather than half done.
+  function move(on, cells, col, params, final) {
+    const n = (i, or) => { const v = Number((params || '').split(';')[i]); return Number.isFinite(v) && (params || '').split(';')[i] !== '' ? v : or; };
+    switch (final) {
+      case 'm': paint(on, params); return col;
+      case 'G': return Math.max(0, n(0, 1) - 1);
+      case 'C': return col + n(0, 1);
+      case 'D': return Math.max(0, col - n(0, 1));
+      case 'K': {
+        const how = n(0, 0);
+        if (how === 0) cells.length = col;
+        else if (how === 1) for (let i = 0; i < col; i++) cells[i] = { ch: ' ', cls: '' };
+        else cells.length = 0;
+        return how === 2 ? 0 : col;
+      }
+      default: return col;
+    }
+  }
+
+  // What one “ESC [ … m” does. Backgrounds are left alone: a log that paints
+  // its own background fights the page it is read on, and the page wins.
+  function paint(on, params) {
+    const codes = (params || '0').split(';').map((x) => Number(x) || 0);
+    for (let i = 0; i < codes.length; i++) {
+      const n = codes[i];
+      if (n === 0) { on.fg = ''; on.bold = on.dim = on.italic = on.under = false; }
+      else if (n === 1) on.bold = true;
+      else if (n === 2) on.dim = true;
+      else if (n === 3) on.italic = true;
+      else if (n === 4) on.under = true;
+      else if (n === 22) on.bold = on.dim = false;
+      else if (n === 23) on.italic = false;
+      else if (n === 24) on.under = false;
+      else if (n >= 30 && n <= 37) on.fg = FG[n - 30];
+      else if (n >= 90 && n <= 97) on.fg = FG[n - 90];
+      else if (n === 39) on.fg = '';
+      else if (n === 38 || n === 48) {
+        // An extended colour carries its own parameters, which are not codes.
+        const taken = codes[i + 1] === 5 ? 2 : codes[i + 1] === 2 ? 4 : 1;
+        if (n === 38 && codes[i + 1] === 5 && codes[i + 2] < 16) on.fg = FG[codes[i + 2] % 8];
+        i += taken;
+      }
+    }
+  }
+
   const shows = (log, l) => !log.filter || l.text.toLowerCase().includes(log.filter.toLowerCase());
   const visible = (log) => log.lines.filter((l) => shows(log, l));
   const asText = (log) => visible(log).map((l) => (log.times && l.at ? new Date(l.at).toISOString() + ' ' : '') + l.text).join('\n');
 
-  // One line, with the part that matched the filter marked in it.
+  // One line, in the colours the program wrote it in, with the part that
+  // matched the filter marked in it.
   function lineEl(log, l) {
     const body = h('span', { class: 'lm' });
-    const f = log.filter;
-    if (f) {
-      const low = l.text.toLowerCase(), needle = f.toLowerCase();
-      let i = 0;
-      for (;;) {
-        const at = low.indexOf(needle, i);
-        if (at < 0) { body.append(l.text.slice(i)); break; }
-        if (at > i) body.append(l.text.slice(i, at));
-        body.append(h('mark', null, l.text.slice(at, at + f.length)));
-        i = at + f.length;
-      }
-    } else body.append(l.text);
+    for (const p of l.parts) {
+      const kids = log.filter ? marked(p.s, log.filter) : [p.s];
+      if (p.cls) body.append(h('span', { class: p.cls }, kids));
+      else for (const k of kids) body.append(k instanceof Node ? k : document.createTextNode(k));
+    }
     return h('div', { class: 'll ' + l.level },
       log.times && l.at ? h('span', { class: 'lt' }, new Date(l.at).toLocaleTimeString(undefined, { hour12: false })) : null,
       body);
+  }
+
+  // The filter is marked inside each coloured run of the line, not across the
+  // line: a match that straddles a colour change would have to be split up to
+  // be drawn anyway.
+  function marked(s, f) {
+    const out = [];
+    const low = s.toLowerCase(), needle = f.toLowerCase();
+    let i = 0;
+    for (;;) {
+      const at = low.indexOf(needle, i);
+      if (at < 0) { if (i < s.length) out.push(s.slice(i)); break; }
+      if (at > i) out.push(s.slice(i, at));
+      out.push(h('mark', null, s.slice(at, at + f.length)));
+      i = at + f.length;
+    }
+    return out;
   }
 
   // ---- drawing
@@ -1559,6 +1714,12 @@ const sidePanel = (() => {
         h('span', { class: 'muted' }, c.project),
         c.rows ? badge(running ? 'ok' : 'mute', running ? running + ' running' : 'stopped') : null,
         h('span', { class: 'grow' }),
+        h('button', {
+          type: 'button', class: 'btn small ghost', 'aria-pressed': String(wide),
+          title: wide ? 'Put it back beside the page' : 'Widen it over the page, for reading logs',
+          'aria-label': wide ? 'Narrow the panel' : 'Widen the panel',
+          onclick: () => setWide(!wide),
+        }, wide ? 'Narrow' : 'Wide'),
         h('button', { type: 'button', class: 'btn small ghost close', 'aria-label': 'Close the panel (Esc)', title: 'Close (Esc)', onclick: close }, '✕')),
       // Named by the hostname, not by the service behind it: two hosts of one
       // app often share a service, and two chips both reading “web” say
