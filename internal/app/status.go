@@ -201,7 +201,7 @@ func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e Workspac
 	if clean, err := c.Git.IsClean(ctx, dir); err != nil || !clean {
 		return res, fmt.Errorf("%s: local changes in `%s`, which an update never overwrites; commit or stash them, then `multiversectl project update %s`", name, dir, name)
 	}
-	if err := c.Git.Fetch(ctx, dir); err != nil {
+	if err := c.Progress.Do("Checking "+name+" for changes", func(ctx context.Context) error { return c.Git.Fetch(ctx, dir) }); err != nil {
 		return res, fmt.Errorf("%s: fetch %s: %s", name, shortRepo(e.Source.Repo), reason(err, e.Source.Repo))
 	}
 	behind, err := c.Git.Behind(ctx, dir, e.Source.Ref)

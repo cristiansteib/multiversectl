@@ -120,7 +120,16 @@ func (c *Catalogs) Use(source string) error {
 // With refresh, every remote repository is fetched first. A layer that cannot
 // be read is returned as an unavailable node; only the root failing is an error.
 func (c *Catalogs) Tree(ctx context.Context, source string, refresh bool) (domain.Node, error) {
-	return c.tree(ctx, source, refresh, false)
+	if !refresh {
+		return c.tree(ctx, source, false, false)
+	}
+	// Fetching can take seconds per layer: show that something is happening.
+	var node domain.Node
+	err := c.Progress.Do("Fetching the catalog", func(ctx context.Context) (err error) {
+		node, err = c.tree(ctx, source, true, false)
+		return err
+	})
+	return node, err
 }
 
 // TreeCached is Tree from what is already on disk, with no network and no

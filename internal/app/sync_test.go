@@ -144,3 +144,34 @@ func writeFile(t *testing.T, path, text string) {
 func gitcliFetch(dir string) error {
 	return exec.Command("git", "-C", dir, "fetch", "-q", "origin").Run()
 }
+
+// recordingProgress notes what was drawn, and runs the work.
+type recordingProgress struct{ labels, jobs []string }
+
+func (p *recordingProgress) Do(label string, fn func(context.Context) error) error {
+	p.labels = append(p.labels, label)
+	return fn(context.Background())
+}
+
+func (p *recordingProgress) Parallel(label string, _ int, jobs []app.Job) []error {
+	p.labels = append(p.labels, label)
+	errs := make([]error, len(jobs))
+	for i, j := range jobs {
+		p.jobs = append(p.jobs, j.Name)
+		errs[i] = j.Run(context.Background())
+	}
+	return errs
+}
+
+func TestUpdatingClonesFetchesThemAllUnderOneProgress(t *testing.T) {
+	b := newBench(t)
+	p := &recordingProgress{}
+	b.svc.Progress = p
+	b.pushToOrigin("api", "one")
+	if _, err := b.svc.UpdateClones(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(p.labels) != 1 || p.labels[0] != "Fetching 2 repositories" || strings.Join(p.jobs, ",") != "api,web" {
+		t.Errorf("labels %v jobs %v", p.labels, p.jobs)
+	}
+}
