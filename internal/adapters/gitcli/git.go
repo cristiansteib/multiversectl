@@ -27,11 +27,27 @@ func (Git) run(ctx context.Context, args ...string) (string, error) {
 	if err := cmd.Run(); err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
-			return "", fmt.Errorf("git %s: %w", args[0], err)
+			return "", fmt.Errorf("git %s: %w", named(args), err)
 		}
-		return "", fmt.Errorf("git %s: %s", args[0], msg)
+		return "", fmt.Errorf("git %s: %s", named(args), msg)
 	}
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+// named is the subcommand, for the message. Most calls start with "-C <dir>",
+// and naming the error after that said only "git -C:".
+func named(args []string) string {
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-C" {
+			i++ // and the directory after it
+			continue
+		}
+		if strings.HasPrefix(args[i], "-") {
+			continue
+		}
+		return args[i]
+	}
+	return "git"
 }
 
 func (g Git) Clone(ctx context.Context, url, dest string) error {
@@ -172,6 +188,14 @@ func (g Git) RemoveWorktree(ctx context.Context, repoDir, dest string, discard b
 		args = append(args, "--force")
 	}
 	_, err := g.run(ctx, append(args, dest)...)
+	return err
+}
+
+// PruneWorktrees makes git forget the worktrees whose directories are gone.
+// Without it a directory removed any other way stays in the clone's
+// bookkeeping, and the branch that was in it stays unavailable.
+func (g Git) PruneWorktrees(ctx context.Context, repoDir string) error {
+	_, err := g.run(ctx, "-C", repoDir, "worktree", "prune")
 	return err
 }
 

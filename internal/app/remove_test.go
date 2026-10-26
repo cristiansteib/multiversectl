@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"strings"
 	"testing"
 
@@ -15,6 +16,36 @@ type removeGit struct {
 	removed []string
 	// refuse is returned by RemoveWorktree for a destination ending in it.
 	refuse string
+	pruned int
+}
+
+// countingFiles is everywhere{} with a record of what was removed, and the
+// chance to refuse a path the way a filesystem does.
+type countingFiles struct {
+	Files
+	removed map[string]bool
+	refuse  map[string]error
+}
+
+func (f *countingFiles) Exists(string) bool { return true }
+
+func (f *countingFiles) RemoveAll(path string) error {
+	if err, ok := f.refuse[path]; ok {
+		return err
+	}
+	if f.removed == nil {
+		f.removed = map[string]bool{}
+	}
+	f.removed[path] = true
+	return nil
+}
+
+func removeServiceWith(git *removeGit, files Files) (*Service, *pruneStore) {
+	store := &pruneStore{states: []domain.UniverseState{
+		{ID: "3", Name: "3", Slug: "u3", Project: "acme-u3", Branches: map[string]string{"api": "u3", "ui": "u3"}},
+	}}
+	m := &domain.Manifest{Name: "acme", Repos: map[string]domain.Repo{"api": {}, "ui": {}}}
+	return New(Deps{Store: store, Runtime: removeRuntime{}, Git: git, Files: files, Out: discardOut{}}, "/ws", m, "test"), store
 }
 
 func (g *removeGit) IsClean(_ context.Context, dir string) (bool, error) {
@@ -24,6 +55,17 @@ func (g *removeGit) IsClean(_ context.Context, dir string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func (g *removeGit) PruneWorktrees(context.Context, string) error { g.pruned++; return nil }
+
+func (g *removeGit) removedPath(p string) bool {
+	for _, got := range g.removed {
+		if got == p {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *removeGit) RemoveWorktree(_ context.Context, _, dest string, _ bool) error {
@@ -145,5 +187,73 @@ func TestWhatCouldNotBeTakenBackIsNamed(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("want %q in %q", want, err)
 		}
+	}
+}
+
+// A worktree whose registration the clone has lost — git calls it "not a
+// working tree" — is still a directory the universe owns, and removing the
+// universe is exactly the moment to take it away.
+func TestADirectoryGitHasNoRecordOfIsStillRemoved(t *testing.T) {
+	git := &removeGit{refuse: "/ui"} // git says no for ui
+	files := &countingFiles{}
+	s, store := removeServiceWith(git, files)
+
+	if err := s.Remove(context.Background(), RemoveInput{Universe: "3"}); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if !files.removed["/ws/universes/3/ui"] {
+		t.Errorf("want the directory taken away anyway, removed %v", files.removed)
+	}
+	if len(store.deleted) != 1 {
+		t.Errorf("want the universe gone from the listing, got %v", store.deleted)
+	}
+}
+
+// What a container running as root leaves behind: files the person who
+// started it cannot delete. The removal does everything else, keeps the state
+// so `rm` can be pointed at it again, and says exactly what to run.
+func TestWhatCannotBeDeletedIsNamedWithTheCommandToDeleteIt(t *testing.T) {
+	git := &removeGit{refuse: "/ui"}
+	files := &countingFiles{refuse: map[string]error{
+		"/ws/universes/3/ui": &fs.PathError{Op: "unlinkat", Path: "/ws/universes/3/ui/node_modules", Err: fs.ErrPermission},
+	}}
+	s, store := removeServiceWith(git, files)
+
+	err := s.Remove(context.Background(), RemoveInput{Universe: "3"})
+	var left *NotFullyRemoved
+	if !errors.As(err, &left) {
+		t.Fatalf("want it reported as unfinished, got %v", err)
+	}
+	for _, want := range []string{
+		"containers and volumes are gone", // what did happen
+		"/ws/universes/3/ui",              // what did not
+		"sudo rm -rf /ws/universes/3/ui",  // and how to finish it
+		"universe rm 3` again",            // and then what
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("want %q in:\n%s", want, err)
+		}
+	}
+	// The other repository was still removed: one stuck directory does not
+	// leave the rest of a destroyed universe lying about.
+	if !git.removedPath("/ws/universes/3/api") {
+		t.Errorf("want api removed too, got %v", git.removed)
+	}
+	// And the universe is still listed, so running rm again finishes it.
+	if len(store.deleted) != 0 {
+		t.Errorf("the state was deleted with files still on disk: %v", store.deleted)
+	}
+}
+
+// Having removed a directory git did not know about, the clone should be told,
+// or the branch that was in it stays unavailable to the next universe.
+func TestTheCloneIsToldToForgetWhatIsGone(t *testing.T) {
+	git := &removeGit{}
+	s, _ := removeServiceWith(git, &countingFiles{})
+	if err := s.Remove(context.Background(), RemoveInput{Universe: "3"}); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if git.pruned == 0 {
+		t.Error("want the clone's worktree list pruned")
 	}
 }

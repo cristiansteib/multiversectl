@@ -52,6 +52,8 @@ func (g *pruneGit) IsClean(_ context.Context, dir string) (bool, error) {
 	}
 	return true, nil
 }
+func (g *pruneGit) PruneWorktrees(context.Context, string) error { return nil }
+
 func (g *pruneGit) RemoveWorktree(_ context.Context, _, dest string, _ bool) error {
 	g.removed = append(g.removed, dest)
 	return nil
