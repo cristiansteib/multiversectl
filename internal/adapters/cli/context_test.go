@@ -90,7 +90,7 @@ func TestLessKeepsOnlyWhereAUniverseIsAndWhatItAnswersOn(t *testing.T) {
 	}}
 	b, _ := json.Marshal(lessView(app.ProjectContext{Root: "/r", Manifest: "/r/m.yaml"}, list))
 	got := string(b)
-	want := `{"root":"/r","universes":[{"name":"3","state":"running","dir":"/r/universes/3","urls":["http://a.example.test"]}]}`
+	want := `{"root":"/r","universes":[{"name":"3","state":"running","dir":"/r/universes/3","urls":["http://a.example.test"],"urlsByHost":{"api":"http://a.example.test"}}]}`
 	if got != want {
 		t.Errorf("got %s", got)
 	}
@@ -119,5 +119,20 @@ func TestTheBriefViewCarriesWhatSomeoneSaidTheUniverseIsFor(t *testing.T) {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("missing %s in %s", want, b)
 		}
+	}
+}
+
+func TestEachAddressIsNamedByItsAppAndHost(t *testing.T) {
+	list := []app.Summary{{
+		Name: "3", Dir: "/r/universes/3", Running: 1,
+		Apps: []app.AppSummary{{Key: "api", Expected: 1, URLs: []app.HostURL{
+			{Host: "api", Service: "nginx", URL: "http://api-3.example.test"},
+			{Host: "devapi", Service: "web", URL: "http://devapi-3.example.test:8001"},
+		}}},
+	}}
+	b, _ := json.Marshal(briefView(app.ProjectContext{}, list))
+	want := `"urlsByHost":{"api/api":"http://api-3.example.test","api/devapi":"http://devapi-3.example.test:8001"}`
+	if !strings.Contains(string(b), want) {
+		t.Errorf("missing %s in %s", want, b)
 	}
 }

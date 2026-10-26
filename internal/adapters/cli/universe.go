@@ -228,7 +228,7 @@ func (r runner) lsCmd() *cobra.Command {
 			"  multiversectl universe ls -o wide        # every service, its state and its volumes\n" +
 			"  multiversectl universe ls -o list        # one line per universe\n" +
 			"  multiversectl universe ls -o list,wide\n" +
-			"  multiversectl universe ls -o json        # compact, for an agent: project paths, and per universe its state, folders and URLs\n" +
+			"  multiversectl universe ls -o json        # compact, for an agent: project paths, and per universe its state, folders and URLs (urlsByHost says which is which)\n" +
 			"  multiversectl universe ls -o json,wide   # everything: services, volumes, compose names, times\n" +
 			"  multiversectl universe ls -o json,less   # the least: name, state, folder and URLs\n" +
 			"  multiversectl universe ls 3 -o json      # only universe 3",
