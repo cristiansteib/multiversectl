@@ -100,10 +100,11 @@ func TestLsTableRowForARepoWithoutAnApp(t *testing.T) {
 				t.Errorf("wide=%v: want %q in the checkout row, got %q", wide, want, row)
 			}
 		}
-		// Wide names worktrees in its own block, the plain table in a column;
-		// either way the path must be somewhere.
-		if !strings.Contains(out, "/w/universes/1/docs") {
-			t.Errorf("wide=%v: want the docs worktree named:\n%s", wide, out)
+		// Where the code is belongs to the wide shape, in its own block. The
+		// plain one answers which app, which branch and which address, and a
+		// column of paths is what made it too wide to read.
+		if got := strings.Contains(out, "/w/universes/1/docs"); got != wide {
+			t.Errorf("wide=%v: the worktree is named: %v\n%s", wide, got, out)
 		}
 	}
 }
@@ -186,5 +187,71 @@ func TestLsRowsNameTheirApp(t *testing.T) {
 		if rows == 0 || named != rows {
 			t.Errorf("wide=%v: %d of %d rows name their app:\n%s", wide, named, rows, body)
 		}
+	}
+}
+
+// The default answers the question somebody who typed `ls` has: which app, on
+// which branch, at which address. Everything else is what -o wide is for.
+func TestLsTableIsJustTheAddresses(t *testing.T) {
+	var buf bytes.Buffer
+	lsTable(NewOutput(&buf, false), lsFixture(), false)
+	out := buf.String()
+
+	header := ""
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "APP") {
+			header = line
+			break
+		}
+	}
+	if fields := strings.Fields(header); len(fields) != 3 ||
+		fields[0] != "APP" || fields[1] != "BRANCH" || fields[2] != "URL" {
+		t.Errorf("want app, branch and url alone, got %q", header)
+	}
+	for _, gone := range []string{"SERVICE", "RUNNING", "PATH", "HOST"} {
+		if strings.Contains(header, gone) {
+			t.Errorf("%s belongs to -o wide now, got %q", gone, header)
+		}
+	}
+	// What the addresses are for is still there.
+	if !strings.Contains(out, "http://api-u1.example.test") {
+		t.Errorf("want the addresses:\n%s", out)
+	}
+}
+
+// A host that is also forwarded to a port has two addresses. They belong on
+// one row, beside each other, and the column is there only when one is.
+func TestAForwardedAddressSitsBesideTheOneItMirrors(t *testing.T) {
+	plain := lsFixture()
+	var buf bytes.Buffer
+	lsTable(NewOutput(&buf, false), plain, false)
+	if strings.Contains(buf.String(), "FORWARDED") {
+		t.Errorf("want no column when nothing is forwarded:\n%s", buf.String())
+	}
+
+	forwarded := lsFixture()
+	apps := forwarded[0].Apps
+	apps[0].URLs = append(apps[0].URLs, app.HostURL{
+		Host: "api:forward", Service: "web", URL: "http://192.168.1.20:33001",
+	})
+	buf.Reset()
+	lsTable(NewOutput(&buf, false), forwarded, false)
+	out := buf.String()
+
+	if !strings.Contains(out, "FORWARDED") {
+		t.Fatalf("want the column once something is forwarded:\n%s", out)
+	}
+	var row string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "http://api-u1.example.test") {
+			row = line
+		}
+	}
+	if !strings.Contains(row, "http://192.168.1.20:33001") {
+		t.Errorf("want both addresses on one row, got %q", row)
+	}
+	// And not as a row of its own, pretending to be another host.
+	if strings.Contains(out, "api:forward") {
+		t.Errorf("the marker is plumbing, not something to read:\n%s", out)
 	}
 }

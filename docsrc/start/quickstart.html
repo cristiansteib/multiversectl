@@ -17,18 +17,18 @@
 <span class="c"># stop and delete universe 1 (asks first)</span>
 <span class="p">$ </span>multiversectl universe rm 1</pre></div>
   <h2 id="see"><a href="#see">Seeing what you have</a></h2>
-  <p><code>ls</code> is one block per universe — branch, service, hostname and URL for every address it answers on:</p>
+  <p><code>ls</code> is one block per universe: which app, on which branch, at which address.</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl universe ls
 <span class="k">universe 3</span>  ·  acme-u3  ·  6 running  ·  192-168-1-20.traefik.me
 <span class="c">─────────────────────────────────────────────────────────────────</span>
-<span class="c">APP    BRANCH  RUNNING  SERVICE  HOST    URL</span>
-admin  u3      1        app-dev  adm     http://adm-u3.192-168-1-20.traefik.me
-api    u3      4        web      api     http://api-u3.192-168-1-20.traefik.me
-                        web      devapi  http://devapi-u3.192-168-1-20.traefik.me:8001
-                        mailpit  mail    http://mail-u3.192-168-1-20.traefik.me
-web    u3      1        app-dev  app     http://app-u3.192-168-1-20.traefik.me
-<span class="c">also checked out: mobile=u3</span></pre></div>
-  <p class="muted">Run <code>multiversectl --help</code> for every command and flag. <code>ls -o wide</code> adds every service, whether it is up and the volumes it owns; <code>-o list</code> is one line per universe, for piping. They combine: <code>-o list,wide</code>.</p>
+<span class="c">APP    BRANCH  URL</span>
+admin  u3      http://adm-u3.192-168-1-20.traefik.me
+api    u3      http://api-u3.192-168-1-20.traefik.me
+api            http://devapi-u3.192-168-1-20.traefik.me:8001
+api            http://mail-u3.192-168-1-20.traefik.me
+web    u3      http://app-u3.192-168-1-20.traefik.me
+mobile u3      checkout only, no services</pre></div>
+  <p class="muted">A host that is also forwarded to a port shows that address beside it. <code>ls -o wide</code> is the rest: the service behind each address, what is up and what is off, what publishes a port, and every worktree, compose project and volume. <code>-o list</code> is one line per universe, for piping, and they combine: <code>-o list,wide</code>.</p>
 </section>
 
 <section id="second">
