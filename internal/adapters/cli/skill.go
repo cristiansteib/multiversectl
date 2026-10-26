@@ -33,16 +33,15 @@ func (r runner) refreshSkills(cmd *cobra.Command) {
 	r.skills().Refresh(skillText)
 }
 
-// aiCmd groups what multiversectl offers coding agents. The skill is the first;
+// agentsCmd groups what multiversectl offers coding agents. The skill is the first;
 // more go beside it.
-func (r runner) aiCmd() *cobra.Command {
+func (r runner) agentsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "ai",
-		Aliases: []string{"agents"},
-		Short:   "Tools for coding agents",
+		Use:   "agents",
+		Short: "Tools for coding agents",
 		Long: "What multiversectl offers a coding agent, so it can work in a universe of its own.\n" +
 			"For reading the tool itself, every command takes --json (and --help --json).",
-		Example: "  multiversectl ai skill install\n  multiversectl ai skill status",
+		Example: "  multiversectl agents skill install\n  multiversectl agents skill status",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
@@ -59,9 +58,9 @@ func (r runner) skillCmd() *cobra.Command {
 			"never to do without asking. It records the version that wrote it, and any later\n" +
 			"run of multiversectl rewrites an installed copy written by another version, so an\n" +
 			"upgrade does not leave an agent reading old advice.",
-		Example: "  multiversectl ai skill install              # for you, in every project\n" +
-			"  multiversectl ai skill install --project    # only in this folder's repository\n" +
-			"  multiversectl ai skill status\n  multiversectl ai skill show",
+		Example: "  multiversectl agents skill install              # for you, in every project\n" +
+			"  multiversectl agents skill install --project    # only in this folder's repository\n" +
+			"  multiversectl agents skill status\n  multiversectl agents skill show",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
@@ -117,7 +116,7 @@ func (r runner) skillCmd() *cobra.Command {
 			RunE: func(*cobra.Command, []string) error {
 				list := r.skills().Status()
 				if len(list) == 0 {
-					r.out.Info("not installed: `multiversectl ai skill install`")
+					r.out.Info("not installed: `multiversectl agents skill install`")
 					return nil
 				}
 				for _, i := range list {
