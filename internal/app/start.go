@@ -268,7 +268,7 @@ type RunInput struct {
 }
 
 // Run executes a command in a new container of the given service. The service
-// may be left empty when the app defines exactly one.
+// may be left empty when the app defines exactly one, or names a defaultService.
 func (s *Service) Run(ctx context.Context, in RunInput) error {
 	st, err := s.Resolve(in.Universe)
 	if err != nil {
@@ -282,13 +282,16 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 
 	service := in.Service
 	if service == "" {
+		service = s.Manifest.Apps[in.App].DefaultService
+	}
+	if service == "" {
 		cfg, err := s.Runtime.Inspect(ctx, req)
 		if err != nil {
 			return err
 		}
 		names := cfg.Names()
 		if len(names) != 1 {
-			return fmt.Errorf("app %q has %d services (%s): name the one to run in",
+			return fmt.Errorf("app %q has %d services (%s): name the one to run in (--service), or set defaultService on the app",
 				in.App, len(names), strings.Join(names, ", "))
 		}
 		service = names[0]

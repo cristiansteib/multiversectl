@@ -19,6 +19,14 @@
   <p class="muted">Or, without touching the repository, list it in the manifest: <code>publish: [db]</code> on the app. Only one universe can hold that host port at a time.</p>
 </section>
 
+<section id="hw-default-service">
+  <h2 id="hw-default-service"><a href="#hw-default-service">Choose where exec and run go</a></h2>
+  <p>An app with several services makes <code>universe exec</code> and <code>universe run</code> ask for <code>--service</code> every time. Name the one you almost always want:</p>
+  <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
+<span class="k">defaultService</span>: web</pre></div>
+  <p class="muted"><code>--service</code> still wins. When the app lists <code>services</code>, the default must be one of them.</p>
+</section>
+
 <section id="hw-optional">
   <h2 id="hw-optional"><a href="#hw-optional">Run optional services on demand</a></h2>
   <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
