@@ -1,12 +1,12 @@
 <section id="why">
   <h2 id="why"><a href="#why">Why labels</a></h2>
-  <p>A compose file already knows which port its service listens on and which settings depend on the environment. Writing that into a manifest means saying it twice and keeping the two in step by hand, so multiversectl reads the compose files instead &mdash; with <code>docker compose config</code>, so it sees the merged result, variables and profiles included.</p>
-  <p>Labels rather than a reference such as <code>${MULTIVERSE_ORIGINS}</code> in the service's own <code>environment:</code>, because a compose file is also run by hand: the reference resolves to the empty string when multiversectl is not driving it, while a label is inert metadata until it is.</p>
+  <p>A compose file already knows which port its service listens on and which settings depend on the environment. Writing that into a manifest means saying it twice and keeping the two in step by hand, so multiversectl reads the compose files instead — with <code>docker compose config</code>, so it sees the merged result, variables and profiles included.</p>
+  <p>Labels rather than a reference such as <code>${MULTIVERSE_ORIGINS}</code> in the service's own <code>environment:</code>, because a compose file is also run by hand: the reference would resolve to nothing, while a label is inert metadata until multiversectl reads it.</p>
 </section>
 
 <section id="host">
   <h2 id="host"><a href="#host">Addresses: <code>multiverse.host.*</code></a></h2>
-  <p>The label key names the host, the value is the container port:</p>
+  <p>The key names the host, the value is the container port:</p>
   <div class="code"><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
@@ -14,9 +14,9 @@
       <span class="k">multiverse.host.api</span>: <span class="s">"8001"</span>
       <span class="k">multiverse.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
       <span class="k">multiverse.host.api.aliases</span>: app,adm     <span class="c"># same service, more names</span></pre></div>
-  <p><code>aliases</code> is how one API answers under each front-end's own hostname on a second entrypoint, which is what makes a hard-coded <code>:8001</code> work in every universe.</p>
+  <p><code>aliases</code> is how one API answers under each front-end's own hostname on a second entrypoint, which makes a hard-coded <code>:8001</code> work in every universe.</p>
   <h3 id="host-none">With no labels at all</h3>
-  <p>A service exposing exactly one port is reached at the app's own name, so the common case needs nothing. Anything ambiguous is an error that names the label to add rather than a guess:</p>
+  <p>A service exposing exactly one port is reached at the app's own name, so the common case needs nothing. Anything ambiguous is an error naming the label to add, not a guess:</p>
   <div class="code"><pre>api: services "web" and "worker" both expose a port — label the one that
 should answer: multiverse.host.api: "&lt;port&gt;"</pre></div>
   <p>Hosts declared in the manifest's <code>hosts:</code> win over labels, and exist for repositories you cannot change.</p>
@@ -28,12 +28,12 @@ should answer: multiverse.host.api: "&lt;port&gt;"</pre></div>
   <span class="k">db</span>:
     <span class="k">labels</span>:
       <span class="k">multiverse.publish</span>: <span class="s">"true"</span></pre></div>
-  <p>Keeps this service's published host ports instead of dropping them. Only one universe can hold a given host port at a time, so a service that asks for this is a service only one universe can run &mdash; usually worth it for a database you point a GUI at, rarely worth it for anything else. The manifest's <code>publish:</code> list does the same from outside.</p>
+  <p>Keeps this service's published host ports instead of dropping them. Only one universe can hold a host port at a time, so a service that asks for this is one only a single universe can run — usually worth it for a database you point a GUI at, rarely for anything else. The manifest's <code>publish:</code> list does the same from outside.</p>
 </section>
 
 <section id="env">
   <h2 id="env"><a href="#env">Values: <code>multiverse.env.*</code></a></h2>
-  <p>The label key names an environment variable, the value names what to put in it:</p>
+  <p>The key names an environment variable, the value names what to put in it:</p>
   <div class="code"><pre><span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">labels</span>:
@@ -43,22 +43,21 @@ should answer: multiverse.host.api: "&lt;port&gt;"</pre></div>
       <span class="k">multiverse.env.API_BASE_URL</span>: url:devapi</pre></div>
   <div class="tw"><table>
   <thead><tr><th scope="col">Source</th><th scope="col">Value</th></tr></thead><tbody>
-  <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port: <code>http://api-u3.d,http://devapi-u3.d:8001,…</code></td></tr>
+  <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port.</td></tr>
   <tr><td data-l="Source"><code>hosts</code></td><td data-l="Value">Every hostname, comma separated.</td></tr>
   <tr><td data-l="Source"><code>domain</code></td><td data-l="Value">The wildcard domain in use.</td></tr>
-  <tr><td data-l="Source"><code>universe</code></td><td data-l="Value">The universe's name, as it was typed.</td></tr>
+  <tr><td data-l="Source"><code>universe</code></td><td data-l="Value">The universe's name, as typed.</td></tr>
   <tr><td data-l="Source"><code>slug</code></td><td data-l="Value">The part its hostnames carry.</td></tr>
   <tr><td data-l="Source"><code>host:&lt;key&gt;</code></td><td data-l="Value">One host key's hostname.</td></tr>
   <tr><td data-l="Source"><code>url:&lt;key&gt;</code></td><td data-l="Value">One host key's whole address, port included.</td></tr>
   </tbody></table></div>
-  <p>An unknown source fails the start, naming the valid ones. That is deliberate: a variable left quietly empty surfaces much later as a confusing runtime error, a long way from the label that caused it.</p>
+  <p>An unknown source fails the start and names the valid ones, rather than leaving a variable quietly empty to surface much later as a confusing runtime error.</p>
   <h3 id="env-precedence">It beats <code>env_file</code></h3>
-  <p>These land in the generated fragment, which is merged last, so they override both the service's own <code>environment:</code> and any <code>env_file:</code>. A static list of origins in a committed <code>.env</code> therefore stops being what the universe runs with &mdash; which is the usual reason CORS is wrong in a second copy of a stack.</p>
-  <p>Prefer <code>origins</code> and <code>hosts</code> over naming addresses one at a time: they follow the manifest, so adding a host key or an app does not leave a settings list behind to be found later.</p>
+  <p>These land in the generated fragment, merged last, so they override the service's own <code>environment:</code> and any <code>env_file:</code>. A static list of origins in a committed <code>.env</code> therefore stops being what the universe runs with — the usual reason CORS is wrong in a second copy of a stack.</p>
+  <p>Prefer <code>origins</code> and <code>hosts</code> to naming addresses one at a time: they follow the manifest, so adding a host key or an app leaves no settings list behind.</p>
 </section>
 
 <section id="where">
   <h2 id="where"><a href="#where">Where multiversectl reads them</a></h2>
-  <p>Labels are read from the merged configuration of the app's files, at two moments: when a universe is created, so <code>urls</code> and <code>ls</code> can answer without a running container, and again on every start, because the files may have changed since. Nothing is cached beyond the universe's state file.</p>
-  <p>This also means a label added to a repository takes effect on the next <code>up</code>, with no manifest change and no re-creation.</p>
+  <p>From the merged configuration of the app's files, at two moments: when a universe is created, so <code>urls</code> and <code>ls</code> can answer without a running container, and again on every start, because the files may have changed. Nothing is cached beyond the universe's state file, so a label added to a repository takes effect on the next <code>up</code> — no manifest change, no re-creation.</p>
 </section>

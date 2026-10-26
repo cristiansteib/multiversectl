@@ -1,6 +1,6 @@
 <section id="what">
   <h2 id="what"><a href="#what">What it is</a></h2>
-  <p>multiversectl runs several complete copies of a multi-repository project, called <em>universes</em>, on one machine &mdash; numbered, or named after the branch they check out &mdash; so each branch or agent gets a whole environment without port collisions. It namespaces instead of virtualizing: one git worktree per repository, one compose project per app, and one shared reverse proxy that routes by hostname. A new universe is a worktree and a <code>compose up</code>, seconds on the daemon and image cache you already use.</p>
+  <p>multiversectl runs several complete copies of a multi-repository project — <em>universes</em> — on one machine, numbered or named after the branch they check out, so every branch or agent gets a whole environment without port collisions. It namespaces instead of virtualizing: one git worktree per repository, one compose project per app, one shared proxy routing by hostname. A new universe is a worktree and a <code>compose up</code>: seconds, on the daemon and image cache you already have.</p>
   <figure class="fig">
     <svg viewBox="0 0 360 440" role="img" aria-labelledby="dt dd">
       <title id="dt">One project fanning out into three universes behind one proxy</title>

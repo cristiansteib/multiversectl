@@ -133,8 +133,8 @@
 
 <section id="hw-run">
   <h2 id="hw-run"><a href="#hw-run">Running it</a></h2>
-  <p><code>server start</code> runs the web view detached, so closing the terminal does not stop it; <code>server status</code> says where it is and <code>server stop</code> ends it. Its output goes to <code>server.log</code> beside the configuration file, which is where <code>start</code> explains itself when it cannot start. To keep it in a terminal instead, run <code>multiversectl-server</code>; Ctrl-C stops it.</p>
-  <p>An update replaces the program on disk but not the one already running, so <code>self-update</code> and the install script restart it for you, and after a package upgrade <code>server status</code> says it is still on the older build. <code>server restart</code> brings it back with the address and flags it had, and the link stays the same. The flags are in the <a href="../reference/cli.html">command reference</a>.</p>
+  <p><code>server start</code> runs it detached, so closing the terminal does not stop it; <code>server status</code> says where it is, <code>server stop</code> ends it. Its output goes to <code>server.log</code> beside the configuration, which is where <code>start</code> explains itself when it cannot start. To keep it in a terminal, run <code>multiversectl-server</code>.</p>
+  <p>An update replaces the program on disk but not the one running, so <code>self-update</code> and the install script restart it, and after a package upgrade <code>server status</code> says it is on the older build. <code>server restart</code> brings it back with the address and flags it had, link unchanged. The flags are in the <a href="../reference/cli.html">command reference</a>.</p>
 </section>
 
 <section id="hw-elsewhere">
@@ -144,8 +144,8 @@
 ✓ code 418 902 — type it into the page on the other machine
   open http://192.168.1.23:7777/
 ℹ it opens one machine, once, and runs out in 5 minutes</pre></div>
-  <p>The other machine opens that address, is asked for the code, and types it in. It then has what this machine has: a page that can start, stop and remove universes. The code opens one machine, is spent by the first use, dies after five wrong guesses and is forgotten after five minutes; nothing hands one out but a request that already has the link, so there is nothing to guess at unless you are in the middle of letting someone in. An agent asked for access runs the same command and reads out what it printed.</p>
-  <p><code>--expose</code> is still the decision to be reachable: the page is served over plain HTTP, so keep it to a network you trust, and <code>--read-only</code> is there for a machine you only want to be watched from.</p>
+  <p>The other machine opens that address, types the code, and has what this machine has. The code opens one machine, is spent by the first use, dies after five wrong guesses and is forgotten after five minutes — and nothing hands one out but a request that already has the link. An agent asked for access runs the same command and reads out what it printed.</p>
+  <p>The page is served over plain HTTP, so keep <code>--expose</code> to a network you trust; <code>--read-only</code> is there for a machine you only want to be watched from.</p>
 </section>
 
 <section id="hw-agents">
@@ -156,14 +156,14 @@
  "universes":[{"name":"3","state":"running","up":"3/3","dir":"…/universes/3",
    "checkout":{"api":"…/universes/3/api"},"branch":{"api":"u3"},"urls":{"api/api":"https://api-3.example.test"},
    "containers":{"api/web":"acme-u3-api-web-1"}}]}</pre></div>
-  <p>One line, and only what an agent acts on: where the project and its clones are, and per universe whether it runs, the folder of every repository, the branches, the addresses under <code>urls</code> named by app and host, and under <code>containers</code> the running container of each service, for the <code>docker</code> commands <code>exec</code> does not cover. A universe with services that should be up and are not lists them under <code>down</code>.</p>
-  <p><code>--json</code> works on every command: <code>--help --json</code> prints a command as a document, and a command that acts prints its messages as one JSON object per line. <code>-o json,less</code> is the least per universe — name, state, folder, addresses — and <code>-o json,wide</code> is everything. <code>multiversectl agents skill install</code> teaches Claude Code all of it once, as a short skill kept in step with the installed version.</p>
+  <p>One line, and only what an agent acts on: where the project and its clones are, and per universe whether it runs, every repository's folder, the branches, the addresses under <code>urls</code> named by app and host, and under <code>containers</code> the running container of each service. Services that should be up and are not are listed under <code>down</code>.</p>
+  <p><code>--json</code> works on every command, <code>-o json,less</code> is the least per universe and <code>-o json,wide</code> everything. <code>multiversectl agents skill install</code> teaches Claude Code all of it once.</p>
 </section>
 
 <section id="hw-safe">
   <h2 id="hw-safe"><a href="#hw-safe">Who can use it</a></h2>
-  <p>A page that can remove a universe must not be open to whoever can reach the port. The server makes up a token the first time it starts and keeps it in <code>server.token</code> beside the configuration, readable by you only; opening the link trades it for a cookie and drops it from the address bar, and without the cookie every request is refused, the websocket included.</p>
-  <p>It also listens on the loopback address only and answers only requests addressed to <code>localhost</code>, so a page on another site cannot point a name it controls at your machine and talk to it through the browser. Anything that changes state needs a header only the page's own script sends. <code>--expose</code> allows any address, for reaching the page from another device; the token still applies, and the link is then the password.</p>
+  <p>A page that can remove a universe must not be open to whoever reaches the port. The server makes up a token on first start, keeps it in <code>server.token</code> beside the configuration (readable by you only), and the link trades it for a cookie it then drops from the address bar. Without that cookie every request is refused, the websocket included.</p>
+  <p>It also listens on loopback and answers only requests addressed to <code>localhost</code>, so a page on another site cannot point a name it controls at your machine and talk to it through your browser. Anything that changes state needs a header only the page sends. <code>--expose</code> lifts the address restriction; the token still applies.</p>
   <p>The page loads nothing from outside, which its content security policy enforces, and builds everything from text, so a branch name or a note cannot inject markup.</p>
 </section>
 
