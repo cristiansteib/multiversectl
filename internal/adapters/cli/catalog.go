@@ -385,27 +385,31 @@ func (r runner) installCmd() *cobra.Command {
 		// Where it goes is asked only when nothing has said: not --root, --base
 		// or $MULTIVERSECTL_ROOT, and not --yes.
 		ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
-		return r.install(cmd, args, app.InstallOptions{
+		_, err := r.install(cmd, args, app.InstallOptions{
 			Base: firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"),
 			Root: r.g.Root, Name: name, All: all, Fetch: fetch,
 		}, yes, ask)
+		return err
 	}
 	return cmd
 }
 
-func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions, yes, askRoot bool) error {
+// install puts the planned projects on the machine and returns the plan, so a
+// caller that has to go on and do something with one — `start` does — knows
+// which project it was, whether it was installed just now or was already here.
+func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions, yes, askRoot bool) ([]app.InstallTarget, error) {
 	ctx := cmd.Context()
 	c, err := r.catalogs(yes)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	plan, err := c.PlanInstall(ctx, args, o)
 	if err != nil {
-		return r.declined(err)
+		return nil, r.declined(err)
 	}
 	bare, err := r.f.Bare(*r.g, r.out)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	said := map[string]bool{}
@@ -424,7 +428,7 @@ func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions,
 		if askRoot {
 			root, err := r.f.Prompter().Input(fmt.Sprintf("Where should %s live?  (its repositories and universes go here)", t.Name), t.Root)
 			if errors.Is(err, context.Canceled) {
-				return err
+				return nil, err
 			}
 			if err == nil && root != "" {
 				t.Root = root
@@ -451,10 +455,12 @@ func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions,
 
 	r.warnClashes(bare, manifests)
 	if len(failures) > 0 {
-		return fmt.Errorf("%d of %d projects failed: %w", len(failures), len(plan), errors.Join(failures...))
+		return plan, fmt.Errorf("%d of %d projects failed: %w", len(failures), len(plan), errors.Join(failures...))
 	}
-	r.installedHint(bare, added, args)
-	return nil
+	if !r.quietHints {
+		r.installedHint(bare, added, args)
+	}
+	return plan, nil
 }
 
 // installedHint says what happened to the current project and what to do

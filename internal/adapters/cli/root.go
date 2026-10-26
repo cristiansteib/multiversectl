@@ -79,7 +79,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run = runner{g: g, out: out, f: f}
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
-		run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.projectCmd(), run.initCmd(), run.resetCmd(), run.cleanupCmd(), run.completionCmd(root), run.agentsCmd(),
+		run.startCmd(), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.projectCmd(), run.initCmd(), run.resetCmd(), run.cleanupCmd(), run.completionCmd(root), run.agentsCmd(),
 		run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("project", run.completeWorkspaces)
@@ -96,6 +96,9 @@ type runner struct {
 	g   *Globals
 	out *Output
 	f   Factory
+	// quietHints leaves out the "next: …" lines a command prints to say what
+	// to do after it. `start` does those things itself, in the same breath.
+	quietHints bool
 }
 
 // withService runs fn against the resolved project.
@@ -135,8 +138,8 @@ func (r runner) welcome(cmd *cobra.Command, _ []string) error {
 	if list, err := bare.Workspaces(); err == nil && len(list) == 0 {
 		r.out.Plain("")
 		r.out.Plain("%s", r.out.Bold("Get started:"))
-		r.out.Plain("  `multiversectl project install <owner/repo>`   one project, from a repository or a path")
-		r.out.Plain("  `multiversectl init`                   your own index of projects")
+		r.out.Plain("  `multiversectl start <owner/repo>`   install it, make a universe, run it")
+		r.out.Plain("  `multiversectl init`                 your own index of projects")
 	}
 	return nil
 }

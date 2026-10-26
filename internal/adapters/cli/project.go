@@ -134,9 +134,10 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 		return nil
 	}
 	ask := !yes && r.g.Root == "" && res.Root == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
-	return r.install(cmd, []string{src}, app.InstallOptions{
+	_, err = r.install(cmd, []string{src}, app.InstallOptions{
 		Base: firstNonEmpty(os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"), Root: firstNonEmpty(r.g.Root, res.Root),
 	}, yes, ask)
+	return err
 }
 
 // installSource is the best way to name the project to install: its place in
