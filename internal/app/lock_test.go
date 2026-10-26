@@ -33,20 +33,12 @@ func (f *fakeLocks) Acquire(_ context.Context, path string, _ time.Duration) (Un
 	return func() { f.held[name] = false }, nil
 }
 
-type lockGit struct{ Git }
-
-func (lockGit) RemoveWorktree(context.Context, string, string) error { return nil }
-
-type lockRuntime struct{ Runtime }
-
-func (lockRuntime) Down(context.Context, RuntimeRequest, bool) error { return nil }
-
 func lockedService(locks *fakeLocks) *Service {
 	store := &pruneStore{states: []domain.UniverseState{
 		{ID: "3", Name: "3", Slug: "u3", Project: "acme-u3", Branches: map[string]string{"api": "u3"}},
 	}}
 	m := &domain.Manifest{Name: "acme", Repos: map[string]domain.Repo{"api": {}}}
-	return New(Deps{Store: store, Runtime: lockRuntime{}, Git: lockGit{}, Files: everywhere{},
+	return New(Deps{Store: store, Runtime: removeRuntime{}, Git: &removeGit{}, Files: everywhere{},
 		Out: discardOut{}, Locks: locks}, "/ws", m, "test")
 }
 
@@ -107,7 +99,7 @@ func TestPruningDoesNotWaitForItself(t *testing.T) {
 func TestWithoutALockPortNothingLocks(t *testing.T) {
 	store := &pruneStore{states: []domain.UniverseState{{ID: "3", Name: "3", Project: "acme-u3"}}}
 	m := &domain.Manifest{Name: "acme", Repos: map[string]domain.Repo{"api": {}}}
-	s := New(Deps{Store: store, Runtime: lockRuntime{}, Git: lockGit{}, Files: everywhere{},
+	s := New(Deps{Store: store, Runtime: removeRuntime{}, Git: &removeGit{}, Files: everywhere{},
 		Out: discardOut{}}, "/ws", m, "test")
 	if err := s.Remove(context.Background(), RemoveInput{Universe: "3"}); err != nil {
 		t.Fatalf("want it to run unlocked, got %v", err)
