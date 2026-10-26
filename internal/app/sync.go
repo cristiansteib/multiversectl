@@ -89,6 +89,35 @@ type SyncOptions struct {
 	Merge bool
 }
 
+// fetchClones fetches several clones at once, one line each, so a project with
+// many repositories costs the slowest fetch and not the sum. A failure is
+// reported and the work goes on with what is already here. The dirs fetched
+// are marked in done.
+func (s *Service) fetchClones(ctx context.Context, label string, keys []string, done map[string]bool) {
+	var progress Progress = noProgress{}
+	if s.Progress != nil {
+		progress = s.Progress
+	}
+	var jobs []Job
+	for _, key := range keys {
+		dir := s.Manifest.CloneDir(s.Workspace, key)
+		if done[dir] || !s.Files.Exists(dir) {
+			continue
+		}
+		done[dir] = true
+		jobs = append(jobs, Job{Name: key, Run: func(ctx context.Context) error { return s.Git.Fetch(ctx, dir) }})
+	}
+	if len(jobs) == 0 {
+		return
+	}
+	errs := progress.Parallel(label, cloneLimit, jobs)
+	for i, j := range jobs {
+		if errs[i] != nil {
+			s.Out.Warn("%s: fetch: %v (continuing with what is already here)", j.Name, errs[i])
+		}
+	}
+}
+
 // Sync brings a universe's checkouts up to date with the branches they follow,
 // so a universe made yesterday runs today's code. It fetches, then moves each
 // worktree forward when that loses nothing, and says why it left any alone:
@@ -111,6 +140,7 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 	}
 	sort.Strings(repos)
 	moved := 0
+	s.fetchClones(ctx, "Fetching "+plural(len(repos), "repository"), repos, fetched)
 	for _, repo := range repos {
 		dir := u.RepoDir(repo)
 		clone := s.Manifest.CloneDir(s.Workspace, repo)
@@ -180,17 +210,13 @@ func (s *Service) UpdateClones(ctx context.Context) ([]CloneResult, error) {
 		return nil, domain.ErrNoManifest
 	}
 	var out []CloneResult
+	s.fetchClones(ctx, "Fetching "+plural(len(s.repoKeys()), "repository"), s.repoKeys(), map[string]bool{})
 	for _, key := range s.repoKeys() {
 		dir := s.Manifest.CloneDir(s.Workspace, key)
 		if !s.Files.Exists(dir) {
 			continue
 		}
 		res := CloneResult{Repo: key}
-		if err := s.Git.Fetch(ctx, dir); err != nil {
-			res.Detail = fmt.Sprintf("fetch failed: %v", err)
-			out = append(out, res)
-			continue
-		}
 		def, err := s.Git.DefaultBranch(ctx, dir)
 		if err != nil {
 			continue
