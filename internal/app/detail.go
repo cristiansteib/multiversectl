@@ -201,6 +201,11 @@ func (s *Service) Restart(ctx context.Context, in RestartInput) error {
 	if err != nil {
 		return err
 	}
+	unlock, err := s.lockUniverse(ctx, st.ID, st.Name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	if _, ok := s.Manifest.Apps[in.App]; !ok {
 		return fmt.Errorf("app %q: %w in the manifest", in.App, domain.ErrNotFound)
 	}

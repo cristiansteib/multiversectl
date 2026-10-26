@@ -60,12 +60,28 @@ func (s *Service) Unsaved(ctx context.Context, name string) ([]string, error) {
 // directory and its state. A container that will not go down is reported and
 // does not stop the rest, so a half-broken universe can still be cleaned up.
 func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
+	unlock, err := s.lockProject(ctx)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	// Resolved after the lock, not before: another process may have removed
+	// this universe while this one was waiting, and the answer to that is to
+	// say so rather than to go looking for its containers.
 	st, err := s.Resolve(in.Universe)
 	if err != nil {
 		// Resolve names the universe it could not find, and returns a zero
 		// state, so wrapping with st.Name would prefix an empty one.
 		return err
 	}
+	// And the universe's own, so this cannot run while something is starting
+	// or stopping it. Always after the project lock, never before.
+	unlockUniverse, err := s.lockUniverse(ctx, st.ID, st.Name)
+	if err != nil {
+		return err
+	}
+	defer unlockUniverse()
 	u := s.Universe(st.Name)
 
 	// Asked before anything is destroyed, not repository by repository: half a

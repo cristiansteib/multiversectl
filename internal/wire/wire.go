@@ -16,6 +16,7 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/adapters/gitcli"
 	"github.com/cristiansteib/multiversectl/internal/adapters/githost"
 	"github.com/cristiansteib/multiversectl/internal/adapters/gitlabhost"
+	"github.com/cristiansteib/multiversectl/internal/adapters/lockfile"
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest"
 	"github.com/cristiansteib/multiversectl/internal/adapters/prompt"
 	"github.com/cristiansteib/multiversectl/internal/adapters/release"
@@ -84,6 +85,7 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 		Manifests: ManifestLoader{},
 		Releases:  release.New(),
 		Hosts:     []app.RepoHost{githost.New(), gitlabhost.New()},
+		Locks:     lockfile.New(),
 		Out:       out,
 		Progress:  m.Progress(),
 	}

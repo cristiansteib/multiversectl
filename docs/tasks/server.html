@@ -128,6 +128,7 @@
 <section id="hw-act">
   <h2 id="hw-act"><a href="#hw-act">Act from the page</a></h2>
   <p>A project has <em>New universe</em>, <em>Update</em> and <em>Make current</em>; a universe has <em>Start</em>, <em>Stop</em>, <em>Remove…</em> and, when its code is behind, <em>Update code</em>. Each is the use case the command line runs, started in the background; a universe runs one operation at a time, and different universes run side by side.</p>
+  <p>That holds across programs, not only within the page: the page, a terminal and an agent are separate processes, and each takes a lock in the project before it changes anything. A second one is told what has it — <code>universe 2 is busy: pid 4242: multiversectl universe up 2 is working on it</code> — rather than running alongside. Creating and removing take a lock on the project itself, since they change which universes there are; everything else locks only the universe it works on.</p>
   <p>Removing is the one that cannot be undone, so it is slower on purpose: the dialog asks for the universe's name, and uncommitted work stops it until a second press says to discard it. <code>--read-only</code> removes every button and makes the server refuse every action.</p>
 </section>
 

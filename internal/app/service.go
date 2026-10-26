@@ -32,6 +32,9 @@ type Deps struct {
 	// pull or merge request. Empty leaves those unanswered rather than failing:
 	// nothing else a universe shows depends on reaching a network.
 	Hosts []RepoHost
+	// Locks keeps this process out of the way of another one working on the
+	// same project. Nil runs without them, which is how the tests run.
+	Locks Locks
 }
 
 // Service carries out the use cases against one project.

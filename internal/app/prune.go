@@ -78,6 +78,10 @@ func (s *Service) PrunePlan(ctx context.Context, o PruneOptions) ([]PruneItem, e
 // containers and volumes, worktrees, directory and state. One that fails is
 // reported and does not stop the rest. The shared clones, the branches in
 // them, the proxy and the installed project are untouched.
+// Prune holds no lock of its own: it removes universe after universe, and
+// Remove takes the locks for each. Holding the project lock here would be the
+// same process asking for a lock it already has, which is a wait that never
+// ends.
 func (s *Service) Prune(ctx context.Context, items []PruneItem) (removed int, err error) {
 	var errs []error
 	for _, it := range items {
