@@ -119,6 +119,9 @@ func (r runner) withService(fn func(ctx context.Context, s *app.Service) error) 
 // welcome is what bare `multiversectl` does: the help, and, on a machine with
 // nothing installed, the two ways to begin.
 func (r runner) welcome(cmd *cobra.Command, _ []string) error {
+	if wantsJSON(cmd) { // an agent running the bare command wants the index
+		return cmd.Help()
+	}
 	if err := cmd.Help(); err != nil {
 		return err
 	}

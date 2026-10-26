@@ -109,7 +109,8 @@ multiversectl server stop
 An agent needs only the command line: `multiversectl universe ls -o json` prints
 one compact line with the project's paths and, per universe, its state, the folder
 of every repository and its URLs. `--json` works on every command, and
-`--help --json` describes any of them as a document.
+`--help --json` describes any of them as a document, lean by default (`--less`
+and `--full` pick the least or the whole tree).
 
 ## Quick start
 

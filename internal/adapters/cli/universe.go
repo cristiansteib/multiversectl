@@ -189,6 +189,7 @@ type lsFormat struct {
 	list  bool
 	wide  bool
 	json  bool
+	less  bool
 }
 
 // parseLsFormat reads a comma-separated -o value. "wide" on its own means the
@@ -205,8 +206,10 @@ func parseLsFormat(spec string) (lsFormat, error) {
 			f.wide = true
 		case "json":
 			f.json = true
+		case "less":
+			f.less = true
 		default:
-			return f, fmt.Errorf("unknown output %q: want table, list, wide or json, combined with commas like table,wide", token)
+			return f, fmt.Errorf("unknown output %q: want table, list, wide, json or less, combined with commas like table,wide", token)
 		}
 	}
 	if !f.table && !f.list && !f.json {
@@ -227,6 +230,7 @@ func (r runner) lsCmd() *cobra.Command {
 			"  multiversectl universe ls -o list,wide\n" +
 			"  multiversectl universe ls -o json        # compact, for an agent: project paths, and per universe its state, folders and URLs\n" +
 			"  multiversectl universe ls -o json,wide   # everything: services, volumes, compose names, times\n" +
+			"  multiversectl universe ls -o json,less   # the least: name, state, folder and URLs\n" +
 			"  multiversectl universe ls 3 -o json      # only universe 3",
 		Args: cobra.MaximumNArgs(1),
 	}
@@ -257,6 +261,9 @@ func (r runner) lsCmd() *cobra.Command {
 			if f.json {
 				if f.wide {
 					return writeJSON(r.out.w, listView(s.Context(), list))
+				}
+				if f.less {
+					return writeCompactJSON(r.out.w, lessView(s.Context(), list))
 				}
 				return writeCompactJSON(r.out.w, briefView(s.Context(), list))
 			}
@@ -732,16 +739,20 @@ func (r runner) universeStatusCmd() *cobra.Command {
 		Example: "  multiversectl universe status\n  multiversectl universe status -o json   # compact, for an agent",
 		Args:    cobra.NoArgs,
 	}
-	cmd.Flags().StringVarP(&format, "output", "o", "table", "output: table or json")
+	cmd.Flags().StringVarP(&format, "output", "o", "table", "output: table, json or json,less")
 	cmd.RunE = r.withService(func(ctx context.Context, s *app.Service) error {
-		if format != "table" && format != "json" {
-			return fmt.Errorf("unknown output %q: want table or json", format)
+		f, err := parseLsFormat(format)
+		if err != nil || f.wide || f.list {
+			return fmt.Errorf("unknown output %q: want table, json or json,less", format)
 		}
 		list, err := s.List(ctx, app.ListOptions{Services: true, Freshness: true})
 		if err != nil {
 			return err
 		}
-		if format == "json" {
+		if f.json {
+			if f.less {
+				return writeCompactJSON(r.out.w, lessView(s.Context(), list))
+			}
 			return writeCompactJSON(r.out.w, briefView(s.Context(), list))
 		}
 		projectHeader(r.out, s.Context(), false)
