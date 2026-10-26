@@ -138,7 +138,7 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 			res.Moved, res.Detail = f.Behind, "moved forward to origin/"+follows
 		case opts.Merge:
 			if err := s.Git.Merge(ctx, dir, follows); err != nil {
-				res.Detail = fmt.Sprintf("merging origin/%s conflicts; left as it was (merge it by hand in %s)", follows, dir)
+				res.Detail = fmt.Sprintf("merging origin/%s failed (%v); left as it was, merge it by hand in %s", follows, err, dir)
 				break
 			}
 			res.Moved, res.Detail = f.Behind, fmt.Sprintf("merged origin/%s (%d commits of its own kept)", follows, f.Ahead)
