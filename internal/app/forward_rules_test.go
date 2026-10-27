@@ -10,9 +10,9 @@ import (
 // host the app does not have says which ones it has.
 func TestPortForwardLabelAndErrors(t *testing.T) {
 	rules := rulesFromLabels(map[string]string{
-		"multiverse.host.api":             "8001",
-		"multiverse.host.api.portForward": "auto",
-		"multiverse.host.devapi":          "8001",
+		"dev.multiversectl.host.api":             "8001",
+		"dev.multiversectl.host.api.portForward": "auto",
+		"dev.multiversectl.host.devapi":          "8001",
 	})
 	if rules["api"].PortForward != domain.PortForwardAuto || rules["devapi"].PortForward != "" {
 		t.Fatalf("label not read per host: %+v", rules)

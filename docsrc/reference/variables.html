@@ -4,14 +4,14 @@
   <div class="code"><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
-      <span class="k">multiverse.host.app</span>: "4200"              <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span>
-      <span class="k">multiverse.host.api</span>: "8001"
-      <span class="k">multiverse.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
-      <span class="k">multiverse.host.api.aliases</span>: app,adm     <span class="c"># same service, other hostnames</span>
-      <span class="k">multiverse.host.api.portForward</span>: auto    <span class="c"># also at &lt;ip&gt;:&lt;free port&gt;</span>
-      <span class="k">multiverse.publish</span>: "true"               <span class="c"># keep my published ports</span></pre></div>
+      <span class="k">dev.multiversectl.host.app</span>: "4200"              <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span>
+      <span class="k">dev.multiversectl.host.api</span>: "8001"
+      <span class="k">dev.multiversectl.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
+      <span class="k">dev.multiversectl.host.api.aliases</span>: app,adm     <span class="c"># same service, other hostnames</span>
+      <span class="k">dev.multiversectl.host.api.portForward</span>: auto    <span class="c"># also at &lt;ip&gt;:&lt;free port&gt;</span>
+      <span class="k">dev.multiversectl.publish</span>: "true"               <span class="c"># keep my published ports</span></pre></div>
   <div class="note"><p><strong>No labels needed in the common case.</strong> A service that exposes exactly one port is reached at the app's own name: app <code>ui</code> becomes <code>ui-u3.&lt;domain&gt;</code>. Ambiguity (several services with ports, or one service with several ports) is an error that names the exact label to add.</p></div>
-  <p>Order of precedence, per app: <code>hosts:</code> in the manifest, then <code>multiverse.host.*</code> labels, then the single exposed port.</p>
+  <p>Order of precedence, per app: <code>hosts:</code> in the manifest, then <code>dev.multiversectl.host.*</code> labels, then the single exposed port.</p>
   <h4>Variables</h4>
   <p>Available to compose files and inline overlays:</p>
   <div class="tw"><table>

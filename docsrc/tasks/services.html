@@ -4,7 +4,7 @@
   <div class="code"><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
-      <span class="k">multiverse.host.app</span>: "4200"   <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span></pre></div>
+      <span class="k">dev.multiversectl.host.app</span>: "4200"   <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span></pre></div>
   <p>With no labels at all, a service exposing exactly one port is already reached at the app's own name. See <a href="../concepts/labels.html">Labels and variables</a> for entrypoints and aliases.</p>
 </section>
 
@@ -15,7 +15,7 @@
   <span class="k">db</span>:
     <span class="k">ports</span>: ["5432:5432"]
     <span class="k">labels</span>:
-      <span class="k">multiverse.publish</span>: "true"</pre></div>
+      <span class="k">dev.multiversectl.publish</span>: "true"</pre></div>
   <p class="muted">Or, without touching the repository, <code>publish: [db]</code> on the app in the manifest. Only one universe can hold that port at a time.</p>
 </section>
 
@@ -43,9 +43,9 @@
   <div class="code"><pre><span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">labels</span>:
-      <span class="k">multiverse.env.DJANGO_ALLOWED_HOSTS</span>: hosts
-      <span class="k">multiverse.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
-      <span class="k">multiverse.env.API_BASE_URL</span>: url:devapi</pre></div>
+      <span class="k">dev.multiversectl.env.DJANGO_ALLOWED_HOSTS</span>: hosts
+      <span class="k">dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
+      <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></div>
   <p>These win over the service's own <code>environment:</code> and over any <code>env_file:</code>, which is how a static list in a committed <code>.env</code> stops being what the universe runs with. The sources, and why it is a label rather than a variable reference, are in <a href="../concepts/labels.html">Labels and variables</a>. For a repository you cannot change, the app's inline <code>overlay:</code> does the same from the manifest:</p>
   <div class="code"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: api

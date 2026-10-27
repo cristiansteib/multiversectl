@@ -87,45 +87,45 @@
 </section>
 
 <section id="host">
-  <h2 id="host"><a href="#host">Addresses: <code>multiverse.host.*</code></a></h2>
+  <h2 id="host"><a href="#host">Addresses: <code>dev.multiversectl.host.*</code></a></h2>
   <p>The key names the host, the value is the container port:</p>
   <div class="code"><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
-      <span class="k">multiverse.host.app</span>: <span class="s">"4200"</span>              <span class="c"># app-u3.&lt;domain&gt; → 4200</span>
-      <span class="k">multiverse.host.api</span>: <span class="s">"8001"</span>
-      <span class="k">multiverse.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
-      <span class="k">multiverse.host.api.aliases</span>: app,adm     <span class="c"># same service, more names</span>
-      <span class="k">multiverse.host.api.portForward</span>: auto    <span class="c"># also at &lt;ip&gt;:&lt;free port&gt;</span></pre></div>
+      <span class="k">dev.multiversectl.host.app</span>: <span class="s">"4200"</span>              <span class="c"># app-u3.&lt;domain&gt; → 4200</span>
+      <span class="k">dev.multiversectl.host.api</span>: <span class="s">"8001"</span>
+      <span class="k">dev.multiversectl.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
+      <span class="k">dev.multiversectl.host.api.aliases</span>: app,adm     <span class="c"># same service, more names</span>
+      <span class="k">dev.multiversectl.host.api.portForward</span>: auto    <span class="c"># also at &lt;ip&gt;:&lt;free port&gt;</span></pre></div>
   <h3 id="host-forward">By IP and port: <code>portForward</code></h3>
-  <p>Some clients refuse plain http to a hostname: an iPhone app's transport security allows an IP address but not <code>api-u3.&lt;domain&gt;</code>. <code>multiverse.host.api.portForward: auto</code> also publishes that service on a free host port, so it answers at <code>http://&lt;this machine's address&gt;:&lt;port&gt;</code> next to its hostname. The kernel picks the port once, it is kept in the universe's state (so the address you gave a phone survives restarts) and no other universe is given it. It is bound like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>.</p>
+  <p>Some clients refuse plain http to a hostname: an iPhone app's transport security allows an IP address but not <code>api-u3.&lt;domain&gt;</code>. <code>dev.multiversectl.host.api.portForward: auto</code> also publishes that service on a free host port, so it answers at <code>http://&lt;this machine's address&gt;:&lt;port&gt;</code> next to its hostname. The kernel picks the port once, it is kept in the universe's state (so the address you gave a phone survives restarts) and no other universe is given it. It is bound like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>.</p>
   <p><code>aliases</code> is how one API answers under each front-end's own hostname on a second entrypoint, which makes a hard-coded <code>:8001</code> work in every universe.</p>
   <h3 id="host-none">With no labels at all</h3>
   <p>A service exposing exactly one port is reached at the app's own name, so the common case needs nothing. Anything ambiguous is an error naming the label to add, not a guess:</p>
   <div class="code"><pre>api: services "web" and "worker" both expose a port — label the one that
-should answer: multiverse.host.api: "&lt;port&gt;"</pre></div>
+should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></div>
   <p>Hosts declared in the manifest's <code>hosts:</code> win over labels, and exist for repositories you cannot change.</p>
 </section>
 
 <section id="publish">
-  <h2 id="publish"><a href="#publish">Ports: <code>multiverse.publish</code></a></h2>
+  <h2 id="publish"><a href="#publish">Ports: <code>dev.multiversectl.publish</code></a></h2>
   <div class="code"><pre><span class="k">services</span>:
   <span class="k">db</span>:
     <span class="k">labels</span>:
-      <span class="k">multiverse.publish</span>: <span class="s">"true"</span></pre></div>
+      <span class="k">dev.multiversectl.publish</span>: <span class="s">"true"</span></pre></div>
   <p>Keeps this service's published host ports instead of dropping them. Only one universe can hold a host port at a time, so a service that asks for this is one only a single universe can run — usually worth it for a database you point a GUI at, rarely for anything else. The manifest's <code>publish:</code> list does the same from outside.</p>
 </section>
 
 <section id="env">
-  <h2 id="env"><a href="#env">Values: <code>multiverse.env.*</code></a></h2>
+  <h2 id="env"><a href="#env">Values: <code>dev.multiversectl.env.*</code></a></h2>
   <p>The key names an environment variable, the value names what to put in it:</p>
   <div class="code"><pre><span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">labels</span>:
-      <span class="k">multiverse.env.DJANGO_ALLOWED_HOSTS</span>: hosts
-      <span class="k">multiverse.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
-      <span class="k">multiverse.env.DJANGO_CORS_ALLOWED_ORIGINS</span>: origins
-      <span class="k">multiverse.env.API_BASE_URL</span>: url:devapi</pre></div>
+      <span class="k">dev.multiversectl.env.DJANGO_ALLOWED_HOSTS</span>: hosts
+      <span class="k">dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
+      <span class="k">dev.multiversectl.env.DJANGO_CORS_ALLOWED_ORIGINS</span>: origins
+      <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></div>
   <div class="tw"><table>
   <thead><tr><th scope="col">Source</th><th scope="col">Value</th></tr></thead><tbody>
   <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port.</td></tr>
@@ -156,9 +156,9 @@ should answer: multiverse.host.api: "&lt;port&gt;"</pre></div>
     <p class="toc-h" id="toch">On this page</p>
     <ul>
       <li><a href="#why">Why labels</a></li>
-      <li><a href="#host">Addresses: multiverse.host.*</a></li>
-      <li><a href="#publish">Ports: multiverse.publish</a></li>
-      <li><a href="#env">Values: multiverse.env.*</a></li>
+      <li><a href="#host">Addresses: dev.multiversectl.host.*</a></li>
+      <li><a href="#publish">Ports: dev.multiversectl.publish</a></li>
+      <li><a href="#env">Values: dev.multiversectl.env.*</a></li>
       <li><a href="#where">Where multiversectl reads them</a></li>
     </ul>
   </aside>

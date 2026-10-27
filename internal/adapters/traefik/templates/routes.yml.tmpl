@@ -12,7 +12,7 @@ services:
     ports: !reset []
 {{- end}}
 {{- if .Env}}
-    # Asked for with multiverse.env.* labels. This fragment is merged last, so
+    # Asked for with dev.multiversectl.env.* labels. This fragment is merged last, so
     # these win over the service's own environment and any env_file.
     environment:
 {{- range .Env}}
