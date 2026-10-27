@@ -138,6 +138,9 @@ func multiverse(g cli.Globals, out app.Output) (*app.Service, error) {
 	if root == "" {
 		root = wire.First(m.Root, filepath.Dir(path))
 	}
+	if err := manifest.MergeParts(m, root); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
 	return app.New(machine(g).Deps(out, root, store), root, m, version), nil
 }
 

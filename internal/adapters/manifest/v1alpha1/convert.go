@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"errors"
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"os"
@@ -173,4 +174,41 @@ func orDefault(v, def string) string {
 		return def
 	}
 	return v
+}
+
+// ConvertPart reads a repository's own file: the same kind as a multiverse,
+// but about one repository only, so it lists no repositories and sets nothing
+// that belongs to the whole multiverse. An app that leaves out its repo, or its
+// name when it is the only one, is the repository's.
+func ConvertPart(w *Multiverse, repoKey string) (*domain.Part, error) {
+	s := w.Spec
+	switch {
+	case len(s.Repos) > 0:
+		return nil, errors.New("spec.repos: a repository's own file describes only itself; list repositories in the multiverse that uses it")
+	case s.Root != "", s.Expose != "", s.Domain != "", s.Branch != "", len(s.Env) > 0, s.Proxy.Kind != "", s.Proxy.Network != "":
+		return nil, errors.New("only spec.apps and spec.proxy.entrypoints can be set here; root, expose, domain, branch, env and the proxy's kind and network belong to the multiverse")
+	}
+	p := &domain.Part{Apps: map[string]domain.App{}, Entrypoints: map[string]int{}}
+	for i, e := range s.Proxy.Entrypoints {
+		if err := put(p.Entrypoints, "spec.proxy.entrypoints", i, e.Name, e.Port); err != nil {
+			return nil, err
+		}
+	}
+	for i, a := range s.Apps {
+		if a.Repo != "" && a.Repo != repoKey {
+			return nil, fmt.Errorf("spec.apps[%d]: repo %q — an app in a repository's own file is that repository's (leave repo out)", i, a.Repo)
+		}
+		if a.Name == "" && len(s.Apps) == 1 {
+			a.Name = repoKey
+		}
+		app, err := convertApp(a)
+		if err != nil {
+			return nil, fmt.Errorf("spec.apps[%d] %q: %w", i, a.Name, err)
+		}
+		app.Repo = repoKey
+		if err := put(p.Apps, "spec.apps", i, a.Name, app); err != nil {
+			return nil, err
+		}
+	}
+	return p, nil
 }

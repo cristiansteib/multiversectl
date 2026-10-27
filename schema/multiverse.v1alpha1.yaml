@@ -53,7 +53,6 @@ spec:
                   pattern: "^[a-z][a-z0-9-]*$"
             spec:
               type: object
-              required: [repos]
               properties:
                 root:
                   type: string
@@ -138,8 +137,9 @@ spec:
                   description: >-
                     The repositories this multiverse is made of. install
                     clones them; each universe gets a worktree of every one,
-                    sharing the clone's object store.
-                  minItems: 1
+                    sharing the clone's object store. Required in a
+                    multiverse; a repository's own file (.multiverse.yaml)
+                    describes only itself and leaves it out.
                   items:
                     type: object
                     required: [name, url]
@@ -181,7 +181,7 @@ spec:
                     that, or to split it into several apps.
                   items:
                     type: object
-                    required: [name, repo]
+                    required: [name]
                     properties:
                       name:
                         type: string
@@ -193,7 +193,9 @@ spec:
                       repo:
                         type: string
                         description: >-
-                          Which repo, by name, holds this app.
+                          Which repo, by name, holds this app. Leave it out
+                          in a repository's own file: the app is that
+                          repository's.
                       build:
                         type: boolean
                         description: >-
