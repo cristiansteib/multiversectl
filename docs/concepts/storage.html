@@ -53,7 +53,7 @@
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
-        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/catalog.html">Manage many multiverses from one index</a></li>
         <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
@@ -69,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -86,7 +86,7 @@
   <thead><tr><th scope="col">Thing</th><th scope="col">Per universe</th><th scope="col">Shared</th></tr></thead><tbody>
   <tr><td data-l="Thing">Checkouts</td><td data-l="Per universe">One worktree per repository</td><td data-l="Shared">The clone's git object store</td></tr>
   <tr><td data-l="Thing">Containers</td><td data-l="Per universe">One compose project per app</td><td data-l="Shared">The container runtime and its image cache</td></tr>
-  <tr><td data-l="Thing">Volumes</td><td data-l="Per universe">Named after the app's project</td><td data-l="Shared">Nothing</td></tr>
+  <tr><td data-l="Thing">Volumes</td><td data-l="Per universe">Named after the app's multiverse</td><td data-l="Shared">Nothing</td></tr>
   <tr><td data-l="Thing">Networks</td><td data-l="Per universe">One per app, plus the proxy network</td><td data-l="Shared">The proxy network</td></tr>
   <tr><td data-l="Thing">Secrets</td><td data-l="Per universe">Copied into each checkout</td><td data-l="Shared">The originals in the clone</td></tr>
   <tr><td data-l="Thing">Hostnames</td><td data-l="Per universe">One per host key</td><td data-l="Shared">The domain and the proxy's ports</td></tr>
@@ -96,7 +96,7 @@
 
 <section id="worktrees">
   <h2 id="worktrees"><a href="#worktrees">Code: one clone, many worktrees</a></h2>
-  <p>Each repository is cloned once under the project root, and every universe gets a <code>git worktree</code> of that clone:</p>
+  <p>Each repository is cloned once under the multiverse root, and every universe gets a <code>git worktree</code> of that clone:</p>
   <div class="code"><pre>~/acme/
 ├── api/                  <span class="c"># the clone: history, remotes, objects</span>
 ├── web/
@@ -134,7 +134,7 @@ web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</pre></d
 <section id="images">
   <h2 id="images"><a href="#images">Images and build cache</a></h2>
   <p>Images are not namespaced, deliberately: they are expensive to build and usually identical across universes, so two universes building the same Dockerfile reuse the layer cache.</p>
-  <p>The other side of that: an image tag is shared, so if two universes build the same tag from different code, the last build wins for whatever starts afterwards. Compose gives each project its own build, so this bites mainly when a compose file pins an explicit <code>image:</code> name that it also builds — give such a service a tag containing <code>${UNIVERSE_SLUG}</code>.</p>
+  <p>The other side of that: an image tag is shared, so if two universes build the same tag from different code, the last build wins for whatever starts afterwards. Compose gives each multiverse its own build, so this bites mainly when a compose file pins an explicit <code>image:</code> name that it also builds — give such a service a tag containing <code>${UNIVERSE_SLUG}</code>.</p>
 </section>
 
 <section id="secrets">

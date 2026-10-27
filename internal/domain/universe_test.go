@@ -25,7 +25,7 @@ func TestUniverseIdentity(t *testing.T) {
 		{name: "feat/ARCA 123", id: "feat-arca-123", slug: "feat-arca-123",
 			dir: "/ws/universes/feat-arca-123", project: "acme-feat-arca-123", branch: "feat/ARCA 123"},
 	} {
-		u := Universe{Name: tc.name, Workspace: "/ws", Manifest: m}
+		u := Universe{Name: tc.name, Multiverse: "/ws", Manifest: m}
 		if got := u.ID(); got != tc.id {
 			t.Errorf("%q: ID = %q, want %q", tc.name, got, tc.id)
 		}

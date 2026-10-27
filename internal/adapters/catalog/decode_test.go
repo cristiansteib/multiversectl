@@ -17,7 +17,7 @@ spec:
       source: {repo: git@example.test:acme/index.git, ref: main}
     - name: personal
       source: {path: catalogs/personal.yaml}
-  projects:
+  multiverses:
     - name: billing
       source: {repo: git@example.test:me/billing.git}
 `
@@ -30,7 +30,7 @@ func TestDecode(t *testing.T) {
 	}{
 		{name: "valid", yaml: valid},
 		{name: "empty spec", yaml: "apiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata: {name: me}\n"},
-		{name: "project file", yaml: strings.Replace(valid, "Catalog", "Project", 1), wantErr: `unsupported kind "Project"`},
+		{name: "project file", yaml: strings.Replace(valid, "Catalog", "Cluster", 1), wantErr: `unsupported kind "Cluster"`},
 		{name: "version", yaml: strings.Replace(valid, "v1alpha1", "v9", 1), wantErr: "unsupported apiVersion"},
 		{name: "unknown field", yaml: strings.Replace(valid, "ref:", "rev:", 1), wantErr: "field rev not found"},
 		{name: "bad name", yaml: strings.Replace(valid, "name: acme", "name: Acme", 1), wantErr: `name "Acme" must match`},
@@ -60,14 +60,14 @@ func TestDecodeDefaultsPaths(t *testing.T) {
 	if got := c.Catalogs[0].Source.Path; got != DefaultCatalogPath {
 		t.Errorf("catalog path = %q", got)
 	}
-	if got := c.Workspaces[0].Source.Path; got != DefaultWorkspacePath {
+	if got := c.Multiverses[0].Source.Path; got != DefaultMultiversePath {
 		t.Errorf("project path = %q", got)
 	}
 }
 
 func TestEditorKeepsComments(t *testing.T) {
 	in := "# my index\n" + valid + "# trailing note\n"
-	out, err := Editor{}.AddWorkspaceRef([]byte(in), domainWS("orders", "git@example.test:me/orders.git", "main", "multiverse.yaml"))
+	out, err := Editor{}.AddMultiverseRef([]byte(in), domainWS("orders", "git@example.test:me/orders.git", "main", "multiverse.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestEditorFillsAnEmptyScaffold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err = e.AddWorkspaceRef(out, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
+	out, err = e.AddMultiverseRef(out, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestEditorFillsAnEmptyScaffold(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
 	}
-	if len(c.Catalogs) != 1 || len(c.Workspaces) != 1 || c.Catalogs[0].Source.Path != "catalogs/personal.yaml" {
+	if len(c.Catalogs) != 1 || len(c.Multiverses) != 1 || c.Catalogs[0].Source.Path != "catalogs/personal.yaml" {
 		t.Errorf("unexpected catalog: %+v\n%s", c, out)
 	}
 	if strings.Contains(string(out), "{}") || strings.Contains(string(out), "[]") {
@@ -109,14 +109,14 @@ func TestEditorFillsAnEmptyScaffold(t *testing.T) {
 
 func TestEditorRefusesDuplicatesAndRemoves(t *testing.T) {
 	e := Editor{}
-	if _, err := e.AddWorkspaceRef([]byte(valid), domainWS("acme", "git@example.test:x.git", "", "multiverse.yaml")); err == nil {
+	if _, err := e.AddMultiverseRef([]byte(valid), domainWS("acme", "git@example.test:x.git", "", "multiverse.yaml")); err == nil {
 		t.Error("a name already used by a catalog entry must be refused")
 	}
 	out, err := e.RemoveRef([]byte(valid), "billing")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c, err := (Decoder{}).Decode(out); err != nil || len(c.Workspaces) != 0 || len(c.Catalogs) != 2 {
+	if c, err := (Decoder{}).Decode(out); err != nil || len(c.Multiverses) != 0 || len(c.Catalogs) != 2 {
 		t.Errorf("after remove: %+v err=%v\n%s", c, err, out)
 	}
 	if _, err := e.RemoveRef([]byte(valid), "nope"); err == nil {
@@ -124,55 +124,30 @@ func TestEditorRefusesDuplicatesAndRemoves(t *testing.T) {
 	}
 }
 
-func TestWorkspaceName(t *testing.T) {
-	name, err := Editor{}.WorkspaceName([]byte("apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: acme\n"))
+func TestMultiverseName(t *testing.T) {
+	name, err := Editor{}.MultiverseName([]byte("apiVersion: multiverse/v1alpha1\nkind: Multiverse\nmetadata:\n  name: acme\n"))
 	if err != nil || name != "acme" {
 		t.Fatalf("name=%q err=%v", name, err)
 	}
-	if _, err := (Editor{}).WorkspaceName([]byte(valid)); err == nil {
+	if _, err := (Editor{}).MultiverseName([]byte(valid)); err == nil {
 		t.Error("a Catalog is not a project manifest")
 	}
 }
 
-func domainWS(name, repo, ref, path string) domain.WorkspaceRef {
-	return domain.WorkspaceRef{Name: name, Source: domain.Source{Repo: repo, Ref: ref, Path: path}}
+func domainWS(name, repo, ref, path string) domain.MultiverseRef {
+	return domain.MultiverseRef{Name: name, Source: domain.Source{Repo: repo, Ref: ref, Path: path}}
 }
 
 func domainCat(name, repo, ref, path string) domain.CatalogRef {
 	return domain.CatalogRef{Name: name, Source: domain.Source{Repo: repo, Ref: ref, Path: path}}
 }
 
-func TestACatalogRootDecodesAsACatalogThatIsTheRoot(t *testing.T) {
-	root, err := Decoder{}.Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: CatalogRoot\nmetadata:\n  name: me\nspec:\n  projects:\n    - name: acme\n      source: {}\n"))
-	if err != nil || !root.Root || len(root.Workspaces) != 1 {
-		t.Fatalf("root %+v, err %v", root, err)
+func TestOnlyACatalogAndAMultiverseAreKinds(t *testing.T) {
+	if _, err := (Decoder{}).Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: CatalogRoot\nmetadata:\n  name: me\nspec: {}\n")); err == nil || !strings.Contains(err.Error(), "Catalog") {
+		t.Errorf("CatalogRoot is not a kind any more: %v", err)
 	}
-	plain, err := Decoder{}.Decode(Editor{}.Scaffold("me"))
-	if err != nil || plain.Root {
-		t.Fatalf("a plain Catalog is not a root: %+v, %v", plain, err)
-	}
-	if _, err := (Decoder{}).Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: Project\nmetadata:\n  name: x\n")); err == nil || !strings.Contains(err.Error(), "CatalogRoot") {
-		t.Errorf("the error for another kind should name both: %v", err)
-	}
-}
-
-func TestMarkRootChangesTheKindAndKeepsEverythingElse(t *testing.T) {
-	in := "# my index\napiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata:\n  name: me   # mine\nspec:\n  projects:\n    - name: acme\n      source: {}\n"
-	out, err := Editor{}.MarkRoot([]byte(in))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := string(out)
-	for _, want := range []string{"kind: CatalogRoot", "# my index", "# mine", "name: acme"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("lost %q:\n%s", want, got)
-		}
-	}
-	if root, err := (Decoder{}).Decode(out); err != nil || !root.Root {
-		t.Errorf("the result must decode as a root: %v", err)
-	}
-	if string(Editor{}.ScaffoldRoot("me")) == string(Editor{}.Scaffold("me")) {
-		t.Error("the root scaffold must differ from the plain one")
+	if _, err := (Decoder{}).Decode([]byte("apiVersion: multiverse/v1alpha1\nkind: Multiverse\nmetadata:\n  name: x\n")); err == nil || !strings.Contains(err.Error(), "Catalog") {
+		t.Errorf("a Multiverse is not a catalog, and the error should say what is: %v", err)
 	}
 }
 
@@ -184,16 +159,16 @@ func TestEditorFillsAListThatIsPresentButEmpty(t *testing.T) {
 		add         func(Editor, []byte) ([]byte, error)
 		count       func(*domain.Catalog) int
 	}{
-		{"projects", "  projects:\n",
+		{"multiverses", "  multiverses:\n",
 			func(e Editor, b []byte) ([]byte, error) {
-				return e.AddWorkspaceRef(b, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
+				return e.AddMultiverseRef(b, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
 			},
-			func(c *domain.Catalog) int { return len(c.Workspaces) }},
-		{"projects-explicit-null", "  projects: null\n",
+			func(c *domain.Catalog) int { return len(c.Multiverses) }},
+		{"multiverses-explicit-null", "  multiverses: null\n",
 			func(e Editor, b []byte) ([]byte, error) {
-				return e.AddWorkspaceRef(b, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
+				return e.AddMultiverseRef(b, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml"))
 			},
-			func(c *domain.Catalog) int { return len(c.Workspaces) }},
+			func(c *domain.Catalog) int { return len(c.Multiverses) }},
 		{"catalogs", "  catalogs:\n",
 			func(e Editor, b []byte) ([]byte, error) {
 				return e.AddCatalogRef(b, domainCat("personal", "", "", "catalogs/personal.yaml"))
@@ -218,8 +193,8 @@ func TestEditorFillsAListThatIsPresentButEmpty(t *testing.T) {
 }
 
 func TestEditorRefusesAListThatIsNotAList(t *testing.T) {
-	in := []byte("apiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata:\n  name: me\nspec:\n  projects: nonsense\n")
-	if _, err := (Editor{}).AddWorkspaceRef(in, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml")); err == nil {
+	in := []byte("apiVersion: multiverse/v1alpha1\nkind: Catalog\nmetadata:\n  name: me\nspec:\n  multiverses: nonsense\n")
+	if _, err := (Editor{}).AddMultiverseRef(in, domainWS("billing", "git@example.test:me/billing.git", "", "multiverse.yaml")); err == nil {
 		t.Error("a scalar where a list belongs must be refused, not overwritten")
 	}
 }

@@ -10,26 +10,22 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// RootStatus is the machine's root catalog, as far as it can be told without
-// the network.
-type RootStatus struct {
+// CatalogStatus is the catalog this machine points at, as far as it can be told
+// without the network.
+type CatalogStatus struct {
 	Source      string `json:"source,omitempty"`
 	Local       bool   `json:"local,omitempty"`
 	NoRemote    bool   `json:"noRemote,omitempty"`
 	Unavailable string `json:"unavailable,omitempty"`
-	// Legacy is a root that is a plain Catalog, from before CatalogRoot: it works,
-	// but a new machine cannot tell it from a project's catalog.
-	Legacy bool `json:"legacy,omitempty"`
 }
 
-// WorkspaceStatus is one installed project and how far it has drifted from
+// MultiverseStatus is one installed multiverse and how far it has drifted from
 // where it came from.
-type WorkspaceStatus struct {
-	Name    string `json:"name"`
-	Current bool   `json:"current,omitempty"`
-	Root    string `json:"root"`
-	From    string `json:"from,omitempty"`
-	Source  string `json:"source,omitempty"`
+type MultiverseStatus struct {
+	Name   string `json:"name"`
+	Root   string `json:"root"`
+	From   string `json:"from,omitempty"`
+	Source string `json:"source,omitempty"`
 	// RepoURL and Ref are where the manifest was installed from, as written.
 	RepoURL string   `json:"repoUrl,omitempty"`
 	Ref     string   `json:"ref,omitempty"`
@@ -47,15 +43,15 @@ type WorkspaceStatus struct {
 
 // StatusReport is what `status` shows.
 type StatusReport struct {
-	Root       RootStatus        `json:"root"`
-	Workspaces []WorkspaceStatus `json:"projects"`
-	Next       string            `json:"next,omitempty"`
+	Catalog     CatalogStatus      `json:"catalog"`
+	Multiverses []MultiverseStatus `json:"multiverses"`
+	Next        string             `json:"next,omitempty"`
 }
 
 // manifestClone is where install keeps a git-hosted manifest.
-func manifestClone(root string) string { return filepath.Join(root, ".multiverse", "workspace") }
+func manifestClone(root string) string { return filepath.Join(root, ".multiverse", "source") }
 
-// Status reads the root catalog and every installed project and says where
+// Status reads the root catalog and every installed multiverse and says where
 // each has drifted: a manifest behind its remote, repositories its manifest
 // lists that are not cloned, an entry the catalog dropped or repointed. Without
 // fetch it compares with what was last fetched, so it is quick and offline.
@@ -67,32 +63,31 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 	var rep StatusReport
 	var tree *domain.Node
 	if cfg.Catalog != "" {
-		rep.Root.Source = cfg.Catalog
+		rep.Catalog.Source = cfg.Catalog
 		t, terr := c.tree(ctx, "", fetch, !fetch)
 		if terr != nil {
-			rep.Root.Unavailable = reason(terr, cfg.Catalog)
+			rep.Catalog.Unavailable = reason(terr, cfg.Catalog)
 		} else {
 			tree = &t
-			rep.Root.Legacy = !t.Root
 		}
 		if !isGitURL(cfg.Catalog) {
-			rep.Root.Local = true
+			rep.Catalog.Local = true
 			dir := filepath.Dir(cfg.Catalog)
 			if _, err := c.Git.Toplevel(ctx, dir); err == nil && !c.Git.HasRemote(ctx, dir) {
-				rep.Root.NoRemote = true
+				rep.Catalog.NoRemote = true
 			}
 		}
 	}
 
-	names := make([]string, 0, len(cfg.Workspaces))
-	for n := range cfg.Workspaces {
+	names := make([]string, 0, len(cfg.Multiverses))
+	for n := range cfg.Multiverses {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	var stale []string
 	for _, name := range names {
-		e := cfg.Workspaces[name]
-		w := WorkspaceStatus{Name: name, Current: name == cfg.Current, Root: e.Root, From: e.From, Source: shortRepo(e.Source.Repo), RepoURL: e.Source.Repo, Ref: e.Source.Ref}
+		e := cfg.Multiverses[name]
+		w := MultiverseStatus{Name: name, Root: e.Root, From: e.From, Source: shortRepo(e.Source.Repo), RepoURL: e.Source.Repo, Ref: e.Source.Ref}
 		if e.Source.Repo == "" {
 			w.Source = ""
 		}
@@ -100,11 +95,11 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 		if w.Stale {
 			stale = append(stale, name)
 		}
-		rep.Workspaces = append(rep.Workspaces, w)
+		rep.Multiverses = append(rep.Multiverses, w)
 	}
 
 	var advised string
-	for _, w := range rep.Workspaces {
+	for _, w := range rep.Multiverses {
 		if w.Advice != "" && !w.Stale && advised == "" {
 			advised = fmt.Sprintf("`%s`: %s", w.Name, w.Advice)
 		}
@@ -114,15 +109,15 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 		rep.Next = "multiversectl catalog update " + strings.Join(stale, " ")
 	case advised != "":
 		rep.Next = advised
-	case len(rep.Workspaces) == 0 && cfg.Catalog == "":
-		rep.Next = "multiversectl catalog install <owner/repo>  ·  multiversectl init"
-	case len(rep.Workspaces) == 0:
-		rep.Next = "multiversectl catalog list  ·  multiversectl catalog install <path>"
+	case len(rep.Multiverses) == 0 && cfg.Catalog == "":
+		rep.Next = "multiversectl start <owner/repo>  ·  multiversectl init"
+	case len(rep.Multiverses) == 0:
+		rep.Next = "multiversectl catalog list  ·  multiversectl start <path>"
 	}
 	return rep, nil
 }
 
-func (c *Catalogs) drift(ctx context.Context, w *WorkspaceStatus, e WorkspaceEntry, tree *domain.Node, fetch bool) {
+func (c *Catalogs) drift(ctx context.Context, w *MultiverseStatus, e MultiverseEntry, tree *domain.Node, fetch bool) {
 	note := func(stale bool, format string, a ...any) {
 		w.Notes = append(w.Notes, fmt.Sprintf(format, a...))
 		w.Stale = w.Stale || stale
@@ -175,12 +170,12 @@ func missingRepos(files Files, m *domain.Manifest, root string) []string {
 	return out
 }
 
-// MissingRepos is what an update has to clone for a project.
+// MissingRepos is what an update has to clone for a multiverse.
 func (c *Catalogs) MissingRepos(m *domain.Manifest, root string) []string {
 	return missingRepos(c.Files, m, root)
 }
 
-// UpdateResult is what refreshing one project's manifest did.
+// UpdateResult is what refreshing one multiverse's manifest did.
 type UpdateResult struct {
 	Name    string
 	Changed bool
@@ -188,10 +183,10 @@ type UpdateResult struct {
 	Skipped string
 }
 
-// RefreshWorkspace brings a project's manifest up to date with where it was
+// RefreshMultiverse brings a multiverse's manifest up to date with where it was
 // installed from. Cloning the repositories it newly lists is the caller's, which
-// holds a Service for the project.
-func (c *Catalogs) RefreshWorkspace(ctx context.Context, name string, e WorkspaceEntry) (UpdateResult, error) {
+// holds a Service for the multiverse.
+func (c *Catalogs) RefreshMultiverse(ctx context.Context, name string, e MultiverseEntry) (UpdateResult, error) {
 	res := UpdateResult{Name: name}
 	dir := manifestClone(e.Root)
 	if e.Source.Repo == "" || !c.Files.Exists(dir) {

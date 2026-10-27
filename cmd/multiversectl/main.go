@@ -26,16 +26,16 @@ func main() {
 	ctx := interruptible()
 
 	cmd, globals := cli.New(cli.Factory{
-		Version:   version,
-		Commit:    commit,
-		Date:      date,
-		Workspace: workspace,
-		Bare:      bare,
-		At:        at,
-		Catalogs:  catalogs,
-		Server:    wire.Server,
-		Progress:  func() app.Progress { return wire.Machine{Ctx: interrupted}.Progress() },
-		Prompter:  func() app.Prompter { return wire.Machine{Ctx: interrupted}.Prompter() },
+		Version:    version,
+		Commit:     commit,
+		Date:       date,
+		Multiverse: multiverse,
+		Bare:       bare,
+		At:         at,
+		Catalogs:   catalogs,
+		Server:     wire.Server,
+		Progress:   func() app.Progress { return wire.Machine{Ctx: interrupted}.Progress() },
+		Prompter:   func() app.Prompter { return wire.Machine{Ctx: interrupted}.Prompter() },
 		Completions: func(out app.Output) *app.Completions {
 			return wire.Machine{Version: version, Ctx: interrupted}.Completions(out)
 		},
@@ -94,17 +94,26 @@ func machine(g cli.Globals) wire.Machine {
 	return wire.Machine{Version: version, Verbose: g.Verbose, Ctx: interrupted}
 }
 
-// project resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the
-// manifest's own spec.root, the config file's project (-w, else the current
-// one), then the manifest found upwards from the current directory.
-func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
+// multiverse resolves root and manifest: flag, $MULTIVERSECTL_ROOT, the
+// manifest's own spec.root, then the installed multiverse (-m, else the one
+// whose folder this is, else the only one), then the manifest found upwards
+// from the current directory.
+func multiverse(g cli.Globals, out app.Output) (*app.Service, error) {
 	store, cfg, err := wire.LoadConfig()
 	if err != nil {
 		return nil, err
 	}
-	saved, _, err := cfg.Select(g.Workspace)
+	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, err
+	}
+	var saved app.MultiverseEntry
+	// A manifest named with -f says which multiverse this is by itself, so
+	// the choice among installed ones is not made for it.
+	if g.Manifest == "" || g.Multiverse != "" {
+		if saved, _, err = cfg.Select(g.Multiverse, cwd); err != nil {
+			return nil, err
+		}
 	}
 	root := wire.First(g.Root, os.Getenv("MULTIVERSECTL_ROOT"), saved.Root)
 	path := g.Manifest
@@ -114,19 +123,17 @@ func workspace(g cli.Globals, out app.Output) (*app.Service, error) {
 	if path == "" {
 		start := root
 		if start == "" {
-			if start, err = os.Getwd(); err != nil {
-				return nil, err
-			}
+			start = cwd
 		}
 		if path, err = wire.Locate(start); err != nil {
-			return nil, fmt.Errorf("no project on this machine: `multiversectl catalog install <owner/repo>`  (or -f <manifest>): %w", err)
+			return nil, fmt.Errorf("no multiverse on this machine: `multiversectl start <owner/repo>`  (or -f <manifest>): %w", err)
 		}
 	}
 	m, err := manifest.Load(path)
 	if err != nil {
 		return nil, err
 	}
-	// spec.root is what lets one directory hold a manifest per project and
+	// spec.root is what lets one directory hold a manifest per multiverse and
 	// still be usable from anywhere: multiversectl -f acme.yaml universe up 3.
 	if root == "" {
 		root = wire.First(m.Root, filepath.Dir(path))

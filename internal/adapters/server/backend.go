@@ -15,34 +15,34 @@ import (
 )
 
 // Backend is what the server reads. It is read-only by construction: there is
-// no method here that changes a catalog, a project or a universe.
+// no method here that changes a catalog, a multiverse or a universe.
 type Backend interface {
 	Status(ctx context.Context, fetch bool) (app.StatusReport, error)
 	Catalog(ctx context.Context, fetch bool) (catalogView, error)
-	// Fleet lists the universes of one installed project, or of all.
-	Fleet(ctx context.Context, workspace string) (fleetView, error)
-	Workspace(ctx context.Context, name string) (workspaceView, error)
-	Doctor(ctx context.Context, workspace, universe string) (doctorView, error)
+	// Fleet lists the universes of one installed multiverse, or of all.
+	Fleet(ctx context.Context, multiverse string) (fleetView, error)
+	Multiverse(ctx context.Context, name string) (multiverseView, error)
+	Doctor(ctx context.Context, multiverse, universe string) (doctorView, error)
 	// System reports the versions of what this machine runs on.
 	System(ctx context.Context) (systemView, error)
 	// Unsaved names the repositories of a universe whose worktree has uncommitted
 	// work, which removing the universe would discard.
-	Unsaved(ctx context.Context, workspace, universe string) ([]string, error)
+	Unsaved(ctx context.Context, multiverse, universe string) ([]string, error)
 	// NextFree is the number a new universe would get, and the numbers passed
 	// over because a branch of that name is left behind.
-	NextFree(ctx context.Context, workspace string) (nextView, error)
-	// Branches lists the branches across a project's repositories.
-	Branches(ctx context.Context, workspace string) ([]branchView, error)
+	NextFree(ctx context.Context, multiverse string) (nextView, error)
+	// Branches lists the branches across a multiverse's repositories.
+	Branches(ctx context.Context, multiverse string) ([]branchView, error)
 	// Containers lists a universe's containers; Stats reads their resource use;
 	// Logs writes one service's log to w, until ctx ends when it follows.
-	Containers(ctx context.Context, workspace, universe string) ([]containerView, error)
-	Stats(ctx context.Context, workspace, universe string) ([]statView, error)
+	Containers(ctx context.Context, multiverse, universe string) ([]containerView, error)
+	Stats(ctx context.Context, multiverse, universe string) ([]statView, error)
 	// Code reads a universe's repositories: branch, how far it has moved from
 	// what it follows, and the pull or merge request open for it.
-	Code(ctx context.Context, workspace, universe string) (codeView, error)
-	Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error
-	// FleetStats reads every running container of one project, or of all.
-	FleetStats(ctx context.Context, workspace string) (fleetStatsView, error)
+	Code(ctx context.Context, multiverse, universe string) (codeView, error)
+	Logs(ctx context.Context, multiverse, universe, appKey, service string, tail int, follow bool, w io.Writer) error
+	// FleetStats reads every running container of one multiverse, or of all.
+	FleetStats(ctx context.Context, multiverse string) (fleetStatsView, error)
 	// Do carries out an action, reporting to the sink as it goes.
 	Do(ctx context.Context, r opRequest, k Sink) error
 }
@@ -60,8 +60,8 @@ type Services struct {
 	Catalogs *app.Catalogs
 	// mu keeps two requests from cloning the same catalog repository at once.
 	mu      *sync.Mutex
-	Machine *app.Service // knows the installed projects
-	// At builds a service for one project. The output is where it warns, which
+	Machine *app.Service // knows the installed multiverses
+	// At builds a service for one multiverse. The output is where it warns, which
 	// a page cannot show, so the server collects it per request; stdout and
 	// stderr are where the commands it runs print, nil to drop them.
 	At func(out app.Output, stdout, stderr io.Writer, root, manifest string) (*app.Service, error)
@@ -103,39 +103,39 @@ func toNode(n domain.Node, installed map[string]string) nodeView {
 	return v
 }
 
-func (s Services) infos(workspace string) ([]app.WorkspaceInfo, error) {
-	if workspace != "" {
-		w, err := s.Machine.WorkspaceNamed(workspace)
+func (s Services) infos(multiverse string) ([]app.MultiverseInfo, error) {
+	if multiverse != "" {
+		w, err := s.Machine.MultiverseNamed(multiverse)
 		if err != nil {
 			return nil, err
 		}
-		return []app.WorkspaceInfo{w}, nil
+		return []app.MultiverseInfo{w}, nil
 	}
-	return s.Machine.Workspaces()
+	return s.Machine.Multiverses()
 }
 
-// Fleet asks every project at once: each asks the container runtime about
+// Fleet asks every multiverse at once: each asks the container runtime about
 // each of its universes, and the page would otherwise wait on them in turn.
-func (s Services) Fleet(ctx context.Context, workspace string) (fleetView, error) {
-	list, err := s.infos(workspace)
+func (s Services) Fleet(ctx context.Context, multiverse string) (fleetView, error) {
+	list, err := s.infos(multiverse)
 	if err != nil {
 		return fleetView{}, err
 	}
-	out := make([]fleetWorkspace, len(list))
+	out := make([]fleetMultiverse, len(list))
 	var wg sync.WaitGroup
 	for i, w := range list {
 		wg.Add(1)
-		go func(i int, w app.WorkspaceInfo) {
+		go func(i int, w app.MultiverseInfo) {
 			defer wg.Done()
 			out[i] = s.fleetOf(ctx, w)
 		}(i, w)
 	}
 	wg.Wait()
-	return fleetView{Workspaces: out}, nil
+	return fleetView{Multiverses: out}, nil
 }
 
-func (s Services) fleetOf(ctx context.Context, w app.WorkspaceInfo) fleetWorkspace {
-	fw := fleetWorkspace{Name: w.Name, Current: w.Current, Root: w.Root, Universes: []universeView{}}
+func (s Services) fleetOf(ctx context.Context, w app.MultiverseInfo) fleetMultiverse {
+	fw := fleetMultiverse{Name: w.Name, Root: w.Root, Universes: []universeView{}}
 	warn := &collector{}
 	svc, err := s.At(warn, nil, nil, w.Root, w.Manifest)
 	if err != nil {
@@ -186,18 +186,18 @@ func stamp(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
-func (s Services) Workspace(ctx context.Context, name string) (workspaceView, error) {
-	w, err := s.Machine.WorkspaceNamed(name)
+func (s Services) Multiverse(ctx context.Context, name string) (multiverseView, error) {
+	w, err := s.Machine.MultiverseNamed(name)
 	if err != nil {
-		return workspaceView{}, err
+		return multiverseView{}, err
 	}
 	svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
 	if err != nil {
-		return workspaceView{}, err
+		return multiverseView{}, err
 	}
 	m := svc.Manifest
 	ctxInfo := svc.Context()
-	v := workspaceView{Name: w.Name, Current: w.Current, Root: w.Root, Manifest: ctxInfo.Manifest, From: ctxInfo.From, Source: ctxInfo.Source,
+	v := multiverseView{Name: w.Name, Root: w.Root, Manifest: ctxInfo.Manifest, From: ctxInfo.From, Source: ctxInfo.Source,
 		UniversesDir: ctxInfo.UniversesDir, Domain: m.Domain, Expose: string(m.Expose),
 		Network: m.Proxy.Network, Proxy: m.Proxy.Entrypoints, Env: m.Env, Repos: []repoView{}, Apps: []appDefView{}}
 	fresh := svc.CloneFreshness(ctx)
@@ -226,8 +226,8 @@ func (s Services) Workspace(ctx context.Context, name string) (workspaceView, er
 	return v, nil
 }
 
-func (s Services) Doctor(ctx context.Context, workspace, universe string) (doctorView, error) {
-	w, err := s.Machine.WorkspaceNamed(workspace)
+func (s Services) Doctor(ctx context.Context, multiverse, universe string) (doctorView, error) {
+	w, err := s.Machine.MultiverseNamed(multiverse)
 	if err != nil {
 		return doctorView{}, err
 	}
@@ -249,8 +249,8 @@ func (s Services) Doctor(ctx context.Context, workspace, universe string) (docto
 	return v, nil
 }
 
-func (s Services) Containers(ctx context.Context, workspace, universe string) ([]containerView, error) {
-	svc, err := s.service(workspace)
+func (s Services) Containers(ctx context.Context, multiverse, universe string) ([]containerView, error) {
+	svc, err := s.service(multiverse)
 	if err != nil {
 		return nil, err
 	}
@@ -267,8 +267,8 @@ func (s Services) Containers(ctx context.Context, workspace, universe string) ([
 
 // Code reads one universe's repositories: the branches, how far they have
 // moved, and the review each has open.
-func (s Services) Code(ctx context.Context, workspace, universe string) (codeView, error) {
-	svc, err := s.service(workspace)
+func (s Services) Code(ctx context.Context, multiverse, universe string) (codeView, error) {
+	svc, err := s.service(multiverse)
 	if err != nil {
 		return codeView{}, err
 	}
@@ -307,8 +307,8 @@ func reviewMark(repoURL string) string {
 	return "#"
 }
 
-func (s Services) Stats(ctx context.Context, workspace, universe string) ([]statView, error) {
-	svc, err := s.service(workspace)
+func (s Services) Stats(ctx context.Context, multiverse, universe string) ([]statView, error) {
+	svc, err := s.service(multiverse)
 	if err != nil {
 		return nil, err
 	}
@@ -324,10 +324,10 @@ func (s Services) Stats(ctx context.Context, workspace, universe string) ([]stat
 	return out, nil
 }
 
-// FleetStats asks every project at once, as Fleet does, and says which ones
+// FleetStats asks every multiverse at once, as Fleet does, and says which ones
 // could not answer rather than leaving their containers out silently.
-func (s Services) FleetStats(ctx context.Context, workspace string) (fleetStatsView, error) {
-	list, err := s.infos(workspace)
+func (s Services) FleetStats(ctx context.Context, multiverse string) (fleetStatsView, error) {
+	list, err := s.infos(multiverse)
 	if err != nil {
 		return fleetStatsView{}, err
 	}
@@ -336,19 +336,19 @@ func (s Services) FleetStats(ctx context.Context, workspace string) (fleetStatsV
 	var wg sync.WaitGroup
 	for i, w := range list {
 		wg.Add(1)
-		go func(i int, w app.WorkspaceInfo) {
+		go func(i int, w app.MultiverseInfo) {
 			defer wg.Done()
 			svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
 			if err == nil {
 				var read []app.StatRow
 				if read, err = svc.ProjectStats(ctx); err == nil {
 					for _, r := range read {
-						rows[i] = append(rows[i], fleetStatRow{Workspace: w.Name, Universe: r.Universe, App: r.App, Service: r.Service, statView: statOf(r.ContainerStats)})
+						rows[i] = append(rows[i], fleetStatRow{Multiverse: w.Name, Universe: r.Universe, App: r.App, Service: r.Service, statView: statOf(r.ContainerStats)})
 					}
 				}
 			}
 			if err != nil {
-				fails[i] = fleetStatError{Workspace: w.Name, Error: err.Error()}
+				fails[i] = fleetStatError{Multiverse: w.Name, Error: err.Error()}
 			}
 		}(i, w)
 	}
@@ -363,8 +363,8 @@ func (s Services) FleetStats(ctx context.Context, workspace string) (fleetStatsV
 	return v, nil
 }
 
-func (s Services) Logs(ctx context.Context, workspace, universe, appKey, service string, tail int, follow bool, w io.Writer) error {
-	svc, err := s.service(workspace)
+func (s Services) Logs(ctx context.Context, multiverse, universe, appKey, service string, tail int, follow bool, w io.Writer) error {
+	svc, err := s.service(multiverse)
 	if err != nil {
 		return err
 	}
@@ -413,8 +413,8 @@ var _ app.Output = (*collector)(nil)
 // a request that wants them uses its own collector.
 func Quiet() app.Output { return &collector{} }
 
-func (s Services) Unsaved(ctx context.Context, workspace, universe string) ([]string, error) {
-	w, err := s.Machine.WorkspaceNamed(workspace)
+func (s Services) Unsaved(ctx context.Context, multiverse, universe string) ([]string, error) {
+	w, err := s.Machine.MultiverseNamed(multiverse)
 	if err != nil {
 		return nil, err
 	}
@@ -424,20 +424,13 @@ func (s Services) Unsaved(ctx context.Context, workspace, universe string) ([]st
 	}
 	// The use case answers this for one universe. It used to be read out of a
 	// prune plan, which is the same question asked of every universe of the
-	// project to throw all but one of the answers away.
+	// multiverse to throw all but one of the answers away.
 	return svc.Unsaved(ctx, universe)
 }
 
 // Do runs one action as the command line would, with the sink as its terminal.
 func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
-	if r.Action == "use" {
-		if err := s.Machine.Use(r.Workspace); err != nil {
-			return err
-		}
-		k.OK("%s is now the current project", r.Workspace)
-		return nil
-	}
-	w, err := s.Machine.WorkspaceNamed(r.Workspace)
+	w, err := s.Machine.MultiverseNamed(r.Multiverse)
 	if err != nil {
 		return err
 	}
@@ -496,14 +489,14 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 // clone contend, and this one was taking none. The lock covers this call alone
 // — the cloning that may follow takes minutes, and holding it across that would
 // stall every read the page makes.
-func (s Services) refreshCatalog(ctx context.Context, w app.WorkspaceInfo) (app.UpdateResult, error) {
+func (s Services) refreshCatalog(ctx context.Context, w app.MultiverseInfo) (app.UpdateResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.Catalogs.RefreshWorkspace(ctx, w.Name, w.WorkspaceEntry)
+	return s.Catalogs.RefreshMultiverse(ctx, w.Name, w.MultiverseEntry)
 }
 
-// update is what `catalog update` does for one project.
-func (s Services) update(ctx context.Context, w app.WorkspaceInfo, svc *app.Service, k Sink) error {
+// update is what `catalog update` does for one multiverse.
+func (s Services) update(ctx context.Context, w app.MultiverseInfo, svc *app.Service, k Sink) error {
 	res, err := s.refreshCatalog(ctx, w)
 	if err != nil {
 		return err
@@ -626,16 +619,16 @@ func looksLikeRelease(v string) bool {
 	return v != "" && v[0] >= '0' && v[0] <= '9'
 }
 
-func (s Services) service(workspace string) (*app.Service, error) {
-	w, err := s.Machine.WorkspaceNamed(workspace)
+func (s Services) service(multiverse string) (*app.Service, error) {
+	w, err := s.Machine.MultiverseNamed(multiverse)
 	if err != nil {
 		return nil, err
 	}
 	return s.At(&collector{}, nil, nil, w.Root, w.Manifest)
 }
 
-func (s Services) NextFree(ctx context.Context, workspace string) (nextView, error) {
-	svc, err := s.service(workspace)
+func (s Services) NextFree(ctx context.Context, multiverse string) (nextView, error) {
+	svc, err := s.service(multiverse)
 	if err != nil {
 		return nextView{}, err
 	}
@@ -646,8 +639,8 @@ func (s Services) NextFree(ctx context.Context, workspace string) (nextView, err
 	return nextView{Number: n, Skipped: skipped}, nil
 }
 
-func (s Services) Branches(ctx context.Context, workspace string) ([]branchView, error) {
-	svc, err := s.service(workspace)
+func (s Services) Branches(ctx context.Context, multiverse string) ([]branchView, error) {
+	svc, err := s.service(multiverse)
 	if err != nil {
 		return nil, err
 	}

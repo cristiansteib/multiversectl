@@ -30,12 +30,12 @@ type Report struct {
 	Checks []Check
 }
 
-// DoctorInput picks the scope: a universe number, or 0 for the project only.
+// DoctorInput picks the scope: a universe number, or 0 for the multiverse only.
 type DoctorInput struct {
 	Universe string
 }
 
-// Doctor inspects the host and the project. A failing check is a finding in
+// Doctor inspects the host and the multiverse. A failing check is a finding in
 // the report, never an error.
 func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 	var r Report
@@ -45,10 +45,10 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 
 	s.checkRuntime(ctx, add)
 	if s.Manifest == nil {
-		add("manifest", StatusWarn, "no manifest loaded; multiversectl catalog install <owner/repo>")
+		add("manifest", StatusWarn, "no manifest loaded; multiversectl start <owner/repo>")
 	} else {
 		s.checkProxy(ctx, add)
-		s.checkWorkspaces(add)
+		s.checkMultiverses(add)
 	}
 
 	var st domain.UniverseState
@@ -109,7 +109,7 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 		}
 		if want := s.Manifest.BindAddress(); want != where {
 			add("proxy", StatusWarn,
-				"running on %s (%s), but this project asks for %s — starting a universe moves it",
+				"running on %s (%s), but this multiverse asks for %s — starting a universe moves it",
 				where, reach, want)
 			return
 		}
@@ -138,11 +138,11 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 	}
 }
 
-// checkWorkspaces compares this project's proxy with every other project
+// checkMultiverses compares this multiverse's proxy with every other multiverse
 // on the machine: two that want the same host port or network cannot both run
 // their proxy. A manifest that cannot be read is skipped; it is that
-// project's own doctor run that reports it.
-func (s *Service) checkWorkspaces(add addCheck) {
+// multiverse's own doctor run that reports it.
+func (s *Service) checkMultiverses(add addCheck) {
 	if s.Config == nil || s.Manifests == nil {
 		return
 	}
@@ -150,17 +150,17 @@ func (s *Service) checkWorkspaces(add addCheck) {
 	if err != nil {
 		return
 	}
-	names := make([]string, 0, len(cfg.Workspaces))
-	for name := range cfg.Workspaces {
+	names := make([]string, 0, len(cfg.Multiverses))
+	for name := range cfg.Multiverses {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	others, clashes := 0, 0
 	mine := s.Manifest.Name
 	for _, name := range names {
-		path := cfg.Workspaces[name].Manifest
+		path := cfg.Multiverses[name].Manifest
 		// Not a string comparison: -f takes a relative path, while the config
-		// records an absolute one, and this project would then be counted and
+		// records an absolute one, and this multiverse would then be counted and
 		// compared as another one.
 		if samePath(path, s.Manifest.Path) {
 			continue
@@ -172,11 +172,11 @@ func (s *Service) checkWorkspaces(add addCheck) {
 		others++
 		for _, clash := range domain.ProxyClashes(mine, s.Manifest, name, other) {
 			clashes++
-			add("projects", StatusWarn, "%s", clash)
+			add("multiverses", StatusWarn, "%s", clash)
 		}
 	}
 	if others > 0 && clashes == 0 {
-		add("projects", StatusOK, "no proxy clash with the %d other projects on this machine", others)
+		add("multiverses", StatusOK, "no proxy clash with the %d other multiverses on this machine", others)
 	}
 }
 
@@ -273,9 +273,9 @@ func (s *Service) checkAddresses(ctx context.Context, add addCheck, st domain.Un
 }
 
 // runningFor counts running containers of an app's services, relying on the
-// "<project>-<service>-<n>" naming the runtime gives them.
+// "<multiverse>-<service>-<n>" naming the runtime gives them.
 // Count by the app's own compose project: the manifest need not list services,
-// so the project prefix is the only thing that always identifies them.
+// so the multiverse prefix is the only thing that always identifies them.
 func runningFor(containers []Container, project string) int {
 	n := 0
 	for _, c := range containers {

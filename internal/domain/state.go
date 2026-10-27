@@ -38,7 +38,7 @@ type UniverseState struct {
 	Number int `yaml:"number,omitempty"`
 
 	Domain   string            `yaml:"domain"`
-	Project  string            `yaml:"project"`
+	Project  string            `yaml:"multiverse"`
 	Branches map[string]string `yaml:"branches"`
 	// CreatedBranches are the repositories whose branch this universe made, as
 	// against one it checked out, so removing it deletes only what it started
@@ -61,6 +61,6 @@ type UniverseState struct {
 }
 
 // Universe rebuilds the identity this state belongs to.
-func (st UniverseState) Universe(workspace string, m *Manifest) Universe {
-	return Universe{Name: st.Name, Workspace: workspace, Manifest: m}
+func (st UniverseState) Universe(multiverse string, m *Manifest) Universe {
+	return Universe{Name: st.Name, Multiverse: multiverse, Manifest: m}
 }

@@ -130,7 +130,7 @@ func (s *Server) look1(ctx context.Context, fleet, status bool) {
 			defer cancel()
 			v, err := s.b.Fleet(c, "")
 			if err != nil {
-				s.hub.publish("fleet", event{Type: "fleet", Data: fleetView{Workspaces: []fleetWorkspace{}, Error: err.Error()}})
+				s.hub.publish("fleet", event{Type: "fleet", Data: fleetView{Multiverses: []fleetMultiverse{}, Error: err.Error()}})
 				return
 			}
 			s.hub.publish("fleet", event{Type: "fleet", Data: v})

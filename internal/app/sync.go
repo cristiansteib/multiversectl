@@ -68,7 +68,7 @@ func (s *Service) withFreshness(ctx context.Context, st domain.UniverseState, li
 		if !s.Files.Exists(c.Path) {
 			continue
 		}
-		clone := s.Manifest.CloneDir(s.Workspace, c.Repo)
+		clone := s.Manifest.CloneDir(s.Multiverse, c.Repo)
 		f := s.freshnessOf(ctx, c.Path, s.followed(ctx, clone, c.Branch))
 		list[i].Freshness = &f
 	}
@@ -89,7 +89,7 @@ type SyncOptions struct {
 	Merge bool
 }
 
-// fetchClones fetches several clones at once, one line each, so a project with
+// fetchClones fetches several clones at once, one line each, so a multiverse with
 // many repositories costs the slowest fetch and not the sum. A failure is
 // reported and the work goes on with what is already here. The dirs fetched
 // are marked in done.
@@ -100,7 +100,7 @@ func (s *Service) fetchClones(ctx context.Context, label string, keys []string, 
 	}
 	var jobs []Job
 	for _, key := range keys {
-		dir := s.Manifest.CloneDir(s.Workspace, key)
+		dir := s.Manifest.CloneDir(s.Multiverse, key)
 		if done[dir] || !s.Files.Exists(dir) {
 			continue
 		}
@@ -151,7 +151,7 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 	s.fetchClones(ctx, "Fetching "+plural(len(repos), "repository"), repos, fetched)
 	for _, repo := range repos {
 		dir := u.RepoDir(repo)
-		clone := s.Manifest.CloneDir(s.Workspace, repo)
+		clone := s.Manifest.CloneDir(s.Multiverse, repo)
 		res := SyncResult{Repo: repo}
 		if !s.Files.Exists(dir) || !s.Files.Exists(clone) {
 			res.Detail = "not checked out"
@@ -208,7 +208,7 @@ type CloneResult struct {
 	Detail string
 }
 
-// UpdateClones fast-forwards the shared clones of the project to origin. What
+// UpdateClones fast-forwards the shared clones of the multiverse to origin. What
 // a universe branches from is origin's branch, so this does not change new
 // universes; it keeps what is read from the clone itself (the files secrets
 // are made from, a repository's own checkout) current. A clone with changes,
@@ -220,7 +220,7 @@ func (s *Service) UpdateClones(ctx context.Context) ([]CloneResult, error) {
 	var out []CloneResult
 	s.fetchClones(ctx, "Fetching "+plural(len(s.repoKeys()), "repository"), s.repoKeys(), map[string]bool{})
 	for _, key := range s.repoKeys() {
-		dir := s.Manifest.CloneDir(s.Workspace, key)
+		dir := s.Manifest.CloneDir(s.Multiverse, key)
 		if !s.Files.Exists(dir) {
 			continue
 		}
@@ -261,7 +261,7 @@ func (s *Service) CloneFreshness(ctx context.Context) map[string]Freshness {
 		return out
 	}
 	for _, key := range s.repoKeys() {
-		dir := s.Manifest.CloneDir(s.Workspace, key)
+		dir := s.Manifest.CloneDir(s.Multiverse, key)
 		if !s.Files.Exists(dir) {
 			continue
 		}
@@ -286,7 +286,7 @@ func (s *Service) behindHint(ctx context.Context, st domain.UniverseState) strin
 		if !s.Files.Exists(dir) {
 			continue
 		}
-		clone := s.Manifest.CloneDir(s.Workspace, repo)
+		clone := s.Manifest.CloneDir(s.Multiverse, repo)
 		if f := s.freshnessOf(ctx, dir, s.followed(ctx, clone, st.Branches[repo])); f.Behind > 0 {
 			behind = append(behind, fmt.Sprintf("%s (%d commits behind origin/%s)", repo, f.Behind, f.Follows))
 		}

@@ -19,15 +19,15 @@ import (
 // An operation is one thing the page asked the server to do: start a universe,
 // say. It runs in the background and its output is sent to every open page as
 // it happens, so the person sees what the command line would have shown. Only
-// one runs at a time in a project; a second would be two compose commands
-// fighting over the same project.
+// one runs at a time in a multiverse; a second would be two compose commands
+// fighting over the same multiverse.
 
 // opRequest is what a page may ask for. Every action is a use case the command
 // line has too.
 type opRequest struct {
-	Action    string `json:"action"` // up, down, rm, sync, restart, new, checkout, update, use
-	Workspace string `json:"project"`
-	Universe  string `json:"universe,omitempty"`
+	Action     string `json:"action"` // up, down, rm, sync, restart, new, checkout, update, use
+	Multiverse string `json:"multiverse"`
+	Universe   string `json:"universe,omitempty"`
 	// App and Service name what restart acts on: a service of one app.
 	App     string `json:"app,omitempty"`
 	Service string `json:"service,omitempty"`
@@ -53,16 +53,16 @@ type opLine struct {
 }
 
 type opView struct {
-	ID        string   `json:"id"`
-	Action    string   `json:"action"`
-	Title     string   `json:"title"`
-	Workspace string   `json:"project"`
-	Universe  string   `json:"universe,omitempty"`
-	State     string   `json:"state"` // running, done, failed
-	Error     string   `json:"error,omitempty"`
-	Started   string   `json:"started"`
-	Ended     string   `json:"ended,omitempty"`
-	Lines     []opLine `json:"lines,omitempty"`
+	ID         string   `json:"id"`
+	Action     string   `json:"action"`
+	Title      string   `json:"title"`
+	Multiverse string   `json:"multiverse"`
+	Universe   string   `json:"universe,omitempty"`
+	State      string   `json:"state"` // running, done, failed
+	Error      string   `json:"error,omitempty"`
+	Started    string   `json:"started"`
+	Ended      string   `json:"ended,omitempty"`
+	Lines      []opLine `json:"lines,omitempty"`
 }
 
 // maxLines keeps one chatty build from growing without bound.
@@ -93,7 +93,7 @@ type ops struct {
 	s    *Server
 	mu   sync.Mutex
 	all  []*op
-	busy map[string]string // project -> operation id
+	busy map[string]string // multiverse -> operation id
 	seq  int
 }
 
@@ -159,26 +159,24 @@ var needsUniverse = map[string]bool{"up": true, "down": true, "rm": true, "sync"
 func title(r opRequest) string {
 	switch r.Action {
 	case "up":
-		return "Start " + r.Universe + " in " + r.Workspace
+		return "Start " + r.Universe + " in " + r.Multiverse
 	case "down":
-		return "Stop " + r.Universe + " in " + r.Workspace
+		return "Stop " + r.Universe + " in " + r.Multiverse
 	case "rm":
-		return "Remove " + r.Universe + " from " + r.Workspace
+		return "Remove " + r.Universe + " from " + r.Multiverse
 	case "restart":
-		return "Restart " + r.App + "/" + r.Service + " in " + r.Universe + " of " + r.Workspace
+		return "Restart " + r.App + "/" + r.Service + " in " + r.Universe + " of " + r.Multiverse
 	case "sync":
-		return "Bring " + r.Universe + " up to date in " + r.Workspace
+		return "Bring " + r.Universe + " up to date in " + r.Multiverse
 	case "new":
 		if strings.TrimSpace(r.Name) == "" {
-			return "Create a universe in " + r.Workspace
+			return "Create a universe in " + r.Multiverse
 		}
-		return "Create " + r.Name + " in " + r.Workspace
+		return "Create " + r.Name + " in " + r.Multiverse
 	case "checkout":
-		return "Check out " + r.Branch + " in " + r.Workspace
+		return "Check out " + r.Branch + " in " + r.Multiverse
 	case "update":
-		return "Update " + r.Workspace
-	case "use":
-		return "Make " + r.Workspace + " the current project"
+		return "Update " + r.Multiverse
 	}
 	return r.Action
 }
@@ -187,27 +185,27 @@ func title(r opRequest) string {
 // side, so starting, stopping or removing one does not wait for another's: each
 // holds only its own universe. Creating a universe takes the next number and
 // new branches in every repository, so creations take turns. Updating or
-// switching a project changes the project itself, so it waits for everything
+// switching a multiverse changes the multiverse itself, so it waits for everything
 // in it, and everything waits for it.
 func scopeOf(r opRequest) string {
 	switch r.Action {
 	case "up", "down", "rm", "sync", "restart":
-		return r.Workspace + "/" + r.Universe
+		return r.Multiverse + "/" + r.Universe
 	case "new", "checkout":
-		return r.Workspace + "#create"
+		return r.Multiverse + "#create"
 	}
-	return r.Workspace
+	return r.Multiverse
 }
 
 // conflict says which running operation stops this one from starting. The
 // caller holds m.mu.
 func (m *ops) conflict(r opRequest, key string) (string, bool) {
-	if id, ok := m.busy[r.Workspace]; ok {
-		return id, true // the project itself is being changed
+	if id, ok := m.busy[r.Multiverse]; ok {
+		return id, true // the multiverse itself is being changed
 	}
-	if key == r.Workspace { // this one changes the project: nothing else may be running in it
+	if key == r.Multiverse { // this one changes the multiverse: nothing else may be running in it
 		for k, id := range m.busy {
-			if strings.HasPrefix(k, r.Workspace+"/") || strings.HasPrefix(k, r.Workspace+"#") {
+			if strings.HasPrefix(k, r.Multiverse+"/") || strings.HasPrefix(k, r.Multiverse+"#") {
 				return id, true
 			}
 		}
@@ -219,12 +217,12 @@ func (m *ops) conflict(r opRequest, key string) (string, bool) {
 // start checks a request and begins it.
 func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	switch r.Action {
-	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update", "use":
+	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update":
 	default:
 		return opView{}, bad(http.StatusBadRequest, fmt.Sprintf("unknown action %q", r.Action))
 	}
-	if r.Workspace == "" {
-		return opView{}, bad(http.StatusBadRequest, "project is required")
+	if r.Multiverse == "" {
+		return opView{}, bad(http.StatusBadRequest, "multiverse is required")
 	}
 	if needsUniverse[r.Action] && r.Universe == "" {
 		return opView{}, bad(http.StatusBadRequest, "universe is required")
@@ -245,7 +243,7 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 		// too late to be offering anything.
 		if !r.Force {
 			c, cancel := context.WithTimeout(ctx, requestTimeout)
-			dirty, err := m.s.b.Unsaved(c, r.Workspace, r.Universe)
+			dirty, err := m.s.b.Unsaved(c, r.Multiverse, r.Universe)
 			cancel()
 			if err != nil {
 				return opView{}, bad(http.StatusNotFound, err.Error())
@@ -263,11 +261,11 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	key := scopeOf(r)
 	if id, busy := m.conflict(r, key); busy {
 		m.mu.Unlock()
-		return opView{}, bad(http.StatusConflict, "another operation ("+id+") is running in "+r.Workspace+"; wait for it to finish")
+		return opView{}, bad(http.StatusConflict, "another operation ("+id+") is running in "+r.Multiverse+"; wait for it to finish")
 	}
 	m.seq++
 	o := &op{key: key, view: opView{
-		ID: "op" + strconv.Itoa(m.seq), Action: r.Action, Title: title(r), Workspace: r.Workspace, Universe: r.Universe,
+		ID: "op" + strconv.Itoa(m.seq), Action: r.Action, Title: title(r), Multiverse: r.Multiverse, Universe: r.Universe,
 		State: "running", Started: time.Now().UTC().Format(time.RFC3339),
 	}}
 	m.busy[key] = o.view.ID

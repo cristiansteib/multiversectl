@@ -12,17 +12,17 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// ProjectInput describes a new project: the repositories it is made of, and
+// ProjectInput describes a new multiverse: the repositories it is made of, and
 // where its own repository (its index and its manifest) lives. Whatever is
 // left out is asked, so the same call serves a guided setup and a script.
 type ProjectInput struct {
-	Dir  string // where the project's repository is, or will be; default .
+	Dir  string // where the multiverse's repository is, or will be; default .
 	Name string
 
 	Repos []string // repositories to include: URLs, or owner/repo for GitHub
 	Scan  bool     // include the git checkouts found here, without asking
 
-	// Where the project's own repository lives: one of these, or the origin of
+	// Where the multiverse's own repository lives: one of these, or the origin of
 	// Dir when it already has one, or ask.
 	URL      string // an existing repository
 	Create   string // owner/name of a new one
@@ -36,19 +36,19 @@ type ProjectInput struct {
 	NoLink  bool
 }
 
-// ProjectResult is what a project init made.
+// ProjectResult is what a multiverse init made.
 type ProjectResult struct {
 	Name string
 	Dir  string
 	URL  string // "" when it is only on this machine
 	// Node is where it was listed in the root catalog, "" when it was not.
 	Node string
-	// Root is the directory the project's checkouts already sit under, which is
-	// the project root to install it with; "" when there were none.
+	// Root is the directory the multiverse's checkouts already sit under, which is
+	// the multiverse root to install it with; "" when there were none.
 	Root string
 }
 
-// FoundCheckout is a git working copy found next to the project.
+// FoundCheckout is a git working copy found next to the multiverse.
 type FoundCheckout struct {
 	Dir     string
 	URL     string // its origin
@@ -58,7 +58,7 @@ type FoundCheckout struct {
 var composeFiles = []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"}
 
 // ScanCheckouts finds git working copies under dir, and when there are none
-// there, next to it: a project's repository usually sits beside the repositories
+// there, next to it: a multiverse's repository usually sits beside the repositories
 // it describes. It returns the directory they were found in.
 func (c *Catalogs) ScanCheckouts(ctx context.Context, dir string) (base string, found []FoundCheckout) {
 	for _, b := range []string{dir, filepath.Dir(dir)} {
@@ -166,7 +166,7 @@ func (hc *hostChecks) ready(ctx context.Context, h RepoHost) error {
 	return hc.err[h.Name()]
 }
 
-// pick is a repository chosen for the project; co is set when it is already
+// pick is a repository chosen for the multiverse; co is set when it is already
 // cloned on this machine.
 type pick struct {
 	url string
@@ -187,7 +187,7 @@ func (p *picks) add(url string, co *FoundCheckout) {
 	p.list = append(p.list, pick{url, co})
 }
 
-// InitProject sets a project up the way `firebase init` would: it gathers the
+// InitProject sets a multiverse up the way `firebase init` would: it gathers the
 // repositories, writes a manifest and a catalog into Dir, puts them in a
 // repository of their own, and lists that in the root catalog.
 func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectResult, error) {
@@ -198,8 +198,8 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 	if err != nil {
 		return ProjectResult{}, err
 	}
-	if c.Files.Exists(filepath.Join(dir, defaultManifestFile)) || c.Files.Exists(filepath.Join(dir, defaultCatalogFile)) {
-		return ProjectResult{}, fmt.Errorf("%s is already a project (it has a %s or %s): edit those, or list it with `catalog add`", dir, defaultManifestFile, defaultCatalogFile)
+	if len(manifestsIn(c.Files, dir)) > 0 || c.Files.Exists(filepath.Join(dir, defaultCatalogFile)) {
+		return ProjectResult{}, fmt.Errorf("%s already defines a multiverse or a catalog: edit those, or list it with `catalog add`", dir)
 	}
 
 	base, found := c.ScanCheckouts(ctx, dir)
@@ -227,7 +227,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 		return ProjectResult{}, err
 	}
 	draft, root := c.draft(name, base, chosen)
-	data, err := c.Writer.Workspace(draft)
+	data, err := c.Writer.Multiverse(draft)
 	if err != nil {
 		return ProjectResult{}, err
 	}
@@ -238,7 +238,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 	}
 
 	c.Out.Plain("")
-	c.Out.Plain("Project %s, in `%s`", name, dir)
+	c.Out.Plain("Multiverse %s, in `%s`", name, dir)
 	width := 0
 	for _, r := range draft.Repos {
 		width = max(width, len(r.Key))
@@ -279,7 +279,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 // projectName is asked unless given, once the repositories are known: what
 // they share (fichero-api and fichero-ui are fichero) is the likeliest name.
 // Failing that, the directory's; one called multiverse says nothing about the
-// project, so its parent's is used.
+// multiverse, so its parent's is used.
 func (c *Catalogs) projectName(given, dir string, p *picks) (string, error) {
 	name := given
 	if name == "" {
@@ -292,7 +292,7 @@ func (c *Catalogs) projectName(given, dir string, p *picks) (string, error) {
 		}
 		def = strings.ToLower(nonName.ReplaceAllString(def, "-"))
 		var err error
-		if name, err = c.Prompt.Input("Project name", def); errors.Is(err, ErrNotInteractive) {
+		if name, err = c.Prompt.Input("Multiverse name", def); errors.Is(err, ErrNotInteractive) {
 			name, err = def, nil
 		} else if err != nil {
 			return "", err
@@ -338,7 +338,7 @@ func repoKey(name string) string {
 
 var nonName = regexp.MustCompile(`[^a-zA-Z0-9-]+`)
 
-// draft names each repository. A key drops the project's own name when that
+// draft names each repository. A key drops the multiverse's own name when that
 // leaves something (fichero-api in fichero is api), since it is typed often.
 func (c *Catalogs) draft(project, base string, p *picks) (ProjectDraft, string) {
 	d := ProjectDraft{Name: project}
@@ -453,7 +453,7 @@ func (c *Catalogs) askRepos(ctx context.Context, hosts *hostChecks, chosen *pick
 		if len(chosen.list) > 0 {
 			def = done
 		}
-		i, err := c.Prompt.Select("Which repositories make up the project?", opts, def)
+		i, err := c.Prompt.Select("Which repositories make up the multiverse?", opts, def)
 		if err != nil {
 			return err
 		}
@@ -562,7 +562,7 @@ func (c *Catalogs) pickAccount(ctx context.Context, h RepoHost, label string) (s
 	return accounts[i].Name, nil
 }
 
-// projectHome is where the project's own repository lives.
+// projectHome is where the multiverse's own repository lives.
 type projectHome struct {
 	url    string   // an existing repository, or the origin Dir already has
 	create string   // owner/name of one to make
@@ -588,14 +588,14 @@ func (t projectHome) describe() string {
 func (t projectHome) question(dir string) string {
 	switch {
 	case t.local:
-		return fmt.Sprintf("Write multiverse.yaml, catalog.yaml and AGENTS.md in %s and commit them?", dir)
+		return fmt.Sprintf("Write multiverse.yaml and AGENTS.md in %s and commit them?", dir)
 	case t.create != "":
-		return fmt.Sprintf("Create %s on %s, write multiverse.yaml, catalog.yaml and AGENTS.md in %s, commit and push them?", t.create, t.host.Name(), dir)
+		return fmt.Sprintf("Create %s on %s, write multiverse.yaml and AGENTS.md in %s, commit and push them?", t.create, t.host.Name(), dir)
 	}
-	return fmt.Sprintf("Write multiverse.yaml, catalog.yaml and AGENTS.md in %s, commit them and push to %s?", dir, t.url)
+	return fmt.Sprintf("Write multiverse.yaml and AGENTS.md in %s, commit them and push to %s?", dir, t.url)
 }
 
-// projectTarget decides where the project's repository lives, from what was
+// projectTarget decides where the multiverse's repository lives, from what was
 // said, from the origin Dir already has, or by asking.
 func (c *Catalogs) projectTarget(ctx context.Context, hosts *hostChecks, in ProjectInput, dir string) (projectHome, error) {
 	switch {
@@ -644,12 +644,12 @@ func (c *Catalogs) projectTarget(ctx context.Context, hosts *hostChecks, in Proj
 	})
 	add(Option{Label: "Only on this machine for now", Note: "a git repository to push somewhere later"}, func() (projectHome, error) { return projectHome{local: true}, nil })
 
-	i, err := c.Prompt.Select("Where should the project's own repository live?", opts, 0)
+	i, err := c.Prompt.Select("Where should the multiverse's own repository live?", opts, 0)
 	if errors.Is(err, ErrNotInteractive) {
 		if origin != "" {
 			return projectHome{url: origin}, nil
 		}
-		return projectHome{}, errors.New("say where the project's repository lives: --create owner/name, --url <repository>, or --local")
+		return projectHome{}, errors.New("say where the multiverse's repository lives: --create owner/name, --url <repository>, or --local")
 	}
 	if err != nil {
 		return projectHome{}, err
@@ -700,7 +700,7 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 			return "", err
 		}
 	} else if !samePath(top, dir) {
-		return "", fmt.Errorf("%s is inside the git repository %s; a project's repository is its own directory", dir, top)
+		return "", fmt.Errorf("%s is inside the git repository %s; a multiverse's repository is its own directory", dir, top)
 	}
 	if url != "" {
 		if have, err := c.Git.RemoteURL(ctx, dir); err == nil && have != "" {
@@ -712,11 +712,7 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 		}
 	}
 
-	catalogData, err := c.Editor.AddWorkspaceRef(c.Editor.Scaffold(name), domain.WorkspaceRef{Name: name, Source: domain.Source{Path: defaultManifestFile}})
-	if err != nil {
-		return "", err
-	}
-	manifestFile, catalogFile := filepath.Join(dir, defaultManifestFile), filepath.Join(dir, defaultCatalogFile)
+	manifestFile := filepath.Join(dir, defaultManifestFile)
 	if err := c.Files.WriteFile(manifestFile, manifest, 0o644); err != nil {
 		return "", err
 	}
@@ -724,10 +720,7 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 		_ = c.Files.RemoveAll(manifestFile)
 		return "", fmt.Errorf("the manifest written does not load, which is a bug: %w", err)
 	}
-	if err := c.Files.WriteFile(catalogFile, catalogData, 0o644); err != nil {
-		return "", err
-	}
-	files := []string{manifestFile, catalogFile}
+	files := []string{manifestFile}
 	agentsFile := filepath.Join(dir, "AGENTS.md")
 	if c.Files.Exists(agentsFile) {
 		c.Out.Info("AGENTS.md is already here; it is kept as it is")
@@ -741,10 +734,10 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 		}
 		files = append(files, agentsFile)
 	}
-	if err := c.Git.Commit(ctx, dir, "Start the "+name+" project with multiversectl", files...); err != nil {
+	if err := c.Git.Commit(ctx, dir, "Start the "+name+" multiverse with multiversectl", files...); err != nil {
 		return "", fmt.Errorf("the files are written in %s but could not be committed; commit and push them yourself: %w", dir, err)
 	}
-	c.Out.OK("wrote %s, %s and AGENTS.md", defaultManifestFile, defaultCatalogFile)
+	c.Out.OK("wrote %s and AGENTS.md", defaultManifestFile)
 	if url == "" {
 		c.Out.Info("only on this machine: `git -C %s remote add origin <url> && git -C %s push -u origin HEAD`", dir, dir)
 		return "", nil

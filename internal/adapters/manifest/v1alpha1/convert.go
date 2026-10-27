@@ -20,9 +20,9 @@ const (
 	defaultWebPort    = 80
 )
 
-// Convert builds the domain manifest from a decoded project, applying
+// Convert builds the domain manifest from a decoded multiverse, applying
 // defaults. dir is the directory holding the manifest file.
-func Convert(w *Project, dir string) (*domain.Manifest, error) {
+func Convert(w *Multiverse, dir string) (*domain.Manifest, error) {
 	s := w.Spec
 	m := &domain.Manifest{
 		Name:   w.ObjectMeta.Name,

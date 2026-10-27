@@ -35,7 +35,7 @@ func (r runner) footprintCmd() *cobra.Command {
 			"the command that removes it. Whatever would lose work that exists nowhere else\n" +
 			"(uncommitted changes, commits on no remote, a volume's data) is marked, and the\n" +
 			"commands come last, in the order that is safe to run them. It removes nothing.\n\n" +
-			"A project's folder may hold files this tool did not create; those are not\n" +
+			"A multiverse's folder may hold files this tool did not create; those are not\n" +
 			"listed. The root catalog's repository, on GitHub or GitLab, is not touched.",
 		Example: "  multiversectl system footprint\n  multiversectl system footprint --script > clean.sh\n  multiversectl system footprint -o json",
 		Args:    cobra.NoArgs,
@@ -88,7 +88,7 @@ func (r runner) collectFootprint(ctx context.Context) ([]app.Item, error) {
 		}
 	}
 
-	list, err := bare.Workspaces()
+	list, err := bare.Multiverses()
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (r runner) collectFootprint(ctx context.Context) ([]app.Item, error) {
 	for _, w := range list {
 		svc, err := r.f.At(*r.g, quietOut{}, w.Root, w.Manifest)
 		if err != nil {
-			items = append(items, app.Item{Kind: "clone", What: "project " + w.Name + ": its manifest cannot be read, so its folder was not looked into", Path: w.Root, Size: -1})
+			items = append(items, app.Item{Kind: "clone", What: "multiverse " + w.Name + ": its manifest cannot be read, so its folder was not looked into", Path: w.Root, Size: -1})
 			continue
 		}
 		if !proxySeen {
@@ -119,7 +119,7 @@ func (r runner) collectFootprint(ctx context.Context) ([]app.Item, error) {
 	}
 
 	if !proxySeen {
-		// With no project installed the proxy may still be up from one that was.
+		// With no multiverse installed the proxy may still be up from one that was.
 		if ps, err := bare.Proxy.Status(ctx); err == nil && ps.Running {
 			names := make([]string, 0, len(ps.Entrypoints))
 			for n, p := range ps.Entrypoints {
@@ -180,7 +180,7 @@ var sections = []section{
 	{"universe", "Universes", "removing one deletes its worktrees, its containers and its volumes, which hold its data"},
 	{"branch", "Branches left behind", "started by universes that are gone"},
 	{"clone", "Clones of your repositories", "yours: check nothing is unpushed before deleting one"},
-	{"copy", "Copies of manifests", "kept inside each project's folder"},
+	{"copy", "Copies of manifests", "kept inside each multiverse's folder"},
 	{"state", "Configuration, caches and state", "all of it is in one folder"},
 	{"completion", "Shell completions", ""},
 	{"program", "The programs", "last, so everything above can still be undone with them"},
@@ -264,7 +264,7 @@ func (r runner) printFootprint(items []app.Item) {
 		o.Plain("  %2d. `%s`", n, step.text)
 	}
 	o.Plain("")
-	o.Info("this lists what is still installed: the folder of a project you already forgot with `reset` or `catalog uninstall` is not known any more, so look in the folder you installed it into (`~/multiverse` by default)")
+	o.Info("this lists what is still installed: the folder of a multiverse you already forgot with `system reset` or `system forget` is not known any more, so look in the folder you installed it into (`~/multiverse` by default)")
 	line := fmt.Sprintf("about %s in all", humanBytes(total))
 	if risky > 0 {
 		line += fmt.Sprintf("; %s marked ⚠ would lose work that is nowhere else", plural(risky, "thing"))

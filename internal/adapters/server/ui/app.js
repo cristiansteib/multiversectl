@@ -130,7 +130,7 @@ const ICONS = {
   file: { d: 'M1.5 3A1.5 1.5 0 0 1 3 1.5h3.1c.4 0 .78.16 1.06.44L8.2 3H13A1.5 1.5 0 0 1 14.5 4.5v7A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5z' },
   root: { d: 'M8 1.2l2.1 4.4 4.8.7-3.5 3.4.8 4.8L8 12.2l-4.2 2.3.8-4.8L1.1 6.3l4.8-.7z' },
   catalog: { d: 'M2 3.5h12v1.6H2zM2 7.2h12v1.6H2zM2 10.9h8v1.6H2z' },
-  project: { d: 'M8 1.5l5.5 3v7L8 14.5l-5.5-3v-7zM2.5 4.5L8 7.5l5.5-3M8 7.5v7', stroke: true },
+  multiverse: { d: 'M8 1.5l5.5 3v7L8 14.5l-5.5-3v-7zM2.5 4.5L8 7.5l5.5-3M8 7.5v7', stroke: true },
 };
 
 function svg(name, cls) {
@@ -213,44 +213,44 @@ function overview(st, rootLoc, sources) {
   const out = [];
   if (st.next) out.push(h('div', { class: 'next' }, h('b', null, 'Next'), copyable(st.next)));
 
-  const root = st.root || {};
-  const rootCard = h('div', { class: 'card' }, h('h3', null, 'Root catalog'));
+  const root = st.catalog || {};
+  const rootCard = h('div', { class: 'card' }, h('h3', null, 'Catalog'));
   if (!root.source) {
-    rootCard.append(h('p', { class: 'muted' }, 'None. Projects can still be installed from a repository.'),
+    rootCard.append(h('p', { class: 'muted' }, 'None. Multiverses can still be installed from a repository.'),
       h('p', null, cmd('multiversectl init')));
   } else {
     rootCard.append(h('div', null, place(rootLoc) || h('span', { class: 'mono wrap' }, root.source), ' ',
-      root.unavailable ? null : root.legacy ? badge('warn', 'plain Catalog', 'Not marked as a root: run multiversectl init') : badge('ok', 'CatalogRoot')));
+      root.unavailable ? null : badge('ok', 'Catalog')));
     if (root.unavailable) rootCard.append(h('p', null, badge('bad', 'unavailable'), ' ', root.unavailable));
     if (root.noRemote) rootCard.append(h('p', null, badge('warn', 'local only'), ' Lost with this machine, and nobody else can use it.'));
     rootCard.append(h('p', null, h('a', { href: '#/catalog' }, 'Browse the tree →')));
   }
-  const ws = st.projects || [];
+  const ws = st.multiverses || [];
   const stale = ws.filter((w) => w.stale).length;
   out.push(h('div', { class: 'cards' },
     rootCard,
     h('div', { class: 'card' }, h('h3', null, 'Installed'), h('div', { class: 'big' }, ws.length),
-      h('div', { class: 'muted' }, ws.length === 1 ? 'project' : 'projects')),
+      h('div', { class: 'muted' }, ws.length === 1 ? 'multiverse' : 'multiverses')),
     h('div', { class: 'card' }, h('h3', null, 'Drift'), h('div', { class: 'big' }, stale),
       h('div', { class: 'muted' }, stale ? 'need an update' : 'all up to date'))));
 
-  out.push(h('h2', null, 'Projects'));
+  out.push(h('h2', null, 'Multiverses'));
   if (!ws.length) {
-    out.push(empty('Nothing installed yet.', h('br'), cmd('multiversectl project install <owner/repo>')));
+    out.push(empty('Nothing installed yet.', h('br'), cmd('multiversectl start <owner/repo>')));
     return out;
   }
   out.push(h('div', { class: 'scroll' }, h('table', null,
-    h('thead', null, h('tr', null, ['Project', 'Catalog path', 'Source', 'State', 'Root', ''].map((t) => h('th', null, t)))),
+    h('thead', null, h('tr', null, ['Multiverse', 'Catalog path', 'Source', 'State', 'Root', ''].map((t) => h('th', null, t)))),
     h('tbody', null, ws.map((w) => h('tr', null,
-      h('td', null, w.current ? h('span', { title: 'current project' }, '★ ') : '',
-        h('a', { href: '#/project/' + encodeURIComponent(w.name) }, w.name)),
+      h('td', null,
+        h('a', { href: '#/multiverse/' + encodeURIComponent(w.name) }, w.name)),
       h('td', { class: 'mono' }, w.from || '—'),
       h('td', null, place(sources[w.name]) || h('span', { class: 'muted' }, '—')),
       h('td', null, w.notes && w.notes.length
         ? w.notes.map((n) => [badge(w.stale ? 'warn' : 'mute', n), ' '])
         : badge('ok', 'up to date')),
       h('td', null, copyable(w.root)),
-      h('td', { class: 'row-actions' }, wsActions(w, { update: true, use: !w.current }))))))));
+      h('td', { class: 'row-actions' }, wsActions(w, { update: true }))))))));
   return out;
 }
 
@@ -269,7 +269,7 @@ views.catalog = {
       if (data) { walk(data.root); open.add(''); draw(); }
     };
     host.append(h('h1', null, 'Catalog'),
-      h('p', { class: 'lede' }, 'Your index of projects, as a tree. Nodes are addressed by path, like acme/backend/billing.'),
+      h('p', { class: 'lede' }, 'Your index of multiverses, as a tree. Nodes are addressed by path, like acme/backend/billing.'),
       h('div', { class: 'bar' }, search,
         h('button', { type: 'button', class: 'btn', onclick: all(true) }, 'Expand all'),
         h('button', { type: 'button', class: 'btn', onclick: all(false) }, 'Collapse all'),
@@ -291,11 +291,11 @@ views.catalog = {
         h('span', { class: 'kind ' + kind }, kind),
         place(n.loc, n.within),
         n.unavailable ? badge('bad', '✗ ' + n.unavailable) : null,
-        n.kind === 'project' && !n.unavailable ? (n.installedAs ? badge('ok', '✓ installed as ' + n.installedAs) : badge('mute', '○ not installed')) : null,
+        n.kind === 'multiverse' && !n.unavailable ? (n.installedAs ? badge('ok', '✓ installed as ' + n.installedAs) : badge('mute', '○ not installed')) : null,
       ];
-      if (n.kind === 'project') {
+      if (n.kind === 'multiverse') {
         return h('li', { class: 'leaf' }, h('div', { class: 'node ws' }, label,
-          n.installedAs ? null : copyable('multiversectl project install ' + n.path, 'install')));
+          n.installedAs ? null : copyable('multiversectl start ' + n.path, 'install')));
       }
       const kids = (n.children || []).map(item).filter(Boolean);
       const d = h('details', { ontoggle: (e) => { e.target.open ? open.add(n.path) : open.delete(n.path); } },
@@ -317,7 +317,7 @@ views.catalog = {
       if (btn) btn.disabled = true;
       try {
         data = await api('catalog' + (fetch ? '?fetch=1' : ''));
-        // Open the tree the first time, so the projects are in view; a large
+        // Open the tree the first time, so the multiverses are in view; a large
         // catalog stays closed, and the filter opens what it finds.
         if (first) { first = false; const count = (n) => 1 + (n.children || []).reduce((a, c) => a + count(c), 0); if (count(data.root) <= 150) all(true)(); }
         draw(); if (fetch) toast('Fetched');
@@ -336,7 +336,7 @@ function universeCard(w, u) {
   const busy = isBusy(w.name);
   const act = (action, label, kind) => h('button', { type: 'button', class: 'btn small ' + (kind || ''), disabled: busy,
     title: busy ? 'Another operation is running in ' + w.name : null,
-    onclick: () => run({ action, project: w.name, universe: u.name }) }, label);
+    onclick: () => run({ action, multiverse: w.name, universe: u.name }) }, label);
   const actions = state.readOnly ? null : h('div', { class: 'actions' },
     u.running < total || !u.running ? act('up', 'Start', 'primary') : null,
     u.running ? act('down', 'Stop') : null,
@@ -392,16 +392,16 @@ function branchChip(u) {
 // page draws from is pushed at it whenever anything on the machine changes.
 const codeState = new Map();
 const CODE_STALE = 300000;
-const codeKey = (project, universe) => JSON.stringify([project, universe]);
+const codeKey = (multiverse, universe) => JSON.stringify([multiverse, universe]);
 
 async function loadCode(key, again) {
   const had = codeState.get(key) || {};
   if (had.loading || (!again && had.at && Date.now() - had.at < CODE_STALE)) return;
   codeState.set(key, { rows: had.rows, loading: true });
   fillCode(key);
-  const [project, universe] = JSON.parse(key);
+  const [multiverse, universe] = JSON.parse(key);
   try {
-    const d = await api('universe/code?' + query({ project, universe }));
+    const d = await api('universe/code?' + query({ multiverse, universe }));
     codeState.set(key, { rows: d.rows || [], at: Date.now() });
   } catch (e) {
     codeState.set(key, { rows: had.rows, error: e.message, at: Date.now() });
@@ -501,12 +501,12 @@ function reviewOf(r) {
 // whenever something changes and a result should not vanish with it.
 const doctorResults = new Map();
 
-async function runDoctor(into, project, universe, btn) {
+async function runDoctor(into, multiverse, universe, btn) {
   btn.disabled = true;
-  const key = project + '/' + universe;
+  const key = multiverse + '/' + universe;
   into.replaceChildren(h('p', { class: 'muted' }, 'Checking…'));
   try {
-    const rep = await api('doctor?' + query(universe ? { project, universe } : { project }));
+    const rep = await api('doctor?' + query(universe ? { multiverse, universe } : { multiverse }));
     const kind = { ok: 'ok', warn: 'warn', fail: 'bad' };
     const result = h('div', { class: 'panel' },
       h('div', { class: 'ws-head tight' }, h('b', null, rep.ok ? 'No failures' : 'Something failed'), h('span', { class: 'grow' }),
@@ -529,30 +529,29 @@ views.fleet = {
       oninput: (e) => { filter = e.target.value.trim().toLowerCase(); draw(); },
     });
     host.append(h('h1', null, 'Fleet'),
-      h('p', { class: 'lede' }, 'Every universe of every installed project, and what is running in it.'),
+      h('p', { class: 'lede' }, 'Every universe of every installed multiverse, and what is running in it.'),
       h('div', { class: 'bar' }, search), body);
     const wanted = (u) => !filter || [u.name, u.note, ...Object.values(u.branches || {})].some((s) => (s || '').toLowerCase().includes(filter));
 
     function draw() {
       if (!data) return;
       if (data.error) { body.replaceChildren(errorBox(data.error)); return; }
-      if (!data.projects.length) {
-        body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl project install <owner/repo>')));
+      if (!data.multiverses.length) {
+        body.replaceChildren(empty('Nothing installed yet.', h('br'), cmd('multiversectl start <owner/repo>')));
         return;
       }
       // The cards about to be thrown away are no longer worth watching, and an
       // observer keeps hold of what it watches: the fleet is redrawn whenever
       // anything on the machine moves.
       if (codeWatch) codeWatch.disconnect();
-      body.replaceChildren(...data.projects.map((w) => {
+      body.replaceChildren(...data.multiverses.map((w) => {
         const list = w.universes.filter(wanted);
         const panel = h('div');
         return h('section', null,
-          h('div', { class: 'ws-head' }, h('h2', null, h('a', { href: '#/project/' + encodeURIComponent(w.name) }, w.name)),
-            w.current ? badge('info', 'current') : null,
+          h('div', { class: 'ws-head' }, h('h2', null, h('a', { href: '#/multiverse/' + encodeURIComponent(w.name) }, w.name)),
             h('span', { class: 'muted' }, w.universes.length + (w.universes.length === 1 ? ' universe' : ' universes')),
             h('span', { class: 'grow' }),
-            wsActions(w, { create: true, update: true, use: !w.current }, w),
+            wsActions(w, { create: true, update: true }, w),
             h('button', { type: 'button', class: 'btn small', onclick: (e) => runDoctor(panel, w.name, '', e.target) }, 'Doctor')),
           panel,
           w.error ? errorBox(w.error) : null,
@@ -574,8 +573,8 @@ views.fleet = {
   },
 };
 
-views.project = {
-  title: 'Project',
+views.multiverse = {
+  title: 'Multiverse',
   mount(host, name) {
     const body = h('div');
     host.append(h('p', null, h('a', { href: '#/' }, '← Overview')), h('h1', null, name), body);
@@ -587,10 +586,10 @@ views.project = {
       async refresh() {
         try {
           loaded = true;
-          const w = await api('projects/' + encodeURIComponent(name));
+          const w = await api('multiverses/' + encodeURIComponent(name));
           body.replaceChildren(
-            h('p', { class: 'lede' }, w.current ? badge('info', 'current') : null, ' ', copyable(w.root)),
-            state.readOnly ? null : h('div', { class: 'bar' }, wsActions({ name: w.name, current: w.current, universes: [] }, { create: true, update: true, use: !w.current })),
+            h('p', { class: 'lede' }, copyable(w.root)),
+            state.readOnly ? null : h('div', { class: 'bar' }, wsActions({ name: w.name, universes: [] }, { create: true, update: true })),
             h('div', { class: 'cards' },
               h('div', { class: 'card' }, h('h3', null, 'Reach'), h('div', null, 'domain ', h('b', null, w.domain), ' · ', w.expose || 'default')),
               h('div', { class: 'card' }, h('h3', null, 'Proxy'), h('div', { class: 'mono' }, w.network),
@@ -599,7 +598,7 @@ views.project = {
             h('div', { class: 'scroll' }, h('table', null,
               h('thead', null, h('tr', null, ['Name', 'Repository', 'Runtime', 'Clone'].map((t) => h('th', null, t)))),
               h('tbody', null, w.repos.map((r) => h('tr', null, h('td', null, r.key), h('td', null, place(r.loc) || h('span', { class: 'mono' }, r.url)),
-                h('td', null, r.runtime || 'compose'), h('td', null, r.cloned ? badge('ok', 'cloned') : badge('warn', 'not cloned'), r.behind ? badge('warn', r.behind + ' behind ' + r.follows, 'The shared clone lacks these commits; “Update” on the project brings them in.') : null)))))),
+                h('td', null, r.runtime || 'compose'), h('td', null, r.cloned ? badge('ok', 'cloned') : badge('warn', 'not cloned'), r.behind ? badge('warn', r.behind + ' behind ' + r.follows, 'The shared clone lacks these commits; “Update” on the multiverse brings them in.') : null)))))),
             h('h2', null, 'Apps'),
             h('div', { class: 'cards' }, w.apps.map((a) => h('div', { class: 'card' }, h('h3', null, a.key),
               h('div', null, 'repo ', h('b', null, a.repo)),
@@ -621,7 +620,7 @@ views.project = {
 // server runs it in the background and sends its output as it happens; the
 // dock at the bottom is where that is read.
 
-const isBusy = (project) => state.ops.some((o) => o.project === project && o.state === 'running');
+const isBusy = (multiverse) => state.ops.some((o) => o.multiverse === multiverse && o.state === 'running');
 
 // run starts an action and opens the dock on it. An error comes back to the
 // caller, which is a dialog that can say it where the person is looking.
@@ -638,7 +637,7 @@ async function runSafely(request) {
   try { await run(request); } catch (e) { toast(e.message); }
 }
 
-// The buttons that act on a whole project. A project row may not know its
+// The buttons that act on a whole multiverse. A multiverse row may not know its
 // universes, so the caller can pass the fleet entry that does.
 function wsActions(w, want, fleetEntry) {
   if (state.readOnly) return null;
@@ -646,8 +645,7 @@ function wsActions(w, want, fleetEntry) {
   const tip = busy ? 'Another operation is running in ' + w.name : null;
   return h('span', { class: 'actions' },
     want.create ? h('button', { type: 'button', class: 'btn small primary', disabled: busy, title: tip, onclick: () => newDialog(w) }, 'New universe') : null,
-    want.update ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Fetch the manifest and clone what it newly lists', onclick: () => runSafely({ action: 'update', project: w.name }) }, 'Update') : null,
-    want.use ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Make it the project commands act on by default', onclick: () => runSafely({ action: 'use', project: w.name }) }, 'Make current') : null);
+    want.update ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Fetch the manifest and clone what it newly lists', onclick: () => runSafely({ action: 'update', multiverse: w.name }) }, 'Update') : null,
 }
 
 // modal shows a dialog with a form. submit may throw, and what it says is shown
@@ -687,7 +685,7 @@ function removeDialog(w, u) {
     ],
     async submit(c) {
       try {
-        await run({ action: 'rm', project: w.name, universe: u.name, confirm: input.value, force });
+        await run({ action: 'rm', multiverse: w.name, universe: u.name, confirm: input.value, force });
       } catch (e) {
         // Uncommitted work is never discarded by accident: the server refuses,
         // says where it is, and only a second, deliberate press removes it.
@@ -751,21 +749,21 @@ function newDialog(w) {
     ],
     async submit() {
       if (mode === 'new') {
-        await run({ action: 'new', project: w.name, name: name.value.trim(), base: base.value.trim(), branch: newBranch.value.trim(), note: note.value.trim() });
+        await run({ action: 'new', multiverse: w.name, name: name.value.trim(), base: base.value.trim(), branch: newBranch.value.trim(), note: note.value.trim() });
       } else {
-        await run({ action: 'checkout', project: w.name, branch: pick.value.trim(), name: pickName.value.trim(), onlyExisting: only.checked, note: note.value.trim() });
+        await run({ action: 'checkout', multiverse: w.name, branch: pick.value.trim(), name: pickName.value.trim(), onlyExisting: only.checked, note: note.value.trim() });
       }
     },
   });
 
   // What the server knows that a form cannot: the number that is free (not just
   // one no universe has) and the branches there are.
-  api('next?project=' + encodeURIComponent(w.name)).then((n) => {
+  api('next?multiverse=' + encodeURIComponent(w.name)).then((n) => {
     if (!name.value) name.value = String(n.number);
     if (n.skipped && n.skipped.length) skipped.textContent = 'Skipped ' + n.skipped.join('; ') + '.';
     ctl.refresh();
   }).catch(() => {});
-  api('branches?project=' + encodeURIComponent(w.name)).then((r) => {
+  api('branches?multiverse=' + encodeURIComponent(w.name)).then((r) => {
     branches = r.branches || [];
     list.replaceChildren(...branches.map((b) => h('option', { value: b.name }, b.repos.join(', '))));
     hint();
@@ -897,7 +895,7 @@ function showVersion() {
 }
 
 // ── stats ──────────────────────────────────────────────────────────────
-// Every running container of every project, read over and over and drawn as
+// Every running container of every multiverse, read over and over and drawn as
 // lines. The server keeps no history — one reading is all it has — so the
 // window is what this page has seen since it was opened, and saying so is
 // part of the view.
@@ -931,9 +929,9 @@ views.stats = {
       h('select', { 'aria-label': label, onchange: (e) => onpick(e.target.value) },
         options.map(([v, t]) => h('option', { value: v, selected: String(v) === String(value) }, t))));
 
-    const projects = () => {
+    const multiverses = () => {
       const seen = new Set();
-      for (const s of samples) for (const r of s.rows) seen.add(r.project);
+      for (const s of samples) for (const r of s.rows) seen.add(r.multiverse);
       return [...seen].sort();
     };
 
@@ -976,7 +974,7 @@ views.stats = {
       const key = all.map(([k]) => k + ':' + colours.of(k)).join('\u0000') + '|' + [...hidden].sort().join('\u0000');
       if (key === uniShown) return;
       uniShown = key;
-      const many = projects().length > 1;
+      const many = multiverses().length > 1;
       const set = (k, on) => { if (on) hidden.delete(k); else hidden.add(k); uniShown = ''; draw(); };
       uniMenu.replaceChildren(
         h('div', { class: 'menu-head' },
@@ -985,7 +983,7 @@ views.stats = {
         ...all.map(([k, r]) => h('label', { class: 'menu-item' },
           h('input', { type: 'checkbox', checked: !hidden.has(k), onchange: (e) => set(k, e.target.checked) }),
           group === 'universe' ? h('span', { class: 'swatch ' + colours.of(k) }) : null,
-          h('span', null, r.universe), many ? h('span', { class: 'muted' }, r.project) : null)));
+          h('span', null, r.universe), many ? h('span', { class: 'muted' }, r.multiverse) : null)));
       if (!all.length) uniMenu.append(h('p', { class: 'muted menu-item' }, 'Nothing is running.'));
     };
 
@@ -1022,7 +1020,7 @@ views.stats = {
         failed = (d.sources || []).length ? d.sources : null;
         draw();
       } catch (e) {
-        failed = [{ project: 'this machine', error: e.message }];
+        failed = [{ multiverse: 'this machine', error: e.message }];
         draw();
       } finally { busy = false; }
     }
@@ -1033,15 +1031,15 @@ views.stats = {
     }
 
     // ---- grouping
-    // A universe is a project and a name; a container is that and an app and a
+    // A universe is a multiverse and a name; a container is that and an app and a
     // service. Everything here files rows under one of the two.
-    const uniOf = (r) => r.project + '/' + r.universe;
+    const uniOf = (r) => r.multiverse + '/' + r.universe;
     const svcOf = (r) => uniOf(r) + '/' + r.app + '/' + r.service;
     const keyOf = (r) => group === 'universe' ? uniOf(r) : group === 'app' ? uniOf(r) + '/' + r.app : svcOf(r);
-    // With one project its name adds nothing to every label; with two it is
-    // what tells one project's universe 1 from the other's.
+    // With one multiverse its name adds nothing to every label; with two it is
+    // what tells one multiverse's universe 1 from the other's.
     const labelOf = (r, many) => {
-      const uni = (many ? r.project + ' · ' : '') + r.universe;
+      const uni = (many ? r.multiverse + ' · ' : '') + r.universe;
       return group === 'universe' ? uni : group === 'app' ? uni + ' ' + r.app : uni + ' ' + r.app + '/' + r.service;
     };
 
@@ -1053,7 +1051,7 @@ views.stats = {
       const within = windowed();
       const labels = new Map();
       const order = [];
-      const many = projects().length > 1;
+      const many = multiverses().length > 1;
       for (const s of within) {
         for (const r of s.rows) {
           const k = keyOf(r);
@@ -1084,7 +1082,7 @@ views.stats = {
     // ---- drawing
     function draw() {
       refreshUniPick();
-      errors.replaceChildren(...(failed || []).map((f) => h('p', { class: 'error', role: 'alert' }, f.project + ': ' + f.error)));
+      errors.replaceChildren(...(failed || []).map((f) => h('p', { class: 'error', role: 'alert' }, f.multiverse + ': ' + f.error)));
       const last = samples.length ? samples[samples.length - 1] : null;
       note.replaceChildren(paused ? badge('warn', 'paused') : badge('ok', 'reading ' + (every / 1000) + 's'),
         last ? ' last at ' + viz.clock(last.t) : ' waiting for the first reading');
@@ -1178,7 +1176,7 @@ views.stats = {
       for (const s of within) {
         for (const r of s.rows) {
           const k = uniOf(r);
-          if (!by.has(k)) by.set(k, { project: r.project, universe: r.universe, at: new Map() });
+          if (!by.has(k)) by.set(k, { multiverse: r.multiverse, universe: r.universe, at: new Map() });
           const g = by.get(k);
           g.at.set(s.t, (g.at.get(s.t) || 0) + r.cpu);
         }
@@ -1195,7 +1193,7 @@ views.stats = {
         const live = last.rows.some((r) => uniOf(r) === k);
         const card = h('article', { class: 'card facet' },
           h('div', { class: 'facet-head' }, h('span', { class: 'dot ' + (live ? 'ok' : '') }), h('b', null, g.universe),
-            h('span', { class: 'muted' }, g.project), h('span', { class: 'grow' }), h('b', { class: 'mono' }, viz.percent(current))),
+            h('span', { class: 'muted' }, g.multiverse), h('span', { class: 'grow' }), h('b', { class: 'mono' }, viz.percent(current))),
           h('div', { class: 'plot-frame' }));
         queueMicrotask(() => {
           const frame = card.querySelector('.plot-frame');
@@ -1223,7 +1221,7 @@ views.stats = {
         }
       }
       const rows = last.rows.filter(shown).sort((a, b) =>
-        a.project.localeCompare(b.project) || a.universe.localeCompare(b.universe, undefined, { numeric: true })
+        a.multiverse.localeCompare(b.multiverse) || a.universe.localeCompare(b.universe, undefined, { numeric: true })
         || a.app.localeCompare(b.app) || a.service.localeCompare(b.service));
       table.replaceChildren(h('h2', null, 'Containers'),
         rows.length ? h('div', { class: 'scroll' }, h('table', { class: 'stats-table' },
@@ -1232,7 +1230,7 @@ views.stats = {
             const k = svcOf(r);
             const cls = colours.of(keyOf(r));
             return h('tr', null,
-              h('td', null, h('b', null, r.universe), ' ', h('span', { class: 'muted' }, r.project)),
+              h('td', null, h('b', null, r.universe), ' ', h('span', { class: 'muted' }, r.multiverse)),
               h('td', null, h('span', { class: 'swatch ' + cls }), r.app + '/' + r.service),
               h('td', { class: 'mono num' }, viz.percent(r.cpu)),
               h('td', null, viz.sparkline(history.get(k) || [], from, Date.now(), cls, 110, 20)),
@@ -1241,7 +1239,7 @@ views.stats = {
               h('td', { class: 'mono num muted' }, r.netIO || '—'),
               h('td', { class: 'mono num muted' }, r.pids || 0),
               h('td', { class: 'row-actions' },
-                h('button', { type: 'button', class: 'btn small', onclick: () => sidePanel.open(r.project, r.universe, { service: r.app + '/' + r.service }) }, 'Logs')));
+                h('button', { type: 'button', class: 'btn small', onclick: () => sidePanel.open(r.multiverse, r.universe, { service: r.app + '/' + r.service }) }, 'Logs')));
           }))))
           : empty('Nothing is running. Start a universe in the ', h('a', { href: '#/fleet' }, 'fleet'), '.'));
     }
@@ -1318,7 +1316,7 @@ function route() {
   const key = page === '' ? 'overview' : page;
   const view = views[key] || views.overview;
   document.querySelectorAll('.rail a').forEach((a) => {
-    if (a.dataset.route === (key === 'project' ? 'overview' : key)) a.setAttribute('aria-current', 'page');
+    if (a.dataset.route === (key === 'multiverse' ? 'overview' : key)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
   if (current && current.stop) current.stop();
@@ -1343,7 +1341,7 @@ function schedule() {
   clearInterval(timer);
   if (state.connected) return;
   timer = setInterval(() => {
-    if (!document.hidden && /^#\/(fleet|project\/.*)?$|^$/.test(location.hash)) refresh();
+    if (!document.hidden && /^#\/(fleet|multiverse\/.*)?$|^$/.test(location.hash)) refresh();
   }, REFRESH_MS);
 }
 
@@ -1416,7 +1414,7 @@ const sidePanel = (() => {
     scrim.hidden = !on;
   }
 
-  const of = (c, extra) => query({ project: c.project, universe: c.universe, ...extra });
+  const of = (c, extra) => query({ multiverse: c.multiverse, universe: c.universe, ...extra });
 
   function close() {
     if (!cur) return;
@@ -1431,18 +1429,18 @@ const sidePanel = (() => {
     opener = null;
   }
 
-  // open(project, universe, { service }) — with a service it opens straight on
+  // open(multiverse, universe, { service }) — with a service it opens straight on
   // that log, which is what a row elsewhere on the page links to.
-  async function open(project, universe, opts) {
+  async function open(multiverse, universe, opts) {
     const want = (opts || {}).service;
-    if (cur && cur.project === project && cur.universe === universe) {
+    if (cur && cur.multiverse === multiverse && cur.universe === universe) {
       if (want) startLog(...want.split('/'));
       return;
     }
     const from = document.activeElement;
     close();
     opener = from;
-    const c = { project, universe, rows: null, stats: {}, history: new Map(), tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
+    const c = { multiverse, universe, rows: null, stats: {}, history: new Map(), tab: 'containers', log: null, statsTimer: null, confirm: null, error: null };
     cur = c;
     root.hidden = false;
     document.body.classList.add('with-side');
@@ -1734,11 +1732,11 @@ const sidePanel = (() => {
       onclick: () => { c.tab = id; if (id === 'containers') { stopLog(); c.log = null; pollStats(); } draw(); },
     }, label, count != null ? h('span', { class: 'count' }, count) : null);
     const running = (c.rows || []).filter((r) => r.running).length;
-    const uni = universeIn(c.project, c.universe);
+    const uni = universeIn(c.multiverse, c.universe);
     root.replaceChildren(
       h('header', { class: 'side-head' },
         h('h3', { tabindex: '-1' }, c.universe),
-        h('span', { class: 'muted' }, c.project),
+        h('span', { class: 'muted' }, c.multiverse),
         c.rows ? badge(running ? 'ok' : 'mute', running ? running + ' running' : 'stopped') : null,
         h('span', { class: 'grow' }),
         h('button', {
@@ -1763,8 +1761,8 @@ const sidePanel = (() => {
 
   // What the fleet already knows about this universe, when it knows it: the
   // panel does not ask again for what is on the page.
-  function universeIn(project, universe) {
-    const w = ((state.fleet || {}).projects || []).find((x) => x.name === project);
+  function universeIn(multiverse, universe) {
+    const w = ((state.fleet || {}).multiverses || []).find((x) => x.name === multiverse);
     return w && (w.universes || []).find((u) => u.name === universe);
   }
 
@@ -1785,7 +1783,7 @@ const sidePanel = (() => {
     if (!c.rows.length) {
       rowsBody.replaceChildren(empty('No containers yet — the universe is not started.',
         state.readOnly ? null : h('div', { class: 'actions' },
-          h('button', { type: 'button', class: 'btn small primary', onclick: () => runSafely({ action: 'up', project: c.project, universe: c.universe }) }, 'Start it'))));
+          h('button', { type: 'button', class: 'btn small primary', onclick: () => runSafely({ action: 'up', multiverse: c.multiverse, universe: c.universe }) }, 'Start it'))));
       return;
     }
     rowsBody.replaceChildren(...c.rows.map((r) => {
@@ -1812,7 +1810,7 @@ const sidePanel = (() => {
   // very service, which is what somebody looking at a container wants to open.
   // Only a web address becomes a link, as everywhere else on this page.
   function urlsFor(c, r) {
-    const uni = universeIn(c.project, c.universe);
+    const uni = universeIn(c.multiverse, c.universe);
     const app = uni && (uni.apps || []).find((a) => a.key === r.app);
     if (!app) return [];
     return (app.urls || []).filter((x) => x.service === r.service && /^https?:\/\//.test(x.url))
@@ -1827,14 +1825,14 @@ const sidePanel = (() => {
         type: 'button', class: 'btn small danger',
         onclick: async () => {
           c.confirm = null;
-          try { await run({ action: 'restart', project: c.project, universe: c.universe, app: r.app, service: r.service }); }
+          try { await run({ action: 'restart', multiverse: c.multiverse, universe: c.universe, app: r.app, service: r.service }); }
           catch (e) { toast(e.message); }
           drawRows();
         },
       }, 'Restart, really');
     }
     return h('button', {
-      type: 'button', class: 'btn small', disabled: isBusy(c.project),
+      type: 'button', class: 'btn small', disabled: isBusy(c.multiverse),
       title: 'Restart the container in place; it does not pick up a changed image',
       onclick: () => { c.confirm = key; drawRows(); setTimeout(() => { if (cur === c && c.confirm === key) { c.confirm = null; drawRows(); } }, 4000); },
     }, 'Restart');
@@ -1913,7 +1911,7 @@ const sidePanel = (() => {
   }
 
   function download(log) {
-    const name = cur.project + '-' + cur.universe + '-' + log.appKey + '-' + log.service + '.log';
+    const name = cur.multiverse + '-' + cur.universe + '-' + log.appKey + '-' + log.service + '.log';
     const url = URL.createObjectURL(new Blob([asText(log)], { type: 'text/plain' }));
     const a = h('a', { href: url, download: name });
     document.body.append(a);

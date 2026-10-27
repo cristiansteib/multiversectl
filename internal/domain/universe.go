@@ -8,19 +8,19 @@ import (
 	"strings"
 )
 
-// Universe is one self-contained instance of a project: a checkout of every
+// Universe is one self-contained instance of a multiverse: a checkout of every
 // repository, one compose project per app and one set of hostnames.
 //
 // A universe is identified by the name the caller gave it — a number, or a
 // branch-like name such as "fix/login". Everything else about its identity is
 // derived from that name, so there is one place to look and nothing to keep in
 // step: ID is where it lives on disk, Slug is what appears in hostnames and
-// project names.
+// multiverse names.
 type Universe struct {
-	Name      string // as typed: "3" or "fix/login"
-	Workspace string // absolute path to the multiverse root
-	Manifest  *Manifest
-	Branch    map[string]string // repo key -> branch checked out
+	Name       string // as typed: "3" or "fix/login"
+	Multiverse string // absolute path to the multiverse root
+	Manifest   *Manifest
+	Branch     map[string]string // repo key -> branch checked out
 }
 
 var (
@@ -94,7 +94,7 @@ func (u Universe) Number() int { return UniverseNumber(u.Name) }
 // has lived since before universes could be named.
 func (u Universe) ID() string { return CanonicalUniverseName(u.Name) }
 
-// Slug is the per-universe part of hostnames and project names. A number
+// Slug is the per-universe part of hostnames and multiverse names. A number
 // carries a "u" so that a hostname reads api-u3 rather than api-3, which
 // would look like a port or a version.
 func (u Universe) Slug() string {
@@ -104,22 +104,22 @@ func (u Universe) Slug() string {
 	return Slugify(u.Name)
 }
 
-// Project is the compose project name; it namespaces containers,
+// Multiverse is the compose project name; it namespaces containers,
 // networks and volumes, which is what keeps universes from colliding.
 func (u Universe) Project() string {
 	return fmt.Sprintf("%s-%s", u.Manifest.Name, u.Slug())
 }
 
 // ProjectFor is the compose project of one app. Apps of a universe get a
-// project each: two repositories may both call a service "app", and inside one
-// project that is the same container.
+// multiverse each: two repositories may both call a service "app", and inside one
+// multiverse that is the same container.
 func (u Universe) ProjectFor(appKey string) string {
 	return fmt.Sprintf("%s-%s", u.Project(), appKey)
 }
 
 // Dir is the universe's directory, holding one checkout per repository.
 func (u Universe) Dir() string {
-	return filepath.Join(u.Workspace, "universes", u.ID())
+	return filepath.Join(u.Multiverse, "universes", u.ID())
 }
 
 // RepoDir is where a repository is checked out inside the universe.
@@ -157,7 +157,7 @@ func envPrefix(hostKey string) string {
 // DefaultBranch is the branch a universe's worktrees are checked out on when
 // the caller names none. A universe named after a branch is that branch —
 // which is the point of naming it so — and a numbered one follows the
-// project's own template.
+// multiverse's own template.
 func (u Universe) DefaultBranch() string {
 	if n := u.Number(); n > 0 {
 		if u.Manifest == nil {

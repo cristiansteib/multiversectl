@@ -91,13 +91,13 @@ func (s *Service) resolveEnvSource(source string, st domain.UniverseState, hosts
 	if key, ok := strings.CutPrefix(source, srcHost); ok {
 		hostname, known := st.Hosts[key]
 		if !known {
-			return "", fmt.Errorf("no host %q in this project", key)
+			return "", fmt.Errorf("no host %q in this multiverse", key)
 		}
 		return hostname, nil
 	}
 	if key, ok := strings.CutPrefix(source, srcURL); ok {
 		if _, known := st.Hosts[key]; !known {
-			return "", fmt.Errorf("no host %q in this project", key)
+			return "", fmt.Errorf("no host %q in this multiverse", key)
 		}
 		return s.originOf(st, key, st.Hosts[key]), nil
 	}

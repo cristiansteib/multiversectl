@@ -15,8 +15,9 @@ import (
 
 // startCmd is the whole of getting going, in one command.
 //
-// Everything it does can be done with `catalog install`, `universe new` and
-// `universe up`, and those stay the commands for doing one of those things.
+// Everything it does can be done with `universe new` and `universe up` once the
+// multiverse is installed, and those stay the commands for doing one of those
+// things.
 // This is for the first five minutes, when somebody has been handed a
 // repository and wants to see the thing run before learning what a universe
 // is: one command, each step announced as it happens, and an address at the
@@ -26,21 +27,27 @@ func (r runner) startCmd() *cobra.Command {
 	var open, yes bool
 	cmd := &cobra.Command{
 		Use:   "start [source]",
-		Short: "Install a project, make a universe and start it, in one command",
-		Long: "From nothing to something running. The source is anything `catalog install`\n" +
-			"takes: a node in your catalog, a path, a git URL, or owner/repo. A project\n" +
-			"already installed is used as it is.\n\n" +
+		Short: "Install a multiverse, make a universe and start it, in one command",
+		Long: "From nothing to something running. The source is read in this order:\n" +
+			"  1. a node in your catalog\n" +
+			"  2. a path on this machine: a multiverse file, a catalog, or a directory\n" +
+			"  3. a git URL\n" +
+			"  4. owner/repo, meaning GitHub; owner/repo:name picks one multiverse of a\n" +
+			"     repository that defines several (multiverse.yaml, multiverse/*.yaml)\n" +
+			"A multiverse already installed is used as it is. With no source, the one\n" +
+			"-m names or the folder you are in; failing that, you pick from your catalog.\n\n" +
 			"Then it picks the universe: the one you name, the only one there is, or a new\n" +
-			"one when the project has none. It creates it if it has to, starts it, and\n" +
+			"one when the multiverse has none. It creates it if it has to, starts it, and\n" +
 			"prints the addresses it answers on.",
 		Example: "  multiversectl start acme/multiverse\n" +
 			"  multiversectl start acme/multiverse --open\n" +
-			"  multiversectl start                      # the project you are already on\n" +
+			"  multiversectl start acme/platform:billing # one of several multiverses in a repository\n" +
+			"  multiversectl start                      # the multiverse you are in, or pick one\n" +
 			"  multiversectl start -u 3",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeNodes(false),
 	}
-	cmd.Flags().StringVar(&base, "base", "", "directory projects go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
+	cmd.Flags().StringVar(&base, "base", "", "directory multiverses go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
 	cmd.Flags().StringVarP(&universe, "universe", "u", "", "the universe to start (default: the only one, or a new one)")
 	cmd.Flags().BoolVar(&open, "open", false, "open the first address in a browser")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
@@ -69,20 +76,28 @@ func (r runner) startCmd() *cobra.Command {
 	return cmd
 }
 
-// startProject is the project to act on: the source installed when one was
-// given, or the project already in use.
+// startProject is the multiverse to act on: the source installed when one was
+// given, else the one -m names or the folder says, else one picked from the
+// catalog.
 func (r runner) startProject(cmd *cobra.Command, args []string, base string, yes bool) (*app.Service, error) {
 	if len(args) == 0 {
-		// A machine with nothing on it should be told what to type, not what
-		// could not be resolved.
-		if bare, err := r.f.Bare(*r.g, r.out); err == nil {
-			if list, err := bare.Workspaces(); err == nil && len(list) == 0 {
-				return nil, errors.New("nothing is installed yet — say what to start: `multiversectl start <owner/repo>`")
-			}
+		s, err := r.f.Multiverse(*r.g, r.out)
+		if err == nil || r.g.Multiverse != "" || r.g.Manifest != "" {
+			return s, err
 		}
-		return r.f.Workspace(*r.g, r.out)
+		// Nothing says which one: what the catalog lists is the menu. A
+		// machine with no catalog has nothing to offer, so it is told what to
+		// type, not what could not be resolved.
+		c, cerr := r.catalogs(yes)
+		if cerr != nil {
+			return nil, cerr
+		}
+		cfg, cerr := c.Config.Load()
+		if cerr != nil || cfg.Catalog == "" {
+			return nil, errors.New("nothing is installed yet — say what to start: `multiversectl start <owner/repo>`  (or `multiversectl init` for your own catalog to pick from)")
+		}
 	}
-	// Where it goes is asked only when nothing has said, as `catalog install`
+	// Where it goes is asked only when nothing has said, as `start`
 	// does it.
 	ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
 	r.quietHints = true // it is about to make the universe and start it
@@ -94,15 +109,15 @@ func (r runner) startProject(cmd *cobra.Command, args []string, base string, yes
 		return nil, err
 	}
 	if len(planned) == 0 {
-		return nil, fmt.Errorf("%s: nothing to install", args[0])
+		return nil, errors.New("nothing was picked to install")
 	}
 	// The first of them, whether it was installed just now or was already
-	// here: a source naming several projects starts the one it named first.
+	// here: a source naming several multiverses starts the one it named first.
 	bare, err := r.f.Bare(*r.g, r.out)
 	if err != nil {
 		return nil, err
 	}
-	w, err := bare.WorkspaceNamed(planned[0].Name)
+	w, err := bare.MultiverseNamed(planned[0].Name)
 	if err != nil {
 		return nil, err
 	}

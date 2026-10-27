@@ -13,10 +13,10 @@ func TestRenderTree(t *testing.T) {
 	root := domain.Node{Name: "index", Kind: domain.CatalogNode, Source: domain.Source{Repo: "https://github.com/me/index.git", Path: "catalog.yaml"}, Children: []domain.Node{
 		// The same repository as the root, told apart by its file.
 		{Name: "personal", Path: "personal", Kind: domain.CatalogNode, Source: domain.Source{Repo: "https://github.com/me/index.git", Path: "catalogs/personal.yaml"}, Children: []domain.Node{
-			{Name: "notes", Path: "personal/notes", Kind: domain.WorkspaceNode, Source: domain.Source{Path: "/home/me/notes/multiverse.yaml"}},
+			{Name: "notes", Path: "personal/notes", Kind: domain.MultiverseNode, Source: domain.Source{Path: "/home/me/notes/multiverse.yaml"}},
 		}},
 		{Name: "acme", Path: "acme", Kind: domain.CatalogNode, Source: domain.Source{Repo: "git@gitlab.com:acme/index.git", Path: "catalog.yaml"}, Children: []domain.Node{
-			{Name: "payments", Path: "acme/payments", Kind: domain.WorkspaceNode,
+			{Name: "payments", Path: "acme/payments", Kind: domain.MultiverseNode,
 				Source: domain.Source{Repo: "git@gitlab.com:acme/pay.git", Ref: "v1", Path: "multiverse.yaml"}},
 		}},
 		{Name: "private", Path: "private", Kind: domain.CatalogNode, Unavailable: "no access or not found: github:acme/private"},
@@ -28,7 +28,7 @@ func TestRenderTree(t *testing.T) {
 		"index", "root", "github:me/index",
 		"├─ personal", "github:me/index catalogs/personal.yaml", // same repository as the root, and the file says which catalog
 		"file:~/notes/multiverse.yaml",
-		"gitlab:acme/index", "gitlab:acme/pay@v1", "project", "✓ installed as payments",
+		"gitlab:acme/index", "gitlab:acme/pay@v1", "multiverse", "✓ installed as payments",
 		"✗ no access or not found: github:acme/private",
 		"○ not installed", // notes is a project that is listed and not on this machine
 		"1/1 installed",   // acme: payments is installed

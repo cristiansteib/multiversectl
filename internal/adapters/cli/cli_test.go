@@ -372,7 +372,7 @@ func TestHelpTreeShowsEveryCommandWhereItIsTyped(t *testing.T) {
 
 	for _, want := range []string{
 		"start  —", "universe rm  —", "system proxy up  —", "system prune  —", "system footprint  —",
-		"catalog install  —", "catalog new  —", "server pair  —", "agents skill install  —",
+		"system forget  —", "system reset  —", "catalog new  —", "server pair  —", "agents skill install  —",
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("want %q in:\n%s", want, flat)
@@ -484,43 +484,6 @@ func TestMachineWideCommandsLiveUnderSystem(t *testing.T) {
 		c, _, err := root.Find(path)
 		if err != nil || c.Name() != path[len(path)-1] || c.Hidden {
 			t.Errorf("%v: not found as a visible command (%v)", path, err)
-		}
-	}
-}
-
-// Scripts and habits keep working, out of the help, saying where it went.
-func TestTheOldPlacesStillRunAndSayWhereTheyWent(t *testing.T) {
-	root, _ := New(Factory{})
-	for old, want := range map[string]string{
-		"universe proxy up":     "system proxy up",
-		"universe proxy status": "system proxy status",
-		"universe prune":        "system prune",
-		"cleanup":               "system footprint",
-	} {
-		c, _, err := root.Find(strings.Fields(old))
-		if err != nil || c == root {
-			t.Errorf("%s: no longer there (%v)", old, err)
-			continue
-		}
-		if !c.Hidden && c.Name() != "up" && c.Name() != "status" {
-			t.Errorf("%s should be hidden from the help", old)
-		}
-		if !strings.Contains(c.Deprecated, want) {
-			t.Errorf("%s: deprecation says %q, want it to name %q", old, c.Deprecated, want)
-		}
-	}
-	// And the tree shows only where they are now.
-	var buf bytes.Buffer
-	run := runner{g: &Globals{}, out: NewOutput(&buf, false), f: Factory{}}
-	cmd := run.helpTreeCmd(root)
-	cmd.SetContext(context.Background())
-	cmd.Flags().Set("flat", "true")
-	if err := cmd.RunE(cmd, nil); err != nil {
-		t.Fatal(err)
-	}
-	for _, gone := range []string{"universe proxy", "universe prune", "\ncleanup "} {
-		if strings.Contains(buf.String(), gone) {
-			t.Errorf("%q is deprecated and should not be in the tree:\n%s", gone, buf.String())
 		}
 	}
 }

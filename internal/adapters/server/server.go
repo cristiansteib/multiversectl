@@ -1,5 +1,5 @@
 // Package server is a web view of this machine's setup and fleet, and a way to
-// act on it: the root catalog and its tree, the projects installed here and
+// act on it: the root catalog and its tree, the multiverses installed here and
 // how they have drifted, the universes each one is running, and the commands
 // that start, stop, create and remove them. It serves one embedded page, a small
 // JSON API and a websocket that pushes what changes, over the same use cases the
@@ -96,7 +96,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/overview", s.overview)
 	mux.HandleFunc("/api/catalog", s.catalog)
 	mux.HandleFunc("/api/fleet", s.fleet)
-	mux.HandleFunc("/api/projects/", s.workspace)
+	mux.HandleFunc("/api/multiverses/", s.multiverse)
 	mux.HandleFunc("/api/doctor", s.doctor)
 	mux.HandleFunc("/api/system", s.system)
 	mux.HandleFunc("/api/next", s.next)
@@ -222,7 +222,7 @@ func (s *Server) catalog(w http.ResponseWriter, r *http.Request) {
 func (s *Server) fleet(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := s.ctx(r)
 	defer cancel()
-	v, err := s.b.Fleet(ctx, r.URL.Query().Get("project"))
+	v, err := s.b.Fleet(ctx, r.URL.Query().Get("multiverse"))
 	if err != nil {
 		fail(w, http.StatusNotFound, err.Error())
 		return
@@ -230,15 +230,15 @@ func (s *Server) fleet(w http.ResponseWriter, r *http.Request) {
 	reply(w, v)
 }
 
-func (s *Server) workspace(w http.ResponseWriter, r *http.Request) {
-	name := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/projects/"), "/")
+func (s *Server) multiverse(w http.ResponseWriter, r *http.Request) {
+	name := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/multiverses/"), "/")
 	if name == "" || strings.Contains(name, "/") {
-		fail(w, http.StatusNotFound, "no such project")
+		fail(w, http.StatusNotFound, "no such multiverse")
 		return
 	}
 	ctx, cancel := s.ctx(r)
 	defer cancel()
-	v, err := s.b.Workspace(ctx, name)
+	v, err := s.b.Multiverse(ctx, name)
 	if err != nil {
 		fail(w, http.StatusNotFound, err.Error())
 		return
@@ -247,9 +247,9 @@ func (s *Server) workspace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) doctor(w http.ResponseWriter, r *http.Request) {
-	ws := r.URL.Query().Get("project")
+	ws := r.URL.Query().Get("multiverse")
 	if ws == "" {
-		fail(w, http.StatusBadRequest, "project is required")
+		fail(w, http.StatusBadRequest, "multiverse is required")
 		return
 	}
 	ctx, cancel := s.ctx(r)
@@ -278,7 +278,7 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 func (s *Server) next(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := s.ctx(r)
 	defer cancel()
-	v, err := s.b.NextFree(ctx, r.URL.Query().Get("project"))
+	v, err := s.b.NextFree(ctx, r.URL.Query().Get("multiverse"))
 	if err != nil {
 		fail(w, http.StatusNotFound, err.Error())
 		return
@@ -289,7 +289,7 @@ func (s *Server) next(w http.ResponseWriter, r *http.Request) {
 func (s *Server) branches(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := s.ctx(r)
 	defer cancel()
-	v, err := s.b.Branches(ctx, r.URL.Query().Get("project"))
+	v, err := s.b.Branches(ctx, r.URL.Query().Get("multiverse"))
 	if err != nil {
 		fail(w, http.StatusNotFound, err.Error())
 		return

@@ -58,19 +58,19 @@ func (r runner) skillCmd() *cobra.Command {
 			"never to do without asking. It records the version that wrote it, and any later\n" +
 			"run of multiversectl rewrites an installed copy written by another version, so an\n" +
 			"upgrade does not leave an agent reading old advice.",
-		Example: "  multiversectl agents skill install              # for you, in every project\n" +
-			"  multiversectl agents skill install --project    # only in this folder's repository\n" +
+		Example: "  multiversectl agents skill install              # for you, in every folder\n" +
+			"  multiversectl agents skill install --here    # only in this folder's repository\n" +
 			"  multiversectl agents skill status\n  multiversectl agents skill show",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	var project bool
+	var here bool
 	var dir string
 	where := func() (string, error) {
 		switch {
 		case dir != "":
 			return filepath.Abs(dir)
-		case project:
+		case here:
 			cwd, err := os.Getwd()
 			if err != nil {
 				return "", err
@@ -80,7 +80,7 @@ func (r runner) skillCmd() *cobra.Command {
 		return r.skills().GlobalDir()
 	}
 	flags := func(c *cobra.Command) *cobra.Command {
-		c.Flags().BoolVar(&project, "project", false, "the .claude/skills of the current folder, not your home")
+		c.Flags().BoolVar(&here, "here", false, "the .claude/skills of the current folder, not your home")
 		c.Flags().StringVar(&dir, "dir", "", "a folder of skills to use instead (its multiversectl/SKILL.md is written)")
 		return c
 	}

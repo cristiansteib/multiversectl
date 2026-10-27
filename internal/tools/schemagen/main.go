@@ -29,19 +29,18 @@ type target struct {
 }
 
 var targets = map[string]target{
-	"Project":     {kind: "Project", plural: "projects", pkg: "manifest", footer: labelsFooter},
-	"Catalog":     {kind: "Catalog", plural: "catalogs", pkg: "catalog"},
-	"CatalogRoot": {kind: "CatalogRoot", plural: "catalogroots", pkg: "catalog"},
+	"Multiverse": {kind: "Multiverse", plural: "multiverses", pkg: "manifest", footer: labelsFooter},
+	"Catalog":    {kind: "Catalog", plural: "catalogs", pkg: "catalog"},
 }
 
 func main() {
-	args, kindName := os.Args[1:], "Project"
+	args, kindName := os.Args[1:], "Multiverse"
 	if len(args) >= 2 && args[0] == "-kind" {
 		kindName, args = args[1], args[2:]
 	}
 	t, ok := targets[kindName]
 	if !ok || len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: schemagen [-kind Project|Catalog|CatalogRoot] <types.go> [more.go...]")
+		fmt.Fprintln(os.Stderr, "usage: schemagen [-kind Multiverse|Catalog] <types.go> [more.go...]")
 		os.Exit(2)
 	}
 	structs, err := parse(args)

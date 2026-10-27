@@ -38,7 +38,7 @@ func locOf(l domain.Location) *locView {
 type nodeView struct {
 	Name        string `json:"name"`
 	Path        string `json:"path"`
-	Kind        string `json:"kind"` // catalog or project
+	Kind        string `json:"kind"` // catalog or multiverse
 	Repo        string `json:"repo,omitempty"`
 	Ref         string `json:"ref,omitempty"`
 	File        string `json:"file,omitempty"`
@@ -52,13 +52,12 @@ type nodeView struct {
 }
 
 type fleetView struct {
-	Workspaces []fleetWorkspace `json:"projects"`
-	Error      string           `json:"error,omitempty"`
+	Multiverses []fleetMultiverse `json:"multiverses"`
+	Error       string            `json:"error,omitempty"`
 }
 
-type fleetWorkspace struct {
+type fleetMultiverse struct {
 	Name      string         `json:"name"`
-	Current   bool           `json:"current,omitempty"`
 	Root      string         `json:"root"`
 	Universes []universeView `json:"universes"`
 	Error     string         `json:"error,omitempty"`
@@ -68,7 +67,7 @@ type fleetWorkspace struct {
 type universeView struct {
 	Name        string            `json:"name"`
 	Slug        string            `json:"slug"`
-	Project     string            `json:"project"`
+	Project     string            `json:"multiverse"`
 	Domain      string            `json:"domain"`
 	Dir         string            `json:"dir"`
 	Running     int               `json:"running"`
@@ -160,10 +159,9 @@ type reviewView struct {
 	Updated string `json:"updated,omitempty"`
 }
 
-type workspaceView struct {
-	Name    string `json:"name"`
-	Current bool   `json:"current,omitempty"`
-	Root    string `json:"root"`
+type multiverseView struct {
+	Name string `json:"name"`
+	Root string `json:"root"`
 	// Where its pieces are, so nobody has to go looking: the definition file, where
 	// it was installed from and the folder of the universes.
 	Manifest     string            `json:"manifest,omitempty"`
@@ -226,14 +224,14 @@ type overviewView struct {
 	ReadOnly bool             `json:"readOnly,omitempty"`
 	Status   app.StatusReport `json:"status"`
 	// RootLoc is where the root catalog lives and Sources where each installed
-	// project's manifest came from, by project name.
+	// multiverse's manifest came from, by multiverse name.
 	RootLoc *locView           `json:"rootLoc,omitempty"`
 	Sources map[string]locView `json:"sources,omitempty"`
 }
 
 func overviewOf(version string, readOnly bool, rep app.StatusReport) overviewView {
-	v := overviewView{Version: version, ReadOnly: readOnly, Status: rep, RootLoc: locOf(domain.Locate(rep.Root.Source, "")), Sources: map[string]locView{}}
-	for _, w := range rep.Workspaces {
+	v := overviewView{Version: version, ReadOnly: readOnly, Status: rep, RootLoc: locOf(domain.Locate(rep.Catalog.Source, "")), Sources: map[string]locView{}}
+	for _, w := range rep.Multiverses {
 		if l := locOf(domain.Locate(w.RepoURL, w.Ref)); l != nil {
 			v.Sources[w.Name] = *l
 		}
@@ -317,7 +315,7 @@ type statView struct {
 }
 
 // fleetStatsView is one reading of every running container this machine holds
-// for the installed projects, flat: the page groups it as it likes.
+// for the installed multiverses, flat: the page groups it as it likes.
 type fleetStatsView struct {
 	At      string           `json:"at"`
 	Rows    []fleetStatRow   `json:"rows"`
@@ -326,16 +324,16 @@ type fleetStatsView struct {
 
 // fleetStatRow says where the container is before it says what it is using.
 type fleetStatRow struct {
-	Workspace string `json:"project"`
-	Universe  string `json:"universe"`
-	App       string `json:"app"`
-	Service   string `json:"service"`
+	Multiverse string `json:"multiverse"`
+	Universe   string `json:"universe"`
+	App        string `json:"app"`
+	Service    string `json:"service"`
 	statView
 }
 
-// fleetStatError is a project whose reading failed, so the page can say which
+// fleetStatError is a multiverse whose reading failed, so the page can say which
 // numbers are missing instead of showing a gap.
 type fleetStatError struct {
-	Workspace string `json:"project"`
-	Error     string `json:"error"`
+	Multiverse string `json:"multiverse"`
+	Error      string `json:"error"`
 }

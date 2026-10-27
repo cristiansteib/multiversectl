@@ -2,7 +2,7 @@
 # its universes answer on. It does not describe containers — the repositories'
 # own compose files already do, and this asks them rather than repeating them.
 apiVersion: multiverse/v1alpha1
-kind: Project
+kind: Multiverse
 metadata:
   name: acme
 spec:

@@ -30,7 +30,7 @@ type CodeStatus struct {
 }
 
 // UniverseCode reads every repository of a universe at once. Each is a handful
-// of git calls and at most one call over the network, and a project with six
+// of git calls and at most one call over the network, and a multiverse with six
 // repositories would otherwise cost their sum.
 //
 // Nothing here fetches: it reports against what the last fetch brought in, as
@@ -76,7 +76,7 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) 
 	if !s.Files.Exists(c.Path) {
 		return cs
 	}
-	clone := s.Manifest.CloneDir(s.Workspace, c.Repo)
+	clone := s.Manifest.CloneDir(s.Multiverse, c.Repo)
 	cs.Freshness = s.freshnessOf(ctx, c.Path, s.followed(ctx, clone, c.Branch))
 	// Only with a branch to measure against: asked with none, DiffStat answers
 	// a different question — what is edited and not committed — and the page

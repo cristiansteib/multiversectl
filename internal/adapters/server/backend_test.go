@@ -53,10 +53,10 @@ func (quietSink) Stderr() io.Writer          { return io.Discard }
 
 func TestUpdateFetchesTheCatalogCloneUnderTheSameLockAsStatus(t *testing.T) {
 	root := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(root, ".multiverse", "workspace"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(root, ".multiverse", "source"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cfg := &memConfig{c: app.Config{Current: "proj", Workspaces: map[string]app.WorkspaceEntry{
+	cfg := &memConfig{c: app.Config{Multiverses: map[string]app.MultiverseEntry{
 		"proj": {Root: root, Manifest: filepath.Join(root, "multiverse.yaml"),
 			Source: app.Origin{Repo: "git@example.test:me/proj.git"}},
 	}}}
@@ -70,7 +70,7 @@ func TestUpdateFetchesTheCatalogCloneUnderTheSameLockAsStatus(t *testing.T) {
 	})
 	git.mu = svcs.mu
 
-	if err := svcs.Do(context.Background(), opRequest{Action: "update", Workspace: "proj"}, quietSink{}); err != nil {
+	if err := svcs.Do(context.Background(), opRequest{Action: "update", Multiverse: "proj"}, quietSink{}); err != nil {
 		t.Fatal(err)
 	}
 	if git.fetches != 1 {

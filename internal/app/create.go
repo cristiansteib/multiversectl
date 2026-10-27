@@ -116,7 +116,7 @@ func (s *Service) NextFree(ctx context.Context) (int, []string, error) {
 	fetched := map[string]bool{}
 	var clones []struct{ key, dir string }
 	for _, key := range s.repoKeys() {
-		if dir := s.Manifest.CloneDir(s.Workspace, key); s.Files.Exists(dir) {
+		if dir := s.Manifest.CloneDir(s.Multiverse, key); s.Files.Exists(dir) {
 			s.refresh(ctx, dir, fetched)
 			clones = append(clones, struct{ key, dir string }{key, dir})
 		}
@@ -150,12 +150,12 @@ type BranchInfo struct {
 	Repos []string
 }
 
-// Branches lists the branches across the project's clones, as last fetched,
+// Branches lists the branches across the multiverse's clones, as last fetched,
 // for choosing one to check out.
 func (s *Service) Branches(ctx context.Context) ([]BranchInfo, error) {
 	where := map[string][]string{}
 	for _, key := range s.repoKeys() {
-		dir := s.Manifest.CloneDir(s.Workspace, key)
+		dir := s.Manifest.CloneDir(s.Multiverse, key)
 		if !s.Files.Exists(dir) {
 			continue
 		}
@@ -184,7 +184,7 @@ func (s *Service) plan(ctx context.Context, u domain.Universe, in CreateInput) (
 	anyHas := false
 
 	for _, key := range s.repoKeys() {
-		clone := s.Manifest.CloneDir(s.Workspace, key)
+		clone := s.Manifest.CloneDir(s.Multiverse, key)
 		if !s.Files.Exists(clone) {
 			return nil, fmt.Errorf("clone `%s`: %w — run `multiversectl catalog update` to clone it", clone, domain.ErrNotFound)
 		}

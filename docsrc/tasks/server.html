@@ -6,15 +6,15 @@
   <figure class="shot">
     <picture>
       <source media="(prefers-color-scheme: light)" srcset="../assets/img/fleet-light.png">
-      <img src="../assets/img/fleet-dark.png" alt="The fleet: three universes of a project side by side, each with its branch, its apps and services, its addresses, and the pull requests open for its code." width="1280" height="800" loading="lazy">
+      <img src="../assets/img/fleet-dark.png" alt="The fleet: three universes of a multiverse side by side, each with its branch, its apps and services, its addresses, and the pull requests open for its code." width="1280" height="800" loading="lazy">
     </picture>
-    <figcaption>Every universe of every installed project, at a glance.</figcaption>
+    <figcaption>Every universe of every installed multiverse, at a glance.</figcaption>
   </figure>
   <ul class="t">
     <li><strong>One card per universe</strong>: its branch, its apps, the state of every service, and its addresses as links you can open.</li>
     <li><strong>What the code has become</strong>: for each repository, how far it has moved from the branch it follows — <code>+248 &#8722;96 over 12 files</code> — what is behind or edited, and the pull or merge request open for it.</li>
     <li><strong>Start, stop, update, create and remove</strong>, with what <code>docker compose</code> prints streaming into the page.</li>
-    <li><strong>The rest of the setup</strong>: the catalog you install projects from, where each has drifted, and the versions of git, docker and the tools on this machine.</li>
+    <li><strong>The rest of the setup</strong>: the catalog you install multiverses from, where each has drifted, and the versions of git, docker and the tools on this machine.</li>
   </ul>
 </section>
 
@@ -45,8 +45,8 @@
 
 <section id="hw-act">
   <h2 id="hw-act"><a href="#hw-act">Act from the page</a></h2>
-  <p>A project has <em>New universe</em>, <em>Update</em> and <em>Make current</em>; a universe has <em>Start</em>, <em>Stop</em>, <em>Remove…</em> and, when its code is behind, <em>Update code</em>. Each is the use case the command line runs, started in the background; a universe runs one operation at a time, and different universes run side by side.</p>
-  <p>That holds across programs, not only within the page: the page, a terminal and an agent are separate processes, and each takes a lock in the project before it changes anything. A second one is told what has it — <code>universe 2 is busy: pid 4242: multiversectl universe up 2 is working on it</code> — rather than running alongside. Creating and removing take a lock on the project itself, since they change which universes there are; everything else locks only the universe it works on.</p>
+  <p>A multiverse has <em>New universe</em>, <em>Update</em> and <em>Make current</em>; a universe has <em>Start</em>, <em>Stop</em>, <em>Remove…</em> and, when its code is behind, <em>Update code</em>. Each is the use case the command line runs, started in the background; a universe runs one operation at a time, and different universes run side by side.</p>
+  <p>That holds across programs, not only within the page: the page, a terminal and an agent are separate processes, and each takes a lock in the multiverse before it changes anything. A second one is told what has it — <code>universe 2 is busy: pid 4242: multiversectl universe up 2 is working on it</code> — rather than running alongside. Creating and removing take a lock on the multiverse itself, since they change which universes there are; everything else locks only the universe it works on.</p>
   <p>Removing is the one that cannot be undone, so it is slower on purpose: the dialog asks for the universe's name, and uncommitted work stops it until a second press says to discard it. <code>--read-only</code> removes every button and makes the server refuse every action.</p>
 </section>
 
@@ -71,11 +71,11 @@
   <h2 id="hw-agents"><a href="#hw-agents">Let a coding agent work with it</a></h2>
   <p>An agent needs no server and no protocol: it runs the command line, and <code>-o json</code> gives it what it needs in few tokens. Each universe is its own folder and its own set of containers, so several agents can each work in one at the same time.</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl universe ls -o json
-{"project":{"name":"acme","root":"/home/me/acme","manifest":"…/multiverse.yaml","universesDir":"…/universes","clones":{"api":"…/api"}},
+{"multiverse":{"name":"acme","root":"/home/me/acme","manifest":"…/multiverse.yaml","universesDir":"…/universes","clones":{"api":"…/api"}},
  "universes":[{"name":"3","state":"running","up":"3/3","dir":"…/universes/3",
    "checkout":{"api":"…/universes/3/api"},"branch":{"api":"u3"},"urls":{"api/api":"https://api-3.example.test"},
    "containers":{"api/web":"acme-u3-api-web-1"}}]}</pre></div>
-  <p>One line, and only what an agent acts on: where the project and its clones are, and per universe whether it runs, every repository's folder, the branches, the addresses under <code>urls</code> named by app and host, and under <code>containers</code> the running container of each service. Services that should be up and are not are listed under <code>down</code>.</p>
+  <p>One line, and only what an agent acts on: where the multiverse and its clones are, and per universe whether it runs, every repository's folder, the branches, the addresses under <code>urls</code> named by app and host, and under <code>containers</code> the running container of each service. Services that should be up and are not are listed under <code>down</code>.</p>
   <p><code>--json</code> works on every command, <code>-o json,less</code> is the least per universe and <code>-o json,wide</code> everything. <code>multiversectl agents skill install</code> teaches Claude Code all of it once.</p>
 </section>
 

@@ -80,7 +80,7 @@ web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.t
         <li><a href="tasks/branches.html">Work across branches</a></li>
         <li><a href="tasks/reach.html">Reach a universe</a></li>
         <li><a href="tasks/services.html">Control which services run</a></li>
-        <li><a href="tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="tasks/catalog.html">Manage many multiverses from one index</a></li>
         <li><a href="tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
@@ -96,7 +96,7 @@ web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.t
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -108,10 +108,10 @@ web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.t
   <p>multiversectl runs several complete copies of a multi-repository project — <em>universes</em> — on one machine, numbered or named after the branch they check out, so every branch or agent gets a whole environment without port collisions. It namespaces instead of virtualizing: one git worktree per repository, one compose project per app, one shared proxy routing by hostname. A new universe is a worktree and a <code>compose up</code>: seconds, on the daemon and image cache you already have.</p>
   <figure class="fig">
     <svg viewBox="0 0 360 440" role="img" aria-labelledby="dt dd">
-      <title id="dt">One project fanning out into three universes behind one proxy</title>
-      <desc id="dd">A project manifest on top. Three universes below it, numbered 1 to 3, each with its own app and api hostnames. A single shared reverse proxy at the bottom routes every hostname to its universe.</desc>
+      <title id="dt">One multiverse fanning out into three universes behind one proxy</title>
+      <desc id="dd">A multiverse manifest on top. Three universes below it, numbered 1 to 3, each with its own app and api hostnames. A single shared reverse proxy at the bottom routes every hostname to its universe.</desc>
       <rect class="d-box" x="90" y="8" width="180" height="56" rx="8"/>
-      <text class="d-h" x="180" y="32" text-anchor="middle">project</text>
+      <text class="d-h" x="180" y="32" text-anchor="middle">multiverse</text>
       <text class="d-m" x="180" y="50" text-anchor="middle">multiverse.yaml</text>
       <path class="d-line" d="M180 64V92M60 92H300M60 92V112M180 92V112M300 92V112"/>
       <g>
@@ -156,7 +156,7 @@ web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.t
   <div class="cards">
     <a class="card" href="start/quickstart.html">
       <strong>Quick start</strong>
-      <span>Describe a project, create a universe, open it. Ten minutes from nothing.</span>
+      <span>Describe a multiverse, create a universe, open it. Ten minutes from nothing.</span>
     </a>
     <a class="card" href="concepts/networking.html">
       <strong>Networking</strong>
@@ -180,7 +180,7 @@ web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.t
     </a>
     <a class="card" href="reference/manifest.html">
       <strong>Manifest</strong>
-      <span>Every field of a project, with its default.</span>
+      <span>Every field of a multiverse, with its default.</span>
     </a>
   </div>
 </section>

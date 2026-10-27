@@ -11,8 +11,8 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// BootstrapInput says where the project lives and where its manifest comes
-// from: a git URL, which is cloned into the project, or a local path.
+// BootstrapInput says where the multiverse lives and where its manifest comes
+// from: a git URL, which is cloned into the multiverse, or a local path.
 type BootstrapInput struct {
 	Name           string // empty: derived from the root directory
 	Root           string
@@ -22,40 +22,40 @@ type BootstrapInput struct {
 	Ref          string
 	ManifestPath string
 	// From and Origin are recorded so a later update or status can compare the
-	// project with where it came from.
+	// multiverse with where it came from.
 	From   string
 	Origin Origin
 }
 
-// Bootstrap records this machine's project so the tool works from any
-// directory afterwards. Other projects already recorded are kept.
-func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEntry, error) {
+// Bootstrap records this machine's multiverse so the tool works from any
+// directory afterwards. Other multiverses already recorded are kept.
+func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (MultiverseEntry, error) {
 	if in.Root == "" || in.ManifestSource == "" {
-		return WorkspaceEntry{}, fmt.Errorf("bootstrap: root and manifest are both required")
+		return MultiverseEntry{}, fmt.Errorf("bootstrap: root and manifest are both required")
 	}
 	root, err := s.expandHome(in.Root)
 	if err != nil {
-		return WorkspaceEntry{}, err
+		return MultiverseEntry{}, err
 	}
 	if err := s.Files.MkdirAll(root); err != nil {
-		return WorkspaceEntry{}, fmt.Errorf("root %s: %w", root, err)
+		return MultiverseEntry{}, fmt.Errorf("root %s: %w", root, err)
 	}
 
 	manifest := in.ManifestSource
 	if isGitURL(manifest) {
-		dest := filepath.Join(root, ".multiverse", "workspace")
+		dest := filepath.Join(root, ".multiverse", "source")
 		if s.Files.Exists(dest) {
 			s.Out.Info("manifest repository already at %s", dest)
 		} else {
 			if err := s.Files.MkdirAll(filepath.Dir(dest)); err != nil {
-				return WorkspaceEntry{}, err
+				return MultiverseEntry{}, err
 			}
 			if err := s.Git.Clone(ctx, manifest, dest); err != nil {
-				return WorkspaceEntry{}, fmt.Errorf("cloning the manifest repository: %w", err)
+				return MultiverseEntry{}, fmt.Errorf("cloning the manifest repository: %w", err)
 			}
 			if in.Ref != "" {
 				if err := s.Git.Checkout(ctx, dest, in.Ref); err != nil {
-					return WorkspaceEntry{}, fmt.Errorf("checking out %s: %w", in.Ref, err)
+					return MultiverseEntry{}, fmt.Errorf("checking out %s: %w", in.Ref, err)
 				}
 			}
 		}
@@ -64,28 +64,23 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (WorkspaceEn
 
 	name := in.Name
 	if name == "" {
-		name = WorkspaceNameFor(root)
-	} else if !workspaceNameRE.MatchString(name) {
-		return WorkspaceEntry{}, fmt.Errorf("project name %q must match %s", name, workspaceNameRE)
+		name = MultiverseNameFor(root)
+	} else if !multiverseNameRE.MatchString(name) {
+		return MultiverseEntry{}, fmt.Errorf("multiverse name %q must match %s", name, multiverseNameRE)
 	}
 	cfg, err := s.Config.Load()
 	if err != nil {
-		return WorkspaceEntry{}, err
+		return MultiverseEntry{}, err
 	}
-	entry := WorkspaceEntry{Root: root, Manifest: manifest, From: in.From, Source: in.Origin}
-	if cfg.Workspaces == nil {
-		cfg.Workspaces = map[string]WorkspaceEntry{}
+	entry := MultiverseEntry{Root: root, Manifest: manifest, From: in.From, Source: in.Origin}
+	if cfg.Multiverses == nil {
+		cfg.Multiverses = map[string]MultiverseEntry{}
 	}
-	cfg.Workspaces[name] = entry
-	// The first project on a machine is the one to work in; later ones are
-	// installed beside it, and switching is an explicit `use`.
-	if cfg.Current == "" {
-		cfg.Current = name
-	}
+	cfg.Multiverses[name] = entry
 	if err := s.Config.Save(cfg); err != nil {
-		return WorkspaceEntry{}, fmt.Errorf("saving the configuration: %w", err)
+		return MultiverseEntry{}, fmt.Errorf("saving the configuration: %w", err)
 	}
-	s.Out.OK("project %s at %s, manifest %s", name, entry.Root, entry.Manifest)
+	s.Out.OK("multiverse %s at %s, manifest %s", name, entry.Root, entry.Manifest)
 	return entry, nil
 }
 
@@ -114,13 +109,13 @@ func (s *Service) clone(ctx context.Context, sayPresent bool) error {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	if err := s.Files.MkdirAll(s.Workspace); err != nil {
+	if err := s.Files.MkdirAll(s.Multiverse); err != nil {
 		return err
 	}
 
 	var jobs []Job
 	for _, key := range keys {
-		key, dest := key, s.Manifest.CloneDir(s.Workspace, key)
+		key, dest := key, s.Manifest.CloneDir(s.Multiverse, key)
 		if s.Files.Exists(dest) {
 			if sayPresent {
 				s.Out.OK("%s: already cloned", key)

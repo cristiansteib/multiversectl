@@ -36,32 +36,17 @@ func TestInitCreatesTheRootAsACatalogRoot(t *testing.T) {
 		}
 		return nil
 	})
-	if !strings.Contains(written, "kind: CatalogRoot") {
-		t.Errorf("a root made by init must be a CatalogRoot:\n%s", written)
+	if !strings.Contains(written, "kind: Catalog") {
+		t.Errorf("a root made by init must be a Catalog:\n%s", written)
 	}
-	if len(r.host.topics) != 1 || !strings.HasSuffix(r.host.topics[0], app.RootTopic) {
+	if len(r.host.topics) != 1 || !strings.HasSuffix(r.host.topics[0], app.CatalogTopic) {
 		t.Errorf("the repository should be tagged so a new machine finds it: %v", r.host.topics)
 	}
 }
 
-func TestInitUpgradesARootThatIsAPlainCatalog(t *testing.T) {
+func TestInitLeavesACatalogThatIsAlreadyOne(t *testing.T) {
 	git := &fakeRepos{inRepo: true}
 	r := rootRig(t, catalog.Editor{}.Scaffold, git)
-	r.Yes = true
-	if err := r.Init(context.Background(), app.InitInput{}); err != nil {
-		t.Fatal(err)
-	}
-	if got := read1(t, r.cfg.c.Catalog); !strings.Contains(got, "kind: CatalogRoot") {
-		t.Errorf("a legacy root should be marked:\n%s", got)
-	}
-	if len(git.commits) == 0 {
-		t.Error("the upgrade should be committed")
-	}
-}
-
-func TestInitLeavesARootThatIsAlreadyMarked(t *testing.T) {
-	git := &fakeRepos{inRepo: true}
-	r := rootRig(t, catalog.Editor{}.ScaffoldRoot, git)
 	r.Yes = true
 	if err := r.Init(context.Background(), app.InitInput{}); err != nil {
 		t.Fatal(err)
@@ -77,7 +62,7 @@ func TestInitFindsTheRootByItsTopicOnAFreshMachine(t *testing.T) {
 	r.cfg.c = app.Config{}
 	r.Yes = true
 	dir := t.TempDir()
-	write(t, dir, "catalog.yaml", string(catalog.Editor{}.ScaffoldRoot("me")))
+	write(t, dir, "catalog.yaml", string(catalog.Editor{}.Scaffold("me")))
 	git.repos["https://example.test/me/multiverse-index.git"] = dir
 	r.host.roots = []app.RemoteRepo{{Name: "me/multiverse-index", URL: "https://example.test/me/multiverse-index.git", Private: true}}
 
@@ -99,16 +84,16 @@ func TestInitWithNothingFoundSaysWhatToGive(t *testing.T) {
 	}
 }
 
-func TestInitRefusesToSwitchRootsWhileWorkspacesDependOnIt(t *testing.T) {
+func TestInitRefusesToSwitchRootsWhileMultiversesDependOnIt(t *testing.T) {
 	git := &fakeRepos{inRepo: true}
-	r := rootRig(t, catalog.Editor{}.ScaffoldRoot, git)
-	r.cfg.c.Workspaces = map[string]app.WorkspaceEntry{"acme": {Root: "/w/acme", From: "personal/acme"}}
+	r := rootRig(t, catalog.Editor{}.Scaffold, git)
+	r.cfg.c.Multiverses = map[string]app.MultiverseEntry{"acme": {Root: "/w/acme", From: "personal/acme"}}
 	other := t.TempDir()
-	write(t, other, "catalog.yaml", string(catalog.Editor{}.ScaffoldRoot("other")))
+	write(t, other, "catalog.yaml", string(catalog.Editor{}.Scaffold("other")))
 	r.Yes = true
 
 	err := r.Init(context.Background(), app.InitInput{Source: other})
-	if err == nil || !strings.Contains(err.Error(), "multiversectl reset") || !strings.Contains(err.Error(), "1 installed projects") {
+	if err == nil || !strings.Contains(err.Error(), "multiversectl system reset") || !strings.Contains(err.Error(), "1 installed multiverses") {
 		t.Fatalf("err = %v, want a refusal that names reset", err)
 	}
 	if !strings.Contains(r.cfg.c.Catalog, r.root) {
@@ -118,9 +103,9 @@ func TestInitRefusesToSwitchRootsWhileWorkspacesDependOnIt(t *testing.T) {
 
 func TestInitSwitchesRootsOnceNothingDependsOnTheOldOne(t *testing.T) {
 	git := &fakeRepos{inRepo: true}
-	r := rootRig(t, catalog.Editor{}.ScaffoldRoot, git)
+	r := rootRig(t, catalog.Editor{}.Scaffold, git)
 	other := t.TempDir()
-	write(t, other, "catalog.yaml", string(catalog.Editor{}.ScaffoldRoot("other")))
+	write(t, other, "catalog.yaml", string(catalog.Editor{}.Scaffold("other")))
 	r.prompt.confirms = []bool{true}
 	if err := r.Init(context.Background(), app.InitInput{Source: other}); err != nil {
 		t.Fatal(err)
@@ -130,10 +115,10 @@ func TestInitSwitchesRootsOnceNothingDependsOnTheOldOne(t *testing.T) {
 	}
 }
 
-func TestResetForgetsTheRootAndTheWorkspacesButNoFiles(t *testing.T) {
-	r := rootRig(t, catalog.Editor{}.ScaffoldRoot, &fakeRepos{inRepo: true})
+func TestResetForgetsTheRootAndTheMultiversesButNoFiles(t *testing.T) {
+	r := rootRig(t, catalog.Editor{}.Scaffold, &fakeRepos{inRepo: true})
 	checkout := t.TempDir()
-	r.cfg.c.Workspaces = map[string]app.WorkspaceEntry{"acme": {Root: checkout, From: "personal/acme"}}
+	r.cfg.c.Multiverses = map[string]app.MultiverseEntry{"acme": {Root: checkout, From: "personal/acme"}}
 	r.prompt.confirms = []bool{false}
 	if _, err := r.Reset(); err == nil {
 		t.Fatal("declining must not reset")
@@ -146,7 +131,7 @@ func TestResetForgetsTheRootAndTheWorkspacesButNoFiles(t *testing.T) {
 	if forgot, err := r.Reset(); err != nil || !forgot {
 		t.Fatalf("forgot %v, %v", forgot, err)
 	}
-	if r.cfg.c.Catalog != "" || len(r.cfg.c.Workspaces) != 0 {
+	if r.cfg.c.Catalog != "" || len(r.cfg.c.Multiverses) != 0 {
 		t.Errorf("config = %+v, want it empty", r.cfg.c)
 	}
 	if _, err := os.Stat(checkout); err != nil {

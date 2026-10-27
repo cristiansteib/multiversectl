@@ -33,26 +33,26 @@ type Deps struct {
 	// nothing else a universe shows depends on reaching a network.
 	Hosts []RepoHost
 	// Locks keeps this process out of the way of another one working on the
-	// same project. Nil runs without them, which is how the tests run.
+	// same multiverse. Nil runs without them, which is how the tests run.
 	Locks Locks
 }
 
-// Service carries out the use cases against one project.
+// Service carries out the use cases against one multiverse.
 type Service struct {
 	Deps
-	Workspace string
-	Manifest  *domain.Manifest
-	Version   string
+	Multiverse string
+	Manifest   *domain.Manifest
+	Version    string
 }
 
-// New builds a Service for a project whose manifest is already parsed.
-func New(deps Deps, workspace string, manifest *domain.Manifest, version string) *Service {
-	return &Service{Deps: deps, Workspace: workspace, Manifest: manifest, Version: version}
+// New builds a Service for a multiverse whose manifest is already parsed.
+func New(deps Deps, multiverse string, manifest *domain.Manifest, version string) *Service {
+	return &Service{Deps: deps, Multiverse: multiverse, Manifest: manifest, Version: version}
 }
 
 // Universe reconstructs the domain object for a universe's name.
 func (s *Service) Universe(name string) domain.Universe {
-	return domain.Universe{Name: name, Workspace: s.Workspace, Manifest: s.Manifest}
+	return domain.Universe{Name: name, Multiverse: s.Multiverse, Manifest: s.Manifest}
 }
 
 // Resolve finds the universe a command's argument names. The argument may be
@@ -94,7 +94,7 @@ func (s *Service) Resolve(arg string) (domain.UniverseState, error) {
 }
 
 // ResolveDomain turns a manifest domain of "auto" into one that suits how the
-// project is exposed: a public wildcard name resolving to this machine when
+// multiverse is exposed: a public wildcard name resolving to this machine when
 // another device has to reach it, and .localhost when nothing should.
 func (s *Service) ResolveDomain(ctx context.Context) (string, error) {
 	if s.Manifest.Domain != "auto" {
@@ -122,14 +122,14 @@ func (s *Service) runtimeEnv(u domain.Universe, st domain.UniverseState) map[str
 		"HOST_GID":             strconv.Itoa(s.System.GID()),
 		"COMPOSE_PROJECT_NAME": st.Project,
 		// UNIVERSE is what the universe is called; the slug is the part a
-		// hostname or a project name can carry.
+		// hostname or a multiverse name can carry.
 		"UNIVERSE":          u.Name,
 		"UNIVERSE_SLUG":     u.Slug(),
 		"UNIVERSE_DIR":      u.Dir(),
 		"MULTIVERSE_DOMAIN": st.Domain,
-		// Where the project is, for a script or an agent that has only the
+		// Where the multiverse is, for a script or an agent that has only the
 		// environment to go on.
-		"MULTIVERSE_ROOT":    s.Workspace,
+		"MULTIVERSE_ROOT":    s.Multiverse,
 		"MULTIVERSE_PROJECT": s.Manifest.Name,
 	}
 	for hostKey, hostname := range st.Hosts {
@@ -306,7 +306,7 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 // in the universe) pairs.
 func (s *Service) SecretPaths(u domain.Universe, appKey string) [][2]string {
 	app := s.Manifest.Apps[appKey]
-	clone := s.Manifest.CloneDir(s.Workspace, app.Repo)
+	clone := s.Manifest.CloneDir(s.Multiverse, app.Repo)
 	var out [][2]string
 	for _, name := range app.Secrets {
 		out = append(out, [2]string{filepath.Join(clone, name), filepath.Join(u.RepoDir(app.Repo), name)})

@@ -128,7 +128,7 @@ func TestTreeComposesLocalAndRemoteCatalogs(t *testing.T) {
     - name: acme
       source: {repo: git@example.test:acme/index.git, ref: v1}
 `))
-	write(t, local, "catalogs/personal.yaml", cat("personal", `  projects:
+	write(t, local, "catalogs/personal.yaml", cat("personal", `  multiverses:
     - name: billing
       source: {repo: git@example.test:me/billing.git}
 `))
@@ -136,7 +136,7 @@ func TestTreeComposesLocalAndRemoteCatalogs(t *testing.T) {
     - name: backend
       source: {path: teams/backend.yaml}
 `))
-	write(t, remote, "teams/backend.yaml", cat("backend", `  projects:
+	write(t, remote, "teams/backend.yaml", cat("backend", `  multiverses:
     - name: payments
       source: {path: payments/multiverse.yaml}
 `))
@@ -149,7 +149,7 @@ func TestTreeComposesLocalAndRemoteCatalogs(t *testing.T) {
 	}
 
 	got, ok := root.Find("acme/backend/payments")
-	if !ok || got.Kind != domain.WorkspaceNode {
+	if !ok || got.Kind != domain.MultiverseNode {
 		t.Fatalf("acme/backend/payments not found: %+v", root)
 	}
 	if got.Source.Repo != "git@example.test:acme/index.git" || got.Source.Ref != "v1" || got.Source.Path != "payments/multiverse.yaml" {
@@ -178,7 +178,7 @@ func TestTreeKeepsGoingPastAnUnreachableLayer(t *testing.T) {
       source: {repo: git@example.test:acme/private.git}
     - name: missing
       source: {path: nope.yaml}
-  projects:
+  multiverses:
     - name: billing
       source: {repo: git@example.test:me/billing.git}
 `))

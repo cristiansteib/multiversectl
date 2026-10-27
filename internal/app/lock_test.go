@@ -62,7 +62,7 @@ func TestRemovingTakesTheProjectThenTheUniverse(t *testing.T) {
 	if err := s.Remove(context.Background(), RemoveInput{Universe: "3"}); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
-	want := []string{"project", "universe-3"}
+	want := []string{"multiverse", "universe-3"}
 	if len(locks.taken) != len(want) {
 		t.Fatalf("want %v, got %v", want, locks.taken)
 	}
@@ -70,7 +70,7 @@ func TestRemovingTakesTheProjectThenTheUniverse(t *testing.T) {
 		if locks.taken[i] != name {
 			// Order matters: two callers taking them the other way round would
 			// each hold what the other waits for.
-			t.Errorf("lock %d = %s, want %s (always project first)", i, locks.taken[i], name)
+			t.Errorf("lock %d = %s, want %s (always multiverse first)", i, locks.taken[i], name)
 		}
 	}
 }

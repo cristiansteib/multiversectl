@@ -14,7 +14,7 @@ import (
 
 func wsRef(t *testing.T, e catalog.Editor, data []byte, name, repo, path string) []byte {
 	t.Helper()
-	out, err := e.AddWorkspaceRef(data, domain.WorkspaceRef{Name: name, Source: domain.Source{Repo: repo, Path: path}})
+	out, err := e.AddMultiverseRef(data, domain.MultiverseRef{Name: name, Source: domain.Source{Repo: repo, Path: path}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestInstallFromACatalogNodeTakesEverythingUnderIt(t *testing.T) {
 	}
 }
 
-func TestInstallNamesAreLeafNamesAndCollisionsGetTheParentInFront(t *testing.T) {
+func TestInstallNamesAreLeafNamesAndACollisionIsRefused(t *testing.T) {
 	r := newRig(t, &fakeRepos{})
 	e := catalog.Editor{}
 	root := e.Scaffold("me")
@@ -64,9 +64,9 @@ func TestInstallNamesAreLeafNamesAndCollisionsGetTheParentInFront(t *testing.T) 
 	write(t, r.root, "p.yaml", string(wsRef(t, e, e.Scaffold("payments"), "billing", "git@example.test:acme/pay-billing.git", "")))
 	write(t, r.root, "b.yaml", string(wsRef(t, e, e.Scaffold("backend"), "billing", "git@example.test:acme/be-billing.git", "")))
 
-	got := plan(t, r, []string{"payments", "backend"}, app.InstallOptions{})
-	if len(got) != 2 || got[0].Name != "billing" || got[1].Name != "backend-billing" {
-		t.Fatalf("two different billings must not become one name, and must not be skipped: %+v", got)
+	_, err := r.PlanInstall(context.Background(), []string{"payments", "backend"}, app.InstallOptions{})
+	if err == nil || !strings.Contains(err.Error(), `"billing" is already taken`) || !strings.Contains(err.Error(), "names are unique") {
+		t.Fatalf("two different billings must not share a name, and the refusal says why: %v", err)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestInstallSkipsWhatIsAlreadyHereEvenIfTheNodeWasRenamed(t *testing.T) {
 	r := newRig(t, &fakeRepos{})
 	e := catalog.Editor{}
 	write(t, r.root, "catalog.yaml", string(wsRef(t, e, e.Scaffold("me"), "billing", "git@example.test:acme/billing.git", "")))
-	r.cfg.c.Workspaces = map[string]app.WorkspaceEntry{
+	r.cfg.c.Multiverses = map[string]app.MultiverseEntry{
 		"old-name": {Root: "/x", From: "was/renamed", Source: app.Origin{Repo: "git@example.test:acme/billing.git", Path: "multiverse.yaml"}},
 	}
 	got := plan(t, r, []string{"billing"}, app.InstallOptions{})
@@ -103,7 +103,7 @@ func TestInstallAProjectNeedsNoRootCatalog(t *testing.T) {
 	}
 }
 
-func TestInstallARepositoryWithSeveralWorkspacesNeedsAllOrAChoice(t *testing.T) {
+func TestInstallARepositoryWithSeveralMultiversesNeedsANameOrAChoice(t *testing.T) {
 	proj := t.TempDir()
 	e := catalog.Editor{}
 	data := wsRef(t, e, wsRef(t, e, e.Scaffold("acme"), "api", "git@example.test:acme/api.git", ""), "web", "git@example.test:acme/web.git", "")
@@ -112,20 +112,69 @@ func TestInstallARepositoryWithSeveralWorkspacesNeedsAllOrAChoice(t *testing.T) 
 	r := newRig(t, git)
 	r.cfg.c = app.Config{}
 
-	if _, err := r.PlanInstall(context.Background(), []string{"acme/multiverse"}, app.InstallOptions{Base: "/ws"}); err == nil || !strings.Contains(err.Error(), "--all") {
-		t.Errorf("without a terminal the error should name --all: %v", err)
+	if _, err := r.PlanInstall(context.Background(), []string{"acme/multiverse"}, app.InstallOptions{Base: "/ws"}); err == nil || !strings.Contains(err.Error(), "acme/multiverse:<name>") {
+		t.Errorf("without a terminal the error should say how to name one: %v", err)
 	}
-	if got := plan(t, r, []string{"acme/multiverse"}, app.InstallOptions{All: true}); len(got) != 2 {
-		t.Errorf("--all: %+v", got)
-	}
-	r.prompt.multi = []int{1}
+	r.prompt.selects = []int{1}
 	if got := plan(t, r, []string{"acme/multiverse"}, app.InstallOptions{}); len(got) != 1 || got[0].Name != "web" {
 		t.Errorf("a choice: %+v", got)
 	}
-	r.prompt.multi = []int{}
-	if _, err := r.PlanInstall(context.Background(), []string{"acme/multiverse"}, app.InstallOptions{Base: "/ws"}); err != app.ErrCancelled {
-		t.Errorf("Enter alone backs out: %v", err)
+}
+
+// A repository serves several multiverses by holding one file each, found by
+// convention, and owner/repo:name picks one without anything listing them.
+func TestAnAddressNamesOneOfTheMultiversesARepositoryDefines(t *testing.T) {
+	repo := t.TempDir()
+	write(t, repo, "multiverse.yaml", multiverseNamed("alpha"))
+	write(t, repo, "multiverse/beta.yaml", multiverseNamed("beta"))
+	write(t, repo, "multiverse/notes.txt", "not a definition")
+	git := &fakeRepos{repos: map[string]string{"https://github.com/acme/platform.git": repo}}
+	r := newRig(t, git)
+	r.cfg.c = app.Config{}
+
+	got := plan(t, r, []string{"acme/platform:beta"}, app.InstallOptions{})
+	if len(got) != 1 || got[0].Name != "beta" || got[0].ManifestPath != "multiverse/beta.yaml" || got[0].ManifestSource != "https://github.com/acme/platform.git" {
+		t.Fatalf("got %+v", got)
 	}
+	got = plan(t, r, []string{"acme/platform:alpha"}, app.InstallOptions{})
+	if len(got) != 1 || got[0].Name != "alpha" || got[0].ManifestPath != "multiverse.yaml" {
+		t.Fatalf("got %+v", got)
+	}
+	_, err := r.PlanInstall(context.Background(), []string{"acme/platform:gamma"}, app.InstallOptions{Base: "/ws"})
+	if err == nil || !strings.Contains(err.Error(), `no multiverse named "gamma"`) || !strings.Contains(err.Error(), "alpha, beta") {
+		t.Errorf("an unknown name should list the ones there are: %v", err)
+	}
+	_, err = r.PlanInstall(context.Background(), []string{"acme/platform"}, app.InstallOptions{Base: "/ws"})
+	if err == nil || !strings.Contains(err.Error(), "alpha, beta") {
+		t.Errorf("no name and no terminal should list the names: %v", err)
+	}
+}
+
+// Names are what -m takes, so two multiverses cannot share one.
+func TestTwoMultiversesCannotShareAName(t *testing.T) {
+	repo := t.TempDir()
+	write(t, repo, "multiverse.yaml", multiverseNamed("alpha"))
+	other := t.TempDir()
+	write(t, other, "multiverse.yaml", multiverseNamed("alpha"))
+	git := &fakeRepos{repos: map[string]string{
+		"https://github.com/acme/one.git": repo, "https://github.com/acme/two.git": other,
+	}}
+	r := newRig(t, git)
+	r.cfg.c = app.Config{Multiverses: map[string]app.MultiverseEntry{
+		"alpha": {Root: "/ws/alpha", Source: app.Origin{Repo: "https://github.com/acme/one.git", Path: "multiverse.yaml"}},
+	}}
+
+	if got := plan(t, r, []string{"acme/one"}, app.InstallOptions{}); len(got) != 1 || got[0].Skip == "" {
+		t.Errorf("the same source again is already installed, not a clash: %+v", got)
+	}
+	_, err := r.PlanInstall(context.Background(), []string{"acme/two"}, app.InstallOptions{Base: "/ws"})
+	if err == nil || !strings.Contains(err.Error(), `"alpha" is already taken`) || !strings.Contains(err.Error(), "acme/one") {
+		t.Errorf("a different source under a taken name must be refused, naming the holder: %v", err)
+	}
+}
+
+func multiverseNamed(name string) string {
+	return "apiVersion: multiverse/v1alpha1\nkind: Multiverse\nmetadata:\n  name: " + name + "\nspec:\n  repos:\n    - name: api\n      url: git@example.test:acme/api.git\n"
 }
 
 func TestInstallAManifestFileOrDirectoryFromThisMachine(t *testing.T) {
@@ -166,7 +215,7 @@ func TestInstallReadsItsArgumentInAFixedOrder(t *testing.T) {
 	}
 }
 
-func TestInstallNameAndRootNameOneWorkspace(t *testing.T) {
+func TestInstallNameAndRootNameOneMultiverse(t *testing.T) {
 	r := newRig(t, &fakeRepos{})
 	e := catalog.Editor{}
 	data := wsRef(t, e, wsRef(t, e, e.Scaffold("me"), "a", "git@example.test:acme/a.git", ""), "b", "git@example.test:acme/b.git", "")
@@ -183,10 +232,27 @@ func TestInstallPickerListsTheTreeAndMarksInstalled(t *testing.T) {
 	r := newRig(t, &fakeRepos{})
 	e := catalog.Editor{}
 	write(t, r.root, "catalog.yaml", string(wsRef(t, e, wsRef(t, e, e.Scaffold("me"), "a", "git@example.test:acme/a.git", ""), "b", "git@example.test:acme/b.git", "")))
-	r.cfg.c.Workspaces = map[string]app.WorkspaceEntry{"a": {From: "a", Source: app.Origin{Repo: "git@example.test:acme/a.git", Path: "multiverse.yaml"}}}
+	r.cfg.c.Multiverses = map[string]app.MultiverseEntry{"a": {From: "a", Source: app.Origin{Repo: "git@example.test:acme/a.git", Path: "multiverse.yaml"}}}
 	r.prompt.multi = []int{2}
 	got := plan(t, r, nil, app.InstallOptions{})
 	if len(got) != 1 || got[0].Name != "b" {
 		t.Fatalf("%+v", got)
+	}
+}
+
+func TestAddTakesOneMultiverseOfARepositoryByItsAddress(t *testing.T) {
+	repo := t.TempDir()
+	write(t, repo, "multiverse.yaml", multiverseNamed("alpha"))
+	write(t, repo, "multiverse/beta.yaml", multiverseNamed("beta"))
+	git := &fakeRepos{inRepo: true, repos: map[string]string{"https://github.com/acme/platform.git": repo}}
+	r := newRig(t, git)
+	r.Yes = true
+	node, err := r.Add(context.Background(), app.AddInput{Repo: "acme/platform:beta", At: "/", AtGiven: true})
+	if err != nil || node != "beta" {
+		t.Fatalf("node=%q err=%v", node, err)
+	}
+	leaf, ok := r.tree(t).Find("beta")
+	if !ok || leaf.Source.Path != "multiverse/beta.yaml" || leaf.Source.Repo != "https://github.com/acme/platform.git" {
+		t.Fatalf("leaf = %+v", leaf)
 	}
 }

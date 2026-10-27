@@ -13,12 +13,12 @@ import (
 // Completion reads only what is already on this machine: it has to answer at
 // once, and a tab key must never start a clone or a fetch.
 
-func (r runner) completeWorkspaces(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func (r runner) completeMultiverses(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	bare, err := r.f.Bare(*r.g, r.out)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	list, err := bare.Workspaces()
+	list, err := bare.Multiverses()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -35,7 +35,7 @@ func (r runner) completeWorkspaces(cmd *cobra.Command, _ []string, toComplete st
 }
 
 // completeNodes offers the paths in the root catalog as last fetched.
-// onlyCatalogs is for --at, which names a place and not a project; "/" is the
+// onlyCatalogs is for --at, which names a place and not a multiverse; "/" is the
 // root.
 func (r runner) completeNodes(onlyCatalogs bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {

@@ -21,7 +21,7 @@ var errChecksFailed = errors.New("one or more checks failed")
 func (r runner) doctorCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "doctor [universe]",
-		Short:   "Check the host, the project and optionally one universe; exits 1 on any failure",
+		Short:   "Check the host, the multiverse and optionally one universe; exits 1 on any failure",
 		Example: "  multiversectl universe doctor\n  multiversectl universe doctor 3\n  multiversectl universe doctor fix/login",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

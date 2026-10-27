@@ -2,8 +2,6 @@ package cli
 
 import (
 	"testing"
-
-	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
 func TestRepositoriesAreShownByPlatform(t *testing.T) {
@@ -30,25 +28,13 @@ func TestOnlyAReleaseIsToldToUpdate(t *testing.T) {
 	}
 }
 
-func TestAProjectsStateIsItsDriftOrUpToDate(t *testing.T) {
-	if got := stateOf(app.WorkspaceStatus{}); got != "up to date" {
-		t.Errorf("got %q", got)
-	}
-	if got := stateOf(app.WorkspaceStatus{Notes: []string{"manifest behind 1", "api not cloned"}}); got != "manifest behind 1 · api not cloned" {
-		t.Errorf("got %q", got)
-	}
-}
-
-func TestStatusAndProjectAreCommandsWithTheirGroupsAndAliases(t *testing.T) {
+func TestStatusAndCatalogAreCommandsWithTheirGroupsAndAliases(t *testing.T) {
 	root, _ := New(Factory{})
-	for _, path := range [][]string{{"status"}, {"p", "list"}, {"p", "init"}, {"p", "add"}, {"project", "ls"}, {"u", "checkout"}, {"u", "co"}} {
+	for _, path := range [][]string{{"status"}, {"catalog", "list"}, {"catalog", "new"}, {"catalog", "add"}, {"catalog", "ls"}, {"u", "checkout"}, {"u", "co"}} {
 		c, _, err := root.Find(path)
 		if err != nil || c == root {
 			t.Errorf("%v: not found (%v)", path, err)
 		}
-	}
-	if c, _, _ := root.Find([]string{"p"}); c.Name() != "project" {
-		t.Errorf("p is %q", c.Name())
 	}
 }
 

@@ -19,9 +19,9 @@ import (
 const maxLogStreams = 12
 
 func (s *Server) containers(w http.ResponseWriter, r *http.Request) {
-	project, universe := r.URL.Query().Get("project"), r.URL.Query().Get("universe")
+	project, universe := r.URL.Query().Get("multiverse"), r.URL.Query().Get("universe")
 	if project == "" || universe == "" {
-		fail(w, http.StatusBadRequest, "project and universe are required")
+		fail(w, http.StatusBadRequest, "multiverse and universe are required")
 		return
 	}
 	ctx, cancel := s.ctx(r)
@@ -35,9 +35,9 @@ func (s *Server) containers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) stats(w http.ResponseWriter, r *http.Request) {
-	project, universe := r.URL.Query().Get("project"), r.URL.Query().Get("universe")
+	project, universe := r.URL.Query().Get("multiverse"), r.URL.Query().Get("universe")
 	if project == "" || universe == "" {
-		fail(w, http.StatusBadRequest, "project and universe are required")
+		fail(w, http.StatusBadRequest, "multiverse and universe are required")
 		return
 	}
 	ctx, cancel := s.ctx(r)
@@ -54,9 +54,9 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request) {
 // a handful of git calls and a call to a hosting service per repository, which
 // the fleet listing is polled far too often to carry.
 func (s *Server) code(w http.ResponseWriter, r *http.Request) {
-	project, universe := r.URL.Query().Get("project"), r.URL.Query().Get("universe")
+	project, universe := r.URL.Query().Get("multiverse"), r.URL.Query().Get("universe")
 	if project == "" || universe == "" {
-		fail(w, http.StatusBadRequest, "project and universe are required")
+		fail(w, http.StatusBadRequest, "multiverse and universe are required")
 		return
 	}
 	ctx, cancel := s.ctx(r)
@@ -69,12 +69,12 @@ func (s *Server) code(w http.ResponseWriter, r *http.Request) {
 	reply(w, v)
 }
 
-// fleetStats is every running container of every installed project, or of one
+// fleetStats is every running container of every installed multiverse, or of one
 // when the page asks for one: the stats view plots the whole machine.
 func (s *Server) fleetStats(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := s.ctx(r)
 	defer cancel()
-	v, err := s.b.FleetStats(ctx, r.URL.Query().Get("project"))
+	v, err := s.b.FleetStats(ctx, r.URL.Query().Get("multiverse"))
 	if err != nil {
 		failErr(w, err)
 		return
@@ -97,9 +97,9 @@ func failErr(w http.ResponseWriter, err error) {
 // aborts the fetch, which kills the docker process behind it.
 func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	project, universe, appKey, service := q.Get("project"), q.Get("universe"), q.Get("app"), q.Get("service")
+	project, universe, appKey, service := q.Get("multiverse"), q.Get("universe"), q.Get("app"), q.Get("service")
 	if project == "" || universe == "" || appKey == "" || service == "" {
-		fail(w, http.StatusBadRequest, "project, universe, app and service are required")
+		fail(w, http.StatusBadRequest, "multiverse, universe, app and service are required")
 		return
 	}
 	tail, _ := strconv.Atoi(q.Get("tail"))

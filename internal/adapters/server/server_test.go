@@ -27,7 +27,7 @@ type fake struct {
 	status     app.StatusReport
 	catalog    catalogView
 	fleet      fleetView
-	ws         workspaceView
+	ws         multiverseView
 	doctor     doctorView
 	system     systemView
 	next       nextView
@@ -75,8 +75,8 @@ func (f *fake) Fleet(_ context.Context, ws string) (fleetView, error) {
 	f.ask("fleet:" + ws)
 	return f.fleet, f.err
 }
-func (f *fake) Workspace(_ context.Context, name string) (workspaceView, error) {
-	f.ask("project:" + name)
+func (f *fake) Multiverse(_ context.Context, name string) (multiverseView, error) {
+	f.ask("multiverse:" + name)
 	return f.ws, f.err
 }
 func (f *fake) Doctor(_ context.Context, ws, u string) (doctorView, error) {
@@ -188,10 +188,10 @@ func post(t *testing.T, h http.Handler, body string) *httptest.ResponseRecorder 
 
 func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 	f := &fake{
-		status:  app.StatusReport{Next: "multiversectl catalog update acme", Workspaces: []app.WorkspaceStatus{{Name: "acme", Stale: true}}},
+		status:  app.StatusReport{Next: "multiversectl catalog update acme", Multiverses: []app.MultiverseStatus{{Name: "acme", Stale: true}}},
 		catalog: catalogView{Root: nodeView{Name: "me", Kind: "catalog"}, Installs: 1},
-		fleet:   fleetView{Workspaces: []fleetWorkspace{{Name: "acme", Universes: []universeView{{Name: "1"}}}}},
-		ws:      workspaceView{Name: "acme"},
+		fleet:   fleetView{Multiverses: []fleetMultiverse{{Name: "acme", Universes: []universeView{{Name: "1"}}}}},
+		ws:      multiverseView{Name: "acme"},
 		doctor:  doctorView{OK: true, Checks: []checkView{{Name: "git", Status: "ok"}}},
 	}
 	_, h := serve(t, f, Options{Version: "v9"})
@@ -200,8 +200,8 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 		{"/api/overview", `"version":"v9"`},
 		{"/api/catalog", `"installed":1`},
 		{"/api/fleet", `"name":"1"`},
-		{"/api/projects/acme", `"name":"acme"`},
-		{"/api/doctor?project=acme&universe=1", `"ok":true`},
+		{"/api/multiverses/acme", `"name":"acme"`},
+		{"/api/doctor?multiverse=acme&universe=1", `"ok":true`},
 	} {
 		rec := get(t, h, tt.path, nil)
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), tt.want) {
@@ -212,8 +212,8 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 		}
 	}
 	get(t, h, "/api/overview?fetch=1", nil)
-	get(t, h, "/api/fleet?project=acme", nil)
-	for _, want := range []string{"fetch", "fleet:acme", "project:acme", "doctor:acme:1"} {
+	get(t, h, "/api/fleet?multiverse=acme", nil)
+	for _, want := range []string{"fetch", "fleet:acme", "multiverse:acme", "doctor:acme:1"} {
 		if !strings.Contains(f.asks(), want) {
 			t.Errorf("backend was not asked %q: %s", want, f.asks())
 		}
@@ -258,7 +258,7 @@ func TestTheTokenIsTradedForACookieAndLeavesTheAddress(t *testing.T) {
 func TestActionsNeedTheHeaderTheOriginAndAWritableServer(t *testing.T) {
 	f := &fake{}
 	_, h := serve(t, f, Options{})
-	body := `{"action":"up","project":"acme","universe":"1"}`
+	body := `{"action":"up","multiverse":"acme","universe":"1"}`
 
 	if rec := do(t, h, "POST", "/api/ops", body, map[string]string{"Content-Type": "application/json"}); rec.Code != http.StatusForbidden {
 		t.Errorf("without the header: %d", rec.Code)
@@ -292,7 +292,7 @@ func TestActionsNeedTheHeaderTheOriginAndAWritableServer(t *testing.T) {
 // and the CSRF header to POST alone. A HEAD carrying a body therefore reached
 // the ops endpoint having passed neither, and it started the operation.
 func TestOnlyAPostStartsAnOperation(t *testing.T) {
-	const body = `{"action":"rm","project":"acme","universe":"1","confirm":"1","force":true}`
+	const body = `{"action":"rm","multiverse":"acme","universe":"1","confirm":"1","force":true}`
 	for _, method := range []string{"HEAD", "GET"} {
 		f := &fake{}
 		_, ro := serve(t, f, Options{ReadOnly: true})
@@ -329,7 +329,7 @@ func TestAnAcceptedOperationSaysItIsJSON(t *testing.T) {
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
 
-	req, err := http.NewRequest("POST", ts.URL+"/api/ops", strings.NewReader(`{"action":"up","project":"acme","universe":"1"}`))
+	req, err := http.NewRequest("POST", ts.URL+"/api/ops", strings.NewReader(`{"action":"up","multiverse":"acme","universe":"1"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +422,7 @@ func TestThePageAndItsAssetsAreServed(t *testing.T) {
 func TestErrorsAreJSONWithTheRightStatus(t *testing.T) {
 	_, h := serve(t, &fake{err: errors.New("no project \"x\"")}, Options{})
 	for path, code := range map[string]int{
-		"/api/fleet?project=x": 404, "/api/projects/x": 404, "/api/overview": 500, "/api/doctor": 400, "/api/nope": 404, "/api/projects/": 404, "/api/projects/a/b": 404, "/api/system": 500,
+		"/api/fleet?multiverse=x": 404, "/api/multiverses/x": 404, "/api/overview": 500, "/api/doctor": 400, "/api/nope": 404, "/api/multiverses/": 404, "/api/multiverses/a/b": 404, "/api/system": 500,
 	} {
 		rec := get(t, h, path, nil)
 		var body map[string]any
@@ -475,7 +475,7 @@ func listOps(t *testing.T, h http.Handler) []opView {
 func TestAnActionRunsInTheBackgroundAndKeepsItsOutput(t *testing.T) {
 	f := &fake{}
 	_, h := serve(t, f, Options{})
-	rec := post(t, h, `{"action":"up","project":"acme","universe":"3"}`)
+	rec := post(t, h, `{"action":"up","multiverse":"acme","universe":"3"}`)
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
@@ -501,7 +501,7 @@ func TestAnActionRunsInTheBackgroundAndKeepsItsOutput(t *testing.T) {
 
 func TestAFailedActionSaysWhy(t *testing.T) {
 	_, h := serve(t, &fake{doErr: errors.New("port is already allocated")}, Options{})
-	post(t, h, `{"action":"down","project":"acme","universe":"1"}`)
+	post(t, h, `{"action":"down","multiverse":"acme","universe":"1"}`)
 	wait(t, "failure", func() bool { o := listOps(t, h); return len(o) == 1 && o[0].State == "failed" })
 	if o := listOps(t, h)[0]; o.Error != "port is already allocated" {
 		t.Errorf("error = %q", o.Error)
@@ -512,13 +512,13 @@ func TestRemovingNeedsTheNameTypedAndRefusesUncommittedWork(t *testing.T) {
 	f := &fake{dirty: []string{"api", "web"}}
 	_, h := serve(t, f, Options{})
 
-	if rec := post(t, h, `{"action":"rm","project":"acme","universe":"3"}`); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "type the universe's name") {
+	if rec := post(t, h, `{"action":"rm","multiverse":"acme","universe":"3"}`); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "type the universe's name") {
 		t.Errorf("no confirmation: %d %s", rec.Code, rec.Body)
 	}
-	if rec := post(t, h, `{"action":"rm","project":"acme","universe":"3","confirm":"4"}`); rec.Code != http.StatusBadRequest {
+	if rec := post(t, h, `{"action":"rm","multiverse":"acme","universe":"3","confirm":"4"}`); rec.Code != http.StatusBadRequest {
 		t.Errorf("wrong confirmation: %d", rec.Code)
 	}
-	rec := post(t, h, `{"action":"rm","project":"acme","universe":"3","confirm":"3"}`)
+	rec := post(t, h, `{"action":"rm","multiverse":"acme","universe":"3","confirm":"3"}`)
 	var body struct {
 		Error string   `json:"error"`
 		Dirty []string `json:"dirty"`
@@ -530,7 +530,7 @@ func TestRemovingNeedsTheNameTypedAndRefusesUncommittedWork(t *testing.T) {
 	if len(f.did) != 0 {
 		t.Error("nothing may run before the person has agreed")
 	}
-	if rec := post(t, h, `{"action":"rm","project":"acme","universe":"3","confirm":"3","force":true}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h, `{"action":"rm","multiverse":"acme","universe":"3","confirm":"3","force":true}`); rec.Code != http.StatusAccepted {
 		t.Errorf("forced: %d %s", rec.Code, rec.Body)
 	}
 }
@@ -538,30 +538,30 @@ func TestRemovingNeedsTheNameTypedAndRefusesUncommittedWork(t *testing.T) {
 func TestUniversesRunSideBySideButAUniverseHasOneActionAtATime(t *testing.T) {
 	f := &fake{hold: make(chan struct{})}
 	_, h := serve(t, f, Options{})
-	if rec := post(t, h, `{"action":"up","project":"acme","universe":"1"}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h, `{"action":"up","multiverse":"acme","universe":"1"}`); rec.Code != http.StatusAccepted {
 		t.Fatalf("first: %d", rec.Code)
 	}
 	// Another universe of the same project does not wait for it.
-	if rec := post(t, h, `{"action":"up","project":"acme","universe":"2"}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h, `{"action":"up","multiverse":"acme","universe":"2"}`); rec.Code != http.StatusAccepted {
 		t.Errorf("a second universe in the same project: %d %s", rec.Code, rec.Body)
 	}
 	// The same universe does.
-	if rec := post(t, h, `{"action":"down","project":"acme","universe":"1"}`); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "another operation") {
+	if rec := post(t, h, `{"action":"down","multiverse":"acme","universe":"1"}`); rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "another operation") {
 		t.Errorf("the same universe twice: %d %s", rec.Code, rec.Body)
 	}
 	// Creating takes the next number, so creations take turns; with nothing creating, it starts.
-	if rec := post(t, h, `{"action":"new","project":"acme"}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h, `{"action":"new","multiverse":"acme"}`); rec.Code != http.StatusAccepted {
 		t.Errorf("creating while others start: %d %s", rec.Code, rec.Body)
 	}
-	if rec := post(t, h, `{"action":"new","project":"acme","name":"fix/login"}`); rec.Code != http.StatusConflict {
+	if rec := post(t, h, `{"action":"new","multiverse":"acme","name":"fix/login"}`); rec.Code != http.StatusConflict {
 		t.Errorf("two creations at once: %d %s", rec.Code, rec.Body)
 	}
 	// Changing the project waits for everything in it.
-	if rec := post(t, h, `{"action":"update","project":"acme"}`); rec.Code != http.StatusConflict {
+	if rec := post(t, h, `{"action":"update","multiverse":"acme"}`); rec.Code != http.StatusConflict {
 		t.Errorf("an update while universes are busy: %d %s", rec.Code, rec.Body)
 	}
 	// Another project is free.
-	if rec := post(t, h, `{"action":"up","project":"other","universe":"2"}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h, `{"action":"up","multiverse":"other","universe":"2"}`); rec.Code != http.StatusAccepted {
 		t.Errorf("another project is free: %d", rec.Code)
 	}
 	close(f.hold)
@@ -573,16 +573,16 @@ func TestUniversesRunSideBySideButAUniverseHasOneActionAtATime(t *testing.T) {
 		}
 		return true
 	})
-	if rec := post(t, h, `{"action":"update","project":"acme"}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h, `{"action":"update","multiverse":"acme"}`); rec.Code != http.StatusAccepted {
 		t.Errorf("an update when nothing runs: %d %s", rec.Code, rec.Body)
 	}
 	// And while it runs, nothing else in the project may start.
 	f2 := &fake{hold: make(chan struct{})}
 	_, h2 := serve(t, f2, Options{})
-	if rec := post(t, h2, `{"action":"update","project":"acme"}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h2, `{"action":"update","multiverse":"acme"}`); rec.Code != http.StatusAccepted {
 		t.Fatalf("update: %d", rec.Code)
 	}
-	if rec := post(t, h2, `{"action":"up","project":"acme","universe":"1"}`); rec.Code != http.StatusConflict {
+	if rec := post(t, h2, `{"action":"up","multiverse":"acme","universe":"1"}`); rec.Code != http.StatusConflict {
 		t.Errorf("a start during an update: %d %s", rec.Code, rec.Body)
 	}
 	close(f2.hold)
@@ -592,11 +592,11 @@ func TestBadActionsAreRefusedBeforeAnythingRuns(t *testing.T) {
 	f := &fake{}
 	_, h := serve(t, f, Options{})
 	for body, want := range map[string]string{
-		`{"action":"format-disk","project":"acme"}`: "unknown action",
-		`{"action":"up"}`:                        "project is required",
-		`{"action":"up","project":"acme"}`:       "universe is required",
-		`{"action":"checkout","project":"acme"}`: "branch to check out is required",
-		`not json`:                               "not valid JSON",
+		`{"action":"format-disk","multiverse":"acme"}`: "unknown action",
+		`{"action":"up"}`:                           "multiverse is required",
+		`{"action":"up","multiverse":"acme"}`:       "universe is required",
+		`{"action":"checkout","multiverse":"acme"}`: "branch to check out is required",
+		`not json`: "not valid JSON",
 	} {
 		rec := post(t, h, body)
 		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), want) {
@@ -642,7 +642,7 @@ func read(t *testing.T, c *websocket.Conn) event {
 }
 
 func TestTheWebsocketTellsAPageWhereThingsStandAndWhatChanges(t *testing.T) {
-	f := &fake{fleet: fleetView{Workspaces: []fleetWorkspace{{Name: "acme"}}}, status: app.StatusReport{Next: "x"}}
+	f := &fake{fleet: fleetView{Multiverses: []fleetMultiverse{{Name: "acme"}}}, status: app.StatusReport{Next: "x"}}
 	s, _ := serve(t, f, Options{Version: "v7", Commit: "c0ffee"})
 	ts := httptest.NewServer(s.Handler())
 	defer ts.Close()
@@ -667,7 +667,7 @@ func TestTheWebsocketTellsAPageWhereThingsStandAndWhatChanges(t *testing.T) {
 	}
 
 	// An action's progress arrives as it happens, without asking for it.
-	rec := do(t, ts.Config.Handler, "POST", "/api/ops", `{"action":"up","project":"acme","universe":"1"}`, actionHeaders)
+	rec := do(t, ts.Config.Handler, "POST", "/api/ops", `{"action":"up","multiverse":"acme","universe":"1"}`, actionHeaders)
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
@@ -687,7 +687,7 @@ func TestTheWebsocketTellsAPageWhereThingsStandAndWhatChanges(t *testing.T) {
 }
 
 func TestChangesAreOnlyPushedWhenThereIsSomethingNew(t *testing.T) {
-	f := &fake{fleet: fleetView{Workspaces: []fleetWorkspace{{Name: "acme"}}}}
+	f := &fake{fleet: fleetView{Multiverses: []fleetMultiverse{{Name: "acme"}}}}
 	s, _ := serve(t, f, Options{})
 	events := 0
 	c1 := &client{send: make(chan []byte, 8), drop: func() {}}
@@ -700,7 +700,7 @@ func TestChangesAreOnlyPushedWhenThereIsSomethingNew(t *testing.T) {
 		t.Errorf("an unchanged fleet was sent %d times, want once", events)
 	}
 	f.mu.Lock()
-	f.fleet = fleetView{Workspaces: []fleetWorkspace{{Name: "acme", Universes: []universeView{{Name: "1"}}}}}
+	f.fleet = fleetView{Multiverses: []fleetMultiverse{{Name: "acme", Universes: []universeView{{Name: "1"}}}}}
 	f.mu.Unlock()
 	s.look1(context.Background(), true, false)
 	if len(c1.send) != 2 {
@@ -806,10 +806,10 @@ func TestNewAndCheckoutAreActionsAndTheFormHelpersAreEndpoints(t *testing.T) {
 	_, h := serve(t, f, Options{})
 
 	var n nextView
-	if err := json.Unmarshal(get(t, h, "/api/next?project=acme", nil).Body.Bytes(), &n); err != nil || n.Number != 4 || len(n.Skipped) != 1 {
+	if err := json.Unmarshal(get(t, h, "/api/next?multiverse=acme", nil).Body.Bytes(), &n); err != nil || n.Number != 4 || len(n.Skipped) != 1 {
 		t.Errorf("next = %+v, %v", n, err)
 	}
-	if body := get(t, h, "/api/branches?project=acme", nil).Body.String(); !strings.Contains(body, `"feat/x"`) || !strings.Contains(body, `"api"`) {
+	if body := get(t, h, "/api/branches?multiverse=acme", nil).Body.String(); !strings.Contains(body, `"feat/x"`) || !strings.Contains(body, `"api"`) {
 		t.Errorf("branches: %s", body)
 	}
 	if !strings.Contains(f.asks(), "next:acme") || !strings.Contains(f.asks(), "branches:acme") {
@@ -817,11 +817,11 @@ func TestNewAndCheckoutAreActionsAndTheFormHelpersAreEndpoints(t *testing.T) {
 	}
 
 	// A new universe may leave its name out: the next free number is used.
-	if rec := post(t, h, `{"action":"new","project":"acme"}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h, `{"action":"new","multiverse":"acme"}`); rec.Code != http.StatusAccepted {
 		t.Errorf("new with no name: %d %s", rec.Code, rec.Body)
 	}
 	wait(t, "new", func() bool { o := listOps(t, h); return len(o) == 1 && o[0].State == "done" })
-	if rec := post(t, h, `{"action":"checkout","project":"acme","branch":"feat/x","onlyExisting":true}`); rec.Code != http.StatusAccepted {
+	if rec := post(t, h, `{"action":"checkout","multiverse":"acme","branch":"feat/x","onlyExisting":true}`); rec.Code != http.StatusAccepted {
 		t.Errorf("checkout: %d %s", rec.Code, rec.Body)
 	}
 	wait(t, "checkout", func() bool { o := listOps(t, h); return len(o) == 2 && o[1].State == "done" })
@@ -843,7 +843,7 @@ func TestNodesAndOverviewsCarryTheirLocationInOneNotation(t *testing.T) {
 	tree := domain.Node{Name: "index", Kind: domain.CatalogNode, Source: index, Children: []domain.Node{
 		{Name: "personal", Path: "personal", Kind: domain.CatalogNode, Source: domain.Source{Repo: index.Repo, Path: "catalogs/personal.yaml"}},
 		{Name: "acme", Path: "acme", Kind: domain.CatalogNode, Source: domain.Source{Repo: "git@gitlab.com:acme/index.git", Path: "catalog.yaml"}},
-		{Name: "notes", Path: "notes", Kind: domain.WorkspaceNode, Source: domain.Source{Path: "/home/me/notes/multiverse.yaml"}},
+		{Name: "notes", Path: "notes", Kind: domain.MultiverseNode, Source: domain.Source{Path: "/home/me/notes/multiverse.yaml"}},
 	}}
 	v := toNode(tree, map[string]string{})
 	got := map[string]string{}
@@ -865,8 +865,8 @@ func TestNodesAndOverviewsCarryTheirLocationInOneNotation(t *testing.T) {
 	}
 
 	rep := app.StatusReport{
-		Root:       app.RootStatus{Source: "https://github.com/me/index.git"},
-		Workspaces: []app.WorkspaceStatus{{Name: "acme", RepoURL: "git@gitlab.com:acme/multiverse.git", Ref: "main"}, {Name: "local"}},
+		Catalog:     app.CatalogStatus{Source: "https://github.com/me/index.git"},
+		Multiverses: []app.MultiverseStatus{{Name: "acme", RepoURL: "git@gitlab.com:acme/multiverse.git", Ref: "main"}, {Name: "local"}},
 	}
 	o := overviewOf("v1", false, rep)
 	if o.RootLoc == nil || o.RootLoc.Short != "github:me/index" {

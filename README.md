@@ -41,7 +41,7 @@ same daemon and the same image cache you already use.
 Those give you isolation and charge for it: a guest OS per environment, GBs of
 RAM and disk, a provisioning step to keep in sync, another image cache, slower
 access to your source, and tooling that has to reach inside the guest. For "run
-my own project twice" that is enough machinery to make each new copy expensive
+my own multiverse twice" that is enough machinery to make each new copy expensive
 enough that you stop making them.
 
 The trade-off, plainly: this is **not** isolation. Universes share your kernel,
@@ -69,25 +69,25 @@ and `make install` builds from source into `~/.local/bin`. The script and the
 binary later. [Install](https://multiversectl.dev/start/install.html) lists what
 the machine needs.
 
-## Projects and catalogs
+## Multiverses and catalogs
 
-A project someone points you at needs one command, with nothing set up first:
+A multiverse someone points you at needs one command, with nothing set up first:
 
 ```sh
-multiversectl catalog install acme/multiverse   # owner/repo, any git URL, or a path
+multiversectl start acme/multiverse   # owner/repo, any git URL, or a path
 multiversectl universe new 1 && multiversectl universe up 1
 ```
 
-To keep your own index of projects, which can nest other people's, make a
+To keep your own index of multiverses, which can nest other people's, make a
 catalog. It is a git repository of pointers, private if you let `init` create it:
 
 ```sh
 multiversectl init                      # asks where it should live
 multiversectl catalog add acme/billing  # asks which node of the tree it goes in
-multiversectl catalog new              # a guide: pick its repositories, create its repository, list it
+multiversectl catalog new               # asks multiverse or catalog, then a guide to make and list it
 multiversectl catalog list              # the tree, with what is installed marked
-multiversectl catalog status                    # what is installed here, and what has drifted
-multiversectl catalog update                    # catch up: manifests and new repositories
+multiversectl status                    # what is installed here, and what has drifted
+multiversectl catalog update            # catch up: manifests and new repositories
 ```
 
 See [Catalogs](https://multiversectl.dev/concepts/catalogs.html).
@@ -101,7 +101,7 @@ multiversectl server stop
 ```
 
 An agent needs only the command line: `multiversectl universe ls -o json` prints
-one compact line with the project's paths and, per universe, its state, folders
+one compact line with the multiverse's paths and, per universe, its state, folders
 and URLs. `--json` works on every command, and `--help --json` describes any of
 them as a document.
 
@@ -111,10 +111,9 @@ them as a document.
 multiversectl start acme/multiverse     # install it, make universe 1, run it, print its address
 ```
 
-Or the steps it takes, one at a time:
+Or the steps it takes once the multiverse is installed, one at a time:
 
 ```sh
-multiversectl catalog install ./multiverse.yaml --root ~/acme
 multiversectl universe new 1            # universe 1: a worktree of every repo on branch u1
 multiversectl universe new fix/login    # or name it after the branch it checks out
 multiversectl universe up fix/login     # start its containers
@@ -130,14 +129,14 @@ walks through the same thing with a manifest to copy.
 
 ## Manifest
 
-One file describes the project: its repositories, how a universe is addressed,
+One file describes the multiverse: its repositories, how a universe is addressed,
 and only the apps that need something other than the defaults. It does not
 describe containers — the repositories' compose files already do, and
 multiversectl reads them rather than making you repeat them.
 
 ```yaml
 apiVersion: multiverse/v1alpha1
-kind: Project
+kind: Multiverse
 metadata:
   name: acme
 spec:
@@ -150,12 +149,12 @@ spec:
       url: git@github.com:acme/web.git
 ```
 
-That is a working project: each repository gets an app of its own name, its
+That is a working multiverse: each repository gets an app of its own name, its
 compose files are found by convention, and its addresses come from their labels.
 [examples/multiverse.yaml](examples/multiverse.yaml) is a commented example with
 the rest, and every field is documented in the
 [manifest reference](https://multiversectl.dev/reference/manifest.html)
-and in the generated [schema](schema/project.v1alpha1.yaml).
+and in the generated [schema](schema/multiverse.v1alpha1.yaml).
 
 ## How it works
 

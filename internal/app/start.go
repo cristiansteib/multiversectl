@@ -189,9 +189,9 @@ func (s *Service) ensureProxy(ctx context.Context, dom string) error {
 		Network:     network,
 		Bind:        s.Manifest.BindAddress(),
 	}
-	// One machine has one shared proxy, so a second project with different
+	// One machine has one shared proxy, so a second multiverse with different
 	// entrypoints or a different exposure takes it over. Say so: the other
-	// project's universes stop answering, and nothing else would tell you.
+	// multiverse's universes stop answering, and nothing else would tell you.
 	status, err := s.Proxy.Status(ctx)
 	if err == nil && !status.Running {
 		// Docker's own refusal arrives after it has created the container,
@@ -206,7 +206,7 @@ func (s *Service) ensureProxy(ctx context.Context, dom string) error {
 			status.Bind = "0.0.0.0"
 		}
 		if change := proxyChange(status, want); change != "" {
-			s.Out.Warn("the shared proxy is being reconfigured: %s — universes of any other project on this machine stop answering until it is started from there again", change)
+			s.Out.Warn("the shared proxy is being reconfigured: %s — universes of any other multiverse on this machine stop answering until it is started from there again", change)
 		}
 	}
 	return s.Proxy.EnsureUp(ctx, want)
@@ -231,7 +231,7 @@ func (s *Service) checkProxyPorts(ctx context.Context) error {
 	return nil
 }
 
-// proxyChange describes how a running proxy differs from what this project
+// proxyChange describes how a running proxy differs from what this multiverse
 // needs, or "" when it already matches.
 func proxyChange(status ProxyStatus, want ProxyRequest) string {
 	var changes []string

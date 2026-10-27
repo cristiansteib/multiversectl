@@ -1,5 +1,5 @@
 // Package v1alpha1 is the manifest's file format. These types are the single
-// source of truth for it: schema/project.v1alpha1.yaml is generated from the
+// source of truth for it: schema/multiverse.v1alpha1.yaml is generated from the
 // doc comments and +markers below by `make schema`.
 //
 // Markers: +default=, +pattern=, +enum=a;b, +min=, +max=, +minItems=,
@@ -10,19 +10,16 @@ import "gopkg.in/yaml.v3"
 
 const (
 	APIVersion = "multiverse/v1alpha1"
-	Kind       = "Project"
-	// LegacyKind is what a project's file said before it was called one; it is
-	// still read, and never written.
-	LegacyKind = "Workspace"
+	Kind       = "Multiverse"
 )
 
-// Project is a set of repositories that run together, and that can exist several
-// times on a machine. Each copy is a universe: a git worktree of every
+// Multiverse is the definition of a set of repositories that run together, and
+// that can exist several times on a machine. Each copy is a universe: a git worktree of every
 // repository here, one compose project per app, and hostnames of the form
 // <host>-<universe>.<domain> served through one shared reverse proxy. A universe
 // is numbered, and then its part of a hostname is u3, or named after a branch,
 // and then it is fix-login.
-type Project struct {
+type Multiverse struct {
 	TypeMeta `yaml:",inline"`
 
 	// +required
@@ -38,13 +35,13 @@ type TypeMeta struct {
 	// +required
 	APIVersion string `yaml:"apiVersion"`
 
-	// +enum=Project
+	// +enum=Multiverse
 	// +required
 	Kind string `yaml:"kind"`
 }
 
 type ObjectMeta struct {
-	// Names the project and prefixes every compose project, so a universe's
+	// Names the multiverse and prefixes every compose project, so a universe's
 	// containers are <name>-<universe>-<app>-*, e.g. acme-u3-api-web-1.
 	// +pattern=^[a-z][a-z0-9-]*$
 	// +required
@@ -52,9 +49,9 @@ type ObjectMeta struct {
 }
 
 type Spec struct {
-	// Where this project's clones and universes live. Lets the manifest be used
+	// Where this multiverse's clones and universes live. Lets the manifest be used
 	// from anywhere with -f, which is the point of keeping one manifest per
-	// project in one directory. A leading ~/ is expanded. Overridden by --root
+	// multiverse in one directory. A leading ~/ is expanded. Overridden by --root
 	// and by $MULTIVERSECTL_ROOT; falls back to the saved config, then to the
 	// manifest's own directory.
 	Root string `yaml:"root"`
@@ -64,7 +61,7 @@ type Spec struct {
 	// name resolving to this machine, so a phone or a reviewer on the same
 	// network can open one. "local" publishes on the loopback address only
 	// and, with domain "auto", uses <host>.localhost, which every browser
-	// resolves to 127.0.0.1 without asking anyone: nothing about the project
+	// resolves to 127.0.0.1 without asking anyone: nothing about the multiverse
 	// leaves the machine, and nothing outside it can connect. Choose "local"
 	// unless another device has to open a universe.
 	// +enum=lan;local
@@ -88,7 +85,7 @@ type Spec struct {
 	// The shared ingress every universe is reached through.
 	Proxy Proxy `yaml:"proxy"`
 
-	// The repositories this project is made of. install clones them; each
+	// The repositories this multiverse is made of. install clones them; each
 	// universe gets a worktree of every one, sharing the clone's object store.
 	// +minItems=1
 	// +required

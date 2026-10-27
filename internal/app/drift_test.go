@@ -13,13 +13,13 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-func statusOf(t *testing.T, r *rig) app.WorkspaceStatus {
+func statusOf(t *testing.T, r *rig) app.MultiverseStatus {
 	t.Helper()
 	rep, err := r.Status(context.Background(), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return rep.Workspaces[0]
+	return rep.Multiverses[0]
 }
 
 func TestAnEditedManifestIsSaidAndUpdateIsNotSuggestedToRefuse(t *testing.T) {
@@ -61,7 +61,7 @@ func TestADivergedManifestSaysSoAndHowToMerge(t *testing.T) {
 }
 
 func noticeService(r *rig, env map[string]string) *app.Service {
-	e := r.cfg.c.Workspaces["acme"]
+	e := r.cfg.c.Multiverses["acme"]
 	return app.New(app.Deps{Git: r.git, Config: r.cfg, Files: fsx.New(), System: envSystem{env: env}}, e.Root, nil, "test")
 }
 
@@ -119,16 +119,16 @@ func mkdirAll(t *testing.T, root, name string) {
 
 func TestContextSaysWhereTheProjectAndItsPiecesAre(t *testing.T) {
 	r, root := installedRig(t)
-	e := r.cfg.c.Workspaces["acme"]
+	e := r.cfg.c.Multiverses["acme"]
 	e.From = "acme/billing"
 	e.Source.Ref = "main"
-	r.cfg.c.Workspaces["acme"] = e
+	r.cfg.c.Multiverses["acme"] = e
 	m := r.loader[e.Manifest]
 	m.Repos = map[string]domain.Repo{"api": {URL: "https://github.com/acme/api.git"}, "docs": {Runtime: domain.RuntimeNone, Dir: "acme-docs"}}
 
 	svc := app.New(app.Deps{Config: r.cfg}, root, m, "test")
 	c := svc.Context()
-	if c.Name != "acme" || !c.Current || c.Root != root || c.Manifest != e.Manifest {
+	if c.Name != "acme" || c.Root != root || c.Manifest != e.Manifest {
 		t.Errorf("identity: %+v", c)
 	}
 	if c.From != "acme/billing" || c.Source != "github:acme/multiverse@main" {
@@ -145,9 +145,9 @@ func TestContextSaysWhereTheProjectAndItsPiecesAre(t *testing.T) {
 
 func TestContextOfAProjectNotInstalledHereStillHasItsRoot(t *testing.T) {
 	r, root := installedRig(t)
-	svc := app.New(app.Deps{Config: r.cfg}, "/somewhere/else", r.loader[r.cfg.c.Workspaces["acme"].Manifest], "test")
+	svc := app.New(app.Deps{Config: r.cfg}, "/somewhere/else", r.loader[r.cfg.c.Multiverses["acme"].Manifest], "test")
 	c := svc.Context()
-	if c.Root != "/somewhere/else" || c.Manifest != "" || c.Current || c.Name != "acme" || root == c.Root {
+	if c.Root != "/somewhere/else" || c.Manifest != "" || c.Name != "acme" || root == c.Root {
 		t.Errorf("%+v", c)
 	}
 }
