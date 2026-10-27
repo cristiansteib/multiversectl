@@ -213,6 +213,24 @@ func (Host) Owns(repoURL string) bool {
 	return domain.Locate(repoURL, "").Platform == domain.PlatformGitLab
 }
 
+// mergeRequest is what the API says of one.
+type mergeRequest struct {
+	IID          int    `json:"iid"`
+	Title        string `json:"title"`
+	WebURL       string `json:"web_url"`
+	Draft        bool   `json:"draft"`
+	State        string `json:"state"`
+	TargetBranch string `json:"target_branch"`
+	// A request from a fork whose branch happens to share the name is not this
+	// branch's: its source is another project.
+	SourceProject int    `json:"source_project_id"`
+	TargetProject int    `json:"target_project_id"`
+	UpdatedAt     string `json:"updated_at"`
+	Author        struct {
+		Username string `json:"username"`
+	} `json:"author"`
+}
+
 // FindReview asks for the merge requests a branch is the source of: the open
 // one when there is one, otherwise the latest that was merged or closed. It
 // goes through the API rather than `glab mr list`, which prints a table meant
@@ -229,30 +247,29 @@ func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review
 	if err != nil {
 		return nil, err
 	}
-	var raw []struct {
-		IID          int    `json:"iid"`
-		Title        string `json:"title"`
-		WebURL       string `json:"web_url"`
-		Draft        bool   `json:"draft"`
-		State        string `json:"state"`
-		TargetBranch string `json:"target_branch"`
-		UpdatedAt    string `json:"updated_at"`
-		Author       struct {
-			Username string `json:"username"`
-		} `json:"author"`
-	}
+	var raw []mergeRequest
 	if err := json.Unmarshal([]byte(out), &raw); err != nil {
 		return nil, fmt.Errorf("glab: read the merge requests: %w", err)
 	}
 	if len(raw) == 0 {
 		return nil, nil
 	}
-	pick := raw[0]
-	for _, r := range raw {
-		if r.State == "opened" {
-			pick = r
+	// The list is newest first. A request from a fork is not this branch's.
+	var pick *mergeRequest
+	for i := range raw {
+		if raw[i].SourceProject != raw[i].TargetProject {
+			continue
+		}
+		if pick == nil {
+			pick = &raw[i]
+		}
+		if raw[i].State == "opened" {
+			pick = &raw[i]
 			break
 		}
+	}
+	if pick == nil {
+		return nil, nil
 	}
 	updated, _ := time.Parse(time.RFC3339, pick.UpdatedAt)
 	state := map[string]string{"opened": "open", "merged": "merged", "closed": "closed", "locked": "closed"}[pick.State]

@@ -16,6 +16,7 @@ type codeGit struct {
 	pushed    bool
 	noDefault bool
 	fetched   time.Time
+	diffErr   map[string]error
 	fetches   []string
 }
 
@@ -37,14 +38,15 @@ func (g *codeGit) DefaultBranch(context.Context, string) (string, error) {
 	return "main", nil
 }
 func (g *codeGit) LastFetch(context.Context, string) time.Time { return g.fetched }
-func (g *codeGit) Fetch(_ context.Context, dir string) error {
+func (g *codeGit) FetchQuietly(_ context.Context, dir string) error {
 	g.fetches = append(g.fetches, dir)
 	return nil
 }
 func (g *codeGit) DiffStat(_ context.Context, dir, ref string) (DiffStat, error) {
 	g.asked = append(g.asked, dir+"@"+ref)
-	return g.diffs[ref], nil
+	return g.diffs[ref], g.diffErr[ref]
 }
+func (g *codeGit) DiffFiles(context.Context, string, string) ([]FileChange, error) { return nil, nil }
 
 type codeHost struct {
 	RepoHost
@@ -207,5 +209,42 @@ func TestRereadingFetchesEachCloneOnceAndLeavesItAloneOtherwise(t *testing.T) {
 	}
 	if _, err := codeService(git).UniverseCode(context.Background(), "3", true); err != nil || len(git.fetches) != 2 {
 		t.Fatalf("want a fetch per clone, got %v %v", git.fetches, err)
+	}
+}
+
+// A base that is not in the clone cannot be measured against, and an empty
+// change measured against nothing is not "no changes".
+func TestABaseThatCannotBeMeasuredIsSaidSoNotShownAsNoChange(t *testing.T) {
+	git := &codeGit{pushed: true, diffErr: map[string]error{"main": errors.New("unknown revision origin/main")}}
+	rows, err := codeService(git).UniverseCode(context.Background(), "3", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows[0].BaseUnknown || rows[0].Base != "main" || !rows[0].Change.Empty() {
+		t.Errorf("want the base said to be unknown, got %+v", rows[0])
+	}
+}
+
+// The files are of the change the page showed the numbers for: it names the
+// base, and the hosting service is not asked again, which could answer otherwise.
+func TestADiffIsOfTheBaseThePageShowedAndAsksNoHost(t *testing.T) {
+	host := &codeHost{owns: "https://example.test/acme/api.git", review: &Review{Number: 7, State: "open", Base: "main"}}
+	svc := codeService(&codeGit{}, host)
+	if _, _, err := svc.UniverseDiff(context.Background(), "3", "api", ScopeBranch, "release/2.x"); err != nil {
+		t.Fatal(err)
+	}
+	if len(host.asked) != 0 {
+		t.Errorf("the hosting service was asked: %v", host.asked)
+	}
+	for _, bad := range []string{"-p", "main..other", "a b", "/etc", "x\ny"} {
+		if _, _, err := svc.UniverseDiff(context.Background(), "3", "api", ScopeBranch, bad); err == nil {
+			t.Errorf("%q was taken for a branch", bad)
+		}
+	}
+	if _, _, err := svc.UniverseDiff(context.Background(), "3", "api", "bogus", ""); err == nil {
+		t.Error("a scope that is neither was accepted")
+	}
+	if _, _, err := svc.UniverseDiff(context.Background(), "3", "nope", ScopeBranch, "main"); err == nil {
+		t.Error("a repository that is not in the universe was read")
 	}
 }

@@ -530,6 +530,9 @@ function factsOf(key, r, page) {
   if (r.change) {
     out.push(opener('branch', plural(r.change.files, 'file', 'files') + ' changed against ' + r.base, r.change,
       'What this branch adds to ' + r.base + ': what a pull request would show.'));
+  } else if (r.baseUnknown) {
+    // Not the same as nothing changed: the base is not in the clone to compare with.
+    out.push(note('warn', 'Could not compare with ' + r.base, 'origin/' + r.base + ' is not in this clone, perhaps not fetched yet. Reread asks the remotes.'));
   } else if (r.base) {
     out.push(note('quiet', 'No changes against ' + r.base, 'This branch has nothing that ' + r.base + ' lacks.'));
   } else {
@@ -538,7 +541,7 @@ function factsOf(key, r, page) {
   if (r.ahead && r.follows) {
     out.push(r.follows === r.base
       ? note('mute', plural(r.ahead, 'commit', 'commits') + ', branch not pushed yet', 'These commits are only on this machine: ' + r.follows + ' on origin does not have them.')
-      : note('mute', plural(r.ahead, 'commit', 'commits') + ' not pushed', 'These commits are only on this machine, not on origin/' + r.follows + '.'));
+      : note('mute', plural(r.ahead, 'commit', 'commits') + ' not pushed', 'These commits are only on this machine, not on origin/' + r.follows + (r.work ? ': ' + plural(r.work.files, 'file', 'files') + ', +' + r.work.added + ' \u2212' + r.work.removed + '.' : '.')));
   }
   if (r.uncommitted) {
     out.push(opener('uncommitted', plural(r.uncommitted.files, 'file', 'files') + ' edited, not committed', r.uncommitted,
@@ -571,6 +574,9 @@ views.universe = {
     const key = codeKey(multiverse, name);
     const head = h('div');
     const browser = h('section', { class: 'cdiff-page' });
+    // What the card showed the branch's change against, so the files are of the
+    // same change: asking the hosting service again could say otherwise.
+    const baseShown = () => (dv.scope === 'branch' ? (((codeState.get(key) || {}).rows || []).find((r) => r.repo === dv.repo) || {}).base || '' : '');
     // These are made once and filled again, never replaced: the filter box is in
     // one of them, and a box that is taken out of the page while somebody types in
     // it loses what they were doing.
@@ -594,7 +600,7 @@ views.universe = {
         const same = this.repo === r && this.scope === sc;
         Object.assign(this, { repo: r, scope: sc });
         if (!same) {
-          Object.assign(this, { files: null, base: '', open: new Set(), pinned: new Set(), patches: new Map(), error: null, filter: '', collapsed: new Set(), active: null });
+          Object.assign(this, { files: null, base: '', sig: '', open: new Set(), pinned: new Set(), patches: new Map(), error: null, filter: '', collapsed: new Set(), active: null });
           filterInput.value = '';
         }
         history.replaceState(null, '', universeHref(multiverse, name, r, sc));
@@ -603,26 +609,35 @@ views.universe = {
       },
       async reload() {
         if (!this.repo) return;
+        // One read at a time; one asked for meanwhile (another repository, say) waits.
+        if (this.busy) { this.again = true; return; }
+        this.busy = true;
         const mine = [this.repo, this.scope];
         try {
-          const d = await api('universe/diff?' + query({ multiverse, universe: name, repo: this.repo, scope: this.scope }));
+          const d = await api('universe/diff?' + query({ multiverse, universe: name, repo: this.repo, scope: this.scope, base: baseShown() }));
           if (this.repo !== mine[0] || this.scope !== mine[1]) return;
+          // Read again on a timer, and most of the time nothing moved: then nothing
+          // is redrawn, so what somebody is reading keeps its place, its selection
+          // and its focus.
+          const sig = JSON.stringify(d);
+          if (this.files && sig === this.sig) return;
+          this.sig = sig;
           this.files = d.files || []; this.base = d.base; this.error = null;
-          // A diff on screen was read before this list: read what is open again,
-          // so what is shown cannot disagree with the files above it.
           const paths = new Set(this.files.map((f) => f.path));
           for (const p of [...this.open]) if (!paths.has(p)) { this.open.delete(p); this.pinned.delete(p); }
           this.patches = new Map();
           // The first change of the list is what somebody came to see.
           if (!this.open.size && this.files.length) { this.open.add(this.files[0].path); this.active = this.files[0].path; }
           if (this.active && !paths.has(this.active)) this.active = null;
+          // What was open is as old as the list: read again, so it cannot disagree.
           await Promise.all([...this.open].map((p) => this.patch(p)));
-        } catch (e) { this.error = e.message; }
+        } catch (e) { this.error = e.message; } finally { this.busy = false; }
         draw();
+        if (this.again) { this.again = false; await this.reload(); }
       },
       async patch(path) {
         try {
-          this.patches.set(path, await api('universe/diff?' + query({ multiverse, universe: name, repo: this.repo, scope: this.scope, file: path })));
+          this.patches.set(path, await api('universe/diff?' + query({ multiverse, universe: name, repo: this.repo, scope: this.scope, base: baseShown(), file: path })));
         } catch (e) { this.patches.set(path, { error: e.message }); }
       },
       // Opening a file closes the others unless they are pinned. Closing is
@@ -822,9 +837,22 @@ views.universe = {
 function patchBox(p) {
   if (!p) return h('div', { class: 'patch' }, skeleton('line w4'));
   if (p.error) return h('div', { class: 'patch' }, errorBox({ message: p.error }));
+  // Everything before the first hunk is the header; after it a line is what its
+  // first character says, whatever it looks like — removing the comment
+  // “-- drop table” is the line “--- drop table”, and is a removal.
+  let inHunk = false;
+  const kind = (l) => {
+    if (l.startsWith('@@')) { inHunk = true; return 'hunk'; }
+    if (!inHunk) return 'pmeta';
+    if (l.startsWith('+')) return 'ins';
+    if (l.startsWith('-')) return 'rem';
+    if (l.startsWith('\\')) return 'pmeta';
+    return '';
+  };
   const lines = (p.patch || '').split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
   return h('div', { class: 'patch mono', tabindex: '0' },
-    lines.map((l) => h('div', { class: 'pl ' + (l.startsWith('@@') ? 'hunk' : l.startsWith('+') && !l.startsWith('+++') ? 'ins' : l.startsWith('-') && !l.startsWith('---') ? 'rem' : /^(diff |index |--- |\+\+\+ |new file|deleted file|similarity|rename )/.test(l) ? 'pmeta' : '') }, l || ' ')),
+    lines.map((l) => h('div', { class: 'pl ' + kind(l) }, l || ' ')),
     p.truncated ? h('div', { class: 'pl pmeta' }, '… cut: the rest of this diff is not shown here.') : null);
 }
 

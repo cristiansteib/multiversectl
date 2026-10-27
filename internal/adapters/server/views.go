@@ -141,6 +141,7 @@ type codeRow struct {
 	// Base is the branch the change is measured against and Change what the
 	// branch amounts to against it.
 	Base        string      `json:"base,omitempty"`
+	BaseUnknown bool        `json:"baseUnknown,omitempty"`
 	Change      *diffView   `json:"change,omitempty"`
 	Uncommitted *diffView   `json:"uncommitted,omitempty"`
 	Review      *reviewView `json:"review,omitempty"`

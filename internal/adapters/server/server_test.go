@@ -99,12 +99,12 @@ func (f *fake) Code(_ context.Context, ws, u string, fetch bool) (codeView, erro
 	f.ask("code:" + ws + ":" + u + map[bool]string{true: ":fetch", false: ""}[fetch])
 	return f.code, f.err
 }
-func (f *fake) Diff(_ context.Context, ws, u, repo, scope string) (diffFilesView, error) {
-	f.ask("diff:" + ws + ":" + u + ":" + repo + ":" + scope)
+func (f *fake) Diff(_ context.Context, ws, u, repo, scope, base string) (diffFilesView, error) {
+	f.ask("diff:" + ws + ":" + u + ":" + repo + ":" + scope + ":" + base)
 	return f.files, f.err
 }
-func (f *fake) Patch(_ context.Context, ws, u, repo, scope, file string) (patchView, error) {
-	f.ask("patch:" + ws + ":" + u + ":" + repo + ":" + scope + ":" + file)
+func (f *fake) Patch(_ context.Context, ws, u, repo, scope, base, file string) (patchView, error) {
+	f.ask("patch:" + ws + ":" + u + ":" + repo + ":" + scope + ":" + base + ":" + file)
 	return f.patch, f.err
 }
 func (f *fake) FleetStats(_ context.Context, ws string) (fleetStatsView, error) {
@@ -945,7 +945,7 @@ func TestAPageIsToldOfANewerReleaseAndTheServerKeepsLooking(t *testing.T) {
 func TestTheDiffOfAChangeIsReadOnlyAndFollowsWhatIsAsked(t *testing.T) {
 	f := &fake{files: diffFilesView{Base: "main", Files: []fileView{{Path: "a.go", Status: "modified", Added: 2}}}, patch: patchView{Path: "a.go", Patch: "@@"}}
 	_, h := serve(t, f, Options{ReadOnly: true})
-	rec := do(t, h, "GET", "/api/universe/diff?multiverse=acme&universe=3&repo=api", "", nil)
+	rec := do(t, h, "GET", "/api/universe/diff?multiverse=acme&universe=3&repo=api&base=release", "", nil)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"a.go"`) {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
@@ -953,10 +953,13 @@ func TestTheDiffOfAChangeIsReadOnlyAndFollowsWhatIsAsked(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"patch":"@@"`) {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
-	if got := f.asks(); !strings.Contains(got, "diff:acme:3:api:branch") || !strings.Contains(got, "patch:acme:3:api:uncommitted:a.go") {
+	if got := f.asks(); !strings.Contains(got, "diff:acme:3:api:branch:release") || !strings.Contains(got, "patch:acme:3:api:uncommitted::a.go") {
 		t.Errorf("asked %q", got)
 	}
 	if rec := do(t, h, "GET", "/api/universe/diff?multiverse=acme&universe=3", "", nil); rec.Code != http.StatusBadRequest {
 		t.Errorf("a diff of no repository: %d", rec.Code)
+	}
+	if rec := do(t, h, "GET", "/api/universe/diff?multiverse=acme&universe=3&repo=api&scope=bogus", "", nil); rec.Code != http.StatusBadRequest {
+		t.Errorf("a scope that is neither: %d", rec.Code)
 	}
 }

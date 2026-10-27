@@ -27,6 +27,9 @@ const (
 type Git interface {
 	Clone(ctx context.Context, url, dest string) error
 	Fetch(ctx context.Context, repoDir string) error
+	// FetchQuietly is Fetch that never asks anybody anything: a remote that wants
+	// a password makes it fail. For a page that reads again on its own.
+	FetchQuietly(ctx context.Context, repoDir string) error
 	AddWorktree(ctx context.Context, repoDir, dest, branch, base string) error
 	// RemoveWorktree takes a worktree away. discard says whether to throw away
 	// work that is only in it: git refuses otherwise, and whether that refusal

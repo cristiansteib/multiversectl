@@ -48,8 +48,9 @@ type Backend interface {
 	// Diff lists the files of one repository's change, scope being "branch"
 	// (against what it merges into) or "uncommitted"; with a file it is that
 	// file's diff instead, in the second result.
-	Diff(ctx context.Context, multiverse, universe, repo, scope string) (diffFilesView, error)
-	Patch(ctx context.Context, multiverse, universe, repo, scope, file string) (patchView, error)
+	// base is what the page showed the change against; empty works it out.
+	Diff(ctx context.Context, multiverse, universe, repo, scope, base string) (diffFilesView, error)
+	Patch(ctx context.Context, multiverse, universe, repo, scope, base, file string) (patchView, error)
 	Logs(ctx context.Context, multiverse, universe, appKey, service string, tail int, follow bool, w io.Writer) error
 	// FleetStats reads every running container of one multiverse, or of all.
 	FleetStats(ctx context.Context, multiverse string) (fleetStatsView, error)
@@ -291,7 +292,7 @@ func (s Services) Code(ctx context.Context, multiverse, universe string, fetch b
 	for _, r := range rows {
 		row := codeRow{Repo: r.Repo, Branch: r.Branch, Follows: r.Follows,
 			Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError,
-			Work: diffOf(r.Work), Base: r.Base, Change: diffOf(r.Change), Uncommitted: diffOf(r.Uncommitted)}
+			Work: diffOf(r.Work), Base: r.Base, BaseUnknown: r.BaseUnknown, Change: diffOf(r.Change), Uncommitted: diffOf(r.Uncommitted)}
 		if r.Review != nil {
 			row.Review = &reviewView{Number: r.Review.Number, Mark: reviewMark(r.URL), Title: r.Review.Title,
 				URL: r.Review.URL, State: r.Review.State, Draft: r.Review.Draft, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
@@ -306,12 +307,12 @@ func (s Services) Code(ctx context.Context, multiverse, universe string, fetch b
 }
 
 // Diff lists the files of one repository's change.
-func (s Services) Diff(ctx context.Context, multiverse, universe, repo, scope string) (diffFilesView, error) {
+func (s Services) Diff(ctx context.Context, multiverse, universe, repo, scope, base string) (diffFilesView, error) {
 	svc, err := s.service(multiverse)
 	if err != nil {
 		return diffFilesView{}, err
 	}
-	base, files, err := svc.UniverseDiff(ctx, universe, repo, scope)
+	base, files, err := svc.UniverseDiff(ctx, universe, repo, scope, base)
 	if err != nil {
 		return diffFilesView{}, err
 	}
@@ -327,12 +328,12 @@ func (s Services) Diff(ctx context.Context, multiverse, universe, repo, scope st
 const maxPatch = 256 << 10
 
 // Patch is one file's diff.
-func (s Services) Patch(ctx context.Context, multiverse, universe, repo, scope, file string) (patchView, error) {
+func (s Services) Patch(ctx context.Context, multiverse, universe, repo, scope, base, file string) (patchView, error) {
 	svc, err := s.service(multiverse)
 	if err != nil {
 		return patchView{}, err
 	}
-	patch, truncated, err := svc.UniverseDiffFile(ctx, universe, repo, scope, file, maxPatch)
+	patch, truncated, err := svc.UniverseDiffFile(ctx, universe, repo, scope, base, file, maxPatch)
 	if err != nil {
 		return patchView{}, err
 	}

@@ -305,3 +305,24 @@ func TestDiffFilesListsTheBranchAndWhatIsNotCommitted(t *testing.T) {
 		t.Error("a path that is not in the change was read")
 	}
 }
+
+// An untracked link is not followed: its target may be anywhere on the machine,
+// and what the page would show of it is not part of the repository.
+func TestAnUntrackedLinkIsNotReadThroughTo(t *testing.T) {
+	clone, _ := repo(t)
+	secret := filepath.Join(t.TempDir(), "secret")
+	if err := os.WriteFile(secret, []byte("hunter2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secret, filepath.Join(clone, "link")); err != nil {
+		t.Skip("no symlinks here")
+	}
+	patch, _, err := Git{}.DiffPatch(context.Background(), clone, "", "link", 1<<10)
+	if err != nil || strings.Contains(patch, "hunter2") {
+		t.Errorf("read through the link: %q %v", patch, err)
+	}
+	files, _ := Git{}.DiffFiles(context.Background(), clone, "")
+	if len(files) != 1 || files[0].Added != 0 {
+		t.Errorf("a link has no lines of its own: %+v", files)
+	}
+}

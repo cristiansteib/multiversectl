@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 type Git struct{}
@@ -59,6 +59,18 @@ func (g Git) Clone(ctx context.Context, url, dest string) error {
 func (g Git) Fetch(ctx context.Context, repoDir string) error {
 	_, err := g.run(ctx, "-C", repoDir, "fetch", "--quiet", "origin")
 	return err
+}
+
+// FetchQuietly is Fetch for when nobody is there to answer: a remote that wants
+// a password fails instead of asking on a terminal, and ssh does not stop to ask
+// either. A page reading again on its own is the case.
+func (g Git) FetchQuietly(ctx context.Context, repoDir string) error {
+	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "fetch", "--quiet", "origin")
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git fetch: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func (g Git) AddWorktree(ctx context.Context, repoDir, dest, branch, base string) error {
@@ -433,19 +445,19 @@ func (g Git) untracked(ctx context.Context, dir string) []app.FileChange {
 }
 
 // readNew reads a new file for counting and showing, and says no for what is
-// not text or is too large to be worth reading.
+// not a plain text file, or is too large to be worth reading. A link is not
+// followed: an untracked link in a checkout would otherwise show whatever it
+// points at, wherever that is, and a pipe would block the read for ever.
 func readNew(path string) (string, bool) {
-	fh, err := os.Open(path)
-	if err != nil {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxUntracked {
 		return "", false
 	}
-	defer fh.Close()
-	buf := make([]byte, maxUntracked+1)
-	n, _ := io.ReadFull(fh, buf)
-	if n > maxUntracked || bytes.IndexByte(buf[:n], 0) >= 0 {
+	b, err := os.ReadFile(path)
+	if err != nil || bytes.IndexByte(b, 0) >= 0 {
 		return "", false
 	}
-	return string(buf[:n]), true
+	return string(b), true
 }
 
 func lineCount(text string) int {
@@ -544,7 +556,7 @@ func (g Git) DiffPatch(ctx context.Context, dir, ref, path string, limit int) (s
 		}
 	}
 	if file == nil {
-		return "", false, fmt.Errorf("%s is not part of the change", path)
+		return "", false, fmt.Errorf("%s is not part of the change: %w", path, domain.ErrNotFound)
 	}
 	var patch string
 	switch {

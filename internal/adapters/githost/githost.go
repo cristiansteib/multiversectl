@@ -128,6 +128,23 @@ func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
 
 func (Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "github.com") }
 
+// pullRequest is what `gh pr list --json` says of one.
+type pullRequest struct {
+	Number      int    `json:"number"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	IsDraft     bool   `json:"isDraft"`
+	State       string `json:"state"`
+	BaseRefName string `json:"baseRefName"`
+	// A request from a fork whose branch happens to share the name is not this
+	// branch's.
+	IsCrossRepository bool   `json:"isCrossRepository"`
+	UpdatedAt         string `json:"updatedAt"`
+	Author            struct {
+		Login string `json:"login"`
+	} `json:"author"`
+}
+
 // FindReview asks for the pull requests a branch has had. The open one is the
 // answer when there is one; otherwise the latest that was merged or closed,
 // because a branch whose request has landed is a different thing to look at
@@ -137,35 +154,30 @@ func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review
 		return nil, nil
 	}
 	out, err := gh(ctx, "pr", "list", "--repo", repoURL, "--head", branch, "--state", "all",
-		"--limit", "10", "--json", "number,title,url,isDraft,state,baseRefName,author,updatedAt")
+		"--limit", "10", "--json", "number,title,url,isDraft,state,baseRefName,isCrossRepository,author,updatedAt")
 	if err != nil {
 		return nil, err
 	}
-	var raw []struct {
-		Number      int    `json:"number"`
-		Title       string `json:"title"`
-		URL         string `json:"url"`
-		IsDraft     bool   `json:"isDraft"`
-		State       string `json:"state"`
-		BaseRefName string `json:"baseRefName"`
-		UpdatedAt   string `json:"updatedAt"`
-		Author      struct {
-			Login string `json:"login"`
-		} `json:"author"`
-	}
+	var raw []pullRequest
 	if err := json.Unmarshal([]byte(out), &raw); err != nil {
 		return nil, fmt.Errorf("read the pull request list: %w", err)
 	}
-	if len(raw) == 0 {
-		return nil, nil
-	}
 	// The list is newest first, so without an open one the first is the latest.
-	pick := raw[0]
-	for _, r := range raw {
-		if r.State == "OPEN" {
-			pick = r
+	var pick *pullRequest
+	for i := range raw {
+		if raw[i].IsCrossRepository {
+			continue
+		}
+		if pick == nil {
+			pick = &raw[i]
+		}
+		if raw[i].State == "OPEN" {
+			pick = &raw[i]
 			break
 		}
+	}
+	if pick == nil {
+		return nil, nil
 	}
 	updated, _ := time.Parse(time.RFC3339, pick.UpdatedAt)
 	state := strings.ToLower(pick.State)

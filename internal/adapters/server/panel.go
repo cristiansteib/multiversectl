@@ -82,10 +82,15 @@ func (s *Server) diff(w http.ResponseWriter, r *http.Request) {
 	if scope == "" {
 		scope = "branch"
 	}
+	if scope != "branch" && scope != "uncommitted" {
+		fail(w, http.StatusBadRequest, "scope is branch or uncommitted")
+		return
+	}
+	base := q.Get("base")
 	ctx, cancel := s.ctx(r)
 	defer cancel()
 	if file := q.Get("file"); file != "" {
-		v, err := s.b.Patch(ctx, project, universe, repo, scope, file)
+		v, err := s.b.Patch(ctx, project, universe, repo, scope, base, file)
 		if err != nil {
 			failErr(w, err)
 			return
@@ -93,7 +98,7 @@ func (s *Server) diff(w http.ResponseWriter, r *http.Request) {
 		reply(w, v)
 		return
 	}
-	v, err := s.b.Diff(ctx, project, universe, repo, scope)
+	v, err := s.b.Diff(ctx, project, universe, repo, scope, base)
 	if err != nil {
 		failErr(w, err)
 		return

@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,9 +27,13 @@ type CodeStatus struct {
 	// pushed is its own counterpart: the commits not pushed yet. Change is what
 	// the branch amounts to against Base, which is what a review shows.
 	// Uncommitted is what is edited in the checkout and not committed yet.
-	Work        DiffStat
-	Change      DiffStat
-	Base        string
+	Work   DiffStat
+	Change DiffStat
+	Base   string
+	// BaseUnknown says Base could not be measured against: its ref is not in the
+	// clone (not fetched yet, or gone). An empty Change then means nothing, and
+	// must not be drawn as the branch having no changes.
+	BaseUnknown bool
 	Uncommitted DiffStat
 	// Fetched is when the clone last asked its remote, which is how old every
 	// number here that is measured against a remote can be.
@@ -97,7 +103,7 @@ func (s *Service) refetch(ctx context.Context, st domain.UniverseState) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = s.Git.Fetch(ctx, clone)
+			_ = s.Git.FetchQuietly(ctx, clone)
 		}()
 	}
 	wg.Wait()
@@ -141,6 +147,8 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) 
 	if cs.Base != "" {
 		if d, err := s.Git.DiffStat(ctx, c.Path, cs.Base); err == nil {
 			cs.Change = d
+		} else {
+			cs.BaseUnknown = true
 		}
 	}
 	return cs
@@ -189,38 +197,39 @@ const (
 )
 
 // UniverseDiff lists the files of one repository's change, and names what it
-// is measured against.
-func (s *Service) UniverseDiff(ctx context.Context, name, repo, scope string) (base string, files []FileChange, err error) {
-	path, ref, err := s.diffTarget(ctx, name, repo, scope)
+// is measured against. For the branch scope, base is what the caller was told
+// the change is measured against; asked with none, it is worked out again.
+func (s *Service) UniverseDiff(ctx context.Context, name, repo, scope, base string) (string, []FileChange, error) {
+	path, ref, err := s.diffTarget(ctx, name, repo, scope, base)
 	if err != nil {
 		return "", nil, err
 	}
-	files, err = s.Git.DiffFiles(ctx, path, ref)
+	files, err := s.Git.DiffFiles(ctx, path, ref)
 	return ref, files, err
 }
 
 // UniverseDiffFile is the diff of one file of that list. The file has to be in
-// it: what is read is what the listing showed, not any path a caller names.
-func (s *Service) UniverseDiffFile(ctx context.Context, name, repo, scope, file string, limit int) (patch string, truncated bool, err error) {
-	path, ref, err := s.diffTarget(ctx, name, repo, scope)
+// it — the git adapter refuses a path that is not — so what is read is what the
+// listing showed, not any path a caller names.
+func (s *Service) UniverseDiffFile(ctx context.Context, name, repo, scope, base, file string, limit int) (patch string, truncated bool, err error) {
+	path, ref, err := s.diffTarget(ctx, name, repo, scope, base)
 	if err != nil {
 		return "", false, err
 	}
-	files, err := s.Git.DiffFiles(ctx, path, ref)
-	if err != nil {
-		return "", false, err
-	}
-	for _, f := range files {
-		if f.Path == file {
-			return s.Git.DiffPatch(ctx, path, ref, file, limit)
-		}
-	}
-	return "", false, fmt.Errorf("%s is not in the change: %w", file, domain.ErrNotFound)
+	return s.Git.DiffPatch(ctx, path, ref, file, limit)
+}
+
+// refName is what a branch may be called when it comes from a request: it is
+// put after "origin/" in a revision range, so nothing that makes one is allowed.
+var refName = regexp.MustCompile(`^[A-Za-z0-9._@+/-]+$`)
+
+func validBase(b string) bool {
+	return refName.MatchString(b) && !strings.HasPrefix(b, "-") && !strings.HasPrefix(b, "/") && !strings.Contains(b, "..")
 }
 
 // diffTarget finds the checkout of a repository of the universe, and the ref
 // its change is measured against: none for what is uncommitted.
-func (s *Service) diffTarget(ctx context.Context, name, repo, scope string) (path, ref string, err error) {
+func (s *Service) diffTarget(ctx context.Context, name, repo, scope, base string) (path, ref string, err error) {
 	st, err := s.Resolve(name)
 	if err != nil {
 		return "", "", err
@@ -236,6 +245,15 @@ func (s *Service) diffTarget(ctx context.Context, name, repo, scope string) (pat
 		case ScopeUncommitted:
 			return c.Path, "", nil
 		case ScopeBranch:
+			// The page says what it showed the numbers against, so the files are of
+			// the same change; asking the hosting service again could answer
+			// otherwise, or not at all, and cost a network call per file opened.
+			if base != "" {
+				if !validBase(base) {
+					return "", "", fmt.Errorf("base %q is not a branch name", base)
+				}
+				return c.Path, base, nil
+			}
 			clone := s.Manifest.CloneDir(s.Multiverse, c.Repo)
 			var review *Review
 			if r, ok := s.Manifest.Repos[c.Repo]; ok {
@@ -246,8 +264,8 @@ func (s *Service) diffTarget(ctx context.Context, name, repo, scope string) (pat
 				}
 				review, _ = s.reviewOf(ctx, ready, r.URL, c.Branch)
 			}
-			if base := s.baseOf(ctx, clone, review); base != "" {
-				return c.Path, base, nil
+			if b := s.baseOf(ctx, clone, review); b != "" {
+				return c.Path, b, nil
 			}
 			return "", "", fmt.Errorf("%s has no branch to measure against", repo)
 		default:
