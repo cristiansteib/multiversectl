@@ -75,7 +75,7 @@ func TestAnExampleBesideTheSecretStartsItTheWayTheRepositoryDoes(t *testing.T) {
 	if got := readFile(t, filepath.Join(u.RepoDir("api"), ".env")); got != "TOKEN=change-me\n" {
 		t.Errorf("the universe's .env = %q", got)
 	}
-	if !b.out.said("made from .env.example") || !b.out.said("put your own credentials") {
+	if !b.out.said("made from .env.example") || !b.out.said("put real credentials") {
 		t.Errorf("it must say it used the example: %v", b.out.all)
 	}
 

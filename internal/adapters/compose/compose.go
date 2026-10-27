@@ -70,6 +70,13 @@ func (c *Compose) Exec(ctx context.Context, r app.RuntimeRequest, service string
 	return c.attached().stream(ctx, r, os.Stdin, verb...)
 }
 
+func (c *Compose) ExecQuiet(ctx context.Context, r app.RuntimeRequest, service string, args []string) (string, error) {
+	var out bytes.Buffer
+	quiet := &Compose{stdout: &out, stderr: &out}
+	err := quiet.stream(ctx, r, nil, append([]string{"exec", "-T", service}, args...)...)
+	return out.String(), err
+}
+
 // attached is this adapter with the process's own streams.
 func (c *Compose) attached() *Compose {
 	return &Compose{stdout: os.Stdout, stderr: os.Stderr}

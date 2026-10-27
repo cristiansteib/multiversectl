@@ -252,6 +252,40 @@ spec:
                           universe half-start.
                         items:
                           type: string
+                      setup:
+                        type: array
+                        description: >-
+                          Commands run once in each universe, the first time
+                          this app is started and its services are up: what
+                          a universe needs before it is of any use, such as
+                          loading the data a person logs in with. They are
+                          tried again for a while when one fails, because
+                          the service may still be starting (a database
+                          migrating), and said, not fatal, when they never
+                          succeed: the universe is up, and the command is
+                          shown to run by hand. They are not run again on
+                          later starts, so each should be safe to run twice
+                          anyway.
+                        items:
+                          type: object
+                          description: >-
+                            Step is one command of an app's setup.
+                          required: [command]
+                          properties:
+                            service:
+                              type: string
+                              description: >-
+                                Compose service to run it in. Leave it out
+                                when the app has one service, or names a
+                                defaultService.
+                            command:
+                              type: array
+                              description: >-
+                                The command and its arguments, as compose
+                                writes a command, with no shell: ["python",
+                                "manage.py", "loaddata"].
+                              items:
+                                type: string
                       publish:
                         type: array
                         description: >-
