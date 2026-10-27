@@ -83,8 +83,11 @@ func New(f Factory) (*cobra.Command, *Globals) {
 
 	run = runner{g: g, out: out, f: f}
 	root.CompletionOptions.DisableDefaultCmd = true
+	help := run.helpCmd(root)
+	help.GroupID = groupSetup
+	root.SetHelpCommand(help)
 	root.AddCommand(
-		run.startCmd(), run.helpTreeCmd(root), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.initCmd(), run.systemCmd(), run.completionCmd(root), run.agentsCmd(),
+		run.startCmd(), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.initCmd(), run.systemCmd(), run.completionCmd(root), run.agentsCmd(),
 		run.selfUpdateCmd(), run.versionCmd(), run.updateLookCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("multiverse", run.completeMultiverses)

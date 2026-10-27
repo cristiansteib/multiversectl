@@ -1,46 +1,81 @@
 package cli
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
 
-// helpTreeCmd draws every command there is, nested as it is typed.
+// helpCmd is `help`, which shows one command's help as it always did, and with
+// --tree draws every command there is, nested as it is typed.
 //
 // The help of one command names its children and no further, so the shape of
 // the whole tool — what lives under what, what is a command and what only
 // groups others — is something nobody can see without opening each in turn.
-// This walks the command tree itself, so it is the tree that is installed and
-// cannot disagree with it, and it shows the aliases, which no help screen
+// The tree walks the command tree itself, so it is the tree that is installed
+// and cannot disagree with it, and it shows the aliases, which no help screen
 // puts next to the name they belong to.
-func (r runner) helpTreeCmd(root *cobra.Command) *cobra.Command {
-	var flat bool
+func (r runner) helpCmd(root *cobra.Command) *cobra.Command {
+	var tree, flat bool
 	cmd := &cobra.Command{
-		Use:   "help-tree",
-		Short: "Show every command and subcommand, nested",
-		Long: "Every command, under the command it belongs to, with the aliases it answers\n" +
-			"to in brackets and a line on what it does.",
-		Example: "  multiversectl help-tree\n  multiversectl help-tree --flat     # one full command per line, to grep",
-		Args:    cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			nodes := commandTree(root)
-			if flat {
-				for _, line := range flatten(nodes, "") {
-					r.out.Plain("%s", line)
+		Use:   "help [command]",
+		Short: "Help about any command, or --tree for all of them",
+		Long: "Help about any command. With --tree, every command under the command it\n" +
+			"belongs to, with the aliases it answers to in brackets and a line on what it\n" +
+			"does.",
+		Example: "  multiversectl help universe\n  multiversectl help --tree\n  multiversectl help --flat     # one full command per line, to grep",
+		ValidArgsFunction: func(c *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+			if tree || flat {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			var names []string
+			target, _, _ := c.Root().Find(args)
+			if target == nil {
+				target = c.Root()
+			}
+			for _, k := range target.Commands() {
+				if k.IsAvailableCommand() || k.Name() == "help" {
+					names = append(names, k.Name()+"\t"+k.Short)
 				}
+			}
+			return names, cobra.ShellCompDirectiveNoFileComp
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if tree || flat {
+				if len(args) > 0 {
+					return fmt.Errorf("--tree shows every command; it takes no command name")
+				}
+				r.printTree(root, flat)
 				return nil
 			}
-			r.out.Plain("%s", r.out.Bold(root.Name()))
-			drawTree(r.out, nodes, "")
-			r.out.Plain("")
-			r.out.Info("%d commands", countTree(nodes))
-			return nil
+			target, _, err := root.Find(args)
+			if target == nil || err != nil {
+				cmd.Printf("Unknown help topic %#q\n", args)
+				return root.Usage()
+			}
+			target.InitDefaultHelpFlag()
+			return target.Help()
 		},
 	}
-	cmd.Flags().BoolVar(&flat, "flat", false, "one full command per line instead of a tree, for grep")
+	cmd.Flags().BoolVar(&tree, "tree", false, "every command and subcommand, nested")
+	cmd.Flags().BoolVar(&flat, "flat", false, "with --tree: one full command per line instead of a tree, for grep (implies --tree)")
 	return cmd
+}
+
+func (r runner) printTree(root *cobra.Command, flat bool) {
+	nodes := commandTree(root)
+	if flat {
+		for _, line := range flatten(nodes, "") {
+			r.out.Plain("%s", line)
+		}
+		return
+	}
+	r.out.Plain("%s", r.out.Bold(root.Name()))
+	drawTree(r.out, nodes, "")
+	r.out.Plain("")
+	r.out.Info("%d commands", countTree(nodes))
 }
 
 // treeNode is one command, with what is under it.

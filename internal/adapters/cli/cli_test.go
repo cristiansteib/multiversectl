@@ -360,13 +360,13 @@ func TestHelpTreeShowsEveryCommandWhereItIsTyped(t *testing.T) {
 	root, _ := New(Factory{})
 	var buf bytes.Buffer
 	run := runner{g: &Globals{}, out: NewOutput(&buf, false), f: Factory{}}
-	cmd := run.helpTreeCmd(root)
+	cmd := run.helpCmd(root)
 	cmd.SetContext(context.Background())
 	if err := cmd.Flags().Set("flat", "true"); err != nil {
 		t.Fatal(err)
 	}
 	if err := cmd.RunE(cmd, nil); err != nil {
-		t.Fatalf("help-tree: %v", err)
+		t.Fatalf("help --flat: %v", err)
 	}
 	flat := buf.String()
 
@@ -388,10 +388,13 @@ func TestHelpTreeNestsAndNamesAliases(t *testing.T) {
 	root, _ := New(Factory{})
 	var buf bytes.Buffer
 	run := runner{g: &Globals{}, out: NewOutput(&buf, false), f: Factory{}}
-	cmd := run.helpTreeCmd(root)
+	cmd := run.helpCmd(root)
 	cmd.SetContext(context.Background())
+	if err := cmd.Flags().Set("tree", "true"); err != nil {
+		t.Fatal(err)
+	}
 	if err := cmd.RunE(cmd, nil); err != nil {
-		t.Fatalf("help-tree: %v", err)
+		t.Fatalf("help --tree: %v", err)
 	}
 	out := buf.String()
 	// Aliases, which no help screen puts beside the name they belong to.
