@@ -178,6 +178,10 @@ type Runtime interface {
 	// Exec runs a command inside an already running container, which is what a
 	// database shell or a log tail wants; Run would start a fresh one.
 	Exec(ctx context.Context, r RuntimeRequest, service string, args []string) error
+	// ExecQuiet is Exec for what the tool runs on its own: no terminal, no input,
+	// and what it printed comes back instead of going to the screen, so a try that
+	// fails and is made again says nothing until the last one.
+	ExecQuiet(ctx context.Context, r RuntimeRequest, service string, args []string) (output string, err error)
 	// Restart restarts one service in place, reporting to the runtime's output.
 	Restart(ctx context.Context, r RuntimeRequest, service string) error
 	// Logs writes the last tail lines of one container to w, and with follow

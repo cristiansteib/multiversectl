@@ -88,6 +88,25 @@ func TestDecodeAppliesDefaults(t *testing.T) {
 	}
 }
 
+func TestAnAppSaysWhatToRunOnceItsUniverseFirstStarts(t *testing.T) {
+	m, err := Decode([]byte(strings.Replace(minimal, "      compose: [docker-compose.yml]\n", "      compose: [docker-compose.yml]\n      services: [web]\n      setup:\n        - service: web\n          command: [python, manage.py, createfixture]\n", 1)), "/ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := m.Apps["api"].Setup
+	if len(got) != 1 || got[0].Service != "web" || strings.Join(got[0].Command, " ") != "python manage.py createfixture" {
+		t.Errorf("setup = %+v", got)
+	}
+	for name, bad := range map[string]string{
+		"no command":      "      services: [web]\n      setup:\n        - service: web\n",
+		"unknown service": "      services: [web]\n      setup:\n        - service: db\n          command: [psql]\n",
+	} {
+		if _, err := Decode([]byte(strings.Replace(minimal, "      compose: [docker-compose.yml]\n", "      compose: [docker-compose.yml]\n"+bad, 1)), "/ws"); err == nil {
+			t.Errorf("%s: a bad setup was accepted", name)
+		}
+	}
+}
+
 func TestDecodeExample(t *testing.T) {
 	m, err := Load(filepath.Join("..", "..", "..", "examples", "multiverse.yaml"))
 	if err != nil {

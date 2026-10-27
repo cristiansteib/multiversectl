@@ -191,6 +191,15 @@ type App struct {
 	// one is missing, rather than letting the universe half-start.
 	Secrets []string `yaml:"secrets"`
 
+	// Commands run once in each universe, the first time this app is started
+	// and its services are up: what a universe needs before it is of any use,
+	// such as loading the data a person logs in with. They are tried again for
+	// a while when one fails, because the service may still be starting (a
+	// database migrating), and said, not fatal, when they never succeed: the
+	// universe is up, and the command is shown to run by hand. They are not run
+	// again on later starts, so each should be safe to run twice anyway.
+	Setup []Step `yaml:"setup"`
+
 	// Services allowed to keep their published host ports. Every other
 	// service's ports are dropped, because a universe is reached through the
 	// proxy and published ports are what make two copies collide. A service can
@@ -217,6 +226,18 @@ type App struct {
 	// port is reached at the app's own name with no configuration at all.
 	// Declaring hosts here wins over both.
 	Hosts []Host `yaml:"hosts"`
+}
+
+// Step is one command of an app's setup.
+type Step struct {
+	// Compose service to run it in. Leave it out when the app has one service, or
+	// names a defaultService.
+	Service string `yaml:"service"`
+
+	// The command and its arguments, as compose writes a command, with no shell:
+	// ["python", "manage.py", "loaddata"].
+	// +required
+	Command []string `yaml:"command"`
 }
 
 type Optional struct {

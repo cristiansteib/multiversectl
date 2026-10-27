@@ -116,6 +116,9 @@ func convertApp(a App) (domain.App, error) {
 		Optional:       map[string][]string{},
 		Hosts:          map[string]domain.HostRule{},
 	}
+	for _, step := range a.Setup {
+		app.Setup = append(app.Setup, domain.SetupStep{Service: step.Service, Command: step.Command})
+	}
 	if !a.Overlay.IsZero() {
 		// Rendered here, in the format adapter, so neither the domain nor the
 		// use cases need to know what YAML is.

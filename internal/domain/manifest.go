@@ -114,14 +114,22 @@ type App struct {
 	// DefaultService is where exec and run go when no service is named and the
 	// app has several.
 	DefaultService string
-	Overlay        []byte // inline compose fragment, rendered by the manifest adapter
-	Build          bool   // build images before starting
-	Hosts          map[string]HostRule
+	// Setup is run once in each universe, after the app first starts.
+	Setup   []SetupStep
+	Overlay []byte // inline compose fragment, rendered by the manifest adapter
+	Build   bool   // build images before starting
+	Hosts   map[string]HostRule
 
 	// Derived marks an app no one declared: one repository, everything by
 	// convention. Such an app may turn out to have no compose file at all,
 	// which is a repository with nothing to run rather than a mistake.
 	Derived bool
+}
+
+// SetupStep is one command run in a service of an app's universe.
+type SetupStep struct {
+	Service string // empty: the app's only service, or its defaultService
+	Command []string
 }
 
 // HostRule routes one hostname to one service port through the proxy.
@@ -175,6 +183,14 @@ func (m *Manifest) Validate() error {
 		}
 		if app.DefaultService != "" && len(app.Services) > 0 && !slices.Contains(app.Services, app.DefaultService) {
 			errs = append(errs, fmt.Sprintf("apps.%s.defaultService: %q is not one of its services (%s)", key, app.DefaultService, strings.Join(app.Services, ", ")))
+		}
+		for i, step := range app.Setup {
+			if len(step.Command) == 0 {
+				errs = append(errs, fmt.Sprintf("apps.%s.setup[%d].command: required", key, i))
+			}
+			if step.Service != "" && len(app.Services) > 0 && !slices.Contains(app.Services, step.Service) {
+				errs = append(errs, fmt.Sprintf("apps.%s.setup[%d].service: %q is not one of its services (%s)", key, i, step.Service, strings.Join(app.Services, ", ")))
+			}
 		}
 		for hostKey, rule := range app.Hosts {
 			if !nameRe.MatchString(hostKey) {

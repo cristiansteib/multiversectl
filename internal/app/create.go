@@ -549,7 +549,10 @@ func (s *Service) provideSecret(appKey, src, dst string) (found bool, err error)
 		if err := s.Files.CopyFile(example, src); err != nil {
 			return false, err
 		}
-		s.Out.Warn("%s: there was no `%s`, so it was made from %s: put your own credentials in it, and every universe copies it from there", appKey, src, filepath.Base(example))
+		// A note, not a warning: a repository that ships an example meant for a
+		// local run has nothing wrong with it, and a "!" says somebody must go and
+		// edit it before it works.
+		s.Out.Info("%s: there was no `%s`, so it was made from %s, which is what a local universe runs on; put real credentials in it where something needs them, and every universe copies it from there", appKey, src, filepath.Base(example))
 	}
 	if err := s.Files.CopyFile(src, dst); err != nil {
 		return false, err

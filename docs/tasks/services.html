@@ -109,6 +109,16 @@
   <p class="muted"><code>--service</code> still wins. When the app lists <code>services</code>, the default must be one of them.</p>
 </section>
 
+<section id="hw-setup">
+  <h2 id="hw-setup"><a href="#hw-setup">Give a new universe what it needs to be used</a></h2>
+  <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with. Say what to run once, and it runs the first time the app starts in each universe, when its services are up:</p>
+  <div class="code"><pre><span class="c"># .multiverse.yaml, on the app</span>
+<span class="k">setup</span>:
+  - <span class="k">service</span>: web
+    <span class="k">command</span>: [python, manage.py, createfixture]</pre></div>
+  <p class="muted">It is tried again for a few minutes if it fails, because the service may still be starting (a database migrating under it). If it never succeeds the universe stays up, and the output says how to run it by hand; it is tried again on the next start. It is not run on later starts, so it never loads over what you changed, and should be safe to run twice anyway. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>.</p>
+</section>
+
 <section id="hw-optional">
   <h2 id="hw-optional"><a href="#hw-optional">Run optional services on demand</a></h2>
   <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
@@ -152,6 +162,7 @@
       <li><a href="#hw-labels">Let a service declare its own hostname</a></li>
       <li><a href="#hw-publish">Keep a service&#39;s published port</a></li>
       <li><a href="#hw-default-service">Choose where exec and run go</a></li>
+      <li><a href="#hw-setup">Give a new universe what it needs to be used</a></li>
       <li><a href="#hw-optional">Run optional services on demand</a></li>
       <li><a href="#hw-dynamic">Configure what depends on the universe</a></li>
     </ul>

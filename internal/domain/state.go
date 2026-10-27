@@ -57,7 +57,11 @@ type UniverseState struct {
 	// which is what someone finding it a week later wants to open first.
 	PR       string `yaml:"pr,omitempty"`
 	Manifest string `yaml:"manifest,omitempty"`
-	Version  string `yaml:"version,omitempty"`
+	// SetupDone are the apps whose setup has run in this universe, which is
+	// done once: running it again on every start would load the same data over
+	// whatever was changed since.
+	SetupDone []string `yaml:"setupDone,omitempty"`
+	Version   string   `yaml:"version,omitempty"`
 }
 
 // Universe rebuilds the identity this state belongs to.
