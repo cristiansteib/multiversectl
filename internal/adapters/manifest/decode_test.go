@@ -80,9 +80,6 @@ func TestDecodeAppliesDefaults(t *testing.T) {
 	if m.Dir != "/ws" || m.Domain != "auto" || m.Proxy.Kind != "traefik" || m.Proxy.Network != "multiversenet" {
 		t.Errorf("manifest defaults not applied: %+v", m)
 	}
-	if got := m.Repos["api"].Runtime; got != domain.RuntimeCompose {
-		t.Errorf("repo runtime = %q, want compose", got)
-	}
 	if got := m.Proxy.Entrypoints["web"]; got != 80 {
 		t.Errorf("default web entrypoint = %d, want 80", got)
 	}
@@ -96,7 +93,7 @@ func TestDecodeExample(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.Name != "acme" || len(m.Repos) != 4 || len(m.Apps) != 3 {
+	if m.Name != "acme" || len(m.Repos) != 4 || len(m.Apps) != 4 {
 		t.Errorf("unexpected example: name=%s repos=%d apps=%d", m.Name, len(m.Repos), len(m.Apps))
 	}
 	if got := m.Apps["api"].Hosts["devapi"].AlsoMatch; len(got) != 2 {
@@ -134,8 +131,9 @@ func TestLocate(t *testing.T) {
 	}
 }
 
-// A repository that runs something and that no app names gets an app of its
-// own, so the manifest no longer has to repeat the repository's name twice.
+// A repository that no app names gets an app of its own, so the manifest no
+// longer has to repeat the repository's name twice. Whether there is anything
+// to run is for the files on disk to say, not the manifest.
 func TestRepoWithoutAnAppGetsOne(t *testing.T) {
 	m := decodeOrFail(t, `
 apiVersion: multiverse/v1alpha1
@@ -149,7 +147,6 @@ spec:
       url: git@github.com:acme/worker.git
     - name: notes
       url: git@github.com:acme/notes.git
-      runtime: none
     - name: mono
       url: git@github.com:acme/mono.git
   apps:
@@ -162,8 +159,8 @@ spec:
 	if !ok || app.Repo != "worker" || !app.Derived {
 		t.Fatalf("worker: got %+v, %v", app, ok)
 	}
-	if _, ok := m.Apps["notes"]; ok {
-		t.Error("a repository with runtime none must stay unrunnable")
+	if app, ok := m.Apps["notes"]; !ok || !app.Derived {
+		t.Error("every repository gets an app; one with no compose file is skipped when acted on")
 	}
 	// mono is already named by two apps, so it does not get a third.
 	if _, ok := m.Apps["mono"]; ok {
@@ -206,7 +203,7 @@ func TestWriterOutputLoadsBack(t *testing.T) {
 		Repos: []app.DraftRepo{
 			{Key: "api", URL: "https://example.test/acme/acme-api.git", Dir: "acme-api"},
 			{Key: "web", URL: "git@example.test:acme/web.git", Dir: "web"},
-			{Key: "docs", URL: "https://example.test/acme/docs.git", Dir: "docs", NoRuntime: true},
+			{Key: "docs", URL: "https://example.test/acme/docs.git", Dir: "docs"},
 		},
 	})
 	if err != nil {
@@ -219,7 +216,54 @@ func TestWriterOutputLoadsBack(t *testing.T) {
 	if m.Name != "acme" || len(m.Repos) != 3 || m.Repos["api"].Dir != "acme-api" {
 		t.Errorf("round trip lost something: %+v\n%s", m, data)
 	}
-	if got := strings.Join(m.RunnableApps(), ","); got != "api,web" {
-		t.Errorf("runnable apps = %s, want api,web (docs has no runtime)", got)
+	if got := strings.Join(m.RunnableApps(), ","); got != "api,docs,web" {
+		t.Errorf("runnable apps = %s, want api,docs,web", got)
+	}
+	if strings.Contains(string(data), "dir:") {
+		t.Errorf("a directory is written only when it differs from the repository's own name:\n%s", data)
+	}
+}
+
+// A repository is cloned under its own name, as git would, unless the manifest
+// says otherwise; the key it is known by in the manifest does not decide that.
+func TestARepositoryIsClonedUnderItsOwnName(t *testing.T) {
+	m := decodeOrFail(t, `
+apiVersion: multiverse/v1alpha1
+kind: Multiverse
+metadata:
+  name: acme
+spec:
+  repos:
+    - {name: api, url: "https://github.com/acme/acme-api.git"}
+    - {name: ui, url: "git@github.com:acme/acme-ui"}
+    - {name: skills, url: "https://github.com/acme/.skills.git"}
+    - {name: odd, url: "https://github.com/acme/other.git", dir: elsewhere}
+`)
+	for key, want := range map[string]string{"api": "acme-api", "ui": "acme-ui", "skills": ".skills", "odd": "elsewhere"} {
+		if got := m.Repos[key].Dir; got != want {
+			t.Errorf("%s is cloned into %q, want %q", key, got, want)
+		}
+	}
+}
+
+func TestAManifestHostCanAskForAPortForward(t *testing.T) {
+	m := decodeOrFail(t, `
+apiVersion: multiverse/v1alpha1
+kind: Multiverse
+metadata:
+  name: acme
+spec:
+  repos:
+    - {name: api, url: "https://github.com/acme/api.git"}
+  apps:
+    - name: api
+      repo: api
+      hosts:
+        - {name: api, service: web, port: 8000, portForward: auto}
+        - {name: docs, service: web, port: 8001}
+`)
+	hosts := m.Apps["api"].Hosts
+	if hosts["api"].PortForward != "auto" || hosts["docs"].PortForward != "" {
+		t.Errorf("hosts = %+v", hosts)
 	}
 }

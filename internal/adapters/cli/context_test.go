@@ -11,7 +11,7 @@ import (
 func TestTheBriefViewKeepsWhatAnAgentNeedsAndDropsTheRest(t *testing.T) {
 	ctx := app.ProjectContext{
 		Name: "acme", Root: "/r", Manifest: "/r/m.yaml", UniversesDir: "/r/universes",
-		Repos: []app.RepoContext{{Key: "api", Path: "/r/api", URL: "git@example.test:acme/api.git", Runtime: "compose"}},
+		Repos: []app.RepoContext{{Key: "api", Path: "/r/api", URL: "git@example.test:acme/api.git"}},
 	}
 	list := []app.Summary{{
 		Name: "3", Dir: "/r/universes/3", Running: 1,

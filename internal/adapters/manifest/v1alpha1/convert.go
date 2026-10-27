@@ -53,9 +53,8 @@ func Convert(w *Multiverse, dir string) (*domain.Manifest, error) {
 	}
 	for i, r := range s.Repos {
 		err := put(m.Repos, "spec.repos", i, r.Name, domain.Repo{
-			URL:     r.URL,
-			Dir:     r.Dir,
-			Runtime: domain.Runtime(orDefault(r.Runtime, string(domain.RuntimeCompose))),
+			URL: r.URL,
+			Dir: orDefault(r.Dir, domain.DirFor(r.URL, r.Name)),
 		})
 		if err != nil {
 			return nil, err
@@ -70,15 +69,15 @@ func Convert(w *Multiverse, dir string) (*domain.Manifest, error) {
 			return nil, err
 		}
 	}
-	// A repository that runs something and that no app names gets an app of
-	// its own name. Writing `- name: x / repo: x` said nothing the repository
-	// had not already said.
+	// A repository that no app names gets an app of its own name, which is
+	// skipped when the repository has no compose file. Writing
+	// `- name: x / repo: x` said nothing the repository had not already said.
 	named := map[string]bool{}
 	for _, a := range m.Apps {
 		named[a.Repo] = true
 	}
-	for key, repo := range m.Repos {
-		if repo.Runtime != domain.RuntimeCompose || named[key] {
+	for key := range m.Repos {
+		if named[key] {
 			continue
 		}
 		if _, clash := m.Apps[key]; clash {
@@ -112,7 +111,6 @@ func convertApp(a App) (domain.App, error) {
 		Services:       a.Services,
 		Secrets:        a.Secrets,
 		Publish:        a.Publish,
-		PortForward:    a.PortForward,
 		Build:          a.Build,
 		DefaultService: a.DefaultService,
 		Optional:       map[string][]string{},
@@ -134,10 +132,11 @@ func convertApp(a App) (domain.App, error) {
 	}
 	for i, h := range a.Hosts {
 		err := put(app.Hosts, "hosts", i, h.Name, domain.HostRule{
-			Service:    h.Service,
-			Port:       h.Port,
-			Entrypoint: orDefault(h.Entrypoint, defaultEntrypoint),
-			AlsoMatch:  h.AlsoMatch,
+			Service:     h.Service,
+			Port:        h.Port,
+			Entrypoint:  orDefault(h.Entrypoint, defaultEntrypoint),
+			AlsoMatch:   h.AlsoMatch,
+			PortForward: h.PortForward,
 		})
 		if err != nil {
 			return app, err

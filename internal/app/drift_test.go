@@ -124,7 +124,7 @@ func TestContextSaysWhereTheProjectAndItsPiecesAre(t *testing.T) {
 	e.Source.Ref = "main"
 	r.cfg.c.Multiverses["acme"] = e
 	m := r.loader[e.Manifest]
-	m.Repos = map[string]domain.Repo{"api": {URL: "https://github.com/acme/api.git"}, "docs": {Runtime: domain.RuntimeNone, Dir: "acme-docs"}}
+	m.Repos = map[string]domain.Repo{"api": {URL: "https://github.com/acme/api.git"}, "docs": {Dir: "acme-docs"}}
 
 	svc := app.New(app.Deps{Config: r.cfg}, root, m, "test")
 	c := svc.Context()
@@ -137,8 +137,7 @@ func TestContextSaysWhereTheProjectAndItsPiecesAre(t *testing.T) {
 	if c.UniversesDir != filepath.Join(root, "universes") || c.Config != "/cfg/config.yaml" {
 		t.Errorf("places: %q %q", c.UniversesDir, c.Config)
 	}
-	if len(c.Repos) != 2 || c.Repos[0].Key != "api" || c.Repos[0].Runtime != "compose" ||
-		c.Repos[1].Path != filepath.Join(root, "acme-docs") || c.Repos[1].Runtime != "none" {
+	if len(c.Repos) != 2 || c.Repos[0].Key != "api" || c.Repos[1].Path != filepath.Join(root, "acme-docs") {
 		t.Errorf("repos: %+v", c.Repos)
 	}
 }

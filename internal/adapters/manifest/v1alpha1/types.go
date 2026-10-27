@@ -143,15 +143,12 @@ type Repo struct {
 	// +required
 	URL string `yaml:"url"`
 
-	// Clone directory name under the root. Defaults to the repository's name;
-	// set it when the directory on disk does not match the key you want.
+	// Clone directory name under the root. Defaults to the repository's own
+	// name, as git would clone it (fichero-api for .../fichero-api.git), so it
+	// is rarely needed; set it when the directory on disk is called otherwise.
+	// A repository with no compose file is still checked out into every
+	// universe for editing, and nothing starts for it.
 	Dir string `yaml:"dir"`
-
-	// "none" for a repository with no services — it is still checked out into
-	// every universe for editing, but nothing starts.
-	// +default=compose
-	// +enum=compose;none
-	Runtime string `yaml:"runtime"`
 }
 
 type App struct {
@@ -220,13 +217,6 @@ type App struct {
 	// port is reached at the app's own name with no configuration at all.
 	// Declaring hosts here wins over both.
 	Hosts []Host `yaml:"hosts"`
-
-	// Host keys that are also published on a free host port, so a client that
-	// refuses plain http to a hostname (an iPhone app) can call
-	// http://<this machine's address>:<port>. The port is chosen once and kept;
-	// `universe ls` shows the address as <host>:forward. Works with hosts from
-	// labels too, so the repository's own labels need not be repeated here.
-	PortForward []string `yaml:"portForward"`
 }
 
 type Optional struct {
@@ -259,6 +249,14 @@ type Host struct {
 	// Other host keys routed to this same service. Used when one service must
 	// answer on a second entrypoint under the front-ends' hostnames.
 	AlsoMatch []string `yaml:"alsoMatch"`
+
+	// "auto" also publishes the host on a free host port, so a client that
+	// refuses plain http to a hostname (an iPhone app) can call
+	// http://<this machine's address>:<port>. The port is chosen once and kept;
+	// `universe ls` shows the address as <host>:forward. A host that comes from
+	// a compose label asks for the same with dev.multiversectl.host.<name>.portForward.
+	// +enum=auto
+	PortForward string `yaml:"portForward"`
 }
 
 type EnvVar struct {

@@ -14,7 +14,7 @@ spec:
   repos:
     - {name: api, url: "https://example.test/acme/api.git"}
     - {name: ui, url: "https://example.test/acme/ui.git"}
-    - {name: docs, url: "https://example.test/acme/docs.git", runtime: none}
+    - {name: docs, url: "https://example.test/acme/docs.git"}
 `
 
 func part(body string) string {

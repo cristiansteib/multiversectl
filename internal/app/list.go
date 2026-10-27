@@ -304,9 +304,6 @@ func (s *Service) serviceStates(ctx context.Context, u domain.Universe, st domai
 // definedServices asks the runtime which services the app's files define,
 // with every optional group active so a profile hides nothing.
 func (s *Service) definedServices(ctx context.Context, u domain.Universe, st domain.UniverseState, appKey string, groups []string) []string {
-	if s.Manifest.Repos[s.Manifest.Apps[appKey].Repo].Runtime != domain.RuntimeCompose {
-		return nil
-	}
 	if s.NothingToRun(u, appKey) {
 		return nil
 	}

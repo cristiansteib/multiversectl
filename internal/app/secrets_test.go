@@ -14,7 +14,9 @@ import (
 func secretBench(t *testing.T) (*bench, domain.Universe) {
 	t.Helper()
 	b := newBench(t)
-	b.svc.Manifest.Apps = map[string]domain.App{"api": {Repo: "api", Secrets: []string{".env"}}}
+	b.svc.Manifest.Apps = map[string]domain.App{"api": {Repo: "api", Secrets: []string{".env"},
+		// Declared, so creating the universe does not ask the runtime what the app answers on.
+		Hosts: map[string]domain.HostRule{"api": {Service: "web", Port: 80}}}}
 	if _, err := b.create(app.CreateInput{}); err != nil {
 		t.Fatal(err)
 	}

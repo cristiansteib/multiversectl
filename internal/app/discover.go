@@ -130,7 +130,7 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			for hostKey, rule := range app.Hosts {
 				if err := add(hostKey, domain.RouteRule{
 					App: appKey, Service: rule.Service, Port: rule.Port,
-					Entrypoint: rule.Entrypoint, Aliases: rule.AlsoMatch,
+					Entrypoint: rule.Entrypoint, Aliases: rule.AlsoMatch, PortForward: rule.PortForward,
 				}); err != nil {
 					return nil, err
 				}
@@ -166,32 +166,7 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			return nil, err
 		}
 	}
-	for _, appKey := range s.Manifest.RunnableApps() {
-		for _, hostKey := range s.Manifest.Apps[appKey].PortForward {
-			rule, ok := rules[hostKey]
-			if !ok || rule.App != appKey {
-				return nil, fmt.Errorf("apps.%s.portForward: %q is not one of its hosts (%s)", appKey, hostKey, hostsOf(rules, appKey))
-			}
-			rule.PortForward = domain.PortForwardAuto
-			rules[hostKey] = rule
-		}
-	}
 	return rules, nil
-}
-
-// hostsOf names an app's hosts for an error message.
-func hostsOf(rules map[string]domain.RouteRule, appKey string) string {
-	var keys []string
-	for hostKey, rule := range rules {
-		if rule.App == appKey {
-			keys = append(keys, hostKey)
-		}
-	}
-	sort.Strings(keys)
-	if len(keys) == 0 {
-		return "none"
-	}
-	return strings.Join(keys, ", ")
 }
 
 // soleExposedPort is the no-configuration case: exactly one service exposing

@@ -204,7 +204,7 @@ func (s Services) Multiverse(ctx context.Context, name string) (multiverseView, 
 	for _, key := range sortedKeys(m.Repos) {
 		r := m.Repos[key]
 		f := fresh[key]
-		v.Repos = append(v.Repos, repoView{Follows: f.Follows, Behind: f.Behind, Ahead: f.Ahead, Dirty: f.Dirty, Key: key, Clone: m.CloneDir(w.Root, key), Loc: locOf(domain.Locate(r.URL, "")), URL: r.URL, Dir: r.Dir, Runtime: string(r.Runtime),
+		v.Repos = append(v.Repos, repoView{Follows: f.Follows, Behind: f.Behind, Ahead: f.Ahead, Dirty: f.Dirty, Key: key, Clone: m.CloneDir(w.Root, key), Loc: locOf(domain.Locate(r.URL, "")), URL: r.URL, Dir: r.Dir,
 			Cloned: svc.Files.Exists(m.CloneDir(w.Root, key))})
 	}
 	for _, key := range sortedKeys(m.Apps) {

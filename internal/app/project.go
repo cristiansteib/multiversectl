@@ -244,11 +244,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 		width = max(width, len(r.Key))
 	}
 	for _, r := range draft.Repos {
-		note := ""
-		if r.NoRuntime {
-			note = "  (no compose file: checkout only)"
-		}
-		c.Out.Plain("  %-*s `%s`%s", width, r.Key, r.URL, note)
+		c.Out.Plain("  %-*s `%s`", width, r.Key, r.URL)
 	}
 	c.Out.Plain("  repository:    %s", target.describe())
 	if ok, err := c.confirm(target.question(dir), true); err != nil {
@@ -360,7 +356,6 @@ func (c *Catalogs) draft(project, base string, p *picks) (ProjectDraft, string) 
 			if err == nil {
 				r.Dir, root = filepath.ToSlash(rel), base
 			}
-			r.NoRuntime = !pk.co.Compose
 		}
 		d.Repos = append(d.Repos, r)
 	}
