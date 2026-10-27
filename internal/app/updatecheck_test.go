@@ -10,18 +10,6 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-const notes = `## [0.0.42](https://github.com/acme/tool/compare/v0.0.41...v0.0.42) (2026-10-27)
-
-### Features
-
-* **cli:** a thing ([#40](https://github.com/acme/tool/issues/40)) ([1a2b3c4](https://github.com/acme/tool/commit/1a2b3c4))
-
-### Bug Fixes
-
-* a repository with only a compose file runs as itself ([#44](https://github.com/acme/tool/issues/44)) ([8f2a2aa](https://github.com/acme/tool/commit/8f2a2aa))
-* **ui:** the page parses ([#49](https://github.com/acme/tool/issues/49)) ([d5c309f](https://github.com/acme/tool/commit/d5c309f))
-`
-
 type recentReleases struct {
 	fakeReleases
 	rels []app.Release
@@ -37,13 +25,13 @@ func TestWhatABuildHasMissedIsCountedFromTheReleasesAfterIt(t *testing.T) {
 		{Version: "v0.0.41", Fixes: []string{"old"}},
 	}}
 	n, ok := rec.Notice("v0.0.41")
-	if !ok || n.Latest != "v0.0.43" || n.Releases != 2 || n.Fixes != 4 || n.Changes != 1 || len(n.Highlights) != 4 || n.Highlights[0] != "c" {
+	if !ok || n.Latest != "v0.0.43" || n.Fixes != 4 || n.Changes != 1 || len(n.Highlights) != 4 || n.Highlights[0] != "c" {
 		t.Fatalf("got %+v %v", n, ok)
 	}
 	if n.More {
 		t.Error("v0.0.41 is in the list, so the count is whole")
 	}
-	if n, _ := rec.Notice("v0.0.30"); !n.More || n.Releases != 3 {
+	if n, _ := rec.Notice("v0.0.30"); !n.More || n.Fixes != 5 {
 		t.Errorf("older than anything listed: %+v", n)
 	}
 	if _, ok := rec.Notice("v0.0.43"); ok {
@@ -62,9 +50,9 @@ func TestOnlyAReleaseIsToldToUpdate(t *testing.T) {
 	}
 }
 
-func TestALookIsKeptForTheNextCommandAndReadAsFixesWithoutLinks(t *testing.T) {
+func TestALookIsKeptForTheNextCommand(t *testing.T) {
 	store := updatecache.At(t.TempDir() + "/update.json")
-	rels := recentReleases{rels: []app.Release{{Version: "v0.0.42", Notes: notes}}}
+	rels := recentReleases{rels: []app.Release{{Version: "v0.0.42", Fixes: []string{"a repository with only a compose file runs as itself", "the page parses"}, Changes: 1}}}
 	svc := app.New(app.Deps{Releases: rels, Updates: store}, t.TempDir(), nil, "v0.0.41")
 
 	now := time.Now()
@@ -87,7 +75,7 @@ func TestALookIsKeptForTheNextCommandAndReadAsFixesWithoutLinks(t *testing.T) {
 
 func TestAFailedLookIsStillALookAndKeepsWhatWasFound(t *testing.T) {
 	store := updatecache.At(t.TempDir() + "/update.json")
-	svc := app.New(app.Deps{Releases: recentReleases{rels: []app.Release{{Version: "v0.0.42", Notes: notes}}}, Updates: store}, t.TempDir(), nil, "v0.0.41")
+	svc := app.New(app.Deps{Releases: recentReleases{rels: []app.Release{{Version: "v0.0.42", Fixes: []string{"a fix"}}}}, Updates: store}, t.TempDir(), nil, "v0.0.41")
 	first := time.Now()
 	if _, err := svc.CheckForUpdate(context.Background(), first); err != nil {
 		t.Fatal(err)
@@ -104,5 +92,18 @@ func TestAFailedLookIsStillALookAndKeepsWhatWasFound(t *testing.T) {
 	}
 	if _, ok := rec.Notice("v0.0.41"); !ok {
 		t.Error("the earlier finding was lost")
+	}
+}
+
+// Where nothing can be kept the throttle cannot hold, and a look that no
+// command can remember is a look made on every command.
+func TestNoLookIsClaimedWhereNothingCanBeKept(t *testing.T) {
+	svc := app.New(app.Deps{Releases: recentReleases{}}, t.TempDir(), nil, "v0.0.41")
+	if svc.ClaimUpdateLook(time.Now()) {
+		t.Error("claimed with nowhere to keep the claim")
+	}
+	kept := app.New(app.Deps{Releases: recentReleases{}, Updates: updatecache.At(t.TempDir() + "/u.json")}, t.TempDir(), nil, "v0.0.41")
+	if !kept.ClaimUpdateLook(time.Now()) {
+		t.Error("the claim was not kept")
 	}
 }

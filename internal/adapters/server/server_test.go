@@ -123,10 +123,10 @@ func (f *fake) Logs(ctx context.Context, ws, u, appKey, service string, tail int
 	return nil
 }
 func (f *fake) System(context.Context) (systemView, error) { return f.system, f.err }
-func (f *fake) Update(_ context.Context, look bool) (updateView, error) {
+func (f *fake) Update(_ context.Context, mode lookMode) (updateView, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.looked = f.looked || look
+	f.looked = f.looked || mode == lookNow
 	return f.update, nil
 }
 func (f *fake) NextFree(_ context.Context, ws string) (nextView, error) {
@@ -935,10 +935,16 @@ func TestAPageIsToldOfANewerReleaseAndTheServerKeepsLooking(t *testing.T) {
 		}
 		break
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if !f.looked {
-		t.Error("the server never asked for a new look")
+	for deadline := time.Now().Add(2 * time.Second); ; time.Sleep(5 * time.Millisecond) {
+		f.mu.Lock()
+		looked := f.looked
+		f.mu.Unlock()
+		if looked {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the server never asked for a new look")
+		}
 	}
 }
 
@@ -961,5 +967,28 @@ func TestTheDiffOfAChangeIsReadOnlyAndFollowsWhatIsAsked(t *testing.T) {
 	}
 	if rec := do(t, h, "GET", "/api/universe/diff?multiverse=acme&universe=3&repo=api&scope=bogus", "", nil); rec.Code != http.StatusBadRequest {
 		t.Errorf("a scope that is neither: %d", rec.Code)
+	}
+}
+
+// The opt-out keeps the command line from talking to GitHub on its own, and the
+// web view is no different; a build from source has no release to be behind.
+func TestTheServerDoesNotLookWhereTheOptOutIsSetOrForADevBuild(t *testing.T) {
+	for name, tc := range map[string]struct {
+		version string
+		optOut  bool
+	}{"opted out": {"v1.0.0", true}, "dev build": {"dev", false}} {
+		t.Run(name, func(t *testing.T) {
+			if tc.optOut {
+				t.Setenv(app.UpdateOptOutEnv, "1")
+			}
+			f := &fake{}
+			serve(t, f, Options{Version: tc.version, UpdateEvery: 5 * time.Millisecond})
+			time.Sleep(60 * time.Millisecond)
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if f.looked {
+				t.Error("it looked")
+			}
+		})
 	}
 }

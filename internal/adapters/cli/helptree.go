@@ -73,7 +73,7 @@ func (r runner) printTree(root *cobra.Command, flat bool) {
 		return
 	}
 	r.out.Plain("%s", r.out.Bold(root.Name()))
-	drawTree(r.out, nodes, "")
+	drawTree(r.out, nodes)
 	r.out.Plain("")
 	r.out.Info("%d commands", countTree(nodes))
 }
@@ -132,7 +132,7 @@ func (r treeRow) width() int {
 	return len([]rune(r.prefix + r.branch + r.name + r.aliases))
 }
 
-func drawTree(o *Output, nodes []treeNode, _ string) {
+func drawTree(o *Output, nodes []treeNode) {
 	rows := treeRows(nodes, "")
 	// One column for every description, not one per level: a tree whose
 	// descriptions step in and out is a tree that is hard to read down.
@@ -144,7 +144,7 @@ func drawTree(o *Output, nodes []treeNode, _ string) {
 	}
 	for _, r := range rows {
 		pad := strings.Repeat(" ", col-r.width())
-		o.Plain("%s%s%s%s%s  %s", o.Dim(r.prefix+r.branch), o.Bold(r.name), o.Dim(r.aliases), pad, "", r.short)
+		o.Plain("%s%s%s%s  %s", o.Dim(r.prefix+r.branch), o.Bold(r.name), o.Dim(r.aliases), pad, r.short)
 	}
 }
 

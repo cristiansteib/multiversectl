@@ -442,7 +442,7 @@ const codeWatch = self.IntersectionObserver ? new IntersectionObserver((seen, ob
 
 // The ones on the page, and in a tab somebody is looking at, are read again.
 setInterval(() => {
-  if (document.visibilityState !== 'visible') return;
+  if (document.hidden) return;
   const seen = new Set();
   if (diffPage) { seen.add(diffPage.key); loadCode(diffPage.key, true); }
   for (const sec of document.querySelectorAll('.code')) {
@@ -867,9 +867,9 @@ const PR_STATES = {
 function reviewOf(r) {
   const v = r.review;
   if (v && /^https?:\/\//.test(v.url)) {
-    const state = PR_STATES[v.state] || PR_STATES[v.draft ? 'draft' : 'open'];
+    const state = PR_STATES[v.state] || PR_STATES.open;
     const kind = v.mark === '!' ? 'merge request' : 'pull request';
-    return h('a', { class: 'chip pr ' + (v.state || (v.draft ? 'draft' : 'open')), href: v.url, target: '_blank', rel: 'noopener noreferrer',
+    return h('a', { class: 'chip pr ' + (v.state || 'open'), href: v.url, target: '_blank', rel: 'noopener noreferrer',
       title: [state.word + ' ' + kind, v.title, v.author && 'opened by ' + v.author, v.updated && 'moved ' + ago(v.updated)].filter(Boolean).join(' · ') },
       svg(state.icon, 'pricon'), h('b', null, v.mark + v.number),
       h('span', { class: 'prstate' }, state.label),
@@ -1277,7 +1277,8 @@ function showUpdate() {
   if (!n) { el.hidden = true; el.replaceChildren(); return; }
   const count = (k, one, many) => k + (n.more ? '+' : '') + ' ' + (k === 1 && !n.more ? one : many);
   const brings = n.fixes ? count(n.fixes, 'fix', 'fixes') : n.changes ? count(n.changes, 'change', 'changes') : '';
-  const more = n.fixes - (n.highlights || []).length;
+  const hl = n.highlights || [];
+  const more = n.fixes - hl.length;
   const andMore = more > 0 ? 'and ' + more + (n.more ? '+' : '') + ' more' : n.more ? 'and older ones' : null;
   el.replaceChildren(
     h('div', { class: 'update-line' },
@@ -1285,9 +1286,9 @@ function showUpdate() {
       h('span', null, 'multiversectl ' + n.latest + ' is out, you are on ' + n.current + (brings ? ': ' + brings + ' since' : '') + '.'),
       copyable('multiversectl self-update'),
       h('a', { href: n.url, target: '_blank', rel: 'noopener noreferrer' }, 'Release notes')),
-    (n.highlights || []).length ? h('details', { class: 'update-fixes' },
+    hl.length ? h('details', { class: 'update-fixes' },
       h('summary', null, "What's fixed"),
-      h('ul', null, n.highlights.map((f) => h('li', null, f)), andMore ? h('li', { class: 'muted' }, andMore) : null)) : null);
+      h('ul', null, hl.map((f) => h('li', null, f)), andMore ? h('li', { class: 'muted' }, andMore) : null)) : null);
   el.hidden = false;
 }
 

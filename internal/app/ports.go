@@ -332,8 +332,10 @@ type System interface {
 type Release struct {
 	Version string
 	Assets  map[string]string // asset name -> download URL
-	// Notes is the release's changelog, as the pipeline wrote it.
-	Notes string
+	// Fixes are the bug fixes its changelog lists, and Changes how many other
+	// entries it has: features, breaking changes.
+	Fixes   []string
+	Changes int
 }
 
 // Releases is the self-update port.
@@ -461,10 +463,9 @@ type Review struct {
 	Number int
 	Title  string
 	URL    string
-	// State is open, draft, merged or closed.
+	// State is open, draft (open, and not asking to be merged yet), merged or
+	// closed.
 	State string
-	// Draft says it is not asking to be merged yet.
-	Draft bool
 	// Base is the branch it asks to be merged into.
 	Base string
 	// Author is who opened it, Updated when it last moved.

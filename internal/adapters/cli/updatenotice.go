@@ -13,9 +13,6 @@ import (
 )
 
 const (
-	// noUpdateCheck turns the look and the notice off, for machines that must
-	// not talk to GitHub on their own.
-	noUpdateCheck = "MULTIVERSECTL_NO_UPDATE_CHECK"
 	// updateGrace is how long a command that has finished waits for a look that
 	// is still on its way. Past it the answer is not worth a person noticing the
 	// wait; the look is kept if it lands, and said on the next command.
@@ -27,11 +24,11 @@ const (
 	updateLookCommand = "update-check"
 )
 
-// checksForUpdates is whether this command may look for a newer release and
+// mayCheckForUpdates is whether this command may look for a newer release and
 // say so. It stays out of the way of anything a program reads, and of the
 // commands whose job is to update or to answer the shell.
-func (r runner) checksForUpdates(cmd *cobra.Command) bool {
-	if r.f.Bare == nil || !app.Released(r.f.Version) || os.Getenv(noUpdateCheck) != "" || wantsJSON(cmd) {
+func (r runner) mayCheckForUpdates(cmd *cobra.Command) bool {
+	if r.f.Bare == nil || !app.Released(r.f.Version) || os.Getenv(app.UpdateOptOutEnv) != "" || wantsJSON(cmd) {
 		return false
 	}
 	switch name := cmd.Name(); {
@@ -40,7 +37,15 @@ func (r runner) checksForUpdates(cmd *cobra.Command) bool {
 		cmd.Parent() != nil && cmd.Parent().Name() == "completion":
 		return false
 	}
-	// A notice on stderr that nobody is reading is noise in a log.
+	return true
+}
+
+// checksForUpdates adds that somebody is there to read it: a notice on stderr
+// that nobody is reading is noise in a log.
+func (r runner) checksForUpdates(cmd *cobra.Command) bool {
+	if !r.mayCheckForUpdates(cmd) {
+		return false
+	}
 	info, err := os.Stderr.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
@@ -61,43 +66,63 @@ func (r runner) startUpdateCheck(cmd *cobra.Command) func() {
 		return func() {}
 	}
 	rec, _ := s.CachedUpdate()
+	// Where the claim cannot be kept every command would find the record old
+	// and look again, so there is no look at all.
+	if !rec.Stale(time.Now()) || !s.ClaimUpdateLook(time.Now()) {
+		return func() {
+			if n, ok := rec.Notice(r.f.Version); ok {
+				r.printUpdate(n)
+			}
+		}
+	}
 	var (
 		found app.UpdateRecord
 		done  = make(chan struct{})
 	)
-	stale := rec.Stale(time.Now())
-	if stale {
-		s.ClaimUpdateLook(time.Now())
-		go func() {
-			defer close(done)
-			ctx, cancel := context.WithTimeout(context.Background(), updateLookLimit)
-			defer cancel()
-			// A failed look returns what was known, and keeps the time it was made.
-			found, _ = s.CheckForUpdate(ctx, time.Now())
-		}()
-	} else {
-		close(done)
-	}
+	go func() {
+		defer close(done)
+		ctx, cancel := context.WithTimeout(context.Background(), updateLookLimit)
+		defer cancel()
+		// A failed look returns what was known, and keeps the time it was made.
+		found, _ = s.CheckForUpdate(ctx, time.Now())
+	}()
 	return func() {
 		n, ok := rec.Notice(r.f.Version)
-		if !ok {
-			// Nothing was known when this began; a look that is nearly done is
-			// worth a moment, one that is not is left for next time.
-			select {
-			case <-done:
-				n, ok = found.Notice(r.f.Version)
-			case <-time.After(updateGrace):
-				// This process is about to end and take the look with it. A quick
-				// command would otherwise never leave an answer behind, and the
-				// notice would never come.
-				if stale && r.f.Detach != nil {
-					r.f.Detach(updateLookCommand)
-				}
-			}
+		// With nothing to say yet a look that is nearly done is worth a moment;
+		// with something already known there is no reason to wait for a newer one.
+		wait := updateGrace
+		if ok {
+			wait = 0
+		}
+		if lookFinished(done, wait) {
+			n, ok = found.Notice(r.f.Version)
+		} else if r.f.Detach != nil {
+			// This process is about to end and take the look with it. A quick
+			// command would otherwise never leave an answer behind, and a newer
+			// release than the one known would never be learned.
+			r.f.Detach(updateLookCommand)
 		}
 		if ok {
 			r.printUpdate(n)
 		}
+	}
+}
+
+// lookFinished says whether the look is done, waiting up to wait for it.
+func lookFinished(done <-chan struct{}, wait time.Duration) bool {
+	select {
+	case <-done:
+		return true
+	default:
+	}
+	if wait <= 0 {
+		return false
+	}
+	select {
+	case <-done:
+		return true
+	case <-time.After(wait):
+		return false
 	}
 }
 
