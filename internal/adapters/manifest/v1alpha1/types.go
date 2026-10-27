@@ -87,8 +87,8 @@ type Spec struct {
 
 	// The repositories this multiverse is made of. install clones them; each
 	// universe gets a worktree of every one, sharing the clone's object store.
-	// +minItems=1
-	// +required
+	// Required in a multiverse; a repository's own file (.multiverse.yaml)
+	// describes only itself and leaves it out.
 	Repos []Repo `yaml:"repos"`
 
 	// The runnable units. A repository whose runtime is "compose" and that no
@@ -161,8 +161,8 @@ type App struct {
 	// +required
 	Name string `yaml:"name"`
 
-	// Which repo, by name, holds this app.
-	// +required
+	// Which repo, by name, holds this app. Leave it out in a repository's own
+	// file: the app is that repository's.
 	Repo string `yaml:"repo"`
 
 	// Build images before starting. Inferred when a service has a build

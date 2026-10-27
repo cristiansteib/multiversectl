@@ -5,6 +5,7 @@ package wire
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -96,6 +97,9 @@ func (m Machine) Service(out app.Output, store app.ConfigStore, root, path strin
 	mf, err := manifest.Load(path)
 	if err != nil {
 		return nil, err
+	}
+	if err := manifest.MergeParts(mf, root); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	return app.New(m.Deps(out, root, store), root, mf, m.Version), nil
 }
