@@ -191,14 +191,10 @@ type App struct {
 	// one is missing, rather than letting the universe half-start.
 	Secrets []string `yaml:"secrets"`
 
-	// Commands run once in each universe, the first time this app is started
-	// and its services are up: what a universe needs before it is of any use,
-	// such as loading the data a person logs in with. They are tried again for
-	// a while when one fails, because the service may still be starting (a
-	// database migrating), and said, not fatal, when they never succeed: the
-	// universe is up, and the command is shown to run by hand. They are not run
-	// again on later starts, so each should be safe to run twice anyway.
-	Setup []Step `yaml:"setup"`
+	// Commands run at points of this app's life in a universe, the way Skaffold
+	// runs lifecycle hooks, with only what is needed here: after the app's
+	// services are up, in one of them.
+	Hooks Hooks `yaml:"hooks"`
 
 	// Services allowed to keep their published host ports. Every other
 	// service's ports are dropped, because a universe is reached through the
@@ -228,8 +224,26 @@ type App struct {
 	Hosts []Host `yaml:"hosts"`
 }
 
-// Step is one command of an app's setup.
-type Step struct {
+type Hooks struct {
+	// Run once the app's services are up. A hook is tried again for a few
+	// minutes when it fails, because the service may still be starting (a
+	// database migrating under it); one that never succeeds is said, with how to
+	// run it by hand, and does not stop the universe.
+	After []Hook `yaml:"after"`
+}
+
+type Hook struct {
+	// +required
+	Container ContainerHook `yaml:"container"`
+
+	// Run on the first start of each universe only, and never again: for what
+	// loads data a person may then change, such as the user to log in with.
+	// Without it the hook runs after every start, so it should be safe to repeat.
+	Once bool `yaml:"once"`
+}
+
+// ContainerHook is a command run in a running service, with no terminal.
+type ContainerHook struct {
 	// Compose service to run it in. Leave it out when the app has one service, or
 	// names a defaultService.
 	Service string `yaml:"service"`

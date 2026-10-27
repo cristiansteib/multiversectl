@@ -114,8 +114,8 @@ type App struct {
 	// DefaultService is where exec and run go when no service is named and the
 	// app has several.
 	DefaultService string
-	// Setup is run once in each universe, after the app first starts.
-	Setup   []SetupStep
+	// After are the hooks run once the app's services are up.
+	After   []Hook
 	Overlay []byte // inline compose fragment, rendered by the manifest adapter
 	Build   bool   // build images before starting
 	Hosts   map[string]HostRule
@@ -126,10 +126,19 @@ type App struct {
 	Derived bool
 }
 
-// SetupStep is one command run in a service of an app's universe.
-type SetupStep struct {
+// Hook is a command run in a service of an app's universe once it is up.
+type Hook struct {
 	Service string // empty: the app's only service, or its defaultService
 	Command []string
+	// Once runs it on a universe's first start only.
+	Once bool
+}
+
+// Key names a hook within a universe, which is what remembers that a Once hook
+// has run: the app, the service and the command, so reordering the hooks does
+// not make one run again.
+func (h Hook) Key(app string) string {
+	return app + "|" + h.Service + "|" + strings.Join(h.Command, " ")
 }
 
 // HostRule routes one hostname to one service port through the proxy.
@@ -184,12 +193,12 @@ func (m *Manifest) Validate() error {
 		if app.DefaultService != "" && len(app.Services) > 0 && !slices.Contains(app.Services, app.DefaultService) {
 			errs = append(errs, fmt.Sprintf("apps.%s.defaultService: %q is not one of its services (%s)", key, app.DefaultService, strings.Join(app.Services, ", ")))
 		}
-		for i, step := range app.Setup {
-			if len(step.Command) == 0 {
-				errs = append(errs, fmt.Sprintf("apps.%s.setup[%d].command: required", key, i))
+		for i, hook := range app.After {
+			if len(hook.Command) == 0 {
+				errs = append(errs, fmt.Sprintf("apps.%s.hooks.after[%d].container.command: required", key, i))
 			}
-			if step.Service != "" && len(app.Services) > 0 && !slices.Contains(app.Services, step.Service) {
-				errs = append(errs, fmt.Sprintf("apps.%s.setup[%d].service: %q is not one of its services (%s)", key, i, step.Service, strings.Join(app.Services, ", ")))
+			if hook.Service != "" && len(app.Services) > 0 && !slices.Contains(app.Services, hook.Service) {
+				errs = append(errs, fmt.Sprintf("apps.%s.hooks.after[%d].container.service: %q is not one of its services (%s)", key, i, hook.Service, strings.Join(app.Services, ", ")))
 			}
 		}
 		for hostKey, rule := range app.Hosts {

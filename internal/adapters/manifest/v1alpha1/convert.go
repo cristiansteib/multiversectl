@@ -116,8 +116,8 @@ func convertApp(a App) (domain.App, error) {
 		Optional:       map[string][]string{},
 		Hosts:          map[string]domain.HostRule{},
 	}
-	for _, step := range a.Setup {
-		app.Setup = append(app.Setup, domain.SetupStep{Service: step.Service, Command: step.Command})
+	for _, h := range a.Hooks.After {
+		app.After = append(app.After, domain.Hook{Service: h.Container.Service, Command: h.Container.Command, Once: h.Once})
 	}
 	if !a.Overlay.IsZero() {
 		// Rendered here, in the format adapter, so neither the domain nor the

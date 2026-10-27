@@ -109,14 +109,17 @@
   <p class="muted"><code>--service</code> still wins. When the app lists <code>services</code>, the default must be one of them.</p>
 </section>
 
-<section id="hw-setup">
-  <h2 id="hw-setup"><a href="#hw-setup">Give a new universe what it needs to be used</a></h2>
-  <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with. Say what to run once, and it runs the first time the app starts in each universe, when its services are up:</p>
+<section id="hw-hooks">
+  <h2 id="hw-hooks"><a href="#hw-hooks">Give a new universe what it needs to be used</a></h2>
+  <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with. An app can run a command in one of its services once they are up, the way Skaffold runs a lifecycle hook, with <code>once</code> so it runs on the first start of each universe and never again:</p>
   <div class="code"><pre><span class="c"># .multiverse.yaml, on the app</span>
-<span class="k">setup</span>:
-  - <span class="k">service</span>: web
-    <span class="k">command</span>: [python, manage.py, createfixture]</pre></div>
-  <p class="muted">It is tried again for a few minutes if it fails, because the service may still be starting (a database migrating under it). If it never succeeds the universe stays up, and the output says how to run it by hand; it is tried again on the next start. It is not run on later starts, so it never loads over what you changed, and should be safe to run twice anyway. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>.</p>
+<span class="k">hooks</span>:
+  <span class="k">after</span>:
+    - <span class="k">once</span>: true
+      <span class="k">container</span>:
+        <span class="k">service</span>: web
+        <span class="k">command</span>: [python, manage.py, createfixture]</pre></div>
+  <p class="muted">It is tried again for a few minutes if it fails, because the service may still be starting (a database migrating under it). If it never succeeds the universe stays up, and the output says how to run it by hand; it is tried again on the next start, and the hooks after it wait. Without <code>once</code> it runs after every start, so it should be safe to repeat. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>. There is no <code>before</code>, and no command on the host: only what a universe needs.</p>
 </section>
 
 <section id="hw-optional">
@@ -162,7 +165,7 @@
       <li><a href="#hw-labels">Let a service declare its own hostname</a></li>
       <li><a href="#hw-publish">Keep a service&#39;s published port</a></li>
       <li><a href="#hw-default-service">Choose where exec and run go</a></li>
-      <li><a href="#hw-setup">Give a new universe what it needs to be used</a></li>
+      <li><a href="#hw-hooks">Give a new universe what it needs to be used</a></li>
       <li><a href="#hw-optional">Run optional services on demand</a></li>
       <li><a href="#hw-dynamic">Configure what depends on the universe</a></li>
     </ul>
