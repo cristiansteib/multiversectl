@@ -162,7 +162,7 @@ func demoFleet() *fake {
 				Work: &diffView{Files: 1, Added: 6, Removed: 1}, Dirty: true,
 				Change:      &diffView{Files: 3, Added: 31, Removed: 4},
 				Uncommitted: &diffView{Files: 1, Added: 14, Removed: 2},
-				Review:      &reviewView{Number: 148, Mark: "#", State: "draft", Title: "Show the tax column in the invoice table", URL: "https://example.test/acme/ui/pull/148", Draft: true, Author: "robin", Updated: now.Add(-25 * time.Minute).Format(time.RFC3339)}},
+				Review:      &reviewView{Number: 148, Mark: "#", State: "draft", Title: "Show the tax column in the invoice table", URL: "https://example.test/acme/ui/pull/148", Author: "robin", Updated: now.Add(-25 * time.Minute).Format(time.RFC3339)}},
 		}},
 		containers: []containerView{
 			{App: "api", Service: "web", Name: "acme-u3-api-web-1", Status: "Up 3 hours", Running: true, Ports: "8000/tcp"},

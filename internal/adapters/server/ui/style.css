@@ -169,16 +169,16 @@ details[open] > summary .node::before { transform: rotate(90deg); }
 .uni-head h1 { margin: 0; }
 .cdiff-page { margin-top: 20px; }
 .tabbar { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); margin-bottom: 12px; flex-wrap: wrap; }
-.tabs { display: flex; gap: 2px; flex-wrap: wrap; min-width: 0; }
-.tab { display: inline-flex; align-items: center; gap: 8px; font: 600 1rem var(--sans); color: var(--muted); background: none; border: 0;
+.cdiff-page .tabs { display: flex; gap: 2px; flex-wrap: wrap; min-width: 0; border-bottom: 0; margin-bottom: 0; }
+.cdiff-page .tab { display: inline-flex; align-items: center; gap: 8px; font: 600 1rem var(--sans); color: var(--muted); background: none; border: 0;
   border-bottom: 2px solid transparent; padding: 8px 12px; margin-bottom: -1px; cursor: pointer; border-radius: 6px 6px 0 0; }
-.tab:hover { color: var(--text); background: var(--sunk); }
-.tab.on { color: var(--text); border-bottom-color: var(--accent); }
-.tab .add { color: var(--ok); font: 600 1rem var(--mono); } .tab .del { color: var(--bad); font: 600 1rem var(--mono); }
-.tab .muted { font-weight: 500; font-size: 1rem; }
-.tab .pricon.open { color: var(--ok); } .tab .pricon.draft { color: var(--muted); } .tab .pricon.merged { color: var(--a5); } .tab .pricon.closed { color: var(--bad); }
-.tabs.sub { margin-bottom: 8px; border-bottom: 1px solid var(--line); }
-.tabs.sub .tab { font-size: 1rem; padding: 7px 12px; }
+.cdiff-page .tab:hover { color: var(--text); background: var(--sunk); }
+.cdiff-page .tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.cdiff-page .tab .add { color: var(--ok); font: 600 1rem var(--mono); } .cdiff-page .tab .del { color: var(--bad); font: 600 1rem var(--mono); }
+.cdiff-page .tab .muted { font-weight: 500; font-size: 1rem; }
+.cdiff-page .tab .pricon.open { color: var(--ok); } .cdiff-page .tab .pricon.draft { color: var(--muted); } .cdiff-page .tab .pricon.merged { color: var(--a5); } .cdiff-page .tab .pricon.closed { color: var(--bad); }
+.cdiff-page .tabs.sub { margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+.cdiff-page .tabs.sub .tab { font-size: 1rem; padding: 7px 12px; }
 .repo-head { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin: 4px 0 12px; }
 .tip { margin: 0 0 6px; }
 .cdiff-page .cfiles { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 4px; }

@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
@@ -84,7 +86,8 @@ func (g *GitHub) Recent(ctx context.Context) ([]app.Release, error) {
 		if r.Draft || r.Prerelease {
 			continue
 		}
-		rel := app.Release{Version: r.TagName, Notes: r.Body, Assets: map[string]string{}}
+		rel := app.Release{Version: r.TagName, Assets: map[string]string{}}
+		rel.Fixes, rel.Changes = parseNotes(r.Body)
 		for _, a := range r.Assets {
 			rel.Assets[a.Name] = a.URL
 		}
@@ -138,4 +141,38 @@ func (g *GitHub) Download(ctx context.Context, url, dest string) (string, error)
 		return "", fmt.Errorf("download to %s: %w", dest, err)
 	}
 	return hex.EncodeToString(sum.Sum(nil)), nil
+}
+
+var (
+	// "([#44](https://…)) ([8f2a2aa](https://…))" closes every line the
+	// release notes generator writes.
+	noteLinks = regexp.MustCompile(`\s*\(\[[^\]]*\]\([^)]*\)\)`)
+	noteScope = regexp.MustCompile(`^\*\*[^*]+:\*\*\s*`)
+)
+
+// parseNotes reads the changelog the release pipeline writes: "### Bug Fixes"
+// and the like, each with a bullet per commit. Only a bullet at the left edge is
+// an entry; what is indented under one is its detail, not another change.
+func parseNotes(body string) (fixes []string, changes int) {
+	fixing := false
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimRight(line, " \t\r")
+		if title, ok := strings.CutPrefix(line, "### "); ok {
+			fixing = strings.EqualFold(strings.TrimSpace(title), "Bug Fixes")
+			continue
+		}
+		item, ok := strings.CutPrefix(line, "* ")
+		if !ok {
+			continue
+		}
+		if !fixing {
+			changes++
+			continue
+		}
+		item = noteScope.ReplaceAllString(strings.TrimSpace(noteLinks.ReplaceAllString(item, "")), "")
+		if item != "" {
+			fixes = append(fixes, item)
+		}
+	}
+	return fixes, changes
 }

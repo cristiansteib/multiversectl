@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -127,15 +128,21 @@ func (s *Server) watch(ctx context.Context) {
 // watchUpdates looks for a newer release on its own clock, whether or not a
 // page is open: the look also leaves what it found where the command line
 // reads it, so a machine running this server knows about a release before
-// anyone asks. The first thing told is what is already known, since the look
-// that follows is a network request.
+// anyone asks. The first thing told is what is already known, since a look is a
+// network request, and one is made at once only if that is old.
+//
+// A build from source has no release to be behind, and the opt-out that keeps
+// the command line from talking to GitHub keeps this from it too.
 func (s *Server) watchUpdates(ctx context.Context) {
+	if !app.Released(s.o.Version) || os.Getenv(app.UpdateOptOutEnv) != "" {
+		return
+	}
 	every := s.o.UpdateEvery
 	if every <= 0 {
 		every = app.UpdateEvery
 	}
-	s.publishUpdate(ctx, false)
-	s.publishUpdate(ctx, true)
+	s.publishUpdate(ctx, readCached)
+	s.publishUpdate(ctx, lookIfStale)
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
@@ -143,17 +150,19 @@ func (s *Server) watchUpdates(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			s.publishUpdate(ctx, true)
+			// Not "if stale": the last look was made a moment ago by this very
+			// loop, a hair under one period, and would never be old enough.
+			s.publishUpdate(ctx, lookNow)
 		}
 	}
 }
 
-func (s *Server) publishUpdate(ctx context.Context, look bool) {
+func (s *Server) publishUpdate(ctx context.Context, mode lookMode) {
 	c, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	// A failed look still carries what the earlier ones found, so it is told
 	// all the same: the page has nothing better to show.
-	v, _ := s.b.Update(c, look)
+	v, _ := s.b.Update(c, mode)
 	s.hub.publish("update", event{Type: "update", Data: v})
 }
 

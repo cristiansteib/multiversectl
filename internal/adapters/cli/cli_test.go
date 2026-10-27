@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -505,5 +506,53 @@ func TestTheUpdateLineSaysHowMuchWasMissed(t *testing.T) {
 		if got := updateLine(c.n); got != c.want {
 			t.Errorf("got %q, want %q", got, c.want)
 		}
+	}
+}
+
+func TestOnlyAReleaseRunByAPersonIsToldToUpdate(t *testing.T) {
+	root, _ := New(Factory{})
+	find := func(args ...string) *cobra.Command {
+		c, _, err := root.Find(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c
+	}
+	released := runner{g: &Globals{}, f: Factory{Version: "v1.0.0", Bare: func(Globals, app.Output) (*app.Service, error) { return nil, nil }}}
+	for _, c := range []struct {
+		cmd  []string
+		want bool
+	}{{[]string{"status"}, true}, {[]string{"universe", "ls"}, true}, {[]string{"self-update"}, false}, {[]string{"version"}, false}, {[]string{"update-check"}, false}} {
+		if got := released.mayCheckForUpdates(find(c.cmd...)); got != c.want {
+			t.Errorf("%v: %v, want %v", c.cmd, got, c.want)
+		}
+	}
+	if (runner{g: &Globals{}, f: Factory{Version: "dev", Bare: released.f.Bare}}).mayCheckForUpdates(find("status")) {
+		t.Error("a build from source was told to update")
+	}
+	t.Setenv(app.UpdateOptOutEnv, "1")
+	if released.mayCheckForUpdates(find("status")) {
+		t.Error("the opt-out was ignored")
+	}
+}
+
+// What the command does with a look that is still out: with nothing known it
+// waits a moment, with something known it does not wait at all, and a look that
+// does not land is handed on rather than left to die with the process.
+func TestALookThatIsStillOutIsWaitedForOnlyWhenThereIsNothingToSay(t *testing.T) {
+	done := make(chan struct{})
+	start := time.Now()
+	if lookFinished(done, 0) || time.Since(start) > 50*time.Millisecond {
+		t.Error("a command with something to say waited, or saw an unfinished look as done")
+	}
+	if lookFinished(done, 20*time.Millisecond) {
+		t.Error("a look that never landed was called finished")
+	}
+	go func() { time.Sleep(10 * time.Millisecond); close(done) }()
+	if !lookFinished(done, time.Second) {
+		t.Error("a look that landed in the grace was missed")
+	}
+	if !lookFinished(done, 0) {
+		t.Error("a finished look was not seen")
 	}
 }

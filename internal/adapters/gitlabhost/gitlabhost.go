@@ -276,7 +276,7 @@ func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review
 	if state == "open" && pick.Draft {
 		state = "draft"
 	}
-	return &app.Review{Number: pick.IID, Title: pick.Title, URL: pick.WebURL, State: state, Draft: state == "draft",
+	return &app.Review{Number: pick.IID, Title: pick.Title, URL: pick.WebURL, State: state,
 		Base: pick.TargetBranch, Author: pick.Author.Username, Updated: updated}, nil
 }
 

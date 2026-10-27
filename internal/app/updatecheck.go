@@ -2,10 +2,15 @@ package app
 
 import (
 	"context"
-	"regexp"
+	"errors"
 	"strings"
 	"time"
 )
+
+// UpdateOptOutEnv names the environment variable that turns the look and the
+// notice off, for machines that must not talk to GitHub on their own. Both the
+// command line and the web view honour it.
+const UpdateOptOutEnv = "MULTIVERSECTL_NO_UPDATE_CHECK"
 
 // UpdateEvery is how often a look for a newer release is worth making. The
 // web view repeats it for as long as it runs; the command line only looks when
@@ -76,7 +81,6 @@ func (r UpdateRecord) Notice(current string) (UpdateNotice, bool) {
 		if n.Latest == "" || isNewer(rel.Version, n.Latest) {
 			n.Latest = rel.Version
 		}
-		n.Releases++
 		n.Fixes += len(rel.Fixes)
 		n.Changes += rel.Changes
 		n.Highlights = append(n.Highlights, rel.Fixes...)
@@ -109,15 +113,14 @@ func (s *Service) CheckForUpdate(ctx context.Context, now time.Time) (UpdateReco
 	rels, err := s.Releases.Recent(ctx)
 	if err != nil {
 		prev.CheckedAt = now
-		s.saveUpdate(prev)
+		_ = s.saveUpdate(prev)
 		return prev, err
 	}
 	rec := UpdateRecord{CheckedAt: now}
 	for _, rel := range rels {
-		fixes, changes := parseNotes(rel.Notes)
-		rec.Releases = append(rec.Releases, ReleaseNotes{Version: rel.Version, Fixes: fixes, Changes: changes})
+		rec.Releases = append(rec.Releases, ReleaseNotes{Version: rel.Version, Fixes: rel.Fixes, Changes: rel.Changes})
 	}
-	s.saveUpdate(rec)
+	_ = s.saveUpdate(rec)
 	return rec, nil
 }
 
@@ -125,49 +128,19 @@ func (s *Service) CheckForUpdate(ctx context.Context, now time.Time) (UpdateReco
 // keeping what earlier ones found. A command that ends before its look does,
 // and a burst of commands that all find the record old, would otherwise each
 // ask GitHub; with the claim, the first one asks and the rest see it fresh.
-func (s *Service) ClaimUpdateLook(now time.Time) {
+//
+// It says whether the claim was kept. Where nothing can be kept — no cache
+// directory, or one that cannot be written — no look is worth starting: every
+// command would find the record old and ask again.
+func (s *Service) ClaimUpdateLook(now time.Time) bool {
 	prev, _ := s.CachedUpdate()
 	prev.CheckedAt = now
-	s.saveUpdate(prev)
+	return s.saveUpdate(prev) == nil
 }
 
-// saveUpdate is best effort: a cache that cannot be written costs the next
-// command a look, not anything the person asked for.
-func (s *Service) saveUpdate(r UpdateRecord) {
-	if s.Updates != nil {
-		_ = s.Updates.Save(r)
+func (s *Service) saveUpdate(r UpdateRecord) error {
+	if s.Updates == nil {
+		return errors.New("no place to keep it")
 	}
-}
-
-var (
-	// "([#44](https://…)) ([8f2a2aa](https://…))" closes every line the
-	// release notes generator writes.
-	noteLinks = regexp.MustCompile(`\s*\(\[[^\]]*\]\([^)]*\)\)`)
-	noteScope = regexp.MustCompile(`^\*\*[^*]+:\*\*\s*`)
-)
-
-// parseNotes reads the changelog the release pipeline writes: "### Bug Fixes"
-// and the like, each with a bullet per commit.
-func parseNotes(body string) (fixes []string, changes int) {
-	fixing := false
-	for _, line := range strings.Split(body, "\n") {
-		line = strings.TrimSpace(line)
-		if title, ok := strings.CutPrefix(line, "### "); ok {
-			fixing = strings.EqualFold(strings.TrimSpace(title), "Bug Fixes")
-			continue
-		}
-		item, ok := strings.CutPrefix(line, "* ")
-		if !ok {
-			continue
-		}
-		if !fixing {
-			changes++
-			continue
-		}
-		item = noteScope.ReplaceAllString(strings.TrimSpace(noteLinks.ReplaceAllString(item, "")), "")
-		if item != "" {
-			fixes = append(fixes, item)
-		}
-	}
-	return fixes, changes
+	return s.Updates.Save(r)
 }

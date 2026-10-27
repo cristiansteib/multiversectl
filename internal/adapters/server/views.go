@@ -164,7 +164,6 @@ type reviewView struct {
 	URL    string `json:"url"`
 	// State is open, draft, merged or closed.
 	State   string `json:"state"`
-	Draft   bool   `json:"draft,omitempty"`
 	Author  string `json:"author,omitempty"`
 	Updated string `json:"updated,omitempty"`
 }

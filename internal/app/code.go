@@ -61,14 +61,7 @@ func (s *Service) UniverseCode(ctx context.Context, name string, fetch bool) ([]
 	if fetch {
 		s.refetch(ctx, st)
 	}
-	// Asking a service whether it can be used is a process of its own and a
-	// call over the network; one answer serves every repository of the
-	// universe, so each host is asked once however many repositories it owns.
-	ready := make([]func() error, len(s.Hosts))
-	for i := range s.Hosts {
-		host := s.Hosts[i]
-		ready[i] = sync.OnceValue(func() error { return host.Available(ctx) })
-	}
+	ready := s.hostsReady(ctx)
 	// checkouts comes in the repositories' own order, which is the order the
 	// rows keep.
 	checkouts := s.checkouts(st)
@@ -109,6 +102,18 @@ func (s *Service) refetch(ctx context.Context, st domain.UniverseState) {
 	wg.Wait()
 }
 
+// hostsReady asks each hosting service whether it can be used, once. That is a
+// process of its own and a call over the network, and one answer serves every
+// repository asked about, however many it owns.
+func (s *Service) hostsReady(ctx context.Context) []func() error {
+	ready := make([]func() error, len(s.Hosts))
+	for i := range s.Hosts {
+		host := s.Hosts[i]
+		ready[i] = sync.OnceValue(func() error { return host.Available(ctx) })
+	}
+	return ready
+}
+
 func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) CodeStatus {
 	cs := CodeStatus{Repo: c.Repo, App: c.App, Branch: c.Branch, Path: c.Path}
 	if s.Manifest == nil {
@@ -120,6 +125,18 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) 
 	if !s.Files.Exists(c.Path) {
 		return cs
 	}
+	// The hosting service is a call over the network, the slowest thing asked
+	// here, and nothing below depends on it until the base is chosen: it is
+	// asked while git is.
+	type asked struct {
+		review *Review
+		err    string
+	}
+	reviewed := make(chan asked, 1)
+	go func() {
+		r, e := s.reviewOf(ctx, ready, cs.URL, c.Branch)
+		reviewed <- asked{r, e}
+	}()
 	clone := s.Manifest.CloneDir(s.Multiverse, c.Repo)
 	cs.Freshness = s.freshnessOf(ctx, c.Path, s.followed(ctx, clone, c.Branch))
 	cs.Fetched = s.Git.LastFetch(ctx, clone)
@@ -128,9 +145,10 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) 
 	// would draw that as work that had been committed. A repository whose
 	// clone has no usable origin has nothing to be measured against, so it is
 	// only asked whether it has been edited.
+	workKnown := false
 	if cs.Follows != "" {
 		if d, err := s.Git.DiffStat(ctx, c.Path, cs.Follows); err == nil {
-			cs.Work = d
+			cs.Work, workKnown = d, true
 		}
 	} else if clean, err := s.Git.IsClean(ctx, c.Path); err == nil {
 		cs.Dirty = !clean
@@ -140,11 +158,17 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) 
 			cs.Uncommitted = d
 		}
 	}
-	cs.Review, cs.ReviewError = s.reviewOf(ctx, ready, cs.URL, c.Branch)
+	r := <-reviewed
+	cs.Review, cs.ReviewError = r.review, r.err
 	// What the branch amounts to is measured against what it is to be merged
 	// into: the review says which, and without one it is the default branch.
 	cs.Base = s.baseOf(ctx, clone, cs.Review)
-	if cs.Base != "" {
+	switch {
+	case cs.Base == "":
+	case workKnown && cs.Base == cs.Follows:
+		// The same range, already measured: a branch that follows its base.
+		cs.Change = cs.Work
+	default:
 		if d, err := s.Git.DiffStat(ctx, c.Path, cs.Base); err == nil {
 			cs.Change = d
 		} else {
@@ -257,12 +281,7 @@ func (s *Service) diffTarget(ctx context.Context, name, repo, scope, base string
 			clone := s.Manifest.CloneDir(s.Multiverse, c.Repo)
 			var review *Review
 			if r, ok := s.Manifest.Repos[c.Repo]; ok {
-				ready := make([]func() error, len(s.Hosts))
-				for i := range s.Hosts {
-					host := s.Hosts[i]
-					ready[i] = sync.OnceValue(func() error { return host.Available(ctx) })
-				}
-				review, _ = s.reviewOf(ctx, ready, r.URL, c.Branch)
+				review, _ = s.reviewOf(ctx, s.hostsReady(ctx), r.URL, c.Branch)
 			}
 			if b := s.baseOf(ctx, clone, review); b != "" {
 				return c.Path, b, nil

@@ -26,8 +26,8 @@ type Backend interface {
 	// System reports the versions of what this machine runs on.
 	System(ctx context.Context) (systemView, error)
 	// Update says what a newer release would bring: from what the last look
-	// found, or, with look, after asking for the newest releases.
-	Update(ctx context.Context, look bool) (updateView, error)
+	// found, or after asking for the newest releases (see lookMode).
+	Update(ctx context.Context, mode lookMode) (updateView, error)
 	// Unsaved names the repositories of a universe whose worktree has uncommitted
 	// work, which removing the universe would discard.
 	Unsaved(ctx context.Context, multiverse, universe string) ([]string, error)
@@ -57,6 +57,19 @@ type Backend interface {
 	// Do carries out an action, reporting to the sink as it goes.
 	Do(ctx context.Context, r opRequest, k Sink) error
 }
+
+// lookMode is how much a look for a newer release asks for.
+type lookMode int
+
+const (
+	// readCached asks nobody: it is what the last look found.
+	readCached lookMode = iota
+	// lookIfStale asks only when that is older than app.UpdateEvery, so a server
+	// that is restarted often does not ask each time.
+	lookIfStale
+	// lookNow asks.
+	lookNow
+)
 
 // Sink is where an action reports: the use case's messages, and the output of
 // the commands it runs.
@@ -295,7 +308,7 @@ func (s Services) Code(ctx context.Context, multiverse, universe string, fetch b
 			Work: diffOf(r.Work), Base: r.Base, BaseUnknown: r.BaseUnknown, Change: diffOf(r.Change), Uncommitted: diffOf(r.Uncommitted)}
 		if r.Review != nil {
 			row.Review = &reviewView{Number: r.Review.Number, Mark: reviewMark(r.URL), Title: r.Review.Title,
-				URL: r.Review.URL, State: r.Review.State, Draft: r.Review.Draft, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
+				URL: r.Review.URL, State: r.Review.State, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
 		}
 		v.Rows = append(v.Rows, row)
 		if !r.Fetched.IsZero() && (oldest.IsZero() || r.Fetched.Before(oldest)) {
@@ -664,17 +677,14 @@ func wordAt(n int) func(string) string {
 	}
 }
 
-// Update says what this build has missed, from the last look or, with look, from
-// a new one. A look that fails still answers with what the earlier ones found.
-func (s Services) Update(ctx context.Context, look bool) (updateView, error) {
-	var (
-		rec app.UpdateRecord
-		err error
-	)
-	if look {
+// Update says what this build has missed, from what the last look found, or
+// after a new one: always, or only if the last is old. A look that fails still
+// answers with what the earlier ones found.
+func (s Services) Update(ctx context.Context, mode lookMode) (updateView, error) {
+	rec, _ := s.Machine.CachedUpdate()
+	var err error
+	if mode == lookNow || (mode == lookIfStale && rec.Stale(time.Now())) {
 		rec, err = s.Machine.CheckForUpdate(ctx, time.Now())
-	} else {
-		rec, _ = s.Machine.CachedUpdate()
 	}
 	var v updateView
 	if n, ok := rec.Notice(s.Machine.Version); ok {

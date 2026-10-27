@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
@@ -80,9 +81,9 @@ func (s *Server) diff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if scope == "" {
-		scope = "branch"
+		scope = app.ScopeBranch
 	}
-	if scope != "branch" && scope != "uncommitted" {
+	if scope != app.ScopeBranch && scope != app.ScopeUncommitted {
 		fail(w, http.StatusBadRequest, "scope is branch or uncommitted")
 		return
 	}
