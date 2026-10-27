@@ -25,7 +25,7 @@ const (
 var startHere = []string{"init"}
 
 var commandGroups = map[string]string{
-	"help-tree": groupSetup, "init": groupStart, "reset": groupSetup, "cleanup": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup, "agents": groupSetup,
+	"init": groupStart, "reset": groupSetup, "cleanup": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup, "agents": groupSetup,
 	"catalog": groupCatalog, "multiverse": groupCatalog,
 	"start": groupUniverse, "system": groupUniverse, "universe": groupUniverse, "status": groupUniverse, "server": groupUniverse,
 }
