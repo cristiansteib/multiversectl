@@ -645,7 +645,7 @@ function wsActions(w, want, fleetEntry) {
   const tip = busy ? 'Another operation is running in ' + w.name : null;
   return h('span', { class: 'actions' },
     want.create ? h('button', { type: 'button', class: 'btn small primary', disabled: busy, title: tip, onclick: () => newDialog(w) }, 'New universe') : null,
-    want.update ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Fetch the manifest and clone what it newly lists', onclick: () => runSafely({ action: 'update', multiverse: w.name }) }, 'Update') : null,
+    want.update ? h('button', { type: 'button', class: 'btn small', disabled: busy, title: tip || 'Fetch the manifest and clone what it newly lists', onclick: () => runSafely({ action: 'update', multiverse: w.name }) }, 'Update') : null);
 }
 
 // modal shows a dialog with a form. submit may throw, and what it says is shown
