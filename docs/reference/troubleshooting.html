@@ -113,14 +113,15 @@
 </section>
 
 <section id="ts-rm">
-  <h2 id="ts-rm"><a href="#ts-rm">Removing a universe stops on a worktree</a></h2>
-  <p>A container that runs as root writes into the worktree it mounts — a <code>node_modules</code>, a build cache, sometimes a file in the source tree — and those files belong to root. Nothing you run as yourself can delete them, so <code>rm</code> removes everything else, leaves the universe listed, and says what is left:</p>
+  <h2 id="ts-rm"><a href="#ts-rm">Removing a universe leaves files only root can delete</a></h2>
+  <p>A container that runs as root writes into the worktree it mounts — a <code>node_modules</code>, a build cache, sometimes a file in the source tree — and those files belong to root. Nothing you run as yourself can delete them, so <code>universe rm</code> asks a throwaway container, which is root, to remove them (<code>alpine</code>, pulled the first time, no network, nothing mounted but the universe's folder). You need nothing to do.</p>
+  <p>Only when that cannot run either, Docker being unreachable or the image not pullable, does it fall back to leaving the universe listed, and saying what is left:</p>
   <div class="code"><pre>error: universe 2: its containers and volumes are gone, but this is still on disk:
     ~/acme/universes/2/admin: unlinkat …/.angular/cache/…/.tsbuildinfo: permission denied
   Files owned by another user, which a container that runs as root leaves behind. Remove them with:
     sudo rm -rf ~/acme/universes/2/admin
   Then run `multiversectl universe rm 2` again to finish.</pre></div>
-  <p>Do that and the second <code>rm</code> finishes the job. To stop it happening again, have the service run as you — most images take a <code>user:</code>, and <code>${HOST_UID}:${HOST_GID}</code> are passed to every compose file for exactly this.</p>
+  <p>Do that and the second <code>rm</code> finishes the job. To stop the files being made at all, have the service run as you — most images take a <code>user:</code>, and <code>${HOST_UID}:${HOST_GID}</code> are passed to every compose file for exactly this.</p>
 </section>
 
 <section id="ts-403">
@@ -148,7 +149,7 @@
       <li><a href="#ts-dns">Hostnames do not resolve</a></li>
       <li><a href="#ts-ports">Port 80 or 8001 is already in use</a></li>
       <li><a href="#ts-secret">A secret file is missing</a></li>
-      <li><a href="#ts-rm">Removing a universe stops on a worktree</a></li>
+      <li><a href="#ts-rm">Removing a universe leaves files only root can delete</a></li>
       <li><a href="#ts-403">A dev server answers 403</a></li>
     </ul>
   </aside>

@@ -41,11 +41,15 @@ func (f *countingFiles) RemoveAll(path string) error {
 }
 
 func removeServiceWith(git *removeGit, files Files) (*Service, *pruneStore) {
+	return removeServiceRunning(git, files, removeRuntime{})
+}
+
+func removeServiceRunning(git *removeGit, files Files, rt removeRuntime) (*Service, *pruneStore) {
 	store := &pruneStore{states: []domain.UniverseState{
 		{ID: "3", Name: "3", Slug: "u3", Project: "acme-u3", Branches: map[string]string{"api": "u3", "ui": "u3"}},
 	}}
 	m := &domain.Manifest{Name: "acme", Repos: map[string]domain.Repo{"api": {}, "ui": {}}}
-	return New(Deps{Store: store, Runtime: removeRuntime{}, Git: git, Files: files, Out: discardOut{}}, "/ws", m, "test"), store
+	return New(Deps{Store: store, Runtime: rt, Git: git, Files: files, Out: discardOut{}}, "/ws", m, "test"), store
 }
 
 func (g *removeGit) IsClean(_ context.Context, dir string) (bool, error) {
@@ -76,7 +80,19 @@ func (g *removeGit) RemoveWorktree(_ context.Context, _, dest string, _ bool) er
 	return nil
 }
 
-type removeRuntime struct{ Runtime }
+type removeRuntime struct {
+	Runtime
+	// asRoot is what the throwaway container does with a directory; without
+	// one, it cannot run, as with Docker unreachable.
+	asRoot func(dir string) error
+}
+
+func (r removeRuntime) RemoveAsRoot(_ context.Context, dir string) error {
+	if r.asRoot == nil {
+		return errors.New("docker is not reachable")
+	}
+	return r.asRoot(dir)
+}
 
 func (removeRuntime) Down(context.Context, RuntimeRequest, bool) error { return nil }
 
@@ -242,6 +258,40 @@ func TestWhatCannotBeDeletedIsNamedWithTheCommandToDeleteIt(t *testing.T) {
 	// And the universe is still listed, so running rm again finishes it.
 	if len(store.deleted) != 0 {
 		t.Errorf("the state was deleted with files still on disk: %v", store.deleted)
+	}
+}
+
+// The files a container wrote as root are removed by a container, which is root
+// too, so nobody is told to use sudo and the universe is gone in one command.
+func TestFilesOnlyRootCanDeleteAreRemovedWithAContainer(t *testing.T) {
+	git := &removeGit{refuse: "/ui"}
+	files := &countingFiles{refuse: map[string]error{
+		"/ws/universes/3/ui": &fs.PathError{Op: "unlinkat", Path: "/ws/universes/3/ui/node_modules", Err: fs.ErrPermission},
+	}}
+	var asked []string
+	s, store := removeServiceRunning(git, files, removeRuntime{asRoot: func(dir string) error { asked = append(asked, dir); return nil }})
+
+	if err := s.Remove(context.Background(), RemoveInput{Universe: "3"}); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if len(asked) != 1 || asked[0] != "/ws/universes/3/ui" {
+		t.Errorf("the container was asked to remove %v", asked)
+	}
+	if len(store.deleted) != 1 {
+		t.Errorf("the universe is still listed: %v", store.deleted)
+	}
+}
+
+// A container for something that is not a permission problem would hide a real
+// failure behind a second try.
+func TestAnotherFailureIsNotHandedToAContainer(t *testing.T) {
+	git := &removeGit{refuse: "/ui"}
+	files := &countingFiles{refuse: map[string]error{"/ws/universes/3/ui": errors.New("device or resource busy")}}
+	asked := false
+	s, _ := removeServiceRunning(git, files, removeRuntime{asRoot: func(string) error { asked = true; return nil }})
+	var left *NotFullyRemoved
+	if err := s.Remove(context.Background(), RemoveInput{Universe: "3"}); !errors.As(err, &left) || asked {
+		t.Errorf("err %v, container asked %v", err, asked)
 	}
 }
 

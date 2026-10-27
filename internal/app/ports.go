@@ -182,6 +182,11 @@ type Runtime interface {
 	// and what it printed comes back instead of going to the screen, so a try that
 	// fails and is made again says nothing until the last one.
 	ExecQuiet(ctx context.Context, r RuntimeRequest, service string, args []string) (output string, err error)
+	// RemoveAsRoot removes a directory whose files a container left behind as
+	// root, which its owner cannot delete: a throwaway container, which can,
+	// does it. It is what `universe rm` falls back on instead of telling a person
+	// to use sudo.
+	RemoveAsRoot(ctx context.Context, dir string) error
 	// Restart restarts one service in place, reporting to the runtime's output.
 	Restart(ctx context.Context, r RuntimeRequest, service string) error
 	// Logs writes the last tail lines of one container to w, and with follow

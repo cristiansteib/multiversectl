@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -75,6 +76,21 @@ func (c *Compose) ExecQuiet(ctx context.Context, r app.RuntimeRequest, service s
 	quiet := &Compose{stdout: &out, stderr: &out}
 	err := quiet.stream(ctx, r, nil, append([]string{"exec", "-T", service}, args...)...)
 	return out.String(), err
+}
+
+// RemoveAsRoot runs `rm -rf` in a throwaway container with the directory's parent
+// mounted: the container is root, and root can delete what another root's
+// container wrote. It needs the image (pulled the first time) and nothing else:
+// no network, and nothing mounted but the parent.
+func (c *Compose) RemoveAsRoot(ctx context.Context, dir string) error {
+	dir = filepath.Clean(dir)
+	parent, name := filepath.Dir(dir), filepath.Base(dir)
+	// Never a root, never a top-level folder: this is root deleting recursively.
+	if !filepath.IsAbs(dir) || strings.Count(dir, string(filepath.Separator)) < 3 || name == "." || name == string(filepath.Separator) {
+		return fmt.Errorf("not removing %q as root: too close to the top of the disk", dir)
+	}
+	_, err := c.capture(ctx, "docker", "run", "--rm", "--network", "none", "-v", parent+":/w", "alpine:3", "rm", "-rf", "/w/"+name)
+	return err
 }
 
 // attached is this adapter with the process's own streams.

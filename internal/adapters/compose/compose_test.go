@@ -1,7 +1,10 @@
 package compose
 
 import (
+	"context"
+	"io"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
@@ -77,5 +80,15 @@ func TestStatsLinesAreParsed(t *testing.T) {
 	}
 	if got[1].CPU != 0 || got[1].MemBytes != 0 {
 		t.Errorf("a container with no reading = %+v", got[1])
+	}
+}
+
+// It is root deleting recursively: a path near the top of the disk is refused
+// before any container is asked.
+func TestRemovingAsRootRefusesWhatIsTooCloseToTheTop(t *testing.T) {
+	for _, dir := range []string{"", "/", "/home", "/home/dev", "relative/path/here", "."} {
+		if err := New(io.Discard, io.Discard).RemoveAsRoot(context.Background(), dir); err == nil || !strings.Contains(err.Error(), "not removing") {
+			t.Errorf("%q: %v", dir, err)
+		}
 	}
 }
