@@ -191,8 +191,9 @@ func (c *Catalogs) impliedManifest(name string, leaf domain.Node) ([]byte, error
 		return nil, err
 	}
 	head := "# Made by multiversectl: " + shortRepo(leaf.Source.Repo) + " has compose files and no multiverse.yaml,\n" +
-		"# so it is run as it is. Add a multiverse.yaml to the repository to say more;\n" +
-		"# it takes the place of this file the next time it is installed.\n"
+		"# so it is run as it is. To say more about how it runs (services, secrets, optional\n" +
+		"# groups), add a .multiverse.yaml to the repository; a multiverse.yaml there would\n" +
+		"# take the place of this file the next time it is installed.\n"
 	return append([]byte(head), body...), nil
 }
 
