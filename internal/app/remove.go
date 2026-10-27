@@ -122,7 +122,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 			// record of, which is what a worktree whose registration was lost
 			// looks like — and the universe is being destroyed either way, so
 			// the directory goes.
-			if rmErr := s.Files.RemoveAll(dest); rmErr != nil {
+			if rmErr := s.removeDir(ctx, dest); rmErr != nil {
 				stuck = append(stuck, Leftover{Repo: repoKey, Path: dest, Err: rmErr})
 				continue
 			}
@@ -141,7 +141,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 	}
 
 	if len(stuck) == 0 {
-		if err := s.Files.RemoveAll(u.Dir()); err != nil {
+		if err := s.removeDir(ctx, u.Dir()); err != nil {
 			stuck = append(stuck, Leftover{Path: u.Dir(), Err: err})
 		}
 	}
@@ -155,6 +155,26 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		return fmt.Errorf("universe %s: %w", st.Name, err)
 	}
 	return nil
+}
+
+// removeDir removes a directory, and when that is refused for want of
+// permission, which is what files a container wrote as root look like, asks a
+// container to. Only when that fails too is the original error returned, and
+// the person told how to do it by hand.
+func (s *Service) removeDir(ctx context.Context, dir string) error {
+	err := s.Files.RemoveAll(dir)
+	if err == nil || !deniedByOwner(err) {
+		return err
+	}
+	if rootErr := s.Runtime.RemoveAsRoot(ctx, dir); rootErr != nil {
+		return err
+	}
+	s.Out.Info("%s had files a container wrote as root: removed with a container", dir)
+	return nil
+}
+
+func deniedByOwner(err error) bool {
+	return errors.Is(err, fs.ErrPermission) || strings.Contains(strings.ToLower(err.Error()), "permission denied")
 }
 
 // Leftover is one path a removal could not take away, and why.
@@ -179,9 +199,7 @@ func (e *NotFullyRemoved) Error() string {
 	denied := false
 	for _, l := range e.Left {
 		fmt.Fprintf(&b, "\n    %s: %v", l.Path, l.Err)
-		if errors.Is(l.Err, fs.ErrPermission) || strings.Contains(strings.ToLower(l.Err.Error()), "permission denied") {
-			denied = true
-		}
+		denied = denied || deniedByOwner(l.Err)
 	}
 	if denied {
 		b.WriteString("\n  Files owned by another user, which a container that runs as root leaves behind. Remove them with:")
