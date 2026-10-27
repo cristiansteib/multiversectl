@@ -191,6 +191,9 @@ func (c *Catalogs) RefreshMultiverse(ctx context.Context, name string, e Multive
 	dir := manifestClone(e.Root)
 	if e.Source.Repo == "" || !c.Files.Exists(dir) {
 		res.Skipped = "installed from a file; nothing to update from"
+		if e.Source.Repo != "" {
+			res.Skipped = "it has no manifest of its own, so there is nothing to update"
+		}
 		return res, nil
 	}
 	if clean, err := c.Git.IsClean(ctx, dir); err != nil || !clean {

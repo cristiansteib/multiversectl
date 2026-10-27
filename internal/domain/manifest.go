@@ -225,11 +225,15 @@ func (m *Manifest) RunnableApps() []string {
 	return keys
 }
 
+// ComposeNames are the file names docker compose looks for, in the order it
+// prefers them: a repository with more than one is run from the first.
+var ComposeNames = []string{"compose.yaml", "compose.yml", "docker-compose.yaml", "docker-compose.yml"}
+
 // ComposeFiles resolves an app's runtime files: "@name.yml" comes from the
 // manifest directory, anything else from the repository checkout.
 //
 // With nothing declared it looks for the two conventional places — the
-// repository's own docker-compose.yml and overlays/<app>.yml beside the
+// repository's own compose file and overlays/<app>.yml beside the
 // manifest — so an app that follows the convention needs no `compose:` line.
 func (m *Manifest) ComposeFiles(appKey, repoDir string) []string {
 	declared := m.Apps[appKey].Compose
@@ -237,7 +241,7 @@ func (m *Manifest) ComposeFiles(appKey, repoDir string) []string {
 		// Two conventional homes for an overlay: overlays/<app>.yml for a
 		// directory holding one manifest, and <manifest-name>/<app>.yml for a
 		// directory holding several.
-		declared = []string{"docker-compose.yml", "@overlays/" + appKey + ".yml"}
+		declared = append(append([]string{}, ComposeNames...), "@overlays/"+appKey+".yml")
 		if m.Stem != "" {
 			declared = append(declared, "@"+m.Stem+"/"+appKey+".yml")
 		}

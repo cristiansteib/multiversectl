@@ -79,3 +79,79 @@ func only(leaves []domain.Node, name, source string) ([]domain.Node, error) {
 	}
 	return nil, fmt.Errorf("%s has no multiverse named %q (it has: %s)", source, name, leafNames(leaves))
 }
+
+// hasCompose reports a compose file at the root of dir.
+func hasCompose(files Files, dir string) bool {
+	for _, n := range composeFiles {
+		if files.Exists(filepath.Join(dir, n)) {
+			return true
+		}
+	}
+	return false
+}
+
+// impliedFrom is the multiverse a repository is when it defines none but has
+// compose files: itself, run on its own. Its name is the repository's.
+func impliedFrom(url string) domain.Node {
+	name := nameParts(url).repo
+	return domain.Node{Name: name, Path: name, Kind: domain.MultiverseNode, Implied: true, Source: domain.Source{Repo: url}}
+}
+
+// parts are the pieces of a repository's address a name is made from.
+type parts struct {
+	repo string   // the repository's own name
+	path []string // what leads to it, nearest first: owner, then the group above it
+	host string
+}
+
+func nameParts(url string) parts {
+	l := domain.Locate(url, "")
+	segs := strings.FieldsFunc(strings.TrimSuffix(l.Path, ".git"), func(r rune) bool { return r == '/' || r == '\\' })
+	var p parts
+	p.host = nameSegment(l.Host)
+	for i := len(segs) - 1; i >= 0; i-- {
+		seg := nameSegment(segs[i])
+		switch {
+		case seg == "":
+		case p.repo == "":
+			p.repo = seg
+		default:
+			p.path = append(p.path, seg)
+		}
+	}
+	if p.repo == "" {
+		p.repo = "app"
+	}
+	return p
+}
+
+var notNameRE = regexp.MustCompile(`[^a-z0-9]+`)
+
+// nameSegment turns a piece of an address into something a name may hold.
+func nameSegment(s string) string {
+	return strings.Trim(notNameRE.ReplaceAllString(strings.ToLower(s), "-"), "-")
+}
+
+// nameCandidates are the names a repository can take, shortest first: its own,
+// then with its owner in front, then each level above, then the host. A name is
+// only worth a level more when the shorter one is already someone else's.
+func nameCandidates(url string) []string {
+	p := nameParts(url)
+	var out []string
+	name := p.repo
+	out = append(out, name)
+	for _, seg := range p.path {
+		name = seg + "-" + name
+		out = append(out, name)
+	}
+	if p.host != "" {
+		out = append(out, p.host+"-"+name)
+	}
+	var valid []string
+	for _, n := range out {
+		if multiverseNameRE.MatchString(n) {
+			valid = append(valid, n)
+		}
+	}
+	return valid
+}

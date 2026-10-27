@@ -14,7 +14,7 @@ import (
 type InstallOptions struct {
 	Base  string // directory multiverses go under, each in <Base>/<name>
 	Root  string // the exact directory, for a single multiverse
-	Name  string // the name to record, for a single multiverse
+	Name  string // the name to record, for a single multiverse; refused if taken
 	Fetch bool   // refresh catalogs first
 }
 
@@ -28,6 +28,10 @@ type InstallTarget struct {
 	Origin         Origin
 	How            string // how its argument was understood, shown to the user
 	Skip           string
+	// Generated is the manifest for a repository that defines none, and Renamed
+	// says why it took a longer name than its own: the short one was someone's.
+	Generated []byte
+	Renamed   string
 }
 
 // PlanInstall turns what the user typed into multiverses to set up. Each
@@ -104,13 +108,26 @@ func (c *Catalogs) PlanInstall(ctx context.Context, args []string, o InstallOpti
 		seen[t.Origin] = true
 		name := firstOf(o.Name, f.leaf.Name)
 		if have, clash := taken[name]; clash {
-			return nil, clashError(name, have, t)
+			if !f.leaf.Implied || o.Name != "" {
+				return nil, clashError(name, have, t)
+			}
+			// No one chose this name, it is only what the repository is called,
+			// so it takes the next level of its address that is free.
+			if name = freeName(f.leaf.Source.Repo, taken); name == "" {
+				return nil, fmt.Errorf("every name %s could take is used (%s): give it one with --as", shortRepo(f.leaf.Source.Repo), strings.Join(nameCandidates(f.leaf.Source.Repo), ", "))
+			}
+			t.Renamed = fmt.Sprintf("`%s` is taken by %s, so this one is `%s`", f.leaf.Name, have, name)
 		}
 		if err := validMultiverseName(name); err != nil {
 			return nil, err
 		}
 		taken[name] = firstOf(shortRepo(t.ManifestSource), t.ManifestSource)
 		t.Name = name
+		if f.leaf.Implied {
+			if t.Generated, err = c.impliedManifest(name, f.leaf); err != nil {
+				return nil, err
+			}
+		}
 		t.Root = firstOf(o.Root, filepath.Join(o.Base, name))
 		out = append(out, t)
 	}
@@ -150,6 +167,33 @@ func clashError(name, have string, t InstallTarget) error {
 		other = shortRepo(t.ManifestSource) + " " + t.ManifestPath
 	}
 	return fmt.Errorf("a multiverse named %q is already taken (by %s); %s defines another with the same name, and names are unique on a machine: rename it there, or `multiversectl system forget %s` if the first is the one to drop", name, have, other, name)
+}
+
+// freeName is the first name a repository can take that nothing else has, or
+// empty when they are all used.
+func freeName(url string, taken map[string]string) string {
+	for _, n := range nameCandidates(url) {
+		if _, used := taken[n]; !used {
+			return n
+		}
+	}
+	return ""
+}
+
+// impliedManifest is the definition of a repository that has none: itself, as
+// the one repository, run from its own compose files.
+func (c *Catalogs) impliedManifest(name string, leaf domain.Node) ([]byte, error) {
+	if c.Writer == nil {
+		return nil, errors.New("cannot write a manifest for " + leaf.Name)
+	}
+	body, err := c.Writer.Multiverse(ProjectDraft{Name: name, Repos: []DraftRepo{{Key: leaf.Name, URL: leaf.Source.Repo}}})
+	if err != nil {
+		return nil, err
+	}
+	head := "# Made by multiversectl: " + shortRepo(leaf.Source.Repo) + " has compose files and no multiverse.yaml,\n" +
+		"# so it is run as it is. Add a multiverse.yaml to the repository to say more;\n" +
+		"# it takes the place of this file the next time it is installed.\n"
+	return append([]byte(head), body...), nil
 }
 
 func validMultiverseName(name string) error {
@@ -255,8 +299,17 @@ func (c *Catalogs) openLocal(ctx context.Context, arg string, o InstallOptions) 
 			if err != nil {
 				return nil, "", err
 			}
+			if len(nodes) == 0 && hasCompose(c.Files, abs) {
+				// A checkout of a repository that is only compose files runs as
+				// itself, from wherever it came from.
+				url, err := c.Git.RemoteURL(ctx, abs)
+				if err != nil || url == "" {
+					return nil, "", fmt.Errorf("%s has compose files but no remote to clone them from; `git remote add origin <url>` first", arg)
+				}
+				return []domain.Node{impliedFrom(url)}, how + ", a repository with compose files and no multiverse.yaml", nil
+			}
 			if len(nodes) == 0 {
-				return nil, "", fmt.Errorf("%s has neither a %s nor a multiverse.yaml", arg, defaultCatalogFile)
+				return nil, "", fmt.Errorf("%s has no %s, no multiverse.yaml and no compose file", arg, defaultCatalogFile)
 			}
 			return nodes, how + ", with a multiverse", nil
 		}
@@ -298,8 +351,11 @@ func (c *Catalogs) openRemote(ctx context.Context, url string, o InstallOptions)
 	if err != nil {
 		return nil, "", fmt.Errorf("%s: %w", shortRepo(url), err)
 	}
+	if len(nodes) == 0 && hasCompose(c.Files, dir) {
+		return []domain.Node{impliedFrom(url)}, how + " with compose files and no multiverse.yaml, so it runs as itself", nil
+	}
 	if len(nodes) == 0 {
-		return nil, "", fmt.Errorf("%s has no %s and no multiverse.yaml", shortRepo(url), defaultCatalogFile)
+		return nil, "", fmt.Errorf("%s has no %s, no multiverse.yaml and no compose file", shortRepo(url), defaultCatalogFile)
 	}
 	return nodes, how + " that defines a multiverse", nil
 }
