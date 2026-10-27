@@ -86,6 +86,23 @@
   <p>A repository can hold several multiverses, one file each. They are found by convention, so nothing has to list them: <code>multiverse.yaml</code> at the root, and every <code>.yaml</code> under <code>multiverse/</code>. <code>multiversectl start owner/repo:name</code> picks one by its <code>metadata.name</code>; with no <code>:name</code> and several to choose from it asks at a terminal, and lists the names in a script. Names are unique on a machine: a second multiverse with a name already installed is refused, naming the file.</p>
 </section>
 
+<section id="own-file">
+  <h2 id="own-file"><a href="#own-file">What a repository says about itself</a></h2>
+  <p>A multiverse can be nothing but the list of its repositories. Each repository then says how it runs in a <code>.multiverse.yaml</code> at its root: the same <code>apiVersion</code> and <code>kind: Multiverse</code>, but about that one repository, so it lists no <code>repos</code> and sets nothing that belongs to the whole multiverse. Only <code>spec.apps</code> and <code>spec.proxy.entrypoints</code> are read from it.</p>
+  <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
+<span class="k">kind</span>: Multiverse
+<span class="k">metadata</span>:
+  <span class="k">name</span>: api
+<span class="k">spec</span>:
+  <span class="k">proxy</span>:
+    <span class="k">entrypoints</span>:
+      - {<span class="k">name</span>: devapi, <span class="k">port</span>: 8001}   <span class="c"># the port its front-ends call</span>
+  <span class="k">apps</span>:
+    - <span class="k">services</span>: [web, mailpit]            <span class="c"># name and repo are the repository's: leave them out</span>
+      <span class="k">secrets</span>: [.env]</pre></div>
+  <p>An app in it belongs to that repository, and takes the repository's name when it is the only one. It replaces the app the multiverse would have derived for the repository; it cannot take another app's name, and an entrypoint must be on the same port everywhere it appears. The file is read from the repository's clone in the multiverse root, so it changes when the clone is updated. It is a dotfile so it is never mistaken for a multiverse of its own (<code>multiverse.yaml</code>, <code>multiverse/*.yaml</code>). Compose labels stay the layer for each service.</p>
+</section>
+
 <section id="manifest">
   <p>One <code>multiverse.yaml</code> lists the repositories and how a universe is addressed. It never describes containers; those stay in each repository's own compose files. The format is versioned, Kubernetes-style: <code>apiVersion: multiverse/v1alpha1</code>, <code>kind: Multiverse</code>.</p>
   <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
@@ -132,6 +149,7 @@
     <p class="toc-h" id="toch">On this page</p>
     <ul>
       <li><a href="#kinds">Two kinds of file</a></li>
+      <li><a href="#own-file">What a repository says about itself</a></li>
       <li><a href="#hosts">hosts: for repositories you cannot change</a></li>
       <li><a href="#portforward">portForward: reachable by IP and port</a></li>
     </ul>
