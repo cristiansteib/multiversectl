@@ -10,7 +10,7 @@ func TestABareAtSaysWhatItNeedsAndHowToChoose(t *testing.T) {
 	root, _ := New(Factory{})
 	root.SetOut(&bytes.Buffer{})
 	root.SetErr(&bytes.Buffer{})
-	root.SetArgs([]string{"project", "add", "acme/billing", "--at"})
+	root.SetArgs([]string{"catalog", "add", "acme/billing", "--at"})
 	err := root.Execute()
 	if err == nil {
 		t.Fatal("a bare --at is an error")

@@ -23,33 +23,12 @@ func (Editor) Scaffold(name string) []byte {
 		"\nmetadata:\n  name: " + name + "\nspec: {}\n")
 }
 
-// ScaffoldRoot is Scaffold for the catalog a machine starts from.
-func (Editor) ScaffoldRoot(name string) []byte {
-	return []byte("apiVersion: " + v1alpha1.APIVersion + "\nkind: " + v1alpha1.KindRoot +
-		"\nmetadata:\n  name: " + name + "\nspec: {}\n")
-}
-
-// MarkRoot turns a Catalog into a CatalogRoot, touching only its kind, so what
-// a person wrote around it is kept.
-func (Editor) MarkRoot(data []byte) ([]byte, error) {
-	doc, _, err := parse(data)
-	if err != nil {
-		return nil, err
-	}
-	kind := mapValue(doc.Content[0], "kind")
-	if kind == nil {
-		return nil, errors.New("catalog has no kind")
-	}
-	kind.Value = v1alpha1.KindRoot
-	return encode(doc)
-}
-
 func (Editor) AddCatalogRef(data []byte, ref domain.CatalogRef) ([]byte, error) {
-	return addRef(data, []string{"catalogs"}, ref.Name, ref.Source, DefaultCatalogPath)
+	return addRef(data, "catalogs", ref.Name, ref.Source, DefaultCatalogPath)
 }
 
-func (Editor) AddWorkspaceRef(data []byte, ref domain.WorkspaceRef) ([]byte, error) {
-	return addRef(data, []string{"projects", "workspaces"}, ref.Name, ref.Source, DefaultWorkspacePath)
+func (Editor) AddMultiverseRef(data []byte, ref domain.MultiverseRef) ([]byte, error) {
+	return addRef(data, "multiverses", ref.Name, ref.Source, DefaultMultiversePath)
 }
 
 func (Editor) RemoveRef(data []byte, name string) ([]byte, error) {
@@ -79,10 +58,10 @@ func (Editor) RemoveRef(data []byte, name string) ([]byte, error) {
 	return encode(doc)
 }
 
-// WorkspaceName only needs metadata.name, so it does not validate the rest:
+// MultiverseName only needs metadata.name, so it does not validate the rest:
 // the manifest decoder owns that, and a catalog entry should not be refused
 // because of a field this tool does not read.
-func (Editor) WorkspaceName(data []byte) (string, error) {
+func (Editor) MultiverseName(data []byte) (string, error) {
 	var w struct {
 		Kind     string `yaml:"kind"`
 		Metadata struct {
@@ -92,13 +71,13 @@ func (Editor) WorkspaceName(data []byte) (string, error) {
 	if err := yaml.Unmarshal(data, &w); err != nil {
 		return "", fmt.Errorf("not valid YAML: %w", err)
 	}
-	if (w.Kind != "Project" && w.Kind != "Workspace") || w.Metadata.Name == "" {
-		return "", errors.New("not a Project manifest with a metadata.name")
+	if w.Kind != "Multiverse" || w.Metadata.Name == "" {
+		return "", errors.New("not a Multiverse with a metadata.name")
 	}
 	return w.Metadata.Name, nil
 }
 
-func (Editor) WorkspaceRoot(data []byte) string {
+func (Editor) MultiverseRoot(data []byte) string {
 	var w struct {
 		Spec struct {
 			Root string `yaml:"root"`
@@ -110,11 +89,9 @@ func (Editor) WorkspaceRoot(data []byte) string {
 	return w.Spec.Root
 }
 
-// addRef appends an entry to a list of the spec. keys are the names the list may
-// have, preferred first: an entry goes in the list the file already uses, so a
-// catalog written before projects were called that is not half moved to the new
-// name, and a file with neither starts the preferred one.
-func addRef(data []byte, keys []string, name string, src domain.Source, defaultPath string) ([]byte, error) {
+// addRef appends an entry to the spec's list called list, starting it when the
+// file has none.
+func addRef(data []byte, list, name string, src domain.Source, defaultPath string) ([]byte, error) {
 	doc, spec, err := parse(data)
 	if err != nil {
 		return nil, err
@@ -128,19 +105,12 @@ func addRef(data []byte, keys []string, name string, src domain.Source, defaultP
 			}
 		}
 	}
-	list := keys[0]
-	var seq *yaml.Node
-	for _, k := range keys {
-		if found := mapValue(spec, k); found != nil {
-			list, seq = k, found
-			break
-		}
-	}
+	seq := mapValue(spec, list)
 	if seq == nil {
 		spec.Content = append(spec.Content, scalar(list), &yaml.Node{Kind: yaml.SequenceNode})
 		seq = spec.Content[len(spec.Content)-1]
 	}
-	// `projects:` with nothing under it parses as a null scalar, not as an
+	// `multiverses:` with nothing under it parses as a null scalar, not as an
 	// empty sequence. The encoder ignores Content on a scalar, so appending to
 	// it would drop the entry and report success; make it a sequence first, as
 	// parse does for spec.

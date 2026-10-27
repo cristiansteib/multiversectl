@@ -26,7 +26,7 @@ func asked(cmd *cobra.Command, args []string, err error) error {
 }
 
 // universeArgs is the universe to act on: the first argument, or the one the
-// person picks from the project's.
+// person picks from the multiverse's.
 func (r runner) universeArgs(cmd *cobra.Command, args []string, s *app.Service) ([]string, error) {
 	if len(args) > 0 {
 		return args, nil
@@ -82,7 +82,7 @@ func (r runner) newName(cmd *cobra.Command, args []string, s *app.Service) ([]st
 }
 
 // branchArg is the branch to check out: the argument, or one picked from the
-// branches the project's repositories have.
+// branches the multiverse's repositories have.
 func (r runner) branchArg(cmd *cobra.Command, args []string, s *app.Service) (string, error) {
 	if len(args) > 0 {
 		return args[0], nil
@@ -160,26 +160,22 @@ func shortRepoName(repo string) string {
 	return domain.Locate(repo, "").Short(home)
 }
 
-// workspaceArg is an installed project: the argument, or the one picked.
-func (r runner) workspaceArg(cmd *cobra.Command, args []string, bare *app.Service, label string) (string, error) {
+// multiverseArg is an installed multiverse: the argument, or the one picked.
+func (r runner) multiverseArg(cmd *cobra.Command, args []string, bare *app.Service, label string) (string, error) {
 	if len(args) > 0 {
 		return args[0], nil
 	}
-	list, err := bare.Workspaces()
+	list, err := bare.Multiverses()
 	if err != nil {
 		return "", err
 	}
 	if len(list) == 0 {
-		return "", errors.New("nothing is installed: `multiversectl catalog install <owner/repo>`")
+		return "", errors.New("nothing is installed: `multiversectl start <owner/repo>`")
 	}
 	opts := make([]app.Option, len(list))
 	def := 0
 	for i, w := range list {
 		note := firstNonEmpty(w.From, w.Root)
-		if w.Current {
-			note += "   (current)"
-			def = i
-		}
 		opts[i] = app.Option{Label: w.Name, Note: note}
 	}
 	i, err := r.f.Prompter().Select(label, opts, def)

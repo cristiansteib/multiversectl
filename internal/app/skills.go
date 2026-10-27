@@ -63,7 +63,7 @@ func (s *Skills) GlobalDir() (string, error) {
 }
 
 // installs is the list of places this tool put a skill, so an upgrade finds
-// project-level ones too.
+// multiverse-level ones too.
 func (s *Skills) installsFile() (string, error) {
 	h, err := s.home()
 	if err != nil {

@@ -7,11 +7,9 @@
 <span class="c">› starting universe 1</span>
 <span class="k">✓</span> universe 1 is up
   http://api-u1.192-168-1-20.traefik.me</pre></div>
-  <p>That is the whole of it: <code>start</code> installs the project, makes universe 1 and starts it, and ends on an address to open. The source is anything <code>catalog install</code> takes — <code>owner/repo</code>, a git URL, a path, or a node in your catalog. Run it again and it starts the universe that is already there; with several, <code>-u</code> names one; <code>--open</code> opens the first address in a browser.</p>
-  <p>The same thing as the steps it takes, for when you want one of them on its own:</p>
-  <div class="code"><pre><span class="c"># record the project and clone its repos</span>
-<span class="p">$ </span>multiversectl catalog install ./multiverse.yaml --root ~/acme
-<span class="c"># universe 1: a worktree of every repo</span>
+  <p>That is the whole of it: <code>start</code> installs the multiverse, makes universe 1 and starts it, and ends on an address to open. The source is anything <code>start</code> takes — <code>owner/repo</code>, a git URL, a path, or a node in your catalog. Run it again and it starts the universe that is already there; with several, <code>-u</code> names one; <code>--open</code> opens the first address in a browser.</p>
+  <p>The same thing as the steps it takes once the multiverse is installed, for when you want one of them on its own:</p>
+  <div class="code"><pre><span class="c"># universe 1: a worktree of every repo</span>
 <span class="p">$ </span>multiversectl universe new 1
 <span class="c"># start its containers</span>
 <span class="p">$ </span>multiversectl universe up 1
@@ -19,7 +17,7 @@
 <span class="p">$ </span>multiversectl universe ls
 <span class="c"># print the hostnames universe 1 answers on</span>
 <span class="p">$ </span>multiversectl universe urls 1
-<span class="c"># check the host, the project and universe 1</span>
+<span class="c"># check the host, the multiverse and universe 1</span>
 <span class="p">$ </span>multiversectl universe doctor 1
 <span class="c"># stop and delete universe 1 (asks first)</span>
 <span class="p">$ </span>multiversectl universe rm 1</pre></div>
@@ -49,7 +47,7 @@ mobile u3      checkout only, no services</pre></div>
 
 <section id="browser">
   <h2 id="browser"><a href="#browser">The same thing in a browser</a></h2>
-  <p>Everything above is also on a page — the catalog, the projects and every universe, live, with the same operations behind buttons.</p>
+  <p>Everything above is also on a page — the catalog, the multiverses and every universe, live, with the same operations behind buttons.</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl server start --open
 <span class="p">$ </span>multiversectl server stop</pre></div>
   <p>It runs in the background behind a token, and the two can be used together. <a href="../tasks/server.html">Explore and run it in a browser</a> has the rest.</p>

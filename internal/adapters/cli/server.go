@@ -22,7 +22,7 @@ func (r runner) serverCmd() *cobra.Command {
 		Short: "Start, stop, restart and check the web view of this machine's setup and fleet",
 		Long: "The web view is a separate program, multiversectl-server, installed beside this\n" +
 			"one. These commands run it in the background and remember it. The page shows\n" +
-			"the catalog, the projects and the fleet live, their versions, and has buttons to\n" +
+			"the catalog, the multiverses and the fleet live, their versions, and has buttons to\n" +
 			"start, stop, create and remove universes. It is opened with a link that carries a\n" +
 			"token, which `server start` and `server status` print; --read-only removes the buttons.\n" +
 			"--expose lets another machine on the network reach it, and `server pair` gives\n" +
@@ -211,7 +211,7 @@ func (r runner) serverPairCmd() *cobra.Command {
 			// The first is the address the machine sends from, which is the
 			// one the other machine can reach. The rest are the networks it
 			// also happens to be on — a developer's machine has a docker
-			// bridge for every project — and are worth a count, not a list.
+			// bridge for every multiverse — and are worth a count, not a list.
 			if len(invite.At) > 0 {
 				r.out.Plain("  open %s", invite.At[0])
 			}

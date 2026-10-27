@@ -21,7 +21,7 @@ const maxCatalogDepth = 8
 const defaultCatalogFile = "catalog.yaml"
 
 // CatalogDeps are the ports the catalog service needs. It is deliberately not
-// part of Service: browsing what exists never touches a project or a
+// part of Service: browsing what exists never touches a multiverse or a
 // universe, and the two should not be able to reach into each other.
 type CatalogDeps struct {
 	Git       Git
@@ -145,7 +145,7 @@ func (c *Catalogs) tree(ctx context.Context, source string, refresh, offline boo
 			return domain.Node{}, err
 		}
 		if source = cfg.Catalog; source == "" {
-			return domain.Node{}, errors.New("no root catalog: `multiversectl init`  (installing a single project does not need one)")
+			return domain.Node{}, errors.New("no root catalog: `multiversectl init`  (installing a single multiverse does not need one)")
 		}
 	}
 	r := &resolver{Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, fetched: map[string]bool{}}
@@ -214,7 +214,7 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 	node := domain.Node{
 		Name: name, Path: nodePath, Kind: domain.CatalogNode,
 		Source: domain.Source{Repo: at.repo, Ref: at.ref, Path: filepath.ToSlash(at.file)},
-		File:   filepath.Join(at.dir, at.file), Dir: at.dir, Root: cat.Root,
+		File:   filepath.Join(at.dir, at.file), Dir: at.dir,
 	}
 	stack = append(stack, k)
 
@@ -233,9 +233,9 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 		}
 		node.Children = append(node.Children, child)
 	}
-	for _, ref := range cat.Workspaces {
+	for _, ref := range cat.Multiverses {
 		node.Children = append(node.Children, domain.Node{
-			Name: ref.Name, Path: domain.ChildPath(nodePath, ref.Name), Kind: domain.WorkspaceNode,
+			Name: ref.Name, Path: domain.ChildPath(nodePath, ref.Name), Kind: domain.MultiverseNode,
 			Source: r.absolute(at, ref.Source),
 		})
 	}
@@ -259,7 +259,7 @@ func (r *resolver) locate(from location, s domain.Source) (location, error) {
 	return location{repo: s.Repo, ref: s.Ref, dir: dir, file: rel}, nil
 }
 
-// absolute fills in what a project ref left implicit. In a local catalog
+// absolute fills in what a multiverse ref left implicit. In a local catalog
 // there is no repository, so the path becomes the absolute manifest file.
 func (r *resolver) absolute(from location, s domain.Source) domain.Source {
 	if s.Repo == "" {
@@ -356,7 +356,7 @@ func reason(err error, repo string) string {
 	return strings.TrimSpace(lines[0])
 }
 
-// InstalledIn maps the catalog paths of a tree's projects to the names they
+// InstalledIn maps the catalog paths of a tree's multiverses to the names they
 // are installed under here, by the path they were installed from or, failing
 // that, by the source they came from, so one installed straight from its
 // repository is still marked once the catalog lists it.

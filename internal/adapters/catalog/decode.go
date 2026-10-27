@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	DefaultCatalogPath   = "catalog.yaml"
-	DefaultWorkspacePath = "multiverse.yaml"
+	DefaultCatalogPath    = "catalog.yaml"
+	DefaultMultiversePath = "multiverse.yaml"
 )
 
 var nameRE = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
@@ -41,8 +41,8 @@ func (Decoder) Decode(data []byte) (*domain.Catalog, error) {
 	if env.APIVersion != v1alpha1.APIVersion {
 		return nil, fmt.Errorf("unsupported apiVersion %q; supported: %s", env.APIVersion, v1alpha1.APIVersion)
 	}
-	if env.Kind != v1alpha1.Kind && env.Kind != v1alpha1.KindRoot {
-		return nil, fmt.Errorf("unsupported kind %q; this file must be a %s or a %s", env.Kind, v1alpha1.Kind, v1alpha1.KindRoot)
+	if env.Kind != v1alpha1.Kind {
+		return nil, fmt.Errorf("unsupported kind %q; this file must be a %s", env.Kind, v1alpha1.Kind)
 	}
 
 	dec := yaml.NewDecoder(bytes.NewReader(data))
@@ -51,12 +51,7 @@ func (Decoder) Decode(data []byte) (*domain.Catalog, error) {
 	if err := dec.Decode(&c); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("decode %s %s: %w", env.APIVersion, env.Kind, err)
 	}
-	out, err := convert(&c)
-	if err != nil {
-		return nil, err
-	}
-	out.Root = env.Kind == v1alpha1.KindRoot
-	return out, nil
+	return convert(&c)
 }
 
 func convert(c *v1alpha1.Catalog) (*domain.Catalog, error) {
@@ -85,22 +80,15 @@ func convert(c *v1alpha1.Catalog) (*domain.Catalog, error) {
 		}
 		out.Catalogs = append(out.Catalogs, domain.CatalogRef{Name: r.Name, Source: src})
 	}
-	// A file may use either name, or both while it is being moved from one to the
-	// other; the names still have to be distinct across all of them.
-	for _, list := range []struct {
-		key  string
-		refs []v1alpha1.ProjectRef
-	}{{"projects", c.Spec.Projects}, {"workspaces", c.Spec.Workspaces}} {
-		for i, r := range list.refs {
-			if err := claim(r.Name); err != nil {
-				return nil, fmt.Errorf("spec.%s[%d]: %w", list.key, i, err)
-			}
-			src, err := source(r.Source, DefaultWorkspacePath)
-			if err != nil {
-				return nil, fmt.Errorf("spec.%s[%d] %s: %w", list.key, i, r.Name, err)
-			}
-			out.Workspaces = append(out.Workspaces, domain.WorkspaceRef{Name: r.Name, Source: src})
+	for i, r := range c.Spec.Multiverses {
+		if err := claim(r.Name); err != nil {
+			return nil, fmt.Errorf("spec.multiverses[%d]: %w", i, err)
 		}
+		src, err := source(r.Source, DefaultMultiversePath)
+		if err != nil {
+			return nil, fmt.Errorf("spec.multiverses[%d] %s: %w", i, r.Name, err)
+		}
+		out.Multiverses = append(out.Multiverses, domain.MultiverseRef{Name: r.Name, Source: src})
 	}
 	return out, nil
 }

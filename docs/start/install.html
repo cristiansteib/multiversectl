@@ -53,7 +53,7 @@
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
-        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/catalog.html">Manage many multiverses from one index</a></li>
         <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
@@ -69,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -108,7 +108,7 @@
   <h2 id="remove"><a href="#remove">Remove it, completely</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl system footprint</pre></div>
   <p>It lists everything multiversectl has put on the machine — the server and proxy if running, every universe with its containers, volumes and worktrees, the clones, branches left behind, the configuration, caches, completions and the programs — and removes none of it. Each item has its size and its removal command, and anything that would lose work existing nowhere else is marked. The commands come last, in a safe order; <code>--script</code> prints only those.</p>
-  <p>Run it before <code>reset</code>: once a project is forgotten the tool no longer knows its folder. The root catalog's repository is not touched.</p>
+  <p>Run it before <code>system reset</code>: once a multiverse is forgotten the tool no longer knows its folder. The root catalog's repository is not touched.</p>
 </section>
 
 <section id="verify">

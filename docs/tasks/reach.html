@@ -53,7 +53,7 @@
         <li><a href="../tasks/branches.html">Work across branches</a></li>
         <li><a href="../tasks/reach.html" aria-current="page">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
-        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/catalog.html">Manage many multiverses from one index</a></li>
         <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
@@ -69,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -86,11 +86,11 @@
 http://app-u3.192-168-1-20.traefik.me
 http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
   <p>Open a printed URL on any device on the same network. With <code>expose: lan</code> (the default) and <code>domain: auto</code> the hostnames are <code>&lt;host&gt;-u3.&lt;dashed-lan-ip&gt;.traefik.me</code>, a public wildcard DNS name that resolves to this machine, so nothing is installed on the device. If a name does not resolve, see <a href="../reference/troubleshooting.html#ts-dns">Troubleshooting</a>.</p>
-  <p>To keep a project on your machine instead, set <code>expose: local</code>: the proxy then publishes on <code>127.0.0.1</code> only, so nothing off the box can connect, and <code>domain: auto</code> becomes <code>&lt;host&gt;-u3.localhost</code>, which browsers resolve themselves without asking any DNS server. Worth preferring unless another device has to open a universe — a dev stack's mail catcher, debug pages and seeded data are otherwise readable by anyone on the network.</p>
+  <p>To keep a multiverse on your machine instead, set <code>expose: local</code>: the proxy then publishes on <code>127.0.0.1</code> only, so nothing off the box can connect, and <code>domain: auto</code> becomes <code>&lt;host&gt;-u3.localhost</code>, which browsers resolve themselves without asking any DNS server. Worth preferring unless another device has to open a universe — a dev stack's mail catcher, debug pages and seeded data are otherwise readable by anyone on the network.</p>
 </section>
 
 <section id="hw-domain">
-  <h2 id="hw-domain"><a href="#hw-domain">Point a project at a domain you own</a></h2>
+  <h2 id="hw-domain"><a href="#hw-domain">Point a multiverse at a domain you own</a></h2>
   <p>Create a wildcard DNS record, <code>*.dev.example.test</code>, pointing at this machine, then replace <code>domain: auto</code>:</p>
   <div class="code"><pre><span class="c"># multiverse.yaml</span>
 <span class="k">spec</span>:
@@ -118,7 +118,7 @@ http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
     <p class="toc-h" id="toch">On this page</p>
     <ul>
       <li><a href="#hw-network">Reach a universe from your phone</a></li>
-      <li><a href="#hw-domain">Point a project at a domain you own</a></li>
+      <li><a href="#hw-domain">Point a multiverse at a domain you own</a></li>
       <li><a href="#hw-db">Reach a universe&#39;s database</a></li>
     </ul>
   </aside>

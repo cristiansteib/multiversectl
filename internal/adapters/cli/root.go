@@ -13,25 +13,25 @@ import (
 
 // Globals are the flags every command accepts.
 type Globals struct {
-	Manifest  string
-	Root      string
-	Workspace string
-	NoColor   bool
-	Verbose   bool
-	JSON      bool
+	Manifest   string
+	Root       string
+	Multiverse string
+	NoColor    bool
+	Verbose    bool
+	JSON       bool
 }
 
 // Factory builds services; main owns it so the CLI never names an adapter.
 type Factory struct {
 	Version, Commit, Date string
 
-	// Project resolves root and manifest from flags, env, config and cwd.
-	Workspace func(g Globals, out app.Output) (*app.Service, error)
-	// Bare needs no manifest: install, status, update and the project list.
+	// Multiverse resolves root and manifest from flags, env, config and cwd.
+	Multiverse func(g Globals, out app.Output) (*app.Service, error)
+	// Bare needs no manifest: install, status, update and the multiverse list.
 	Bare func(g Globals, out app.Output) (*app.Service, error)
 	// At builds a service for an explicit root and manifest file.
 	At func(g Globals, out app.Output, root, manifestPath string) (*app.Service, error)
-	// Catalogs builds the catalog service, which never needs a project.
+	// Catalogs builds the catalog service, which never needs a multiverse.
 	Catalogs func(g Globals, out app.Output) (*app.Catalogs, error)
 	// Prompter asks questions on the terminal.
 	Prompter func() app.Prompter
@@ -65,13 +65,9 @@ func New(f Factory) (*cobra.Command, *Globals) {
 		},
 	}
 	flags := root.PersistentFlags()
-	flags.StringVarP(&g.Manifest, "manifest", "f", "", "path to the project manifest")
-	flags.StringVarP(&g.Workspace, "project", "p", "", "project to act on (default: the one chosen with `catalog use`)")
-	// The name this flag had before a project was called a project.
-	flags.StringVarP(&g.Workspace, "workspace", "w", "", "")
-	_ = flags.MarkHidden("workspace")
-	_ = flags.MarkDeprecated("workspace", "use --project (-p)")
-	flags.StringVar(&g.Root, "root", "", "project root (default $MULTIVERSECTL_ROOT, the manifest's spec.root, config, or the manifest's directory)")
+	flags.StringVarP(&g.Manifest, "manifest", "f", "", "path to the multiverse manifest")
+	flags.StringVarP(&g.Multiverse, "multiverse", "m", "", "multiverse to act on (default: the one whose folder you are in, else the only one installed)")
+	flags.StringVar(&g.Root, "root", "", "multiverse root (default $MULTIVERSECTL_ROOT, the manifest's spec.root, config, or the manifest's directory)")
 	flags.BoolVar(&g.NoColor, "no-color", false, "disable colour output")
 	flags.BoolVarP(&g.Verbose, "verbose", "v", false, "show the commands being run")
 	flags.BoolVar(&g.JSON, jsonFlag, false, "machine-readable output: -o json on a listing, and --help as a document (for agents)")
@@ -79,10 +75,10 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run = runner{g: g, out: out, f: f}
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
-		run.startCmd(), run.helpTreeCmd(root), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.oldProject(), run.initCmd(), run.resetCmd(), run.oldCleanup(), run.systemCmd(), run.completionCmd(root), run.agentsCmd(),
+		run.startCmd(), run.helpTreeCmd(root), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.initCmd(), run.systemCmd(), run.completionCmd(root), run.agentsCmd(),
 		run.selfUpdateCmd(), run.versionCmd(),
 	)
-	_ = root.RegisterFlagCompletionFunc("project", run.completeWorkspaces)
+	_ = root.RegisterFlagCompletionFunc("multiverse", run.completeMultiverses)
 	root.Args = cobra.NoArgs
 	root.RunE = run.welcome
 	explainArgs(root)
@@ -101,15 +97,15 @@ type runner struct {
 	quietHints bool
 }
 
-// withService runs fn against the resolved project.
+// withService runs fn against the resolved multiverse.
 func (r runner) withService(fn func(ctx context.Context, s *app.Service) error) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
-		s, err := r.f.Workspace(*r.g, r.out)
+		s, err := r.f.Multiverse(*r.g, r.out)
 		if err != nil {
 			return err
 		}
-		// News about the project's manifest, on the way in: the commands that
-		// act on a project are where someone would otherwise never look.
+		// News about the multiverse's manifest, on the way in: the commands that
+		// act on a multiverse are where someone would otherwise never look.
 		if msg := s.ManifestNotice(cmd.Context()); msg != "" {
 			if o := cmd.Flags().Lookup("output"); o != nil && strings.Contains(o.Value.String(), "json") {
 				// stdout is a document: the notice must not break it.
@@ -135,11 +131,11 @@ func (r runner) welcome(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return nil
 	}
-	if list, err := bare.Workspaces(); err == nil && len(list) == 0 {
+	if list, err := bare.Multiverses(); err == nil && len(list) == 0 {
 		r.out.Plain("")
 		r.out.Plain("%s", r.out.Bold("Nothing is installed yet:"))
 		r.out.Plain("  `multiversectl start <owner/repo>`   install it, make a universe, run it")
-		r.out.Plain("  `multiversectl init`                 your own index of projects")
+		r.out.Plain("  `multiversectl init`                 your own index of multiverses")
 	}
 	return nil
 }

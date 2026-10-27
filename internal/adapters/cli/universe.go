@@ -228,7 +228,7 @@ func (r runner) lsCmd() *cobra.Command {
 			"  multiversectl universe ls -o wide        # every service, its state and its volumes\n" +
 			"  multiversectl universe ls -o list        # one line per universe\n" +
 			"  multiversectl universe ls -o list,wide\n" +
-			"  multiversectl universe ls -o json        # compact, for an agent: project paths, and per universe its state, folders, addresses by app/host, and the running container of each service\n" +
+			"  multiversectl universe ls -o json        # compact, for an agent: multiverse paths, and per universe its state, folders, addresses by app/host, and the running container of each service\n" +
 			"  multiversectl universe ls -o json,wide   # everything: services, volumes, compose names, times\n" +
 			"  multiversectl universe ls -o json,less   # the least: name, state, folder and addresses by app/host\n" +
 			"  multiversectl universe ls 3 -o json      # only universe 3",
@@ -376,7 +376,7 @@ func anyForward(u app.Summary) bool {
 
 // diskRows is what a universe owns on disk: one row per repository, with the
 // worktree its code is in and, for the ones that run something, the runtime
-// project and the volumes under it. Every name carrying the universe's own
+// multiverse and the volumes under it. Every name carrying the universe's own
 // prefix is the evidence that this universe shares nothing with another.
 func diskRows(u app.Summary) [][]Cell {
 	byRepo := map[string]app.AppSummary{}
@@ -757,7 +757,7 @@ func (r runner) universeCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), moved(r.proxyCmd(), "system proxy"), moved(r.pruneCmd(), "system prune"), r.downCmd(), r.syncCmd(), r.noteCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
+	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.downCmd(), r.syncCmd(), r.noteCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
 		r.envCmd(), r.runCmd(), r.execCmd())
 	return cmd
 }

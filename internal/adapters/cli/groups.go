@@ -8,7 +8,7 @@ import (
 )
 
 // The three things a person does with this tool: work in universes, set the
-// tool up, and manage which projects exist and which are on this machine.
+// tool up, and manage which multiverses exist and which are on this machine.
 const (
 	groupSetup    = "setup"
 	groupCatalog  = "catalog"
@@ -26,7 +26,7 @@ var startHere = []string{"init"}
 
 var commandGroups = map[string]string{
 	"help-tree": groupSetup, "init": groupStart, "reset": groupSetup, "cleanup": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup, "agents": groupSetup,
-	"catalog": groupCatalog, "project": groupCatalog,
+	"catalog": groupCatalog, "multiverse": groupCatalog,
 	"start": groupUniverse, "system": groupUniverse, "universe": groupUniverse, "status": groupUniverse, "server": groupUniverse,
 }
 

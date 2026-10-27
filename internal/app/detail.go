@@ -130,14 +130,14 @@ type StatRow struct {
 }
 
 // ProjectStats takes one reading of every running container of every universe
-// of the project. It asks the runtime twice however many universes there are,
+// of the multiverse. It asks the runtime twice however many universes there are,
 // because a page polls it: once for the containers, once for their use.
 func (s *Service) ProjectStats(ctx context.Context) ([]StatRow, error) {
 	states, err := s.Store.List()
 	if err != nil {
 		return nil, fmt.Errorf("listing universes: %w", err)
 	}
-	// Every compose project of every universe starts with the project's own
+	// Every compose project of every universe starts with the multiverse's own
 	// name, so one query covers the fleet; owners keeps only what it owns.
 	containers, err := s.Runtime.Containers(ctx, s.Manifest.Name)
 	if err != nil {

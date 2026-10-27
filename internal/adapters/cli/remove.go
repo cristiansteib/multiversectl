@@ -71,7 +71,7 @@ func (r runner) confirm(ctx context.Context, s *app.Service, arg string) error {
 		}
 		out.Plain("    %s  branch %s%s", u.RepoDir(repoKey), st.Branches[repoKey], mark)
 	}
-	out.Plain("  containers of project %s:", st.Project)
+	out.Plain("  containers of multiverse %s:", st.Project)
 	containers, err := s.Runtime.Containers(ctx, st.Project)
 	if err != nil {
 		out.Plain("    (could not list: %v)", err)
@@ -79,7 +79,7 @@ func (r runner) confirm(ctx context.Context, s *app.Service, arg string) error {
 	for _, c := range containers {
 		out.Plain("    %s  %s", c.Name, c.Status)
 	}
-	out.Plain("  volumes of project %s (all data in them)", st.Project)
+	out.Plain("  volumes of multiverse %s (all data in them)", st.Project)
 	out.Plain("  state file for universe %s", st.Name)
 	out.Plain("")
 

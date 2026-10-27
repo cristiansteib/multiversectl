@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// ManifestDrift is how the manifest an installed project came from compares with
+// ManifestDrift is how the manifest an installed multiverse came from compares with
 // the remote it was installed from: whether it was edited here, and how far the
 // two have moved apart. It reads what was last fetched, so it is offline.
 type ManifestDrift struct {
@@ -51,7 +51,7 @@ func (d ManifestDrift) Notes(asOfLastFetch bool) []string {
 }
 
 // Advice says what to do about it, in the person's terms, or "" when nothing is
-// pending. name is the project, for the command to run.
+// pending. name is the multiverse, for the command to run.
 func (d ManifestDrift) Advice(name string) string {
 	update := "`multiversectl catalog update " + name + "`"
 	switch {
@@ -74,9 +74,9 @@ func plural1(n int) string {
 	return "s"
 }
 
-// manifestDrift is false for a project installed from a file, which has nothing
+// manifestDrift is false for a multiverse installed from a file, which has nothing
 // to drift from. A manifest pinned to a tag or commit never has anything behind.
-func manifestDrift(ctx context.Context, g Git, files Files, e WorkspaceEntry) (ManifestDrift, bool) {
+func manifestDrift(ctx context.Context, g Git, files Files, e MultiverseEntry) (ManifestDrift, bool) {
 	dir := manifestClone(e.Root)
 	if e.Source.Repo == "" || !files.Exists(dir) {
 		return ManifestDrift{}, false
@@ -103,7 +103,7 @@ const (
 	NoFetchEnv = "MULTIVERSECTL_NO_FETCH"
 )
 
-// ManifestNotice is what to tell the person who is about to work in the project
+// ManifestNotice is what to tell the person who is about to work in the multiverse
 // at root: that its manifest has moved upstream, or has diverged. It looks at
 // what was last fetched, and when that is older than checkEvery it fetches
 // once more, briefly and quietly, so the news arrives without anyone asking.
@@ -113,8 +113,8 @@ func (s *Service) ManifestNotice(ctx context.Context) string {
 	if err != nil {
 		return ""
 	}
-	for name, e := range cfg.Workspaces {
-		if e.Root != s.Workspace {
+	for name, e := range cfg.Multiverses {
+		if e.Root != s.Multiverse {
 			continue
 		}
 		dir := manifestClone(e.Root)

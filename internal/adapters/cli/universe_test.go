@@ -36,52 +36,34 @@ func TestUniverseCommandsLiveUnderUniverse(t *testing.T) {
 
 func TestEachCommandLivesWhereItsSubjectDoes(t *testing.T) {
 	root, _ := New(Factory{})
-	// A project is a node of the catalog, so everything about a node — looking
-	// at the tree, editing it, and what of it is on this machine — is the
-	// catalog's. There is no second noun to look under.
-	for _, name := range []string{"list", "add", "create", "rm", "new", "install", "uninstall", "use", "status", "update"} {
+	// Everything about an entry of the catalog — looking at the tree, editing
+	// it, and bringing it up to date — is the catalog's. There is no second
+	// noun to look under, and starting one is `start`, not a catalog verb.
+	for _, name := range []string{"list", "add", "rm", "new", "update"} {
 		c, _, err := root.Find([]string{"catalog", name})
 		if err != nil || c.Name() != name || c.Hidden {
 			t.Errorf("catalog %s: not found as a visible command (%v)", name, err)
 		}
-		// status is also a top-level command, but a different one: the
-		// machine's overview, not the catalog's drift.
-		if top, _, _ := root.Find([]string{name}); name != "status" && top != root {
+		if top, _, _ := root.Find([]string{name}); top != root {
 			t.Errorf("%s is a top-level command", name)
 		}
 	}
-}
-
-// What was under project still runs, out of the help, and says where it went.
-// `project list` keeps its own output, which a script may be reading, so it is
-// the old command and not an alias of the new one.
-func TestProjectIsKeptOnlyAsADeprecatedWayIn(t *testing.T) {
-	root, _ := New(Factory{})
-	p, _, err := root.Find([]string{"project"})
-	if err != nil || p.Name() != "project" || !p.Hidden {
-		t.Fatalf("project should exist and be hidden (%v)", err)
-	}
-	for old, want := range map[string]string{
-		"install":   "catalog install",
-		"uninstall": "catalog uninstall",
-		"use":       "catalog use",
-		"status":    "catalog status",
-		"update":    "catalog update",
-		"add":       "catalog add",
-		"list":      "catalog list",
-		"init":      "catalog new", // renamed on the way: what made a project is `new`
-	} {
-		c, _, err := root.Find([]string{"project", old})
-		if err != nil || c.Name() != old {
-			t.Errorf("project %s: gone (%v)", old, err)
-			continue
-		}
-		if !strings.Contains(c.Deprecated, want) {
-			t.Errorf("project %s: deprecation says %q, want it to name %q", old, c.Deprecated, want)
+	// What acts on a multiverse as a whole is typed where the machine's
+	// things are, and what was a catalog verb for it is gone.
+	for _, gone := range []string{"create", "install", "uninstall", "use", "status"} {
+		if c, _, _ := root.Find([]string{"catalog", gone}); c != nil && c.Name() == gone {
+			t.Errorf("catalog %s should not exist", gone)
 		}
 	}
-	if q, _, _ := root.Find([]string{"p", "install"}); q.Name() != "install" {
-		t.Error("`p` still reaches it")
+	for _, path := range [][]string{{"system", "forget"}, {"system", "reset"}, {"status"}, {"start"}} {
+		if c, _, err := root.Find(path); err != nil || c.Name() != path[len(path)-1] || c.Hidden {
+			t.Errorf("%v: not found as a visible command (%v)", path, err)
+		}
+	}
+	for _, old := range []string{"project", "reset", "cleanup", "p"} {
+		if c, _, _ := root.Find([]string{old}); c != nil && c != root {
+			t.Errorf("%s is gone, but %q answers", old, c.Name())
+		}
 	}
 }
 
@@ -106,7 +88,7 @@ func TestArgumentErrorsSayWhatToDo(t *testing.T) {
 		args []string
 		want []string
 	}{
-		{[]string{"catalog", "create"}, []string{"needs <name>", "usage:", "example:"}},
+		{[]string{"catalog", "create"}, []string{"has no command create", "commands:"}},
 		{[]string{"universe", "status", "extra"}, []string{"takes no arguments", "extra"}},
 		{[]string{"u", "nwe"}, []string{"has no command nwe", "did you mean new", "commands:"}},
 	}
@@ -129,21 +111,22 @@ func TestArgumentErrorsSayWhatToDo(t *testing.T) {
 	}
 }
 
-// -w/--workspace is what the flag was called before; scripts that use it keep
-// working, and it says what to use instead.
-func TestTheOldWorkspaceFlagStillSelectsAProject(t *testing.T) {
-	for _, args := range [][]string{{"-p", "acme"}, {"--project", "acme"}, {"-w", "acme"}, {"--workspace", "acme"}} {
+// The flag is -m/--multiverse, and nothing else names it any more.
+func TestTheMultiverseFlagSelectsOne(t *testing.T) {
+	for _, args := range [][]string{{"-m", "acme"}, {"--multiverse", "acme"}} {
 		root, g := New(Factory{})
 		if err := root.PersistentFlags().Parse(args); err != nil {
 			t.Fatalf("%v: %v", args, err)
 		}
-		if g.Workspace != "acme" {
-			t.Errorf("%v selected %q", args, g.Workspace)
+		if g.Multiverse != "acme" {
+			t.Errorf("%v selected %q", args, g.Multiverse)
 		}
 	}
-	root, _ := New(Factory{})
-	if f := root.PersistentFlags().Lookup("workspace"); f == nil || !f.Hidden || f.Deprecated == "" {
-		t.Errorf("the old flag should be hidden and say what replaced it: %+v", f)
+	for _, args := range [][]string{{"-p", "acme"}, {"--project", "acme"}, {"-w", "acme"}} {
+		root, _ := New(Factory{})
+		if err := root.PersistentFlags().Parse(args); err == nil {
+			t.Errorf("%v should not be a flag any more", args)
+		}
 	}
 }
 

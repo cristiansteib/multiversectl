@@ -123,7 +123,7 @@ func (l Location) Short(home string) string {
 	return s
 }
 
-// Location is where a catalog or project node lives: a repository on a
+// Location is where a catalog or multiverse node lives: a repository on a
 // service, or a file on this machine.
 func (n Node) Location() Location {
 	switch {

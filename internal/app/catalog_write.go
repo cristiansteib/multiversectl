@@ -39,7 +39,7 @@ func (c *Catalogs) confirm(label string, def bool) (bool, error) {
 	return ok, err
 }
 
-// catalogsOnly is the tree without its projects: where a new entry can go.
+// catalogsOnly is the tree without its multiverses: where a new entry can go.
 func catalogsOnly(n domain.Node) domain.Node {
 	out := n
 	out.Children = nil
@@ -138,7 +138,7 @@ func (c *Catalogs) parentCatalog(tree domain.Node, at string, atGiven bool, sour
 	case !ok:
 		problem = fmt.Sprintf("no catalog at %q", at)
 	case n.Kind != domain.CatalogNode:
-		problem = fmt.Sprintf("%q is a project, not a catalog", at)
+		problem = fmt.Sprintf("%q is a multiverse, not a catalog", at)
 	case n.Unavailable != "":
 		problem = fmt.Sprintf("catalog %q is unavailable: %s", at, n.Unavailable)
 	default:
@@ -443,7 +443,7 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 	plan := editPlan{Careful: true, Lines: removalLines(target)}
 	var installed []string
 	if cfg, err := c.Config.Load(); err == nil {
-		for name, e := range cfg.Workspaces {
+		for name, e := range cfg.Multiverses {
 			if e.From == nodePath || strings.HasPrefix(e.From, nodePath+"/") {
 				installed = append(installed, name)
 			}
@@ -461,7 +461,7 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 	}
 	// Removing an entry does not touch what is installed from it.
 	for _, name := range installed {
-		c.Out.Info("still installed here: `multiversectl catalog uninstall %s`", name)
+		c.Out.Info("still installed here: `multiversectl system forget %s`", name)
 	}
 	return nil
 }
@@ -472,7 +472,7 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 func removalLines(n domain.Node) []string {
 	if n.Kind != domain.CatalogNode {
 		return []string{
-			"removes: the entry " + n.Path + " (a project); the repository it points at is not touched",
+			"removes: the entry " + n.Path + " (a multiverse); the repository it points at is not touched",
 		}
 	}
 	leaves := n.Leaves()
@@ -482,7 +482,7 @@ func removalLines(n domain.Node) []string {
 	}
 	if len(names) == 0 {
 		return []string{
-			"removes: the entry " + n.Path + " (a catalog that lists no projects)",
+			"removes: the entry " + n.Path + " (a catalog that lists no multiverses)",
 			"leaves alone: the catalog file; only the link to it goes",
 		}
 	}
@@ -493,9 +493,9 @@ func removalLines(n domain.Node) []string {
 		if len(shown) > 5 {
 			shown, more = shown[:5], fmt.Sprintf(", and %d more", len(names)-5)
 		}
-		noun := "projects"
+		noun := "multiverses"
 		if len(names) == 1 {
-			noun = "project"
+			noun = "multiverse"
 		}
 		list = fmt.Sprintf("%d %s: %s%s", len(names), noun, strings.Join(shown, ", "), more)
 	}
@@ -505,19 +505,19 @@ func removalLines(n domain.Node) []string {
 	}
 }
 
-// AddWorkspaceInput is a repository to list in a catalog.
-type AddWorkspaceInput struct {
+// AddMultiverseInput is a repository to list in a catalog.
+type AddMultiverseInput struct {
 	Repo, Ref, Path string
 	Name            string
 	At              string
 	AtGiven         bool
 }
 
-// AddWorkspace lists a repository's multiverse.yaml in a catalog, taking its
+// AddMultiverse lists a repository's multiverse.yaml in a catalog, taking its
 // name from the manifest when none is given.
-func (c *Catalogs) AddWorkspace(ctx context.Context, in AddWorkspaceInput) (string, error) {
+func (c *Catalogs) AddMultiverse(ctx context.Context, in AddMultiverseInput) (string, error) {
 	if in.Repo == "" {
-		return "", errors.New("add project: a repository URL is required")
+		return "", errors.New("add multiverse: a repository URL is required")
 	}
 	in.Repo = c.expand(in.Repo)
 	tree, err := c.Tree(ctx, "", false)
@@ -538,7 +538,7 @@ func (c *Catalogs) AddWorkspace(ctx context.Context, in AddWorkspaceInput) (stri
 	}
 	name := in.Name
 	if name == "" {
-		if name, err = c.Editor.WorkspaceName(data); err != nil {
+		if name, err = c.Editor.MultiverseName(data); err != nil {
 			return "", fmt.Errorf("%s in %s: %w", file, in.Repo, err)
 		}
 	}
@@ -555,8 +555,8 @@ func (c *Catalogs) AddWorkspace(ctx context.Context, in AddWorkspaceInput) (stri
 		c.Out.Info("%s is already in the catalog", existing)
 		return existing, nil
 	}
-	err = c.edit(ctx, parent, fmt.Sprintf("add project %s", name), func(cat []byte) ([]fileChange, error) {
-		out, err := c.Editor.AddWorkspaceRef(cat, domain.WorkspaceRef{Name: name, Source: src})
+	err = c.edit(ctx, parent, fmt.Sprintf("add multiverse %s", name), func(cat []byte) ([]fileChange, error) {
+		out, err := c.Editor.AddMultiverseRef(cat, domain.MultiverseRef{Name: name, Source: src})
 		return []fileChange{{parent.File, out}}, err
 	})
 	return domain.ChildPath(parent.Path, name), err
@@ -652,7 +652,7 @@ type RepoChoice struct {
 
 // provision makes sure a repository holds a catalog.yaml and returns its URL.
 // A repository that already has one is reused as it is.
-func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName string, sd *seed, root bool) (string, error) {
+func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName string, sd *seed) (string, error) {
 	url := ch.URL
 	if ch.Create != "" {
 		if err := c.Host.Available(ctx); err != nil {
@@ -704,11 +704,7 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 	if err := domain.ValidateCatalogName(catalogName); err != nil {
 		return "", fmt.Errorf("%w (--name sets it)", err)
 	}
-	scaffold := c.Editor.Scaffold
-	if root {
-		scaffold = c.Editor.ScaffoldRoot
-	}
-	data, paths, what := scaffold(catalogName), []string{file}, defaultCatalogFile
+	data, paths, what := c.Editor.Scaffold(catalogName), []string{file}, defaultCatalogFile
 	var writes []fileChange
 	if sd != nil {
 		manifestFile := filepath.Join(dir, defaultManifestFile)
@@ -716,7 +712,7 @@ func (c *Catalogs) provision(ctx context.Context, ch RepoChoice, catalogName str
 			return "", fmt.Errorf("%s already has a %s; it is not overwritten", url, defaultManifestFile)
 		}
 		var err error
-		if data, err = c.Editor.AddWorkspaceRef(data, domain.WorkspaceRef{Name: sd.name, Source: domain.Source{Path: defaultManifestFile}}); err != nil {
+		if data, err = c.Editor.AddMultiverseRef(data, domain.MultiverseRef{Name: sd.name, Source: domain.Source{Path: defaultManifestFile}}); err != nil {
 			return "", err
 		}
 		writes = append(writes, fileChange{manifestFile, sd.manifest})
@@ -756,9 +752,9 @@ type CreateCatalogInput struct {
 	Where   RepoChoice // zero value: ask, or the same repository when not interactive
 	Same    bool       // keep it in the parent's repository
 
-	// Manifest is a project manifest on this machine to start the catalog
+	// Manifest is a multiverse manifest on this machine to start the catalog
 	// with: copied in as multiverse.yaml and listed, so the repository is both
-	// the catalog that lists the project and where its manifest lives.
+	// the catalog that lists the multiverse and where its manifest lives.
 	Manifest string
 }
 
@@ -792,7 +788,7 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) (st
 	if !in.Same && where.URL == "" && where.Create == "" {
 		what := "catalog"
 		if sd != nil {
-			what = "project"
+			what = "multiverse"
 		}
 		if where, in.Same, err = c.askWhere(in.Name, what); err != nil {
 			return "", err
@@ -802,7 +798,7 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) (st
 	if in.Same || (where.URL == "" && where.Create == "") {
 		rel := path.Join(catalogsDir, in.Name+".yaml")
 		if sd != nil {
-			// A project keeps its catalog and manifest side by side.
+			// A multiverse keeps its catalog and manifest side by side.
 			rel = path.Join(catalogsDir, in.Name, defaultCatalogFile)
 		}
 		target := filepath.Join(parent.Dir, filepath.FromSlash(rel))
@@ -818,7 +814,7 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) (st
 			changes := []fileChange{{parent.File, out}}
 			if sd != nil {
 				manifestRel := path.Join(catalogsDir, in.Name, defaultManifestFile)
-				if child, err = c.Editor.AddWorkspaceRef(child, domain.WorkspaceRef{Name: sd.name, Source: domain.Source{Path: manifestRel}}); err != nil {
+				if child, err = c.Editor.AddMultiverseRef(child, domain.MultiverseRef{Name: sd.name, Source: domain.Source{Path: manifestRel}}); err != nil {
 					return nil, err
 				}
 				changes = append(changes, fileChange{filepath.Join(parent.Dir, filepath.FromSlash(manifestRel)), sd.manifest})
@@ -827,7 +823,7 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) (st
 		})
 	}
 
-	url, err := c.provision(ctx, where, in.Name, sd, false)
+	url, err := c.provision(ctx, where, in.Name, sd)
 	if err != nil {
 		return "", err
 	}
@@ -839,8 +835,8 @@ func (c *Catalogs) CreateCatalog(ctx context.Context, in CreateCatalogInput) (st
 
 func (c *Catalogs) askWhere(name, what string) (RepoChoice, bool, error) {
 	own := "In a new private repository on GitHub"
-	if what == "project" {
-		own += ": a project repository, its own index and its own manifest"
+	if what == "multiverse" {
+		own += ": a multiverse repository, its own index and its own manifest"
 	}
 	i, err := c.Prompt.Select(fmt.Sprintf("Where should the %s live?", what), []Option{
 		{Label: "In the same repository as the catalog it goes in"},
@@ -885,14 +881,14 @@ type InitInput struct {
 	Only   bool   // keep it local and git-only, with no remote yet
 }
 
-// RootTopic is the topic a root catalog's repository carries on its host, so a
+// CatalogTopic is the topic a catalog's repository carries on its host, so a
 // new machine can find it without cloning anything.
-const RootTopic = "multiversectl-root"
+const CatalogTopic = "multiversectl-catalog"
 
 // Init sets up the root catalog: one found on a hosting service, an existing
 // repository or file, a new private repository, or a local-only git repository
 // to push somewhere later. A machine that already has one is told so, and keeps
-// it unless it is asked to switch; switching is refused while projects
+// it unless it is asked to switch; switching is refused while multiverses
 // installed from the old root depend on it.
 func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	cfg, err := c.Config.Load()
@@ -919,7 +915,7 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 				return err
 			}
 			if !switchRoot {
-				return c.ensureRoot(ctx, cfg.Catalog)
+				return c.ensureFindable(ctx, cfg.Catalog)
 			}
 		}
 		if in, err = c.askInit(ctx, in); err != nil {
@@ -928,11 +924,11 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	}
 	if cfg.Catalog != "" && c.sameRoot(cfg.Catalog, in) {
 		c.Out.Info("already using `%s` as the root catalog", shortRepo(cfg.Catalog))
-		return c.ensureRoot(ctx, cfg.Catalog)
+		return c.ensureFindable(ctx, cfg.Catalog)
 	}
 	if cfg.Catalog != "" {
 		if n := dependents(cfg); n > 0 {
-			return fmt.Errorf("%d installed projects come from `%s`, and would point into a root that is no longer used.\n  start over with `multiversectl reset` (it forgets the root and the projects, and deletes no file), or remove them one by one with `multiversectl catalog uninstall <name>`, then run init again", n, cfg.Catalog)
+			return fmt.Errorf("%d installed multiverses come from `%s`, and would point into a root that is no longer used.\n  start over with `multiversectl system reset` (it forgets the root and the multiverses, and deletes no file), or remove them one by one with `multiversectl system forget <name>`, then run init again", n, cfg.Catalog)
 		}
 		if ok, err := c.confirm(fmt.Sprintf("This machine already uses `%s` as its root catalog. Replace it?", shortRepo(cfg.Catalog)), false); err != nil {
 			return err
@@ -946,7 +942,7 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	switch {
 	case in.Where.URL != "" || in.Where.Create != "":
 		name = firstOf(name, repoBase(in.Where.Create), "index")
-		if source, err = c.provision(ctx, in.Where, name, nil, true); err != nil {
+		if source, err = c.provision(ctx, in.Where, name, nil); err != nil {
 			return err
 		}
 	case in.Local != "":
@@ -963,18 +959,18 @@ func (c *Catalogs) Init(ctx context.Context, in InitInput) error {
 	if err := c.Use(source); err != nil {
 		return err
 	}
-	if err := c.ensureRoot(ctx, source); err != nil {
+	if err := c.ensureFindable(ctx, source); err != nil {
 		return err
 	}
 	c.Out.Info("next: `multiversectl catalog add <owner/repo>`  ·  `multiversectl catalog create <name>`")
 	return nil
 }
 
-// dependents counts the installed projects that came from the root's tree,
+// dependents counts the installed multiverses that came from the root's tree,
 // which a different root would leave pointing at nothing.
 func dependents(cfg Config) int {
 	n := 0
-	for _, w := range cfg.Workspaces {
+	for _, w := range cfg.Multiverses {
 		if w.From != "" {
 			n++
 		}
@@ -985,12 +981,12 @@ func dependents(cfg Config) int {
 // describeSetup says what this machine has, so init starts from what is true.
 func (c *Catalogs) describeSetup(cfg Config) {
 	c.Out.Info("this machine uses `%s` as its root catalog", shortRepo(cfg.Catalog))
-	if len(cfg.Workspaces) == 0 {
+	if len(cfg.Multiverses) == 0 {
 		c.Out.Info("nothing is installed from it yet")
 		return
 	}
-	names := make([]string, 0, len(cfg.Workspaces))
-	for n := range cfg.Workspaces {
+	names := make([]string, 0, len(cfg.Multiverses))
+	for n := range cfg.Multiverses {
 		names = append(names, n)
 	}
 	sort.Strings(names)
@@ -1006,7 +1002,7 @@ func (c *Catalogs) askKeepOrSwitch(cfg Config) (bool, error) {
 	switchOpt := Option{Label: "Use a different root catalog"}
 	if n := dependents(cfg); n > 0 {
 		switchOpt.Disabled = true
-		switchOpt.Note = fmt.Sprintf("%d installed projects come from this one; `multiversectl reset` first", n)
+		switchOpt.Note = fmt.Sprintf("%d installed multiverses come from this one; `multiversectl system reset` first", n)
 	}
 	i, err := c.Prompt.Select("This machine is already set up. What now?", []Option{
 		{Label: "Keep this root", Note: "check it, and mark it as the root if it is not yet"},
@@ -1018,29 +1014,10 @@ func (c *Catalogs) askKeepOrSwitch(cfg Config) (bool, error) {
 	return i == 1, err
 }
 
-// ensureRoot checks the root catalog is marked as one: a CatalogRoot, and, on a
-// hosting service, tagged with the topic a new machine searches by. A root that
-// predates the kind is upgraded, after asking. Problems here never fail init:
-// the root works either way, it is only harder to find.
-func (c *Catalogs) ensureRoot(ctx context.Context, source string) error {
-	tree, err := c.Tree(ctx, source, false)
-	if err != nil {
-		c.Out.Warn("could not read the root catalog to check it: %v", err)
-		return nil
-	}
-	if !tree.Root {
-		c.Out.Info("this root is a plain Catalog; as a CatalogRoot a new machine can tell it from a project's catalog")
-		err := c.edit(ctx, tree, "mark the catalog as your root (kind: CatalogRoot)", func(data []byte) ([]fileChange, error) {
-			out, err := c.Editor.MarkRoot(data)
-			return []fileChange{{tree.File, out}}, err
-		})
-		if err != nil {
-			if errors.Is(err, ErrCancelled) {
-				return nil
-			}
-			c.Out.Warn("%v", err)
-		}
-	}
+// ensureFindable tags the catalog's repository with the topic a new machine
+// searches by, when it is on a hosting service. A problem here never fails init:
+// the catalog works either way, it is only harder to find.
+func (c *Catalogs) ensureFindable(ctx context.Context, source string) error {
 	c.markTopic(ctx, source)
 	return nil
 }
@@ -1056,17 +1033,17 @@ func (c *Catalogs) markTopic(ctx context.Context, source string) {
 			continue
 		}
 		if err := h.Available(ctx); err != nil {
-			c.Out.Info("to let a new machine find it, tag `%s` with the topic `%s` on %s", shortRepo(source), RootTopic, h.Name())
+			c.Out.Info("to let a new machine find it, tag `%s` with the topic `%s` on %s", shortRepo(source), CatalogTopic, h.Name())
 			return
 		}
-		err := c.Progress.Do("Tagging the repository with the topic "+RootTopic, func(ctx context.Context) error {
-			return h.AddTopic(ctx, source, RootTopic)
+		err := c.Progress.Do("Tagging the repository with the topic "+CatalogTopic, func(ctx context.Context) error {
+			return h.AddTopic(ctx, source, CatalogTopic)
 		})
 		if err != nil {
-			c.Out.Warn("could not tag `%s` with the topic `%s`: %v", shortRepo(source), RootTopic, err)
+			c.Out.Warn("could not tag `%s` with the topic `%s`: %v", shortRepo(source), CatalogTopic, err)
 			return
 		}
-		c.Out.OK("`%s` carries the topic `%s`, so a new machine can find it", shortRepo(source), RootTopic)
+		c.Out.OK("`%s` carries the topic `%s`, so a new machine can find it", shortRepo(source), CatalogTopic)
 		return
 	}
 }
@@ -1094,7 +1071,7 @@ func (c *Catalogs) searchRoots(ctx context.Context, h RepoHost, rs *rootSearch) 
 	rs.searched[h.Name()] = true
 	var repos []RemoteRepo
 	err := c.Progress.Do("Looking for your root catalog on "+h.Name(), func(ctx context.Context) (err error) {
-		repos, err = h.ReposWithTopic(ctx, RootTopic)
+		repos, err = h.ReposWithTopic(ctx, CatalogTopic)
 		return err
 	})
 	if err != nil {
@@ -1130,7 +1107,7 @@ func (c *Catalogs) askInit(ctx context.Context, in InitInput) (InitInput, error)
 		add := func(o Option, f func() (bool, error)) { opts, act = append(opts, o), append(act, f) }
 
 		for _, r := range rs.found {
-			note := "tagged " + RootTopic
+			note := "tagged " + CatalogTopic
 			if r.Private {
 				note = "private; " + note
 			}
@@ -1150,7 +1127,7 @@ func (c *Catalogs) askInit(ctx context.Context, in InitInput) (InitInput, error)
 				}
 				c.searchRoots(ctx, h, rs)
 				if len(rs.found) == 0 {
-					c.Out.Info("no repository on %s carries the topic `%s`", h.Name(), RootTopic)
+					c.Out.Info("no repository on %s carries the topic `%s`", h.Name(), CatalogTopic)
 				}
 				return false, nil
 			})
@@ -1210,7 +1187,7 @@ func (c *Catalogs) askInit(ctx context.Context, in InitInput) (InitInput, error)
 	}
 }
 
-// Reset forgets this machine's root catalog and every installed project, so
+// Reset forgets this machine's root catalog and every installed multiverse, so
 // it can start again from another root. It deletes no file, no checkout and no
 // universe; it only clears what multiversectl remembers.
 func (c *Catalogs) Reset() (forgot bool, err error) {
@@ -1218,20 +1195,20 @@ func (c *Catalogs) Reset() (forgot bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	if cfg.Catalog == "" && len(cfg.Workspaces) == 0 {
-		c.Out.Info("nothing to reset: this machine has no root catalog and no installed projects")
+	if cfg.Catalog == "" && len(cfg.Multiverses) == 0 {
+		c.Out.Info("nothing to reset: this machine has no root catalog and no installed multiverses")
 		return false, nil
 	}
 	if cfg.Catalog != "" {
 		c.Out.Plain("  root catalog   `%s`", shortRepo(cfg.Catalog))
 	}
-	names := make([]string, 0, len(cfg.Workspaces))
-	for n := range cfg.Workspaces {
+	names := make([]string, 0, len(cfg.Multiverses))
+	for n := range cfg.Multiverses {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	for _, n := range names {
-		c.Out.Plain("  project      `%s`  (files stay in `%s`)", n, cfg.Workspaces[n].Root)
+		c.Out.Plain("  multiverse      `%s`  (files stay in `%s`)", n, cfg.Multiverses[n].Root)
 	}
 	ok, err := c.confirm("Forget these? Nothing on disk is deleted.", false)
 	if err != nil {
@@ -1285,7 +1262,7 @@ func (c *Catalogs) localRoot(ctx context.Context, p, name string) (string, error
 			return "", err
 		}
 	}
-	if err := c.Files.WriteFile(file, c.Editor.ScaffoldRoot(name), 0o644); err != nil {
+	if err := c.Files.WriteFile(file, c.Editor.Scaffold(name), 0o644); err != nil {
 		return "", err
 	}
 	if err := c.Git.Commit(ctx, dir, "fix: start a catalog", file); err != nil {
@@ -1334,12 +1311,12 @@ type AddInput struct {
 
 // errNoRoot is what every command that writes to the index says when there is
 // none: reading and installing do not need one, writing does.
-var errNoRoot = errors.New("no root catalog to add to: `multiversectl init`  (installing a single project does not need one)")
+var errNoRoot = errors.New("no root catalog to add to: `multiversectl init`  (installing a single multiverse does not need one)")
 
 // Add links a source into the catalog: a repository (owner/repo or a URL) or a
 // path on this machine. A catalog.yaml makes it a catalog, otherwise it is a
-// project. With no root catalog yet it sets
-// one up first, so joining a project is one command on a fresh machine.
+// multiverse. With no root catalog yet it sets
+// one up first, so joining a multiverse is one command on a fresh machine.
 func (c *Catalogs) Add(ctx context.Context, in AddInput) (string, error) {
 	if in.Repo == "" {
 		return "", errors.New("add: a repository (owner/repo or a URL) or a path is required")
@@ -1353,7 +1330,8 @@ func (c *Catalogs) Add(ctx context.Context, in AddInput) (string, error) {
 // addRemote adds a repository by name. A checkout's origin can itself be a
 // path, so this must not look at the disk again to decide what it was given.
 func (c *Catalogs) addRemote(ctx context.Context, in AddInput) (string, error) {
-	repo := c.expand(in.Repo)
+	source, pick := splitAddress(in.Repo)
+	repo := c.expand(source)
 	cfg, err := c.Config.Load()
 	if err != nil {
 		return "", err
@@ -1365,20 +1343,30 @@ func (c *Catalogs) addRemote(ctx context.Context, in AddInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if pick != "" { // owner/repo:name, one of the multiverses the repository defines
+		nodes, err := c.definedIn(dir, repo)
+		if err != nil {
+			return "", err
+		}
+		if nodes, err = only(nodes, pick, shortRepo(repo)); err != nil {
+			return "", err
+		}
+		in.Path = nodes[0].Source.Path
+	}
 	if c.holdsCatalog(dir, in.Path) {
 		return c.AddCatalog(ctx, AddCatalogInput{Repo: repo, Ref: in.Ref, Path: in.Path, Name: in.Name, At: in.At, AtGiven: in.AtGiven})
 	}
-	return c.AddWorkspace(ctx, AddWorkspaceInput{Repo: repo, Ref: in.Ref, Path: in.Path, Name: in.Name, At: in.At, AtGiven: in.AtGiven})
+	return c.AddMultiverse(ctx, AddMultiverseInput{Repo: repo, Ref: in.Ref, Path: in.Path, Name: in.Name, At: in.At, AtGiven: in.AtGiven})
 }
 
-// holdsCatalog tells a catalog from a project manifest by what the file is,
+// holdsCatalog tells a catalog from a multiverse manifest by what the file is,
 // so --path needs no second flag to say which kind it points at. The file is
 // decoded rather than trusted by its name: a repository may hold a catalog.yaml
 // of someone else's kind beside a real multiverse.yaml, and taking the name as
-// the answer sent that project down the catalog path, where it could never be
+// the answer sent that multiverse down the catalog path, where it could never be
 // added. A catalog.yaml that does not decode still goes that way when there is
 // no manifest to add instead, since the catalog path says what is wrong with
-// the file while the project path would only report the manifest missing.
+// the file while the multiverse path would only report the manifest missing.
 func (c *Catalogs) holdsCatalog(dir, path string) bool {
 	file := filepath.Join(dir, filepath.FromSlash(firstOf(path, defaultCatalogFile)))
 	if isDir(c.Files, file) {
@@ -1407,7 +1395,7 @@ type seed struct {
 
 // loadSeed reads the manifest to start a catalog with. Anything beside it
 // that the manifest may rely on is not copied, and saying so now is better
-// than a project that fails to start on someone else's machine.
+// than a multiverse that fails to start on someone else's machine.
 func (c *Catalogs) loadSeed(file string) (*seed, error) {
 	if file == "" {
 		return nil, nil
@@ -1416,14 +1404,14 @@ func (c *Catalogs) loadSeed(file string) (*seed, error) {
 	if err != nil {
 		return nil, fmt.Errorf("manifest: %w", err)
 	}
-	name, err := c.Editor.WorkspaceName(data)
+	name, err := c.Editor.MultiverseName(data)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", file, err)
 	}
 	if err := domain.ValidateCatalogName(name); err != nil {
 		return nil, fmt.Errorf("%s: metadata.name: %w", file, err)
 	}
-	if root := c.Editor.WorkspaceRoot(data); root != "" {
+	if root := c.Editor.MultiverseRoot(data); root != "" {
 		c.Out.Warn("%s sets spec.root (%s), a path on this machine that install ignores; consider removing it", file, root)
 	}
 	dir, stem := filepath.Dir(file), strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
@@ -1437,7 +1425,7 @@ func (c *Catalogs) loadSeed(file string) (*seed, error) {
 
 // addLocal handles a path. A catalog entry is read by other machines, so a
 // directory or a catalog file is named by the repository it belongs to; a
-// project manifest file has no repository of its own to point at, so it is
+// multiverse manifest file has no repository of its own to point at, so it is
 // copied into the repository of the catalog it is listed in.
 func (c *Catalogs) addLocal(ctx context.Context, in AddInput) (string, error) {
 	abs, err := filepath.Abs(in.Repo)
@@ -1490,11 +1478,11 @@ func (c *Catalogs) addCheckout(ctx context.Context, in AddInput, dir, file strin
 
 // addManifestFile lists a manifest file. It has no repository to point at, so
 // it goes into one: a copy in the repository of the catalog it is listed in, or
-// a repository of its own that becomes a project, its own index and project.
+// a repository of its own that becomes a multiverse, its own index and multiverse.
 func (c *Catalogs) addManifestFile(ctx context.Context, in AddInput, file string) (string, error) {
 	sd, err := c.loadSeed(file)
 	if err != nil {
-		return "", fmt.Errorf("%s is neither a catalog nor a project manifest: %w", file, err)
+		return "", fmt.Errorf("%s is neither a catalog nor a multiverse: %w", file, err)
 	}
 	name := firstOf(in.Name, sd.name)
 	if err := domain.ValidateCatalogName(name); err != nil {
@@ -1511,7 +1499,7 @@ func (c *Catalogs) addManifestFile(ctx context.Context, in AddInput, file string
 	where, same := in.Where, in.Same
 	where.URL = c.expand(where.URL)
 	if !same && where.URL == "" && where.Create == "" {
-		if where, same, err = c.askWhere(name, "project"); err != nil {
+		if where, same, err = c.askWhere(name, "multiverse"); err != nil {
 			return "", err
 		}
 	}
@@ -1527,7 +1515,7 @@ func (c *Catalogs) addManifestFile(ctx context.Context, in AddInput, file string
 	if err != nil {
 		return "", err
 	}
-	rel := path.Join("projects", name, defaultManifestFile)
+	rel := path.Join("multiverse", name+".yaml")
 	// A remote catalog's entries carry its repository, so the copy being added
 	// must too, or adding the same file twice would look like two different ones.
 	name, existing, err := c.settle(tree, parent, name, domain.Source{Repo: parent.Source.Repo, Path: rel}, in.Name != "")
@@ -1538,13 +1526,13 @@ func (c *Catalogs) addManifestFile(ctx context.Context, in AddInput, file string
 		c.Out.Info("%s is already in the catalog", existing)
 		return existing, nil
 	}
-	rel = path.Join("projects", name, defaultManifestFile)
+	rel = path.Join("multiverse", name+".yaml")
 	target := filepath.Join(parent.Dir, filepath.FromSlash(rel))
 	if c.Files.Exists(target) {
 		return "", fmt.Errorf("%s already exists in the catalog's repository", rel)
 	}
-	err = c.edit(ctx, parent, fmt.Sprintf("add project %s", name), func(data []byte) ([]fileChange, error) {
-		out, err := c.Editor.AddWorkspaceRef(data, domain.WorkspaceRef{Name: name, Source: domain.Source{Path: rel}})
+	err = c.edit(ctx, parent, fmt.Sprintf("add multiverse %s", name), func(data []byte) ([]fileChange, error) {
+		out, err := c.Editor.AddMultiverseRef(data, domain.MultiverseRef{Name: name, Source: domain.Source{Path: rel}})
 		return []fileChange{{parent.File, out}, {target, sd.manifest}}, err
 	})
 	return domain.ChildPath(parent.Path, name), err
@@ -1557,7 +1545,7 @@ func (c *Catalogs) sameRoot(current string, in InitInput) bool {
 	case in.Where.URL != "":
 		// The same repository written another way is the same root: ssh and
 		// https, with and without .git. Comparing the text instead told people
-		// to `reset` their whole machine to re-init the root they had.
+		// to `system reset` their whole machine to re-init the root they had.
 		return sameRepo(in.Where.URL, current)
 	case in.Local != "":
 		abs, err := filepath.Abs(in.Local)

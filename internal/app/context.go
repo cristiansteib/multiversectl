@@ -6,19 +6,17 @@ import (
 )
 
 // ProjectContext is what a person or an agent needs to find its way around the
-// project a command is acting on: where its definition is, where everything
+// multiverse a command is acting on: where its definition is, where everything
 // lives on this machine, and where it came from. It is gathered from the
 // configuration and the manifest, so it costs nothing to show on every listing.
 type ProjectContext struct {
-	// Name is what the project is installed under on this machine (what -p takes).
+	// Name is what the multiverse is installed under on this machine (what -p takes).
 	Name string `json:"name"`
 	// Title is metadata.name of the manifest, which prefixes every compose project.
 	Title string `json:"title,omitempty"`
-	// Current marks the project commands act on when no -p says otherwise.
-	Current bool `json:"current,omitempty"`
 	// Root is the multiverse root: the clones and the universes are under it.
 	Root string `json:"root"`
-	// Manifest is the project definition, the multiverse.yaml, when it is known.
+	// Manifest is the multiverse definition, the multiverse.yaml, when it is known.
 	Manifest string `json:"manifest,omitempty"`
 	// From is the catalog node it was installed from; Source is the repository
 	// of the manifest ("github:acme/multiverse@main"), empty for a local file.
@@ -31,7 +29,7 @@ type ProjectContext struct {
 	Config string `json:"config,omitempty"`
 }
 
-// RepoContext is one repository of the project: where its shared clone is, which
+// RepoContext is one repository of the multiverse: where its shared clone is, which
 // is where secrets are put and from which every universe branches.
 type RepoContext struct {
 	Key  string `json:"key"`
@@ -41,13 +39,13 @@ type RepoContext struct {
 	Runtime string `json:"runtime"`
 }
 
-// Context describes the project this service acts on. A project that is not
+// Context describes the multiverse this service acts on. A multiverse that is not
 // installed here (it was reached with a flag or the environment) has no name
 // or origin to give, and still has its root and clones.
 func (s *Service) Context() ProjectContext {
 	c := ProjectContext{
-		Root:         s.Workspace,
-		UniversesDir: filepath.Join(s.Workspace, "universes"),
+		Root:         s.Multiverse,
+		UniversesDir: filepath.Join(s.Multiverse, "universes"),
 	}
 	if s.Manifest != nil {
 		c.Title = s.Manifest.Name
@@ -62,17 +60,17 @@ func (s *Service) Context() ProjectContext {
 			if runtime == "" {
 				runtime = "compose"
 			}
-			c.Repos = append(c.Repos, RepoContext{Key: key, URL: r.URL, Path: s.Manifest.CloneDir(s.Workspace, key), Runtime: runtime})
+			c.Repos = append(c.Repos, RepoContext{Key: key, URL: r.URL, Path: s.Manifest.CloneDir(s.Multiverse, key), Runtime: runtime})
 		}
 	}
 	if s.Config != nil {
 		c.Config = s.Config.Path()
 		if cfg, err := s.Config.Load(); err == nil {
-			for name, e := range cfg.Workspaces {
-				if e.Root != s.Workspace {
+			for name, e := range cfg.Multiverses {
+				if e.Root != s.Multiverse {
 					continue
 				}
-				c.Name, c.Current = name, name == cfg.Current
+				c.Name = name
 				c.Manifest, c.From = e.Manifest, e.From
 				if e.Source.Repo != "" {
 					c.Source = shortRepo(e.Source.Repo)

@@ -18,8 +18,8 @@ const (
 	RuntimeNone    Runtime = "none"
 )
 
-// Manifest is the project description: which repositories make up the
-// project, how to run them and how a universe is addressed. It never
+// Manifest is the multiverse description: which repositories make up the
+// multiverse, how to run them and how a universe is addressed. It never
 // describes containers — that stays in the runtime's own files.
 //
 // This is the internal model, not the file format: the versioned wire types
@@ -79,7 +79,7 @@ func (m *Manifest) BindAddress() string {
 	return "0.0.0.0"
 }
 
-// DefaultBranchFor renders the project's branch template for a universe.
+// DefaultBranchFor renders the multiverse's branch template for a universe.
 func (m *Manifest) DefaultBranchFor(number int) string {
 	template := m.Branch
 	if template == "" {
@@ -88,7 +88,7 @@ func (m *Manifest) DefaultBranchFor(number int) string {
 	return strings.ReplaceAll(template, "{{universe}}", strconv.Itoa(number))
 }
 
-// Repo is one source repository of the project.
+// Repo is one source repository of the multiverse.
 type Repo struct {
 	URL     string
 	Dir     string // clone directory name, defaults to the repo key
@@ -257,11 +257,11 @@ func (m *Manifest) ComposeFiles(appKey, repoDir string) []string {
 	return out
 }
 
-// ProxyClashes says where two projects disagree about the proxy. There is
+// ProxyClashes says where two multiverses disagree about the proxy. There is
 // one proxy per machine, so sharing its network and its ports is the design:
-// the trouble is that starting a project rewrites the proxy from its own
-// manifest, which drops what another project needs from it. aName and bName
-// are what the user calls the projects, which is not always metadata.name.
+// the trouble is that starting a multiverse rewrites the proxy from its own
+// manifest, which drops what another multiverse needs from it. aName and bName
+// are what the user calls the multiverses, which is not always metadata.name.
 func ProxyClashes(aName string, a *Manifest, bName string, b *Manifest) []string {
 	var out []string
 	if a.Proxy.Network != "" && b.Proxy.Network != "" && a.Proxy.Network != b.Proxy.Network {

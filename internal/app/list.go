@@ -128,7 +128,7 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 		}
 		var volumes []Volume
 		if opts.Services {
-			// One query per universe: every app's project shares its prefix.
+			// One query per universe: every app's multiverse shares its prefix.
 			volumes, err = s.Runtime.Volumes(ctx, st.Project+"-")
 			if err != nil {
 				s.Out.Warn("universe %s: volumes: %v", st.Name, err)
@@ -320,8 +320,8 @@ func (s *Service) definedServices(ctx context.Context, u domain.Universe, st dom
 	return cfg.Names()
 }
 
-// volumesOf are the volumes belonging to one app's project, named in full:
-// the project prefix is the evidence that the data is this universe's own.
+// volumesOf are the volumes belonging to one app's multiverse, named in full:
+// the multiverse prefix is the evidence that the data is this universe's own.
 func volumesOf(all []Volume, project string) []string {
 	var out []string
 	for _, v := range all {

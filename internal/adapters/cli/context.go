@@ -9,14 +9,11 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-// projectHeader says which project a listing is about and where its pieces are,
+// projectHeader says which multiverse a listing is about and where its pieces are,
 // so the next command, or an agent that has only this output, does not have to
 // go looking: the root, the definition, where it came from, the clones.
 func projectHeader(o *Output, c app.ProjectContext, wide bool) {
-	name := o.paint(bold+cyan, "project "+c.Name)
-	if c.Current {
-		name += o.Dim(" (current)")
-	}
+	name := o.paint(bold+cyan, "multiverse "+c.Name)
 	o.Plain("%s", name+o.Dim("  ·  root "+shortPath(c.Root)))
 	if c.Manifest != "" {
 		line := "definition " + shortPath(c.Manifest)
@@ -37,7 +34,7 @@ func projectHeader(o *Output, c app.ProjectContext, wide bool) {
 	o.Plain("")
 }
 
-// originLine is where the project came from, in one phrase.
+// originLine is where the multiverse came from, in one phrase.
 func originLine(c app.ProjectContext) string {
 	var parts []string
 	if c.From != "" {
@@ -111,9 +108,9 @@ type CheckoutView struct {
 	Dirty   bool   `json:"dirty,omitempty"`
 }
 
-// ListView is what `universe ls -o json` prints: the project and its universes.
+// ListView is what `universe ls -o json` prints: the multiverse and its universes.
 type ListView struct {
-	Project   app.ProjectContext `json:"project"`
+	Project   app.ProjectContext `json:"multiverse"`
 	Universes []UniverseView     `json:"universes"`
 }
 
@@ -168,11 +165,11 @@ func writeJSON(w io.Writer, v any) error {
 // not have for the work. The detail (services, volumes, compose names, times)
 // is `-o json,wide`.
 type BriefView struct {
-	Project   BriefProject    `json:"project"`
+	Project   BriefProject    `json:"multiverse"`
 	Universes []BriefUniverse `json:"universes"`
 }
 
-// BriefProject is where the project lives.
+// BriefProject is where the multiverse lives.
 type BriefProject struct {
 	Name         string            `json:"name"`
 	Root         string            `json:"root"`

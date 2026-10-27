@@ -10,14 +10,14 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-// Writer writes a new project's manifest. The result is text rather than a
+// Writer writes a new multiverse's manifest. The result is text rather than a
 // marshalled struct: the types carry no omitempty, and a starting point full of
 // empty fields is not one to edit by hand.
 type Writer struct{}
 
 var _ app.ManifestWriter = Writer{}
 
-func (Writer) Workspace(d app.ProjectDraft) ([]byte, error) {
+func (Writer) Multiverse(d app.ProjectDraft) ([]byte, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "apiVersion: %s\nkind: %s\nmetadata:\n  name: %s\nspec:\n", v1alpha1.APIVersion, v1alpha1.Kind, scalar(d.Name))
 	b.WriteString("  # Hostnames are derived from the machine's address, so nothing has to be\n  # set up for a universe to be reachable.\n  domain: auto\n\n")

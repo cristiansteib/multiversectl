@@ -64,11 +64,11 @@ func TestProjectInitCreatesTheRepositoryPushesAndLinksIt(t *testing.T) {
 	if m.Repos["api"].URL != "https://example.test/acme/acme-api.git" || m.Repos["web"].URL != "https://github.com/acme/acme-web.git" {
 		t.Errorf("the project's name should be dropped from the keys, and owner/repo means GitHub: %+v", m.Repos)
 	}
-	if got := read1(t, filepath.Join(dir, "catalog.yaml")); !strings.Contains(got, "kind: Catalog") || !strings.Contains(got, "- name: acme") {
-		t.Errorf("the catalog does not list the project's own project:\n%s", got)
+	if _, err := os.Stat(filepath.Join(dir, "catalog.yaml")); err == nil {
+		t.Error("a multiverse's repository is not a catalog: nothing lists itself")
 	}
 	agents := read1(t, filepath.Join(dir, "AGENTS.md"))
-	for _, want := range []string{"**acme**", "multiverse.yaml", "catalog install " + r.host.url, "universe up", "acme-api"} {
+	for _, want := range []string{"**acme**", "multiverse.yaml", "start " + r.host.url, "universe up", "acme-api"} {
 		if !strings.Contains(agents, want) {
 			t.Errorf("AGENTS.md lacks %q:\n%s", want, agents)
 		}
@@ -152,7 +152,7 @@ func TestProjectInitRefusesADirectoryThatIsAlreadyAProject(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "multiverse.yaml", "x")
 	_, err := r.InitProject(context.Background(), app.ProjectInput{Dir: dir, Name: "acme", Repos: []string{"a/b"}, Local: true})
-	if err == nil || !strings.Contains(err.Error(), "already a project") {
+	if err == nil || !strings.Contains(err.Error(), "already defines a multiverse") {
 		t.Fatalf("err = %v", err)
 	}
 }

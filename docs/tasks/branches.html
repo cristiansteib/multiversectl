@@ -53,7 +53,7 @@
         <li><a href="../tasks/branches.html" aria-current="page">Work across branches</a></li>
         <li><a href="../tasks/reach.html">Reach a universe</a></li>
         <li><a href="../tasks/services.html">Control which services run</a></li>
-        <li><a href="../tasks/catalog.html">Manage many projects from one index</a></li>
+        <li><a href="../tasks/catalog.html">Manage many multiverses from one index</a></li>
         <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
       </ul>
       <p class="nav-h">Reference</p>
@@ -69,7 +69,7 @@
       </ul>
       <p class="nav-foot">
         <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/project.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a>
         <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
       </p>
     </nav>
@@ -100,7 +100,7 @@ http://api-fix-login.10-0-0-5.traefik.me
 </section>
 
 <section id="hw-repo">
-  <h2 id="hw-repo"><a href="#hw-repo">Add a repository to a project</a></h2>
+  <h2 id="hw-repo"><a href="#hw-repo">Add a repository to a multiverse</a></h2>
   <div class="code"><pre><span class="c"># multiverse.yaml</span>
 <span class="k">spec</span>:
   <span class="k">repos</span>:
@@ -108,7 +108,7 @@ http://api-fix-login.10-0-0-5.traefik.me
       <span class="k">url</span>: git@github.com:acme/worker.git</pre></div>
   <p>That is the whole change: a repository no <code>apps</code> entry names gets an app of its own name, its compose files are found by convention, every service they define starts, and the addresses come from their labels. Add an <code>apps</code> entry only to change one of those, or to split the repository into several apps.</p>
   <div class="code"><pre><span class="c"># clone the new repo (already-cloned ones are skipped)</span>
-<span class="p">$ </span>multiversectl catalog install ./multiverse.yaml --root ~/acme
+<span class="p">$ </span>multiversectl catalog update
 <span class="c"># add its worktree to an existing universe; existing checkouts are kept</span>
 <span class="p">$ </span>multiversectl universe new 3
 <span class="p">$ </span>multiversectl universe up 3 worker</pre></div>
@@ -129,8 +129,8 @@ http://api-fix-login.10-0-0-5.traefik.me
   <div class="code"><pre><span class="p">$ </span>multiversectl system prune --dry-run   <span class="c"># show what it would remove, and stop</span>
 <span class="p">$ </span>multiversectl system prune             <span class="c"># the idle ones, asking first</span>
 <span class="p">$ </span>multiversectl system prune --all --yes <span class="c"># everything, running included, no question</span></pre></div>
-  <p><code>prune</code> does what <code>rm</code> does, to every universe of every installed project, or only the one named with <code>-w</code>. Two kinds are kept unless you say otherwise, each listed with the reason: one with containers running, until <code>--all</code>; one with uncommitted work, until <code>--force</code>. <code>--yes</code> only skips the question and never discards work.</p>
-  <p>It does not touch the clones, the proxy, or the installed projects and catalogs. Branches a universe started are deleted only when every commit on them is already on the base or on a remote; one holding anything else is kept and named.</p>
+  <p><code>prune</code> does what <code>rm</code> does, to every universe of every installed multiverse, or only the one named with <code>-m</code>. Two kinds are kept unless you say otherwise, each listed with the reason: one with containers running, until <code>--all</code>; one with uncommitted work, until <code>--force</code>. <code>--yes</code> only skips the question and never discards work.</p>
+  <p>It does not touch the clones, the proxy, or the installed multiverses and catalogs. Branches a universe started are deleted only when every commit on them is already on the base or on a remote; one holding anything else is kept and named.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">
@@ -143,7 +143,7 @@ http://api-fix-login.10-0-0-5.traefik.me
     <ul>
       <li><a href="#hw-branches">Work on two branches at once</a></li>
       <li><a href="#hw-checkout">Review or continue a branch that already exists</a></li>
-      <li><a href="#hw-repo">Add a repository to a project</a></li>
+      <li><a href="#hw-repo">Add a repository to a multiverse</a></li>
       <li><a href="#hw-rm">Remove a universe and its data</a></li>
       <li><a href="#hw-prune">Clear out every universe on the machine</a></li>
     </ul>

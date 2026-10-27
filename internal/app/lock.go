@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Two processes, one project
+// Two processes, one multiverse
 //
 // The command line and the web view are separate programs, and an agent is a
 // third. Nothing in one can see that another is halfway through creating the
@@ -14,10 +14,10 @@ import (
 // to remove. The server keeps its own operations apart, but only from each
 // other.
 //
-// So the use cases that change something take a lock first, in the project's
+// So the use cases that change something take a lock first, in the multiverse's
 // own directory, and nothing that changes a universe runs twice at once:
 //
-//   - the project lock, for the set of universes itself — creating one takes
+//   - the multiverse lock, for the set of universes itself — creating one takes
 //     the next free number and new branches, removing one gives them back;
 //   - a universe's own lock, for working inside it, so different universes
 //     still run side by side, which is the whole point of them.
@@ -32,7 +32,7 @@ const lockWait = 2 * time.Second
 
 // lockProject guards the set of universes: their names, numbers and branches.
 func (s *Service) lockProject(ctx context.Context) (Unlock, error) {
-	return s.lock(ctx, "project", "this project")
+	return s.lock(ctx, "multiverse", "this multiverse")
 }
 
 // lockUniverse guards one universe, so another may be worked on at the same time.
@@ -46,7 +46,7 @@ func (s *Service) lock(ctx context.Context, name, what string) (Unlock, error) {
 	if s.Locks == nil {
 		return func() {}, nil
 	}
-	unlock, err := s.Locks.Acquire(ctx, filepath.Join(s.Workspace, ".multiverse", "locks", name+".lock"), lockWait)
+	unlock, err := s.Locks.Acquire(ctx, filepath.Join(s.Multiverse, ".multiverse", "locks", name+".lock"), lockWait)
 	if busy, ok := err.(*Busy); ok {
 		busy.What = what
 		return nil, busy

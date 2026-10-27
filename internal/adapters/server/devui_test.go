@@ -25,7 +25,7 @@ func (d demo) FleetStats(_ context.Context, _ string) (fleetStatsView, error) {
 		if cpu < 0.2 {
 			cpu = 0.2
 		}
-		return fleetStatRow{Workspace: "acme", Universe: u, App: app, Service: service,
+		return fleetStatRow{Multiverse: "acme", Universe: u, App: app, Service: service,
 			statView: statView{Name: "acme-u" + u + "-" + app + "-" + service + "-1", CPU: cpu,
 				Mem: mem * (1 + 0.04*math.Sin(t/17+seed)), MemLimit: 8 << 30, Memory: mem / float64(uint64(8)<<30) * 100,
 				MemUsage: "x / 8GiB", NetIO: "12.4MB / 3.1MB", PIDs: 24}}
@@ -122,7 +122,7 @@ func demoFleet() *fake {
 	url := func(host, service, u string) urlView { return urlView{Host: host, Service: service, URL: u} }
 	now := time.Now().UTC()
 	return &fake{
-		fleet: fleetView{Workspaces: []fleetWorkspace{{Name: "acme", Current: true, Root: "/home/me/acme", Universes: []universeView{
+		fleet: fleetView{Multiverses: []fleetMultiverse{{Name: "acme", Root: "/home/me/acme", Universes: []universeView{
 			{Name: "3", Slug: "u3", Project: "acme-u3", Domain: "example.test", Dir: "/home/me/acme/universes/3",
 				Running: 4, Created: now.Add(-52 * time.Hour).Format(time.RFC3339), LastStarted: now.Add(-3 * time.Hour).Format(time.RFC3339),
 				Note: "invoice tax column", Branches: map[string]string{"api": "u3", "ui": "u3"},

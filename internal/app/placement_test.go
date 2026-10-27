@@ -80,7 +80,7 @@ func TestANameThatIsTakenIsAskedAboutOnlyThen(t *testing.T) {
 	r.Yes = false
 	e := catalog.Editor{}
 	data, _ := os.ReadFile(filepath.Join(r.root, "catalog.yaml"))
-	out, _ := e.AddWorkspaceRef(data, domain.WorkspaceRef{Name: "billing", Source: domain.Source{Repo: "git@example.test:other/billing-v1.git"}})
+	out, _ := e.AddMultiverseRef(data, domain.MultiverseRef{Name: "billing", Source: domain.Source{Repo: "git@example.test:other/billing-v1.git"}})
 	write(t, r.root, "catalog.yaml", string(out))
 
 	r.prompt.selects = []int{0}
@@ -151,11 +151,11 @@ func TestRemovingAnEntryTellsYouWhatIsStillInstalled(t *testing.T) {
 	if _, err := r.CreateCatalog(context.Background(), app.CreateCatalogInput{Name: "personal", Same: true}); err != nil {
 		t.Fatal(err)
 	}
-	r.cfg.c.Workspaces = map[string]app.WorkspaceEntry{"fish": {From: "personal/fish"}}
+	r.cfg.c.Multiverses = map[string]app.MultiverseEntry{"fish": {From: "personal/fish"}}
 	if err := r.Remove(context.Background(), "personal"); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(strings.Join(r.out.infos, "|"), "still installed here: `multiversectl catalog uninstall fish`") {
+	if !strings.Contains(strings.Join(r.out.infos, "|"), "still installed here: `multiversectl system forget fish`") {
 		t.Errorf("infos = %v", r.out.infos)
 	}
 }

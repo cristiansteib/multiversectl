@@ -139,8 +139,8 @@ type ContainerStats struct {
 	PIDs     int
 }
 
-// Volume is one named volume the runtime holds for a project. A universe's
-// data lives in volumes named after its project, which is what a wide listing
+// Volume is one named volume the runtime holds for a multiverse. A universe's
+// data lives in volumes named after its multiverse, which is what a wide listing
 // shows to prove two universes share nothing.
 type Volume struct {
 	Name    string
@@ -171,7 +171,7 @@ type Runtime interface {
 	Inspect(ctx context.Context, r RuntimeRequest) (ProjectConfig, error)
 	Containers(ctx context.Context, namePrefix string) ([]Container, error)
 	// Volumes reports the named volumes whose name starts with the prefix,
-	// each tagged with the project that owns it.
+	// each tagged with the multiverse that owns it.
 	Volumes(ctx context.Context, namePrefix string) ([]Volume, error)
 	Version(ctx context.Context) (string, error)
 }
@@ -282,6 +282,8 @@ type Files interface {
 	RemoveAll(path string) error
 	Symlink(target, link string) error
 	ListDirs(path string) ([]string, error)
+	// ListFiles names the regular files directly in a directory.
+	ListFiles(path string) ([]string, error)
 	Rename(oldPath, newPath string) error
 	Chmod(path string, perm fs.FileMode) error
 	TempFile(pattern string) (string, error)
@@ -321,7 +323,7 @@ type Releases interface {
 	Download(ctx context.Context, url, dest string) (sum string, err error)
 }
 
-// Origin is where a project's manifest came from. It is recorded at install
+// Origin is where a multiverse's manifest came from. It is recorded at install
 // so update and status can tell when the manifest or the catalog has moved on.
 type Origin struct {
 	Repo string `yaml:"repo,omitempty"`
@@ -329,8 +331,8 @@ type Origin struct {
 	Path string `yaml:"path,omitempty"`
 }
 
-// WorkspaceEntry is one project this machine knows how to reach.
-type WorkspaceEntry struct {
+// MultiverseEntry is one multiverse this machine knows how to reach.
+type MultiverseEntry struct {
 	Root     string `yaml:"root"`
 	Manifest string `yaml:"manifest"`
 
@@ -340,24 +342,16 @@ type WorkspaceEntry struct {
 	Source Origin `yaml:"source,omitempty"`
 }
 
-// Config is where this machine keeps its projects, so the tool works from
-// any directory once bootstrapped. Several can coexist; Current is the one
-// commands use when no flag says otherwise.
+// Config is where this machine keeps what it knows: the catalog it points at
+// and the multiverses it has started from. Several can coexist; which one a
+// command acts on is told by -m, by the folder it is run in, or by there being
+// only one — nothing is remembered as "the current one".
 type Config struct {
-	Current    string                    `yaml:"current,omitempty"`
-	Workspaces map[string]WorkspaceEntry `yaml:"projects,omitempty"`
-	// LegacyWorkspaces is where a config written before projects were called
-	// that kept them. Normalize folds it into Projects; nothing writes it.
-	LegacyWorkspaces map[string]WorkspaceEntry `yaml:"workspaces,omitempty"`
+	Multiverses map[string]MultiverseEntry `yaml:"multiverses,omitempty"`
 
-	// Catalog is where this machine's root catalog lives: a git URL or a
-	// local file. Empty until one is chosen.
+	// Catalog is where this machine's catalog lives: a git URL or a local
+	// file. Empty until one is chosen.
 	Catalog string `yaml:"catalog,omitempty"`
-
-	// Root and Manifest are what releases before multiple projects wrote.
-	// Normalize folds them into Projects; nothing writes them any more.
-	Root     string `yaml:"root,omitempty"`
-	Manifest string `yaml:"manifest,omitempty"`
 }
 
 // ConfigStore persists Config for the current user.
@@ -453,14 +447,14 @@ type RemoteRepo struct {
 	Private     bool
 }
 
-// ProjectDraft is what a new project's manifest is written from.
+// ProjectDraft is what a new multiverse's manifest is written from.
 type ProjectDraft struct {
 	Name  string
 	Repos []DraftRepo
 }
 
-// DraftRepo is one repository of the project; Dir is where it sits under the
-// project root. A repository runs from its own docker-compose.yml unless
+// DraftRepo is one repository of the multiverse; Dir is where it sits under the
+// multiverse root. A repository runs from its own docker-compose.yml unless
 // NoRuntime says it has none, which is what a library or a mobile app wants.
 type DraftRepo struct {
 	Key, URL, Dir string
@@ -469,10 +463,10 @@ type DraftRepo struct {
 
 // ManifestWriter turns a draft into a multiverse.yaml.
 type ManifestWriter interface {
-	Workspace(d ProjectDraft) ([]byte, error)
-	// Agents is a short AGENTS.md for the project's repository: what it is and
+	Multiverse(d ProjectDraft) ([]byte, error)
+	// Agents is a short AGENTS.md for the multiverse's repository: what it is and
 	// how to work with it and with the tool. source is how someone installs
-	// the project, the repository's URL or, before it has one, a path.
+	// the multiverse, the repository's URL or, before it has one, a path.
 	Agents(d ProjectDraft, source string) ([]byte, error)
 }
 
@@ -480,22 +474,17 @@ type ManifestWriter interface {
 // a person wrote, which a decode and re-encode of the domain model would lose.
 type CatalogEditor interface {
 	Scaffold(name string) []byte
-	// ScaffoldRoot is Scaffold for the catalog a machine starts from, whose kind
-	// is CatalogRoot.
-	ScaffoldRoot(name string) []byte
-	// MarkRoot changes a Catalog into a CatalogRoot, and nothing else about it.
-	MarkRoot(data []byte) ([]byte, error)
 	AddCatalogRef(data []byte, ref domain.CatalogRef) ([]byte, error)
-	AddWorkspaceRef(data []byte, ref domain.WorkspaceRef) ([]byte, error)
+	AddMultiverseRef(data []byte, ref domain.MultiverseRef) ([]byte, error)
 	RemoveRef(data []byte, name string) ([]byte, error)
-	// WorkspaceName reads metadata.name from a multiverse.yaml.
-	WorkspaceName(data []byte) (string, error)
-	// WorkspaceRoot reads spec.root, which is a path on one machine.
-	WorkspaceRoot(data []byte) string
+	// MultiverseName reads metadata.name from a multiverse.yaml.
+	MultiverseName(data []byte) (string, error)
+	// MultiverseRoot reads spec.root, which is a path on one machine.
+	MultiverseRoot(data []byte) string
 }
 
-// ManifestLoader reads a project manifest from disk, so a use case can look
-// at projects other than the one it was built for.
+// ManifestLoader reads a multiverse manifest from disk, so a use case can look
+// at multiverses other than the one it was built for.
 type ManifestLoader interface {
 	Load(path string) (*domain.Manifest, error)
 }

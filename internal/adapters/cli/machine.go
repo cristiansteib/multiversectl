@@ -28,16 +28,16 @@ func (quietOut) Table([]string, [][]string) {}
 // machineStatus is everything `status` says, so the same answer can be printed
 // or handed to a script.
 type machineStatus struct {
-	Version    string          `json:"version"`
-	Root       app.RootStatus  `json:"root"`
-	Workspaces []workspaceLine `json:"projects"`
-	Proxy      proxyLine       `json:"proxy"`
-	Server     serverLine      `json:"server"`
-	Latest     string          `json:"latest,omitempty"`
-	Attention  []string        `json:"attention"`
+	Version     string            `json:"version"`
+	Catalog     app.CatalogStatus `json:"catalog"`
+	Multiverses []multiverseLine  `json:"multiverses"`
+	Proxy       proxyLine         `json:"proxy"`
+	Server      serverLine        `json:"server"`
+	Latest      string            `json:"latest,omitempty"`
+	Attention   []string          `json:"attention"`
 }
 
-type workspaceLine struct {
+type multiverseLine struct {
 	Name      string   `json:"name"`
 	Current   bool     `json:"current,omitempty"`
 	From      string   `json:"from,omitempty"`
@@ -67,12 +67,12 @@ func (r runner) machineStatusCmd() *cobra.Command {
 		Use:   "status",
 		Short: "How this machine stands: the root, what is installed and drifted, what is running, and what needs attention",
 		Long: "One answer to \"is this machine in order?\": the root catalog, each installed\n" +
-			"project with how many universes it has and how many run, the shared proxy and\n" +
+			"multiverse with how many universes it has and how many run, the shared proxy and\n" +
 			"the web server, and, first, what needs attention: a root that cannot be read or\n" +
-			"is not marked, a project behind its remote, universes running without the\n" +
+			"is not marked, a multiverse behind its remote, universes running without the\n" +
 			"proxy, and anything `doctor` warns about. It reads what was last fetched, and is\n" +
 			"quick; --fetch compares with the remotes and looks for a newer release.\n" +
-			"`catalog status` and `universe status` have the detail of each part.",
+			"`status` and `universe status` have the detail of each part.",
 		Example: "  multiversectl status\n  multiversectl status --fetch\n  multiversectl status -o json",
 		Args:    cobra.NoArgs,
 	}
@@ -108,7 +108,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 	if err != nil {
 		return ms, err
 	}
-	ms.Root = rep.Root
+	ms.Catalog = rep.Catalog
 	bare, err := r.f.Bare(*r.g, quietOut{})
 	if err != nil {
 		return ms, err
@@ -116,15 +116,15 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 
 	var current *app.Service
 	var universesRunning int
-	for _, w := range rep.Workspaces {
-		line := workspaceLine{Name: w.Name, Current: w.Current, From: firstNonEmpty(w.From, w.Source), Root: w.Root, Notes: w.Notes}
-		if info, err := bare.WorkspaceNamed(w.Name); err == nil {
+	for _, w := range rep.Multiverses {
+		line := multiverseLine{Name: w.Name, From: firstNonEmpty(w.From, w.Source), Root: w.Root, Notes: w.Notes}
+		if info, err := bare.MultiverseNamed(w.Name); err == nil {
 			svc, err := r.f.At(*r.g, quietOut{}, info.Root, info.Manifest)
 			if err != nil {
 				line.Error = err.Error()
 				ms.Attention = append(ms.Attention, fmt.Sprintf("`%s`: its manifest cannot be read: %v", w.Name, err))
 			} else {
-				if w.Current || current == nil {
+				if current == nil {
 					current = svc
 				}
 				if list, err := svc.List(ctx, app.ListOptions{}); err == nil {
@@ -144,7 +144,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 		case w.Advice != "":
 			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s`: %s", w.Name, w.Advice))
 		}
-		ms.Workspaces = append(ms.Workspaces, line)
+		ms.Multiverses = append(ms.Multiverses, line)
 	}
 
 	svc := current
@@ -164,13 +164,11 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 	}
 
 	switch {
-	case rep.Root.Unavailable != "":
-		ms.Attention = append(ms.Attention, "the root catalog cannot be read: "+rep.Root.Unavailable)
-	case rep.Root.Legacy:
-		ms.Attention = append(ms.Attention, "the root is a plain Catalog, which a new machine cannot tell from a project's: `multiversectl init` marks it as your root")
+	case rep.Catalog.Unavailable != "":
+		ms.Attention = append(ms.Attention, "the catalog cannot be read: "+rep.Catalog.Unavailable)
 	}
-	if rep.Root.NoRemote {
-		ms.Attention = append(ms.Attention, "the root catalog is only on this machine, so it is lost with it: `git -C "+filepath.Dir(rep.Root.Source)+" remote add origin <url>`")
+	if rep.Catalog.NoRemote {
+		ms.Attention = append(ms.Attention, "the catalog is only on this machine, so it is lost with it: `git -C "+filepath.Dir(rep.Catalog.Source)+" remote add origin <url>`")
 	}
 	if universesRunning > 0 && !ms.Proxy.Running {
 		ms.Attention = append(ms.Attention, "universes are running but the shared proxy is not, so their addresses do not answer: `multiversectl system proxy up`")
@@ -179,7 +177,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 	// thing as "nothing installed", which the header already says.
 	if report, err := svc.Doctor(ctx, app.DoctorInput{}); err == nil {
 		for _, ch := range report.Checks {
-			if ch.Status == app.StatusOK || (ch.Name == "manifest" && len(rep.Workspaces) == 0) {
+			if ch.Status == app.StatusOK || (ch.Name == "manifest" && len(rep.Multiverses) == 0) {
 				continue
 			}
 			ms.Attention = append(ms.Attention, fmt.Sprintf("doctor: %s: %s", ch.Name, ch.Detail))
@@ -208,25 +206,23 @@ func (r runner) printMachine(ms machineStatus) {
 	o.Plain("%s %s", o.Bold("multiversectl"), o.Dim(ms.Version+" · this machine"))
 	o.Plain("")
 
-	root := "none"
+	catalog := "none"
 	switch {
-	case ms.Root.Source == "":
-		root = o.Dim("none: ") + "`multiversectl init`"
-	case ms.Root.Unavailable != "":
-		root = o.Place(domain.Locate(ms.Root.Source, "")) + "  " + o.Red("✗ unreadable")
-	case ms.Root.Legacy:
-		root = o.Place(domain.Locate(ms.Root.Source, "")) + "  " + o.Yellow("plain Catalog")
+	case ms.Catalog.Source == "":
+		catalog = o.Dim("none: ") + "`multiversectl init`"
+	case ms.Catalog.Unavailable != "":
+		catalog = o.Place(domain.Locate(ms.Catalog.Source, "")) + "  " + o.Red("✗ unreadable")
 	default:
-		root = o.Place(domain.Locate(ms.Root.Source, "")) + "  " + o.Green("✓ CatalogRoot")
+		catalog = o.Place(domain.Locate(ms.Catalog.Source, "")) + "  " + o.Green("✓")
 	}
-	o.Plain("%s  %s", o.Bold("Root       "), root)
+	o.Plain("%s  %s", o.Bold("Catalog    "), catalog)
 
-	if len(ms.Workspaces) == 0 {
-		o.Plain("%s  %s", o.Bold("Projects   "), o.Dim("nothing installed: ")+"`multiversectl catalog install <owner/repo>`")
+	if len(ms.Multiverses) == 0 {
+		o.Plain("%s  %s", o.Bold("Multiverses   "), o.Dim("nothing installed: ")+"`multiversectl start <owner/repo>`")
 	} else {
-		o.Plain("%s", o.Bold("Projects"))
-		cells := make([][]Cell, len(ms.Workspaces))
-		for i, w := range ms.Workspaces {
+		o.Plain("%s", o.Bold("Multiverses"))
+		cells := make([][]Cell, len(ms.Multiverses))
+		for i, w := range ms.Multiverses {
 			name := "  " + w.Name
 			if w.Current {
 				name = "★ " + w.Name
@@ -277,7 +273,7 @@ func (r runner) printMachine(ms machineStatus) {
 		}
 	}
 	o.Plain("")
-	o.Info("detail: `multiversectl catalog status`  ·  `multiversectl universe status`  ·  `multiversectl universe doctor`")
+	o.Info("detail: `multiversectl status`  ·  `multiversectl universe status`  ·  `multiversectl universe doctor`")
 }
 
 func pluralize(n int, noun string) string {

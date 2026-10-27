@@ -76,6 +76,21 @@ func (Files) ListDirs(path string) ([]string, error) {
 	return names, nil
 }
 
+func (Files) ListFiles(path string) ([]string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
 func (Files) Rename(oldPath, newPath string) error { return os.Rename(oldPath, newPath) }
 
 func (Files) Chmod(path string, perm fs.FileMode) error { return os.Chmod(path, perm) }

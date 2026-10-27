@@ -12,7 +12,7 @@ import (
 )
 
 const minimal = `apiVersion: multiverse/v1alpha1
-kind: Project
+kind: Multiverse
 metadata:
   name: acme
 spec:
@@ -43,7 +43,7 @@ func TestDecode(t *testing.T) {
 		},
 		{
 			name:    "unknown kind",
-			yaml:    strings.Replace(minimal, "Project", "Cluster", 1),
+			yaml:    strings.Replace(minimal, "Multiverse", "Cluster", 1),
 			wantErr: `unsupported kind "Cluster"`,
 		},
 		{
@@ -139,7 +139,7 @@ func TestLocate(t *testing.T) {
 func TestRepoWithoutAnAppGetsOne(t *testing.T) {
 	m := decodeOrFail(t, `
 apiVersion: multiverse/v1alpha1
-kind: Project
+kind: Multiverse
 metadata:
   name: acme
 spec:
@@ -178,7 +178,7 @@ spec:
 func TestDefaultBranchFallsBackToTheSlug(t *testing.T) {
 	m := decodeOrFail(t, `
 apiVersion: multiverse/v1alpha1
-kind: Project
+kind: Multiverse
 metadata:
   name: acme
 spec:
@@ -201,7 +201,7 @@ func decodeOrFail(t *testing.T, yaml string) *domain.Manifest {
 }
 
 func TestWriterOutputLoadsBack(t *testing.T) {
-	data, err := Writer{}.Workspace(app.ProjectDraft{
+	data, err := Writer{}.Multiverse(app.ProjectDraft{
 		Name: "acme",
 		Repos: []app.DraftRepo{
 			{Key: "api", URL: "https://example.test/acme/acme-api.git", Dir: "acme-api"},

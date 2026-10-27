@@ -53,7 +53,7 @@ func TestTheFootprintListsWhatAProjectMadeAndWhatWouldLoseWork(t *testing.T) {
 	if two.Risk || two.Note != "" {
 		t.Errorf("an untouched universe with nothing running is not a risk: %+v", two)
 	}
-	if one.Remove != "multiversectl -p acme universe rm 1" || one.Size < 0 {
+	if one.Remove != "multiversectl -m acme universe rm 1" || one.Size < 0 {
 		t.Errorf("universe 1 removal %q, size %d", one.Remove, one.Size)
 	}
 

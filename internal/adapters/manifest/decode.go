@@ -35,13 +35,13 @@ func Decode(data []byte, dir string) (*domain.Manifest, error) {
 	if env.APIVersion != v1alpha1.APIVersion {
 		return nil, fmt.Errorf("unsupported apiVersion %q; supported: %s", env.APIVersion, v1alpha1.APIVersion)
 	}
-	if env.Kind != v1alpha1.Kind && env.Kind != v1alpha1.LegacyKind {
-		return nil, fmt.Errorf("unsupported kind %q for apiVersion %s; supported: %s (or %s, as older files say it)", env.Kind, env.APIVersion, v1alpha1.Kind, v1alpha1.LegacyKind)
+	if env.Kind != v1alpha1.Kind {
+		return nil, fmt.Errorf("unsupported kind %q for apiVersion %s; supported: %s", env.Kind, env.APIVersion, v1alpha1.Kind)
 	}
 
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
-	var w v1alpha1.Project
+	var w v1alpha1.Multiverse
 	if err := dec.Decode(&w); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("decode %s %s: %w", env.APIVersion, env.Kind, err)
 	}

@@ -15,32 +15,30 @@ type Source struct {
 	Path string
 }
 
-// CatalogRef points at another Catalog; WorkspaceRef at a repository's
-// multiverse.yaml. Names are unique among siblings of either kind.
+// CatalogRef points at another Catalog; MultiverseRef at a file that defines a
+// Multiverse. Names are unique among siblings of either kind.
 type CatalogRef struct {
 	Name   string
 	Source Source
 }
 
-type WorkspaceRef struct {
+type MultiverseRef struct {
 	Name   string
 	Source Source
 }
 
 // Catalog is one index file: pointers only, never definitions.
 type Catalog struct {
-	Name string
-	// Root says the file is a CatalogRoot: the index a machine starts from.
-	Root       bool
-	Catalogs   []CatalogRef
-	Workspaces []WorkspaceRef
+	Name        string
+	Catalogs    []CatalogRef
+	Multiverses []MultiverseRef
 }
 
 type NodeKind string
 
 const (
-	CatalogNode   NodeKind = "catalog"
-	WorkspaceNode NodeKind = "project"
+	CatalogNode    NodeKind = "catalog"
+	MultiverseNode NodeKind = "multiverse"
 )
 
 // Node is a catalog resolved into a tree. Path is the slash-joined names from
@@ -53,13 +51,9 @@ type Node struct {
 	Kind     NodeKind
 	Source   Source
 	Children []Node
-	// Root is set on a catalog that is a CatalogRoot, which is how a machine
-	// whose root predates the kind is recognised.
-	Root bool
-
 	// File and Dir are where a loaded catalog node lives on this machine: its
 	// file, and the root of the checkout or directory its paths are relative
-	// to. They are what a write goes to; projects and unavailable nodes have
+	// to. They are what a write goes to; multiverses and unavailable nodes have
 	// neither.
 	File, Dir string
 
@@ -82,9 +76,9 @@ func (n Node) Find(path string) (Node, bool) {
 	return Node{}, false
 }
 
-// Leaves are the projects under n, in tree order; n itself if it is one.
+// Leaves are the multiverses under n, in tree order; n itself if it is one.
 func (n Node) Leaves() []Node {
-	if n.Kind == WorkspaceNode {
+	if n.Kind == MultiverseNode {
 		return []Node{n}
 	}
 	var out []Node

@@ -77,7 +77,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		return err
 	}
 	// And the universe's own, so this cannot run while something is starting
-	// or stopping it. Always after the project lock, never before.
+	// or stopping it. Always after the multiverse lock, never before.
 	unlockUniverse, err := s.lockUniverse(ctx, st.ID, st.Name)
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		if !s.Files.Exists(dest) {
 			continue
 		}
-		clone := s.Manifest.CloneDir(s.Workspace, repoKey)
+		clone := s.Manifest.CloneDir(s.Multiverse, repoKey)
 		// Whatever was in them has been accounted for above, by refusing or by
 		// being forced, so this is where the work is actually discarded.
 		err := s.Git.RemoveWorktree(ctx, clone, dest, true)

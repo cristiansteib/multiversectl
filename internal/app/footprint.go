@@ -28,10 +28,10 @@ type Item struct {
 	Remove string
 }
 
-// ProjectFootprint lists what one installed project has made: its universes with
+// ProjectFootprint lists what one installed multiverse has made: its universes with
 // their containers and volumes, the clones of its repositories, the copy of its
 // manifest, and branches left behind by universes that are gone. name is how the
-// project is called on this machine, which is what the removal commands name it by.
+// multiverse is called on this machine, which is what the removal commands name it by.
 func (s *Service) ProjectFootprint(ctx context.Context, name string) ([]Item, error) {
 	var items []Item
 
@@ -43,7 +43,7 @@ func (s *Service) ProjectFootprint(ctx context.Context, name string) ([]Item, er
 	for _, st := range states {
 		u := s.Universe(st.Name)
 		it := Item{Kind: "universe", What: fmt.Sprintf("universe %s of %s", st.Name, name), Path: u.Dir(), Size: -1,
-			Remove: fmt.Sprintf("multiversectl -p %s universe rm %s", name, st.Name)}
+			Remove: fmt.Sprintf("multiversectl -m %s universe rm %s", name, st.Name)}
 		var notes []string
 		if cs, err := s.Runtime.Containers(ctx, st.Project); err == nil && len(cs) > 0 {
 			notes = append(notes, fmt.Sprintf("%s (%d up)", plural(len(cs), "container"), countRunning(cs)))
@@ -74,7 +74,7 @@ func (s *Service) ProjectFootprint(ctx context.Context, name string) ([]Item, er
 
 	leftover := regexp.MustCompile("^" + strings.ReplaceAll(regexp.QuoteMeta(firstNonEmpty(s.Manifest.Branch, "u{{universe}}")), `\{\{universe\}\}`, "[0-9]+") + "$")
 	for _, key := range s.repoKeys() {
-		clone := s.Manifest.CloneDir(s.Workspace, key)
+		clone := s.Manifest.CloneDir(s.Multiverse, key)
 		if !s.Files.Exists(clone) {
 			continue
 		}
@@ -104,7 +104,7 @@ func (s *Service) ProjectFootprint(ctx context.Context, name string) ([]Item, er
 			}
 		}
 	}
-	if dir := manifestClone(s.Workspace); s.Files.Exists(dir) {
+	if dir := manifestClone(s.Multiverse); s.Files.Exists(dir) {
 		items = append(items, Item{Kind: "copy", What: "copy of " + name + "'s manifest", Path: dir, Size: -1, Remove: "rm -rf " + quote(filepath.Dir(dir))})
 	}
 	s.measure(items)
@@ -123,7 +123,7 @@ func (c *Catalogs) MachineFootprint() []Item {
 			items = append(items, Item{Kind: "state", What: what, Path: p, Size: -1, Note: note, Risk: risk, Remove: "rm -rf " + quote(p)})
 		}
 	}
-	add("config.yaml", "the configuration: your root catalog and which projects are installed", "", false)
+	add("config.yaml", "the configuration: your root catalog and which multiverses are installed", "", false)
 	add("catalogs", "the cache of catalog repositories", "fetched again when needed", false)
 	add("index", "a root catalog kept only on this machine", "if it has no remote it exists nowhere else", true)
 	add("proxy", "the shared proxy's compose file", "", false)

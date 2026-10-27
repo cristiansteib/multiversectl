@@ -18,7 +18,7 @@
   <div class="tw"><table>
   <thead><tr><th scope="col">Derived</th><th scope="col"><code>3</code></th><th scope="col"><code>fix/login</code></th></tr></thead><tbody>
   <tr><td data-l="Derived">Directory</td><td data-l="3"><code>universes/3</code></td><td data-l="fix/login"><code>universes/fix-login</code></td></tr>
-  <tr><td data-l="Derived">Slug, in hostnames and projects</td><td data-l="3"><code>u3</code></td><td data-l="fix/login"><code>fix-login</code></td></tr>
+  <tr><td data-l="Derived">Slug, in hostnames and multiverses</td><td data-l="3"><code>u3</code></td><td data-l="fix/login"><code>fix-login</code></td></tr>
   <tr><td data-l="Derived">Default branch</td><td data-l="3"><code>spec.branch</code>, <code>u3</code> by default</td><td data-l="fix/login">the name itself</td></tr>
   </tbody></table></div>
   <p>The slug is the name reduced to what DNS labels and compose projects both accept, so <code>feat/ARCA-123</code> is reachable at <code>api-feat-arca-123.&lt;domain&gt;</code> while the branch keeps its real name. A name whose slug would not fit a DNS label is refused with the limit named, rather than truncated into a collision.</p>
@@ -44,10 +44,10 @@
 
 <section id="busy">
   <h2 id="busy"><a href="#busy">One thing at a time, whoever is asking</a></h2>
-  <p>A terminal, the web view and an agent are separate programs, and none of them can see what the others are halfway through. So anything that changes a universe takes a lock in the project first, and a second caller is told what has it rather than running alongside it:</p>
+  <p>A terminal, the web view and an agent are separate programs, and none of them can see what the others are halfway through. So anything that changes a universe takes a lock in the multiverse first, and a second caller is told what has it rather than running alongside it:</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl universe down 2
 error: universe 2 is busy: pid 4242: multiversectl universe up 2 is working on it</pre></div>
-  <p>Creating and removing lock the project, because they change which universes exist and which numbers are free; starting, stopping, syncing and restarting lock only their own universe, so different universes still run side by side. The lock is the operating system's, so a command that is killed leaves nothing behind to clean up.</p>
+  <p>Creating and removing lock the multiverse, because they change which universes exist and which numbers are free; starting, stopping, syncing and restarting lock only their own universe, so different universes still run side by side. The lock is the operating system's, so a command that is killed leaves nothing behind to clean up.</p>
 </section>
 
 <section id="metadata">
