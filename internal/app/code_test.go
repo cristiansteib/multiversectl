@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +12,9 @@ import (
 
 type codeGit struct {
 	Git
+	// The repositories of a universe are read at once, so what the fake records
+	// of them is behind a lock.
+	mu        sync.Mutex
 	diffs     map[string]DiffStat
 	asked     []string
 	pushed    bool
@@ -39,10 +43,14 @@ func (g *codeGit) DefaultBranch(context.Context, string) (string, error) {
 }
 func (g *codeGit) LastFetch(context.Context, string) time.Time { return g.fetched }
 func (g *codeGit) FetchQuietly(_ context.Context, dir string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.fetches = append(g.fetches, dir)
 	return nil
 }
 func (g *codeGit) DiffStat(_ context.Context, dir, ref string) (DiffStat, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.asked = append(g.asked, dir+"@"+ref)
 	return g.diffs[ref], g.diffErr[ref]
 }
