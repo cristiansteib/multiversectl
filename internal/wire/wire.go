@@ -25,6 +25,7 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/adapters/statestore"
 	"github.com/cristiansteib/multiversectl/internal/adapters/system"
 	"github.com/cristiansteib/multiversectl/internal/adapters/traefik"
+	"github.com/cristiansteib/multiversectl/internal/adapters/updatecache"
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -74,6 +75,11 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 		childErr = m.Stderr
 	}
 	proxy := traefik.New(childOut, childErr)
+	// Without a cache directory there is nothing to share, not a reason to fail.
+	var updates app.UpdateStore
+	if u, err := updatecache.New(); err == nil {
+		updates = u
+	}
 	return app.Deps{
 		Git:       gitcli.New(),
 		Runtime:   compose.New(childOut, childErr),
@@ -85,6 +91,7 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 		Config:    cfg,
 		Manifests: ManifestLoader{},
 		Releases:  release.New(),
+		Updates:   updates,
 		Hosts:     []app.RepoHost{githost.New(), gitlabhost.New()},
 		Locks:     lockfile.New(),
 		Out:       out,

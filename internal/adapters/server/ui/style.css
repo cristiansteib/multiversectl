@@ -72,6 +72,13 @@ input[type="search"] { font: 14px var(--sans); color: var(--text); background: v
 
 .next { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--info-bg); border: 1px solid var(--info); color: var(--text); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px; }
 .next b { color: var(--info); }
+.update { background: var(--info-bg); border-bottom: 1px solid var(--info); padding: 8px 20px; }
+.update[hidden] { display: none; }
+.update-line { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap; }
+.update-line b { color: var(--info); }
+.update-fixes { margin-top: 4px; font-size: 13px; }
+.update-fixes summary { cursor: pointer; color: var(--muted); }
+.update-fixes ul { margin: 6px 0 2px; padding-left: 20px; }
 
 table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }

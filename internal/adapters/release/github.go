@@ -32,14 +32,24 @@ func New() *GitHub {
 }
 
 // Latest is the newest published release that already carries its binaries.
-// A release is created before GoReleaser attaches them, so for a short while
-// the newest one is empty and naming it would fail every update; checksums.txt
-// is the last thing the pipeline needs, so its presence marks a finished one.
 func (g *GitHub) Latest(ctx context.Context) (app.Release, error) {
+	rels, err := g.Recent(ctx)
+	if err != nil {
+		return app.Release{}, err
+	}
+	return rels[0], nil
+}
+
+// Recent is the newest releases that already carry their binaries, newest
+// first. A release is created before GoReleaser attaches them, so for a short
+// while the newest one is empty and naming it would fail every update;
+// checksums.txt is the last thing the pipeline needs, so its presence marks a
+// finished one.
+func (g *GitHub) Recent(ctx context.Context) ([]app.Release, error) {
 	url := fmt.Sprintf("%s/repos/%s/releases?per_page=10", g.base, repository)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return app.Release{}, fmt.Errorf("build release request: %w", err)
+		return nil, fmt.Errorf("build release request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "multiversectl")
@@ -49,15 +59,16 @@ func (g *GitHub) Latest(ctx context.Context) (app.Release, error) {
 
 	resp, err := g.client.Do(req)
 	if err != nil {
-		return app.Release{}, fmt.Errorf("fetch latest release: %w", err)
+		return nil, fmt.Errorf("fetch latest release: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return app.Release{}, fmt.Errorf("fetch latest release: %s", resp.Status)
+		return nil, fmt.Errorf("fetch latest release: %s", resp.Status)
 	}
 
 	var body []struct {
 		TagName    string `json:"tag_name"`
+		Body       string `json:"body"`
 		Draft      bool   `json:"draft"`
 		Prerelease bool   `json:"prerelease"`
 		Assets     []struct {
@@ -66,21 +77,25 @@ func (g *GitHub) Latest(ctx context.Context) (app.Release, error) {
 		} `json:"assets"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return app.Release{}, fmt.Errorf("decode latest release: %w", err)
+		return nil, fmt.Errorf("decode latest release: %w", err)
 	}
+	var out []app.Release
 	for _, r := range body {
 		if r.Draft || r.Prerelease {
 			continue
 		}
-		rel := app.Release{Version: r.TagName, Assets: map[string]string{}}
+		rel := app.Release{Version: r.TagName, Notes: r.Body, Assets: map[string]string{}}
 		for _, a := range r.Assets {
 			rel.Assets[a.Name] = a.URL
 		}
 		if _, done := rel.Assets["checksums.txt"]; done {
-			return rel, nil
+			out = append(out, rel)
 		}
 	}
-	return app.Release{}, fmt.Errorf("fetch latest release: none of the newest %d has its binaries yet", len(body))
+	if len(out) > 0 {
+		return out, nil
+	}
+	return nil, fmt.Errorf("fetch latest release: none of the newest %d has its binaries yet", len(body))
 }
 
 // Download writes to a temp file beside dest and renames it, so a partial

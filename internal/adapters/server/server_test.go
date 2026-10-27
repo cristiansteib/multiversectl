@@ -30,6 +30,8 @@ type fake struct {
 	ws         multiverseView
 	doctor     doctorView
 	system     systemView
+	update     updateView
+	looked     bool
 	next       nextView
 	branchList []branchView
 	dirty      []string
@@ -111,6 +113,12 @@ func (f *fake) Logs(ctx context.Context, ws, u, appKey, service string, tail int
 	return nil
 }
 func (f *fake) System(context.Context) (systemView, error) { return f.system, f.err }
+func (f *fake) Update(_ context.Context, look bool) (updateView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.looked = f.looked || look
+	return f.update, nil
+}
 func (f *fake) NextFree(_ context.Context, ws string) (nextView, error) {
 	f.ask("next:" + ws)
 	return f.next, f.err
@@ -659,7 +667,7 @@ func TestTheWebsocketTellsAPageWhereThingsStandAndWhatChanges(t *testing.T) {
 		t.Fatalf("hello = %+v %v", hello, err)
 	}
 	seen := map[string]bool{}
-	for len(seen) < 2 {
+	for !seen["fleet"] || !seen["overview"] {
 		seen[read(t, c).Type] = true
 	}
 	if !seen["fleet"] || !seen["overview"] {
@@ -689,22 +697,34 @@ func TestTheWebsocketTellsAPageWhereThingsStandAndWhatChanges(t *testing.T) {
 func TestChangesAreOnlyPushedWhenThereIsSomethingNew(t *testing.T) {
 	f := &fake{fleet: fleetView{Multiverses: []fleetMultiverse{{Name: "acme"}}}}
 	s, _ := serve(t, f, Options{})
-	events := 0
 	c1 := &client{send: make(chan []byte, 8), drop: func() {}}
 	s.hub.join(c1)
+	// The release check runs on its own and tells the same clients.
+	fleets := func() (n int) {
+		for {
+			select {
+			case d := <-c1.send:
+				if strings.Contains(string(d), `"type":"fleet"`) {
+					n++
+				}
+			default:
+				return n
+			}
+		}
+	}
+	fleets()
 	s.look1(context.Background(), true, false)
 	s.look1(context.Background(), true, false)
 	s.look1(context.Background(), true, false)
-	events = len(c1.send)
-	if events != 1 {
+	if events := fleets(); events != 1 {
 		t.Errorf("an unchanged fleet was sent %d times, want once", events)
 	}
 	f.mu.Lock()
 	f.fleet = fleetView{Multiverses: []fleetMultiverse{{Name: "acme", Universes: []universeView{{Name: "1"}}}}}
 	f.mu.Unlock()
 	s.look1(context.Background(), true, false)
-	if len(c1.send) != 2 {
-		t.Errorf("a changed fleet should be sent: %d queued", len(c1.send))
+	if n := fleets(); n != 1 {
+		t.Errorf("a changed fleet should be sent: %d queued", n)
 	}
 }
 
@@ -877,5 +897,37 @@ func TestNodesAndOverviewsCarryTheirLocationInOneNotation(t *testing.T) {
 	}
 	if _, ok := o.Sources["local"]; ok {
 		t.Error("a project with no repository has no source to draw")
+	}
+}
+
+func TestAPageIsToldOfANewerReleaseAndTheServerKeepsLooking(t *testing.T) {
+	n := app.UpdateNotice{Current: "v1.0.0", Latest: "v1.0.3", Releases: 3, Fixes: 4, Highlights: []string{"a fix"}}
+	f := &fake{update: updateView{Notice: &n}}
+	s, _ := serve(t, f, Options{Version: "v1.0.0", UpdateEvery: 10 * time.Millisecond})
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	c, _, err := dial(t, ts, signedIn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()
+
+	// It is not tied to a page being open: the look that leaves its result for
+	// the command line is made either way, and a page that joins is told at once.
+	for {
+		e := read(t, c)
+		if e.Type != "update" {
+			continue
+		}
+		var got updateView
+		if err := json.Unmarshal(e.Data.(json.RawMessage), &got); err != nil || got.Notice == nil || got.Notice.Latest != "v1.0.3" || got.Notice.Fixes != 4 {
+			t.Fatalf("update = %s %v", e.Data, err)
+		}
+		break
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.looked {
+		t.Error("the server never asked for a new look")
 	}
 }

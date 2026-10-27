@@ -44,6 +44,9 @@ type Options struct {
 	ReadOnly bool
 	// Token is the credential; made at random when empty.
 	Token string
+	// UpdateEvery is how often to look for a newer release; zero is
+	// app.UpdateEvery.
+	UpdateEvery time.Duration
 }
 
 // Server is the handler and what runs behind it: the hub that feeds the
@@ -75,6 +78,8 @@ func New(b Backend, o Options) *Server {
 	s.ops = newOps(s)
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.watch(ctx) }()
+	s.wg.Add(1)
+	go func() { defer s.wg.Done(); s.watchUpdates(ctx) }()
 	return s
 }
 

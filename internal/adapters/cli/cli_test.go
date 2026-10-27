@@ -487,3 +487,20 @@ func TestMachineWideCommandsLiveUnderSystem(t *testing.T) {
 		}
 	}
 }
+
+func TestTheUpdateLineSaysHowMuchWasMissed(t *testing.T) {
+	for _, c := range []struct {
+		n    app.UpdateNotice
+		want string
+	}{
+		{app.UpdateNotice{Current: "v0.0.41", Latest: "v0.0.42", Fixes: 1}, "multiversectl v0.0.42 is out (this is v0.0.41; 1 fix since): `multiversectl self-update`"},
+		{app.UpdateNotice{Current: "v0.0.41", Latest: "v0.0.44", Fixes: 7}, "multiversectl v0.0.44 is out (this is v0.0.41; 7 fixes since): `multiversectl self-update`"},
+		{app.UpdateNotice{Current: "v0.0.30", Latest: "v0.0.43", Fixes: 10, More: true}, "multiversectl v0.0.43 is out (this is v0.0.30; 10+ fixes since): `multiversectl self-update`"},
+		{app.UpdateNotice{Current: "v0.0.41", Latest: "v0.0.42", Changes: 2}, "multiversectl v0.0.42 is out (this is v0.0.41; 2 changes since): `multiversectl self-update`"},
+		{app.UpdateNotice{Current: "v0.0.41", Latest: "v0.0.42"}, "multiversectl v0.0.42 is out (this is v0.0.41): `multiversectl self-update`"},
+	} {
+		if got := updateLine(c.n); got != c.want {
+			t.Errorf("got %q, want %q", got, c.want)
+		}
+	}
+}

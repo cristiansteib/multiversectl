@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -34,6 +35,7 @@ func main() {
 		At:         at,
 		Catalogs:   catalogs,
 		Server:     wire.Server,
+		Detach:     detach,
 		Progress:   func() app.Progress { return wire.Machine{Ctx: interrupted}.Progress() },
 		Prompter:   func() app.Prompter { return wire.Machine{Ctx: interrupted}.Prompter() },
 		Completions: func(out app.Output) *app.Completions {
@@ -57,6 +59,21 @@ func main() {
 			fmt.Fprintln(os.Stderr, errorPrefix(globals.NoColor)+cli.Markup(err.Error(), cli.ColorEnabled(os.Stderr, globals.NoColor)))
 		}
 		os.Exit(1)
+	}
+}
+
+// detach starts this program again with args and does not wait for it: its
+// own session, no terminal, so it neither holds the shell open nor is stopped
+// with it. Best effort, like what it is used for.
+func detach(args ...string) {
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	cmd := exec.Command(self, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if cmd.Start() == nil {
+		_ = cmd.Process.Release()
 	}
 }
 

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
 // How often the server looks at the machine while someone is watching. The
@@ -75,18 +77,20 @@ func (h *hub) publish(topic string, e event) {
 	}
 }
 
-// join registers a page and returns what it should be told first.
-func (h *hub) join(c *client) [][]byte {
+// join registers a page and returns what it should be told first, and whether
+// the machine has been looked at yet: a release check is told before anyone
+// has looked at the fleet, so a snapshot that is not empty does not say so.
+func (h *hub) join(c *client) (snap [][]byte, looked bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.clients[c] = struct{}{}
-	var snap [][]byte
-	for _, t := range []string{"overview", "fleet"} {
+	_, looked = h.last["fleet"]
+	for _, t := range []string{"overview", "fleet", "update"} {
 		if d, ok := h.last[t]; ok {
 			snap = append(snap, d)
 		}
 	}
-	return snap
+	return snap, looked
 }
 
 func (h *hub) leave(c *client) {
@@ -118,6 +122,39 @@ func (s *Server) watch(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// watchUpdates looks for a newer release on its own clock, whether or not a
+// page is open: the look also leaves what it found where the command line
+// reads it, so a machine running this server knows about a release before
+// anyone asks. The first thing told is what is already known, since the look
+// that follows is a network request.
+func (s *Server) watchUpdates(ctx context.Context) {
+	every := s.o.UpdateEvery
+	if every <= 0 {
+		every = app.UpdateEvery
+	}
+	s.publishUpdate(ctx, false)
+	s.publishUpdate(ctx, true)
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.publishUpdate(ctx, true)
+		}
+	}
+}
+
+func (s *Server) publishUpdate(ctx context.Context, look bool) {
+	c, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	// A failed look still carries what the earlier ones found, so it is told
+	// all the same: the page has nothing better to show.
+	v, _ := s.b.Update(c, look)
+	s.hub.publish("update", event{Type: "update", Data: v})
 }
 
 func (s *Server) look1(ctx context.Context, fleet, status bool) {
@@ -177,7 +214,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	c := &client{send: make(chan []byte, 64), drop: cancel}
-	snap := s.hub.join(c)
+	snap, looked := s.hub.join(c)
 	defer s.hub.leave(c)
 
 	hello := event{Type: "hello", Data: helloView{Version: s.o.Version, Commit: s.o.Commit, Date: s.o.Date, ReadOnly: s.o.ReadOnly, Ops: s.ops.list()}}
@@ -189,7 +226,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if len(snap) == 0 {
+	if !looked {
 		s.refresh() // nobody has looked yet: this page is the reason to
 	}
 

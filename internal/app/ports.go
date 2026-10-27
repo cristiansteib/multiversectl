@@ -311,16 +311,29 @@ type System interface {
 type Release struct {
 	Version string
 	Assets  map[string]string // asset name -> download URL
+	// Notes is the release's changelog, as the pipeline wrote it.
+	Notes string
 }
 
 // Releases is the self-update port.
 type Releases interface {
 	Latest(ctx context.Context) (Release, error)
+	// Recent is the newest finished releases, newest first: enough of them to
+	// say what a build that is a few versions behind has missed.
+	Recent(ctx context.Context) ([]Release, error)
 	// Download writes the URL to dest and returns the SHA-256 of what it
 	// wrote, in lower-case hex. The digest is taken from the bytes as they
 	// land, so it describes the file that is there and not a second read of
 	// something that may have changed.
 	Download(ctx context.Context, url, dest string) (sum string, err error)
+}
+
+// UpdateStore keeps what the last look for a newer release found, where the
+// command line and the web view, which are separate processes, both find it.
+type UpdateStore interface {
+	// Load reads it; false when nothing was ever kept or it cannot be read.
+	Load() (UpdateRecord, bool)
+	Save(UpdateRecord) error
 }
 
 // Origin is where a multiverse's manifest came from. It is recorded at install

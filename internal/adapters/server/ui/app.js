@@ -24,7 +24,7 @@ const REFRESH_MS = 10000;
 
 // What the page knows, fed by the websocket. A view reads from it and is told
 // when a piece changes; when the socket is down the views fetch for themselves.
-const state = { connected: false, readOnly: false, hello: null, fleet: null, overview: null, ops: [], shown: null, dockOpen: false };
+const state = { connected: false, readOnly: false, hello: null, update: null, fleet: null, overview: null, ops: [], shown: null, dockOpen: false };
 
 async function api(path) {
   const res = await fetch('/api/' + path, { headers: { Accept: 'application/json' } });
@@ -877,10 +877,34 @@ function onEvent(e) {
     }
     case 'fleet': state.fleet = e.data; if (current && current.onFleet) current.onFleet(e.data); stamp(); break;
     case 'overview': state.overview = e.data; if (current && current.onOverview) current.onOverview(e.data); stamp(); break;
+    case 'update': state.update = e.data.notice || null; showUpdate(); break;
     case 'op': onOp(e.data); break;
     case 'opline': onOpLine(e.data); break;
     default: break;
   }
+}
+
+// A newer release than this server, and what it fixes, above everything: it is
+// the one thing on the page that is about the tool and not about the fleet. The
+// server looks every half hour and tells every page, so none has to ask.
+function showUpdate() {
+  const el = document.getElementById('update');
+  const n = state.update;
+  if (!n) { el.hidden = true; el.replaceChildren(); return; }
+  const count = (k, one, many) => k + (n.more ? '+' : '') + ' ' + (k === 1 && !n.more ? one : many);
+  const brings = n.fixes ? count(n.fixes, 'fix', 'fixes') : n.changes ? count(n.changes, 'change', 'changes') : '';
+  const more = n.fixes - (n.highlights || []).length;
+  const andMore = more > 0 ? 'and ' + more + (n.more ? '+' : '') + ' more' : n.more ? 'and older ones' : null;
+  el.replaceChildren(
+    h('div', { class: 'update-line' },
+      h('b', null, 'Update available'),
+      h('span', null, 'multiversectl ' + n.latest + ' is out, you are on ' + n.current + (brings ? ': ' + brings + ' since' : '') + '.'),
+      copyable('multiversectl self-update'),
+      h('a', { href: n.url, target: '_blank', rel: 'noopener noreferrer' }, 'Release notes')),
+    (n.highlights || []).length ? h('details', { class: 'update-fixes' },
+      h('summary', null, "What's fixed"),
+      h('ul', null, n.highlights.map((f) => h('li', null, f)), andMore ? h('li', { class: 'muted' }, andMore) : null)) : null);
+  el.hidden = false;
 }
 
 function showVersion() {
