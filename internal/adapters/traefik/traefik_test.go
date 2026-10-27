@@ -59,7 +59,7 @@ networks:
 services:
   web:
     ports: !reset []
-    # Asked for with multiverse.env.* labels. This fragment is merged last, so
+    # Asked for with dev.multiversectl.env.* labels. This fragment is merged last, so
     # these win over the service's own environment and any env_file.
     environment:
       DJANGO_ALLOWED_HOSTS: "api-u1.example.test"

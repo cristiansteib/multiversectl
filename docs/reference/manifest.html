@@ -120,7 +120,7 @@
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
     <span class="k">portForward</span>: [api]    <span class="c"># http://&lt;this machine's address&gt;:&lt;free port&gt;</span></pre></div>
-  <p>The kernel picks the port once; it is kept in the universe's state, so the address survives restarts, and no other universe gets it. It binds like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>. The same thing can be asked from a compose label, <code>multiverse.host.api.portForward: auto</code>.</p>
+  <p>The kernel picks the port once; it is kept in the universe's state, so the address survives restarts, and no other universe gets it. It binds like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>. The same thing can be asked from a compose label, <code>dev.multiversectl.host.api.portForward: auto</code>.</p>
 </section>
 
   <nav class="pager" aria-label="Pages">

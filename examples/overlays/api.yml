@@ -11,7 +11,7 @@ services:
       # to be edited when a host or an app is added.
       #
       # Better still, when you can change the repository: a label on the
-      # service itself, `multiverse.env.TRUSTED_ORIGINS: origins`, which also
+      # service itself, `dev.multiversectl.env.TRUSTED_ORIGINS: origins`, which also
       # wins over an env_file. An overlay is for repositories you cannot
       # change.
       TRUSTED_ORIGINS: "${MULTIVERSE_ORIGINS}"

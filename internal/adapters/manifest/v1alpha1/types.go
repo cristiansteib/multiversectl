@@ -197,7 +197,7 @@ type App struct {
 	// Services allowed to keep their published host ports. Every other
 	// service's ports are dropped, because a universe is reached through the
 	// proxy and published ports are what make two copies collide. A service can
-	// ask for this itself with the label multiverse.publish: "true".
+	// ask for this itself with the label dev.multiversectl.publish: "true".
 	Publish []string `yaml:"publish"`
 
 	// The service `universe exec` and `universe run` use when --service is not
@@ -215,7 +215,7 @@ type App struct {
 	Overlay yaml.Node `yaml:"overlay"`
 
 	// Addresses this app answers on, for a repository you cannot change.
-	// Usually leave it out: a service that carries multiverse.host.<name>
+	// Usually leave it out: a service that carries dev.multiversectl.host.<name>
 	// labels declares its own addresses, and a service exposing exactly one
 	// port is reached at the app's own name with no configuration at all.
 	// Declaring hosts here wins over both.

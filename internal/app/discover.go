@@ -14,27 +14,27 @@ import (
 // the value is the port it listens on:
 //
 //	labels:
-//	  multiverse.host.app: "4200"              # app-u3.<domain> -> 4200
-//	  multiverse.host.api: "8001"
-//	  multiverse.host.api.entrypoint: devapi   # default: web
-//	  multiverse.host.api.aliases: app,adm     # same service, other hostnames
-//	  multiverse.host.api.portForward: auto    # also reachable at <ip>:<free port>
-//	  multiverse.publish: "true"               # keep my published ports
+//	  dev.multiversectl.host.app: "4200"              # app-u3.<domain> -> 4200
+//	  dev.multiversectl.host.api: "8001"
+//	  dev.multiversectl.host.api.entrypoint: devapi   # default: web
+//	  dev.multiversectl.host.api.aliases: app,adm     # same service, other hostnames
+//	  dev.multiversectl.host.api.portForward: auto    # also reachable at <ip>:<free port>
+//	  dev.multiversectl.publish: "true"               # keep my published ports
 //
 // With no labels at all, a service that exposes exactly one port is reached at
 // the app's own name, so the common case needs nothing.
 const (
-	hostLabel    = "multiverse.host."
-	publishLabel = "multiverse.publish"
+	hostLabel    = "dev.multiversectl.host."
+	publishLabel = "dev.multiversectl.publish"
 	// envLabel lets a service ask for a value only the universe knows:
 	//
-	//   multiverse.env.DJANGO_CSRF_TRUSTED_ORIGINS: origins
+	//   dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS: origins
 	//
 	// A label rather than an ${MULTIVERSE_ORIGINS} in the service's own
 	// environment, because a compose file is also run by hand: a reference
 	// resolves to the empty string when multiversectl is not driving, while a
 	// label is inert metadata until it is.
-	envLabel = "multiverse.env."
+	envLabel = "dev.multiversectl.env."
 )
 
 // Sources an env label can name.
@@ -48,7 +48,7 @@ const (
 	srcURL      = "url:"     // one host key's address
 )
 
-// serviceEnv resolves the multiverse.env.* labels of every service of an app.
+// serviceEnv resolves the dev.multiversectl.env.* labels of every service of an app.
 // It fails on a source it does not know rather than leaving a variable unset:
 // an empty ALLOWED_HOSTS is a confusing runtime error far from its cause.
 func (s *Service) serviceEnv(st domain.UniverseState, cfg ProjectConfig) ([]ServiceEnv, error) {
@@ -205,10 +205,10 @@ func soleExposedPort(appKey string, cfg ProjectConfig) (domain.RouteRule, error)
 		case len(ports) == 0:
 			continue
 		case len(ports) > 1:
-			return found, fmt.Errorf("%s: service %q exposes %d ports, so which one serves %s is a guess — add a label: multiverse.host.%s: \"<port>\"",
+			return found, fmt.Errorf("%s: service %q exposes %d ports, so which one serves %s is a guess — add a label: dev.multiversectl.host.%s: \"<port>\"",
 				appKey, name, len(ports), appKey, appKey)
 		case found.Port != 0:
-			return found, fmt.Errorf("%s: services %q and %q both expose a port — label the one that should answer: multiverse.host.%s: \"<port>\"",
+			return found, fmt.Errorf("%s: services %q and %q both expose a port — label the one that should answer: dev.multiversectl.host.%s: \"<port>\"",
 				appKey, found.Service, name, appKey)
 		default:
 			found = domain.RouteRule{App: appKey, Service: name, Port: ports[0]}
@@ -217,7 +217,7 @@ func soleExposedPort(appKey string, cfg ProjectConfig) (domain.RouteRule, error)
 	return found, nil
 }
 
-// rulesFromLabels reads one service's multiverse.host.* labels.
+// rulesFromLabels reads one service's dev.multiversectl.host.* labels.
 func rulesFromLabels(labels map[string]string) map[string]domain.RouteRule {
 	out := map[string]domain.RouteRule{}
 	keys := make([]string, 0, len(labels))
@@ -231,7 +231,7 @@ func rulesFromLabels(labels map[string]string) map[string]domain.RouteRule {
 		if !ok || rest == "" {
 			continue
 		}
-		// "multiverse.host.app" is the port; "multiverse.host.app.entrypoint"
+		// "dev.multiversectl.host.app" is the port; "dev.multiversectl.host.app.entrypoint"
 		// is a detail about that same host.
 		name, field, hasField := strings.Cut(rest, ".")
 		rule := out[name]

@@ -193,12 +193,12 @@ func TestServiceEnvFromLabels(t *testing.T) {
 	svc := New(Deps{System: fakeSystem{}, Store: fakeStore{st: st}}, "/ws", manifest, "test")
 
 	cfg := ProjectConfig{Services: map[string]ServiceConfig{"web": {Labels: map[string]string{
-		"multiverse.env.DJANGO_CSRF_TRUSTED_ORIGINS": "origins",
-		"multiverse.env.DJANGO_ALLOWED_HOSTS":        "hosts",
-		"multiverse.env.API_BASE":                    "url:devapi",
-		"multiverse.env.OWN_HOST":                    "host:api",
-		"multiverse.env.WHICH":                       "universe",
-		"multiverse.host.api":                        "8001",
+		"dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS": "origins",
+		"dev.multiversectl.env.DJANGO_ALLOWED_HOSTS":        "hosts",
+		"dev.multiversectl.env.API_BASE":                    "url:devapi",
+		"dev.multiversectl.env.OWN_HOST":                    "host:api",
+		"dev.multiversectl.env.WHICH":                       "universe",
+		"dev.multiversectl.host.api":                        "8001",
 	}}}}
 	got, err := svc.serviceEnv(st, cfg)
 	if err != nil {
@@ -223,12 +223,12 @@ func TestServiceEnvFromLabels(t *testing.T) {
 		}
 	}
 	// A routing label must not become a variable.
-	if _, leaked := vars["multiverse.host.api"]; leaked {
+	if _, leaked := vars["dev.multiversectl.host.api"]; leaked {
 		t.Error("a host label leaked into the environment")
 	}
 
 	for _, bad := range []string{"nonsense", "host:nope", "url:nope"} {
-		cfg.Services["web"] = ServiceConfig{Labels: map[string]string{"multiverse.env.X": bad}}
+		cfg.Services["web"] = ServiceConfig{Labels: map[string]string{"dev.multiversectl.env.X": bad}}
 		if _, err := svc.serviceEnv(st, cfg); err == nil {
 			t.Errorf("%q: want an error naming the problem", bad)
 		}

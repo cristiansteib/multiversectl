@@ -415,16 +415,16 @@ const labelsFooter = `
 #   services:
 #     app-dev:
 #       labels:
-#         multiverse.host.app: "4200"              # app-u3.<domain> -> 4200
-#         multiverse.host.api: "8001"
-#         multiverse.host.api.entrypoint: devapi   # default: web
-#         multiverse.host.api.aliases: app,adm     # same service, other names
-#         multiverse.host.api.portForward: auto    # also at <ip>:<free port>
-#         multiverse.publish: "true"               # keep my published ports
-#         multiverse.env.DJANGO_ALLOWED_HOSTS: hosts
-#         multiverse.env.DJANGO_CSRF_TRUSTED_ORIGINS: origins
+#         dev.multiversectl.host.app: "4200"              # app-u3.<domain> -> 4200
+#         dev.multiversectl.host.api: "8001"
+#         dev.multiversectl.host.api.entrypoint: devapi   # default: web
+#         dev.multiversectl.host.api.aliases: app,adm     # same service, other names
+#         dev.multiversectl.host.api.portForward: auto    # also at <ip>:<free port>
+#         dev.multiversectl.publish: "true"               # keep my published ports
+#         dev.multiversectl.env.DJANGO_ALLOWED_HOSTS: hosts
+#         dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS: origins
 #
-# multiverse.env.<VAR> asks for a value only the universe knows, written into
+# dev.multiversectl.env.<VAR> asks for a value only the universe knows, written into
 # the generated fragment, which is merged last — so it wins over the service's
 # own environment and over any env_file. The sources are:
 #
