@@ -128,37 +128,64 @@ func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
 
 func (Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "github.com") }
 
-// OpenReview asks for the open pull request a branch has. --state open is the
-// question: a merged one is history, and history is what the branch itself
-// already says.
-func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
+// pullRequest is what `gh pr list --json` says of one.
+type pullRequest struct {
+	Number      int    `json:"number"`
+	Title       string `json:"title"`
+	URL         string `json:"url"`
+	IsDraft     bool   `json:"isDraft"`
+	State       string `json:"state"`
+	BaseRefName string `json:"baseRefName"`
+	// A request from a fork whose branch happens to share the name is not this
+	// branch's.
+	IsCrossRepository bool   `json:"isCrossRepository"`
+	UpdatedAt         string `json:"updatedAt"`
+	Author            struct {
+		Login string `json:"login"`
+	} `json:"author"`
+}
+
+// FindReview asks for the pull requests a branch has had. The open one is the
+// answer when there is one; otherwise the latest that was merged or closed,
+// because a branch whose request has landed is a different thing to look at
+// than one nobody has proposed.
+func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
 	if branch == "" {
 		return nil, nil
 	}
-	out, err := gh(ctx, "pr", "list", "--repo", repoURL, "--head", branch, "--state", "open",
-		"--limit", "1", "--json", "number,title,url,isDraft,author,updatedAt")
+	out, err := gh(ctx, "pr", "list", "--repo", repoURL, "--head", branch, "--state", "all",
+		"--limit", "10", "--json", "number,title,url,isDraft,state,baseRefName,isCrossRepository,author,updatedAt")
 	if err != nil {
 		return nil, err
 	}
-	var raw []struct {
-		Number    int    `json:"number"`
-		Title     string `json:"title"`
-		URL       string `json:"url"`
-		IsDraft   bool   `json:"isDraft"`
-		UpdatedAt string `json:"updatedAt"`
-		Author    struct {
-			Login string `json:"login"`
-		} `json:"author"`
-	}
+	var raw []pullRequest
 	if err := json.Unmarshal([]byte(out), &raw); err != nil {
 		return nil, fmt.Errorf("read the pull request list: %w", err)
 	}
-	if len(raw) == 0 {
+	// The list is newest first, so without an open one the first is the latest.
+	var pick *pullRequest
+	for i := range raw {
+		if raw[i].IsCrossRepository {
+			continue
+		}
+		if pick == nil {
+			pick = &raw[i]
+		}
+		if raw[i].State == "OPEN" {
+			pick = &raw[i]
+			break
+		}
+	}
+	if pick == nil {
 		return nil, nil
 	}
-	r := raw[0]
-	updated, _ := time.Parse(time.RFC3339, r.UpdatedAt)
-	return &app.Review{Number: r.Number, Title: r.Title, URL: r.URL, Draft: r.IsDraft, Author: r.Author.Login, Updated: updated}, nil
+	updated, _ := time.Parse(time.RFC3339, pick.UpdatedAt)
+	state := strings.ToLower(pick.State)
+	if state == "open" && pick.IsDraft {
+		state = "draft"
+	}
+	return &app.Review{Number: pick.Number, Title: pick.Title, URL: pick.URL, State: state, Draft: state == "draft",
+		Base: pick.BaseRefName, Author: pick.Author.Login, Updated: updated}, nil
 }
 
 func parseRepos(out string) ([]app.RemoteRepo, error) {

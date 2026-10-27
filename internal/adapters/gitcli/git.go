@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 type Git struct{}
@@ -58,6 +59,18 @@ func (g Git) Clone(ctx context.Context, url, dest string) error {
 func (g Git) Fetch(ctx context.Context, repoDir string) error {
 	_, err := g.run(ctx, "-C", repoDir, "fetch", "--quiet", "origin")
 	return err
+}
+
+// FetchQuietly is Fetch for when nobody is there to answer: a remote that wants
+// a password fails instead of asking on a terminal, and ssh does not stop to ask
+// either. A page reading again on its own is the case.
+func (g Git) FetchQuietly(ctx context.Context, repoDir string) error {
+	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "fetch", "--quiet", "origin")
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git fetch: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func (g Git) AddWorktree(ctx context.Context, repoDir, dest, branch, base string) error {
@@ -393,7 +406,196 @@ func (g Git) DiffStat(ctx context.Context, dir, ref string) (app.DiffStat, error
 	if err != nil {
 		return app.DiffStat{}, err
 	}
-	return parseNumstat(out), nil
+	d := parseNumstat(out)
+	if ref == "" {
+		// A file nobody has added yet is edited work as much as any other, and
+		// `git diff` does not mention it.
+		for _, f := range g.untracked(ctx, dir) {
+			d.Files++
+			d.Added += f.Added
+		}
+	}
+	return d, nil
+}
+
+// maxUntracked bounds how much of a new file is read to count its lines.
+const maxUntracked = 1 << 20
+
+// untracked is the files git does not know of and has not been told to ignore,
+// with their lines counted, as a diff would count them were they added.
+func (g Git) untracked(ctx context.Context, dir string) []app.FileChange {
+	out, err := g.run(ctx, "-C", dir, "ls-files", "--others", "--exclude-standard", "-z")
+	if err != nil {
+		return nil
+	}
+	var files []app.FileChange
+	for _, p := range strings.Split(out, "\x00") {
+		if p == "" {
+			continue
+		}
+		f := app.FileChange{Path: p, Status: "untracked"}
+		if text, ok := readNew(filepath.Join(dir, p)); ok {
+			f.Added = lineCount(text)
+		} else {
+			f.Binary = true
+		}
+		files = append(files, f)
+	}
+	return files
+}
+
+// readNew reads a new file for counting and showing, and says no for what is
+// not a plain text file, or is too large to be worth reading. A link is not
+// followed: an untracked link in a checkout would otherwise show whatever it
+// points at, wherever that is, and a pipe would block the read for ever.
+func readNew(path string) (string, bool) {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxUntracked {
+		return "", false
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || bytes.IndexByte(b, 0) >= 0 {
+		return "", false
+	}
+	return string(b), true
+}
+
+func lineCount(text string) int {
+	if text == "" {
+		return 0
+	}
+	n := strings.Count(text, "\n")
+	if !strings.HasSuffix(text, "\n") {
+		n++
+	}
+	return n
+}
+
+// diffRange is what DiffStat measures: the work on HEAD since it left origin's
+// branch, or with no branch everything edited since HEAD.
+func diffRange(ref string) string {
+	if ref == "" {
+		return "HEAD"
+	}
+	return "origin/" + ref + "...HEAD"
+}
+
+var statusNames = map[byte]string{'A': "added", 'M': "modified", 'D': "deleted", 'R': "renamed", 'C': "added", 'T': "modified"}
+
+// DiffFiles lists the files DiffStat counts. The status comes from --name-status
+// and the lines from --numstat, which are read apart because neither says both.
+func (g Git) DiffFiles(ctx context.Context, dir, ref string) ([]app.FileChange, error) {
+	rng := diffRange(ref)
+	names, err := g.run(ctx, "-C", dir, "diff", "--name-status", "-z", "-M", rng)
+	if err != nil {
+		return nil, err
+	}
+	nums, err := g.run(ctx, "-C", dir, "diff", "--numstat", "-z", "-M", rng)
+	if err != nil {
+		return nil, err
+	}
+	type count struct {
+		added, removed int
+		binary         bool
+	}
+	counts := map[string]count{}
+	toks := strings.Split(nums, "\x00")
+	for i := 0; i < len(toks); i++ {
+		f := strings.SplitN(toks[i], "\t", 3)
+		if len(f) < 3 {
+			continue
+		}
+		path := f[2]
+		if path == "" && i+2 < len(toks) { // a rename names both paths after the counts
+			path = toks[i+2]
+			i += 2
+		}
+		a, errA := strconv.Atoi(f[0])
+		r, errR := strconv.Atoi(f[1])
+		counts[path] = count{added: a, removed: r, binary: errA != nil || errR != nil}
+	}
+	var files []app.FileChange
+	toks = strings.Split(names, "\x00")
+	for i := 0; i < len(toks); i++ {
+		code := toks[i]
+		if code == "" || i+1 >= len(toks) {
+			continue
+		}
+		fc := app.FileChange{Status: statusNames[code[0]]}
+		fc.Path = toks[i+1]
+		i++
+		if code[0] == 'R' || code[0] == 'C' {
+			fc.OldPath, fc.Path = toks[i], toks[i+1]
+			i++
+			if code[0] == 'C' {
+				fc.OldPath = ""
+			}
+		}
+		c := counts[fc.Path]
+		fc.Added, fc.Removed, fc.Binary = c.added, c.removed, c.binary
+		files = append(files, fc)
+	}
+	if ref == "" {
+		files = append(files, g.untracked(ctx, dir)...)
+	}
+	sort.SliceStable(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files, nil
+}
+
+// DiffPatch is one file's unified diff. A file git does not know yet has none
+// to ask for, so it is written as what it is: all of it added.
+func (g Git) DiffPatch(ctx context.Context, dir, ref, path string, limit int) (string, bool, error) {
+	files, err := g.DiffFiles(ctx, dir, ref)
+	if err != nil {
+		return "", false, err
+	}
+	var file *app.FileChange
+	for i := range files {
+		if files[i].Path == path {
+			file = &files[i]
+		}
+	}
+	if file == nil {
+		return "", false, fmt.Errorf("%s is not part of the change: %w", path, domain.ErrNotFound)
+	}
+	var patch string
+	switch {
+	case file.Status == "untracked":
+		text, ok := readNew(filepath.Join(dir, path))
+		if !ok {
+			patch = "Binary or very large file: not shown.\n"
+			break
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "--- /dev/null\n+++ b/%s\n@@ -0,0 +1,%d @@\n", path, lineCount(text))
+		for _, l := range strings.SplitAfter(text, "\n") {
+			if l == "" {
+				continue
+			}
+			b.WriteString("+" + l)
+			if !strings.HasSuffix(l, "\n") {
+				b.WriteString("\n\\ No newline at end of file\n")
+			}
+		}
+		patch = b.String()
+	default:
+		paths := []string{path}
+		if file.OldPath != "" {
+			paths = append(paths, file.OldPath)
+		}
+		args := append([]string{"-C", dir, "diff", "--no-color", "-M", diffRange(ref), "--"}, paths...)
+		if patch, err = g.run(ctx, args...); err != nil {
+			return "", false, err
+		}
+	}
+	if limit > 0 && len(patch) > limit {
+		// Whole lines where there are any, never more than the limit.
+		if cut := strings.LastIndex(patch[:limit], "\n"); cut >= 0 {
+			return patch[:cut+1], true, nil
+		}
+		return patch[:limit], true, nil
+	}
+	return patch, false, nil
 }
 
 // parseNumstat reads "<added>\t<removed>\t<path>" lines. A binary file has a

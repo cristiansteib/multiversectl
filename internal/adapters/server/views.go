@@ -124,17 +124,25 @@ type checkoutView struct {
 // branch with no review is never confused with one nobody could ask about.
 type codeView struct {
 	Rows []codeRow `json:"rows"`
+	// Fetched is when the oldest of the clones last asked its remote: how old
+	// what is measured against a remote can be.
+	Fetched string `json:"fetched,omitempty"`
 }
 
 type codeRow struct {
 	Repo   string `json:"repo"`
 	Branch string `json:"branch,omitempty"`
 	// Follows is the branch of origin this one is measured against.
-	Follows     string      `json:"follows,omitempty"`
-	Behind      int         `json:"behind,omitempty"`
-	Ahead       int         `json:"ahead,omitempty"`
-	Dirty       bool        `json:"dirty,omitempty"`
-	Work        *diffView   `json:"work,omitempty"`
+	Follows string    `json:"follows,omitempty"`
+	Behind  int       `json:"behind,omitempty"`
+	Ahead   int       `json:"ahead,omitempty"`
+	Dirty   bool      `json:"dirty,omitempty"`
+	Work    *diffView `json:"work,omitempty"`
+	// Base is the branch the change is measured against and Change what the
+	// branch amounts to against it.
+	Base        string      `json:"base,omitempty"`
+	BaseUnknown bool        `json:"baseUnknown,omitempty"`
+	Change      *diffView   `json:"change,omitempty"`
 	Uncommitted *diffView   `json:"uncommitted,omitempty"`
 	Review      *reviewView `json:"review,omitempty"`
 	ReviewError string      `json:"reviewError,omitempty"`
@@ -150,13 +158,36 @@ type diffView struct {
 // with, so the page draws #12 for GitHub and !12 for GitLab without knowing
 // which service anything is on.
 type reviewView struct {
-	Number  int    `json:"number"`
-	Mark    string `json:"mark"`
-	Title   string `json:"title"`
-	URL     string `json:"url"`
+	Number int    `json:"number"`
+	Mark   string `json:"mark"`
+	Title  string `json:"title"`
+	URL    string `json:"url"`
+	// State is open, draft, merged or closed.
+	State   string `json:"state"`
 	Draft   bool   `json:"draft,omitempty"`
 	Author  string `json:"author,omitempty"`
 	Updated string `json:"updated,omitempty"`
+}
+
+// diffFilesView is the files of one change; patchView is one file's diff.
+type diffFilesView struct {
+	Base  string     `json:"base,omitempty"`
+	Files []fileView `json:"files"`
+}
+
+type fileView struct {
+	Path    string `json:"path"`
+	OldPath string `json:"oldPath,omitempty"`
+	Status  string `json:"status"`
+	Added   int    `json:"added"`
+	Removed int    `json:"removed"`
+	Binary  bool   `json:"binary,omitempty"`
+}
+
+type patchView struct {
+	Path      string `json:"path"`
+	Patch     string `json:"patch"`
+	Truncated bool   `json:"truncated,omitempty"`
 }
 
 type multiverseView struct {

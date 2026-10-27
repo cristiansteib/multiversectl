@@ -61,7 +61,44 @@ func (s *Server) code(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := s.ctx(r)
 	defer cancel()
-	v, err := s.b.Code(ctx, project, universe)
+	v, err := s.b.Code(ctx, project, universe, r.URL.Query().Get("fetch") == "1")
+	if err != nil {
+		failErr(w, err)
+		return
+	}
+	reply(w, v)
+}
+
+// diff is the files of one repository's change, or with a file, that file's
+// diff. A read, like the rest of the panel, and it names no path of its own:
+// the backend only answers for files that are in the change.
+func (s *Server) diff(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	project, universe, repo, scope := q.Get("multiverse"), q.Get("universe"), q.Get("repo"), q.Get("scope")
+	if project == "" || universe == "" || repo == "" {
+		fail(w, http.StatusBadRequest, "multiverse, universe and repo are required")
+		return
+	}
+	if scope == "" {
+		scope = "branch"
+	}
+	if scope != "branch" && scope != "uncommitted" {
+		fail(w, http.StatusBadRequest, "scope is branch or uncommitted")
+		return
+	}
+	base := q.Get("base")
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	if file := q.Get("file"); file != "" {
+		v, err := s.b.Patch(ctx, project, universe, repo, scope, base, file)
+		if err != nil {
+			failErr(w, err)
+			return
+		}
+		reply(w, v)
+		return
+	}
+	v, err := s.b.Diff(ctx, project, universe, repo, scope, base)
 	if err != nil {
 		failErr(w, err)
 		return

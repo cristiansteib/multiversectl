@@ -4,6 +4,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -25,4 +28,28 @@ func TestPageScriptParses(t *testing.T) {
 	if out, err := exec.Command(node, "--check", path).CombinedOutput(); err != nil {
 		t.Fatalf("app.js does not parse:\n%s", out)
 	}
+}
+
+// Nothing on the page is set smaller than 1rem: small print was the first thing
+// anybody said about it, and one `font: 12px` is all it takes to bring it back.
+func TestNoTextIsSmallerThanOneRem(t *testing.T) {
+	css, err := uiFiles.ReadFile("ui/style.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	decl := regexp.MustCompile(`(?:^|[;{\s])font(?:-size)?:[^;}]*`)
+	size := regexp.MustCompile(`(\d+(?:\.\d+)?)(px|em|rem)\b|\d+%`)
+	for _, d := range decl.FindAllString(string(css), -1) {
+		for _, m := range size.FindAllStringSubmatch(d, -1) {
+			switch {
+			case m[2] == "px" && atof(m[1]) < 16, m[2] == "em" && atof(m[1]) < 1, m[2] == "rem" && atof(m[1]) < 1, m[2] == "" && m[0] != "":
+				t.Errorf("text smaller than 1rem: %s", strings.TrimSpace(d))
+			}
+		}
+	}
+}
+
+func atof(s string) float64 {
+	f, _ := strconv.ParseFloat(s, 64)
+	return f
 }

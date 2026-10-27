@@ -213,10 +213,29 @@ func (Host) Owns(repoURL string) bool {
 	return domain.Locate(repoURL, "").Platform == domain.PlatformGitLab
 }
 
-// OpenReview asks for the open merge request a branch is the source of. It
+// mergeRequest is what the API says of one.
+type mergeRequest struct {
+	IID          int    `json:"iid"`
+	Title        string `json:"title"`
+	WebURL       string `json:"web_url"`
+	Draft        bool   `json:"draft"`
+	State        string `json:"state"`
+	TargetBranch string `json:"target_branch"`
+	// A request from a fork whose branch happens to share the name is not this
+	// branch's: its source is another project.
+	SourceProject int    `json:"source_project_id"`
+	TargetProject int    `json:"target_project_id"`
+	UpdatedAt     string `json:"updated_at"`
+	Author        struct {
+		Username string `json:"username"`
+	} `json:"author"`
+}
+
+// FindReview asks for the merge requests a branch is the source of: the open
+// one when there is one, otherwise the latest that was merged or closed. It
 // goes through the API rather than `glab mr list`, which prints a table meant
 // for a terminal and would have to be parsed back.
-func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
+func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
 	if branch == "" {
 		return nil, nil
 	}
@@ -224,29 +243,41 @@ func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review
 	if err != nil {
 		return nil, err
 	}
-	out, err := glab(ctx, "api", "projects/"+id+"/merge_requests?state=opened&per_page=1&source_branch="+url.QueryEscape(branch))
+	out, err := glab(ctx, "api", "projects/"+id+"/merge_requests?state=all&order_by=created_at&sort=desc&per_page=10&source_branch="+url.QueryEscape(branch))
 	if err != nil {
 		return nil, err
 	}
-	var raw []struct {
-		IID       int    `json:"iid"`
-		Title     string `json:"title"`
-		WebURL    string `json:"web_url"`
-		Draft     bool   `json:"draft"`
-		UpdatedAt string `json:"updated_at"`
-		Author    struct {
-			Username string `json:"username"`
-		} `json:"author"`
-	}
+	var raw []mergeRequest
 	if err := json.Unmarshal([]byte(out), &raw); err != nil {
 		return nil, fmt.Errorf("glab: read the merge requests: %w", err)
 	}
 	if len(raw) == 0 {
 		return nil, nil
 	}
-	r := raw[0]
-	updated, _ := time.Parse(time.RFC3339, r.UpdatedAt)
-	return &app.Review{Number: r.IID, Title: r.Title, URL: r.WebURL, Draft: r.Draft, Author: r.Author.Username, Updated: updated}, nil
+	// The list is newest first. A request from a fork is not this branch's.
+	var pick *mergeRequest
+	for i := range raw {
+		if raw[i].SourceProject != raw[i].TargetProject {
+			continue
+		}
+		if pick == nil {
+			pick = &raw[i]
+		}
+		if raw[i].State == "opened" {
+			pick = &raw[i]
+			break
+		}
+	}
+	if pick == nil {
+		return nil, nil
+	}
+	updated, _ := time.Parse(time.RFC3339, pick.UpdatedAt)
+	state := map[string]string{"opened": "open", "merged": "merged", "closed": "closed", "locked": "closed"}[pick.State]
+	if state == "open" && pick.Draft {
+		state = "draft"
+	}
+	return &app.Review{Number: pick.IID, Title: pick.Title, URL: pick.WebURL, State: state, Draft: state == "draft",
+		Base: pick.TargetBranch, Author: pick.Author.Username, Updated: updated}, nil
 }
 
 func glab(ctx context.Context, args ...string) (string, error) {
