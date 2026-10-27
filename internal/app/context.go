@@ -35,8 +35,6 @@ type RepoContext struct {
 	Key  string `json:"key"`
 	URL  string `json:"url,omitempty"`
 	Path string `json:"path"`
-	// Runtime is "compose", or "none" for one that is only checked out.
-	Runtime string `json:"runtime"`
 }
 
 // Context describes the multiverse this service acts on. A multiverse that is not
@@ -56,11 +54,7 @@ func (s *Service) Context() ProjectContext {
 		sort.Strings(keys)
 		for _, key := range keys {
 			r := s.Manifest.Repos[key]
-			runtime := string(r.Runtime)
-			if runtime == "" {
-				runtime = "compose"
-			}
-			c.Repos = append(c.Repos, RepoContext{Key: key, URL: r.URL, Path: s.Manifest.CloneDir(s.Multiverse, key), Runtime: runtime})
+			c.Repos = append(c.Repos, RepoContext{Key: key, URL: r.URL, Path: s.Manifest.CloneDir(s.Multiverse, key)})
 		}
 	}
 	if s.Config != nil {

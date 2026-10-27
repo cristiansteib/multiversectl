@@ -180,12 +180,11 @@ type multiverseView struct {
 type repoView struct {
 	Key string `json:"key"`
 	// Clone is the shared clone's path: where secrets go and every universe branches from.
-	Clone   string   `json:"clone,omitempty"`
-	Loc     *locView `json:"loc,omitempty"`
-	URL     string   `json:"url"`
-	Dir     string   `json:"dir"`
-	Runtime string   `json:"runtime"`
-	Cloned  bool     `json:"cloned"`
+	Clone  string   `json:"clone,omitempty"`
+	Loc    *locView `json:"loc,omitempty"`
+	URL    string   `json:"url"`
+	Dir    string   `json:"dir"`
+	Cloned bool     `json:"cloned"`
 	// How the clone stands against origin's default branch, as last fetched.
 	Follows string `json:"follows,omitempty"`
 	Behind  int    `json:"behind,omitempty"`

@@ -16,7 +16,7 @@ func (Writer) Agents(d app.ProjectDraft, source string) ([]byte, error) {
 	fmt.Fprintf(&b, "This repository defines the **%s** multiverse for [multiversectl](https://github.com/cristiansteib/multiversectl): which repositories it is made of, and how to run numbered, isolated copies of it (*universes*) side by side. It holds no application code.\n\n", d.Name)
 
 	b.WriteString("## Files\n\n")
-	b.WriteString("- `multiverse.yaml`: the multiverse. `spec.repos` lists the repositories; each one with a `docker-compose.yml` runs as an app of the same name, and `runtime: none` marks one that has none. Add a `spec.apps` section only to say more than that.\n")
+	b.WriteString("- `multiverse.yaml`: the multiverse. `spec.repos` lists the repositories; each one with a `docker-compose.yml` runs as an app of the same name; one with none is only checked out. Add a `spec.apps` section only to say more than that.\n")
 	b.WriteString("- More multiverses can live beside it, one file each in `multiverse/`; `multiversectl start owner/repo:name` picks one.\n\n")
 
 	b.WriteString("## Repositories\n\n")

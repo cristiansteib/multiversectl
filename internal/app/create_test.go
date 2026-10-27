@@ -100,7 +100,7 @@ func newBench(t *testing.T) *bench {
 			t.Fatalf("%v: %s", err, out)
 		}
 		b.origins[key] = origin
-		m.Repos[key] = domain.Repo{URL: origin, Runtime: domain.RuntimeNone}
+		m.Repos[key] = domain.Repo{URL: origin}
 	}
 	b.svc = app.New(app.Deps{
 		Git: gitcli.New(), Files: fsx.New(), Store: statestore.New(ws), Runtime: noRuntime{}, Out: b.out,

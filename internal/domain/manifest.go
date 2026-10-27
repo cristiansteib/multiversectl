@@ -10,14 +10,6 @@ import (
 	"strings"
 )
 
-// Runtime says how a repository's services are run, or that it has none.
-type Runtime string
-
-const (
-	RuntimeCompose Runtime = "compose"
-	RuntimeNone    Runtime = "none"
-)
-
 // Manifest is the multiverse description: which repositories make up the
 // multiverse, how to run them and how a universe is addressed. It never
 // describes containers — that stays in the runtime's own files.
@@ -90,9 +82,23 @@ func (m *Manifest) DefaultBranchFor(number int) string {
 
 // Repo is one source repository of the multiverse.
 type Repo struct {
-	URL     string
-	Dir     string // clone directory name, defaults to the repo key
-	Runtime Runtime
+	URL string
+	Dir string // clone directory name, defaults to the repository's own name
+}
+
+// DirFor is the directory a repository is cloned into when the manifest does
+// not say: the repository's own name, as git would. fallback is used for an
+// address that has none.
+func DirFor(url, fallback string) string {
+	l := Locate(url, "")
+	p := strings.TrimSuffix(strings.TrimRight(l.Path, "/\\"), ".git")
+	if i := strings.LastIndexAny(p, "/\\"); i >= 0 {
+		p = p[i+1:]
+	}
+	if p == "" || p == "." || p == ".." {
+		return fallback
+	}
+	return p
 }
 
 // App is a runnable unit: runtime files, the services to start and the
@@ -111,11 +117,6 @@ type App struct {
 	Overlay        []byte // inline compose fragment, rendered by the manifest adapter
 	Build          bool   // build images before starting
 	Hosts          map[string]HostRule
-	// PortForward lists host keys, however they were declared (manifest, labels
-	// or the single exposed port), that are also reachable by IP and port: a
-	// client that cannot use a hostname, such as a phone refusing plain http to
-	// a name, needs an address it may call.
-	PortForward []string
 
 	// Derived marks an app no one declared: one repository, everything by
 	// convention. Such an app may turn out to have no compose file at all,
@@ -129,6 +130,10 @@ type HostRule struct {
 	Port       int
 	Entrypoint string   // proxy entrypoint, default "web"
 	AlsoMatch  []string // other host keys routed to this same service
+	// PortForward is "auto" when the host is also reachable by IP and a free
+	// port: a client that cannot use a hostname, such as a phone refusing
+	// plain http to a name, needs an address it may call.
+	PortForward string
 }
 
 // PortForwardAuto marks a resolved host as also published on a host port that
@@ -159,9 +164,6 @@ func (m *Manifest) Validate() error {
 		if repo.URL == "" {
 			errs = append(errs, fmt.Sprintf("repos.%s.url: required", key))
 		}
-		if repo.Runtime != RuntimeCompose && repo.Runtime != RuntimeNone {
-			errs = append(errs, fmt.Sprintf("repos.%s.runtime: want %q or %q", key, RuntimeCompose, RuntimeNone))
-		}
 	}
 	seenHost := map[string]string{}
 	for key, app := range m.Apps {
@@ -173,11 +175,6 @@ func (m *Manifest) Validate() error {
 		}
 		if app.DefaultService != "" && len(app.Services) > 0 && !slices.Contains(app.Services, app.DefaultService) {
 			errs = append(errs, fmt.Sprintf("apps.%s.defaultService: %q is not one of its services (%s)", key, app.DefaultService, strings.Join(app.Services, ", ")))
-		}
-		for _, hostKey := range app.PortForward {
-			if !nameRe.MatchString(hostKey) {
-				errs = append(errs, fmt.Sprintf("apps.%s.portForward: %q is not a host key", key, hostKey))
-			}
 		}
 		for hostKey, rule := range app.Hosts {
 			if !nameRe.MatchString(hostKey) {
@@ -216,14 +213,13 @@ func (m *Manifest) CloneDir(root, repoKey string) string {
 	return filepath.Join(root, dir)
 }
 
-// RunnableApps returns the app keys whose repository has a runtime, sorted so
-// start-up order is reproducible.
+// RunnableApps returns the app keys, sorted so start-up order is reproducible.
+// An app whose repository turns out to have nothing to run is skipped where it
+// is acted on, not here: only the files on disk know.
 func (m *Manifest) RunnableApps() []string {
-	var keys []string
-	for key, app := range m.Apps {
-		if m.Repos[app.Repo].Runtime == RuntimeCompose {
-			keys = append(keys, key)
-		}
+	keys := make([]string, 0, len(m.Apps))
+	for key := range m.Apps {
+		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	return keys

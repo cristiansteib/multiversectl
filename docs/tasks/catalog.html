@@ -181,7 +181,7 @@ acme        acme/multiverse  manifest behind 1 · billing-api not cloned
     <li><strong>Where its own repository lives.</strong> A new private one under any account you can create in, one that exists, the directory's own <code>origin</code>, or only this machine.</li>
     <li><strong>Where to list it</strong> in your root catalog, and whether to <strong>start it</strong> here so the next command can be <code>universe new 1</code>.</li>
   </ul>
-  <p>It writes <code>multiverse.yaml</code> and a short <code>AGENTS.md</code>, commits and pushes. That <code>AGENTS.md</code> tells a person or a coding agent what the repository is and how to run universes of it; one already there is left alone. A repository with a <code>docker-compose.yml</code> becomes an app of the same name, and one found cloned without one is marked <code>runtime: none</code>.</p>
+  <p>It writes <code>multiverse.yaml</code> and a short <code>AGENTS.md</code>, commits and pushes. That <code>AGENTS.md</code> tells a person or a coding agent what the repository is and how to run universes of it; one already there is left alone. A repository with a <code>docker-compose.yml</code> becomes an app of the same name; one without is only checked out.</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl catalog new ~/acme/multiverse --scan --create acme-org/multiverse --yes
 <span class="p">$ </span>multiversectl catalog new --name acme --repo acme-org/api --repo https://gitlab.com/acme/web.git --local
 <span class="p">$ </span>multiversectl catalog new backend --type catalog --same-repo --at /</pre></div>

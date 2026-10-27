@@ -27,9 +27,9 @@ func projectHeader(o *Output, c app.ProjectContext, wide bool) {
 		o.Plain("")
 		rows := make([][]Cell, 0, len(c.Repos))
 		for _, r := range c.Repos {
-			rows = append(rows, []Cell{{Text: r.Key}, {Text: r.Runtime}, {Text: shortPath(r.Path)}, {Text: r.URL, Style: dim}})
+			rows = append(rows, []Cell{{Text: r.Key}, {Text: shortPath(r.Path)}, {Text: r.URL, Style: dim}})
 		}
-		o.Block(o.Dim("clones (shared; secrets go here, every universe branches from them)"), []string{"REPO", "RUNTIME", "CLONE", "URL"}, rows)
+		o.Block(o.Dim("clones (shared; secrets go here, every universe branches from them)"), []string{"REPO", "CLONE", "URL"}, rows)
 	}
 	o.Plain("")
 }

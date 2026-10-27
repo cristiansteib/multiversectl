@@ -110,8 +110,8 @@ func TestProjectInitUsesTheCheckoutsFoundBesideIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Repos) != 2 || m.Repos["api"].Dir != "acme-api" || m.Repos["docs"].Runtime != domain.RuntimeNone || m.Repos["api"].Runtime != domain.RuntimeCompose {
-		t.Errorf("repos = %+v: api has a compose file, docs does not, stray has no origin", m.Repos)
+	if len(m.Repos) != 2 || m.Repos["api"].Dir != "acme-api" || m.Repos["docs"].Dir != "acme-docs" {
+		t.Errorf("repos = %+v: want api and docs; stray has no origin", m.Repos)
 	}
 	if res.Root != ws {
 		t.Errorf("root = %q, want %q: the checkouts already sit there", res.Root, ws)

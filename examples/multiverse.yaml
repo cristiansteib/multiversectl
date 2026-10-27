@@ -26,9 +26,8 @@ spec:
       url: git@github.com:acme/web.git
     - name: admin
       url: git@github.com:acme/admin.git
-    - name: mobile
+    - name: mobile               # no compose file: checked out for editing only
       url: git@github.com:acme/mobile.git
-      runtime: none              # no services, checked out for editing only
 
   # Only the repositories that need something other than the defaults. A
   # repository no app names gets one of its own name: its compose files are
@@ -46,12 +45,12 @@ spec:
         - name: api
           service: web
           port: 8001
+          portForward: auto      # also http://<this machine's address>:<free port>, for a phone
         - name: devapi           # same service, on the devapi entrypoint
           service: web
           port: 8001
           entrypoint: devapi
           alsoMatch: [app, adm]
-      portForward: [api]         # also http://<this machine's address>:<free port>, for a phone
 
     - name: web
       repo: web

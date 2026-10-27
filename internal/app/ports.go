@@ -454,11 +454,9 @@ type ProjectDraft struct {
 }
 
 // DraftRepo is one repository of the multiverse; Dir is where it sits under the
-// multiverse root. A repository runs from its own docker-compose.yml unless
-// NoRuntime says it has none, which is what a library or a mobile app wants.
+// multiverse root. A repository runs from its own compose file when it has one.
 type DraftRepo struct {
 	Key, URL, Dir string
-	NoRuntime     bool
 }
 
 // ManifestWriter turns a draft into a multiverse.yaml.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest/v1alpha1"
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // Writer writes a new multiverse's manifest. The result is text rather than a
@@ -24,11 +25,8 @@ func (Writer) Multiverse(d app.ProjectDraft) ([]byte, error) {
 	b.WriteString("  # Each repository with a docker-compose.yml becomes an app of the same name;\n  # add an apps: section only to say more than that.\n  repos:\n")
 	for _, r := range d.Repos {
 		fmt.Fprintf(&b, "    - name: %s\n      url: %s\n", scalar(r.Key), scalar(r.URL))
-		if r.Dir != "" && r.Dir != r.Key {
+		if r.Dir != "" && r.Dir != domain.DirFor(r.URL, r.Key) {
 			fmt.Fprintf(&b, "      dir: %s\n", scalar(r.Dir))
-		}
-		if r.NoRuntime {
-			b.WriteString("      runtime: none\n")
 		}
 	}
 	return []byte(b.String()), nil
