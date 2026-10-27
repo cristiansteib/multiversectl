@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -188,10 +189,19 @@ func (s *Service) composeFiles(u domain.Universe, appKey string) ([]string, erro
 	candidates := s.Manifest.ComposeFiles(appKey, u.RepoDir(app.Repo))
 
 	var out []string
+	repoDir := u.RepoDir(app.Repo)
+	ownFile := false // the repository's own compose file: one is run, not each
 	for _, f := range candidates {
-		if s.Files.Exists(f) {
-			out = append(out, f)
+		if !s.Files.Exists(f) {
+			continue
 		}
+		if len(app.Compose) == 0 && filepath.Dir(f) == repoDir && slices.Contains(domain.ComposeNames, filepath.Base(f)) {
+			if ownFile {
+				continue
+			}
+			ownFile = true
+		}
+		out = append(out, f)
 	}
 	if len(app.Overlay) > 0 {
 		path := filepath.Join(u.Dir(), ".multiverse-overlay-"+appKey+".yml")

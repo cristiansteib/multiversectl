@@ -57,6 +57,11 @@ type Node struct {
 	// neither.
 	File, Dir string
 
+	// Implied marks a multiverse nobody wrote: a repository with compose files
+	// and no multiverse definition, which is one repository run by convention.
+	// Source.Repo is that repository and Source.Path is empty.
+	Implied bool
+
 	// Unavailable says why a subtree could not be read (no access, a bad file),
 	// so one unreachable layer does not hide the rest of the tree.
 	Unavailable string

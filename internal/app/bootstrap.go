@@ -25,6 +25,10 @@ type BootstrapInput struct {
 	// multiverse with where it came from.
 	From   string
 	Origin Origin
+	// Generated is a manifest nobody wrote, for a repository that has compose
+	// files and no multiverse definition. It is kept beside the clones, in the
+	// multiverse's own folder, never in the repository.
+	Generated []byte
 }
 
 // Bootstrap records this machine's multiverse so the tool works from any
@@ -42,7 +46,15 @@ func (s *Service) Bootstrap(ctx context.Context, in BootstrapInput) (MultiverseE
 	}
 
 	manifest := in.ManifestSource
-	if isGitURL(manifest) {
+	if len(in.Generated) > 0 {
+		manifest = filepath.Join(root, ".multiverse", "multiverse.yaml")
+		if err := s.Files.MkdirAll(filepath.Dir(manifest)); err != nil {
+			return MultiverseEntry{}, err
+		}
+		if err := s.Files.WriteFile(manifest, in.Generated, 0o644); err != nil {
+			return MultiverseEntry{}, fmt.Errorf("writing the generated manifest: %w", err)
+		}
+	} else if isGitURL(manifest) {
 		dest := filepath.Join(root, ".multiverse", "source")
 		if s.Files.Exists(dest) {
 			s.Out.Info("manifest repository already at %s", dest)

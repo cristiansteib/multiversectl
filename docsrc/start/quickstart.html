@@ -7,6 +7,7 @@
 <span class="c">› starting universe 1</span>
 <span class="k">✓</span> universe 1 is up
   http://api-u1.192-168-1-20.traefik.me</pre></div>
+  <p>A repository that is only a compose file needs no <code>multiverse.yaml</code> to try this: <code>multiversectl start acme/api</code> runs it as it is.</p>
   <p>That is the whole of it: <code>start</code> installs the multiverse, makes universe 1 and starts it, and ends on an address to open. The source is anything <code>start</code> takes — <code>owner/repo</code>, a git URL, a path, or a node in your catalog. Run it again and it starts the universe that is already there; with several, <code>-u</code> names one; <code>--open</code> opens the first address in a browser.</p>
   <p>The same thing as the steps it takes once the multiverse is installed, for when you want one of them on its own:</p>
   <div class="code"><pre><span class="c"># universe 1: a worktree of every repo</span>

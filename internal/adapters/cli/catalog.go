@@ -367,9 +367,12 @@ func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions,
 				t.Root = root
 			}
 		}
+		if t.Renamed != "" {
+			r.out.Info("%s; `--as <name>` picks another", t.Renamed)
+		}
 		r.out.Info("installing `%s` into `%s`", t.Name, t.Root)
 		in := app.BootstrapInput{Name: t.Name, Root: t.Root, ManifestSource: t.ManifestSource, Ref: t.Ref,
-			ManifestPath: t.ManifestPath, From: t.From, Origin: t.Origin}
+			ManifestPath: t.ManifestPath, From: t.From, Origin: t.Origin, Generated: t.Generated}
 		entry, err := bare.Bootstrap(ctx, in)
 		if err == nil {
 			var s *app.Service

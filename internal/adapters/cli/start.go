@@ -23,7 +23,7 @@ import (
 // is: one command, each step announced as it happens, and an address at the
 // end.
 func (r runner) startCmd() *cobra.Command {
-	var base, universe string
+	var base, universe, as string
 	var open, yes bool
 	cmd := &cobra.Command{
 		Use:   "start [source]",
@@ -34,6 +34,8 @@ func (r runner) startCmd() *cobra.Command {
 			"  3. a git URL\n" +
 			"  4. owner/repo, meaning GitHub; owner/repo:name picks one multiverse of a\n" +
 			"     repository that defines several (multiverse.yaml, multiverse/*.yaml)\n" +
+			"A repository that defines no multiverse but has a compose file runs as itself,\n" +
+			"named after the repository (longer, with its owner, if that name is taken).\n" +
 			"A multiverse already installed is used as it is. With no source, the one\n" +
 			"-m names or the folder you are in; failing that, you pick from your catalog.\n\n" +
 			"Then it picks the universe: the one you name, the only one there is, or a new\n" +
@@ -42,18 +44,21 @@ func (r runner) startCmd() *cobra.Command {
 		Example: "  multiversectl start acme/multiverse\n" +
 			"  multiversectl start acme/multiverse --open\n" +
 			"  multiversectl start acme/platform:billing # one of several multiverses in a repository\n" +
+			"  multiversectl start acme/api             # a repository with only a compose file\n" +
+			"  multiversectl start .                    # the checkout you are in\n" +
 			"  multiversectl start                      # the multiverse you are in, or pick one\n" +
 			"  multiversectl start -u 3",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeNodes(false),
 	}
 	cmd.Flags().StringVar(&base, "base", "", "directory multiverses go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
+	cmd.Flags().StringVar(&as, "as", "", "the name to install it under (default: the one it defines, or its repository's)")
 	cmd.Flags().StringVarP(&universe, "universe", "u", "", "the universe to start (default: the only one, or a new one)")
 	cmd.Flags().BoolVar(&open, "open", false, "open the first address in a browser")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
-		s, err := r.startProject(cmd, args, base, yes)
+		s, err := r.startProject(cmd, args, base, as, yes)
 		if err != nil {
 			return err
 		}
@@ -79,7 +84,7 @@ func (r runner) startCmd() *cobra.Command {
 // startProject is the multiverse to act on: the source installed when one was
 // given, else the one -m names or the folder says, else one picked from the
 // catalog.
-func (r runner) startProject(cmd *cobra.Command, args []string, base string, yes bool) (*app.Service, error) {
+func (r runner) startProject(cmd *cobra.Command, args []string, base, as string, yes bool) (*app.Service, error) {
 	if len(args) == 0 {
 		s, err := r.f.Multiverse(*r.g, r.out)
 		if err == nil || r.g.Multiverse != "" || r.g.Manifest != "" {
@@ -104,6 +109,7 @@ func (r runner) startProject(cmd *cobra.Command, args []string, base string, yes
 	planned, err := r.install(cmd, args, app.InstallOptions{
 		Base: firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"),
 		Root: r.g.Root,
+		Name: as,
 	}, yes, ask)
 	if err != nil {
 		return nil, err

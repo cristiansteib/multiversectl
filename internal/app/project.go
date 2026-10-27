@@ -55,7 +55,7 @@ type FoundCheckout struct {
 	Compose bool   // it has a compose file of its own
 }
 
-var composeFiles = []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"}
+var composeFiles = domain.ComposeNames
 
 // ScanCheckouts finds git working copies under dir, and when there are none
 // there, next to it: a multiverse's repository usually sits beside the repositories
