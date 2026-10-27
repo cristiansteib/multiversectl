@@ -66,7 +66,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	}
 	flags := root.PersistentFlags()
 	flags.StringVarP(&g.Manifest, "manifest", "f", "", "path to the project manifest")
-	flags.StringVarP(&g.Workspace, "project", "p", "", "project to act on (default: the one chosen with `project use`)")
+	flags.StringVarP(&g.Workspace, "project", "p", "", "project to act on (default: the one chosen with `catalog use`)")
 	// The name this flag had before a project was called a project.
 	flags.StringVarP(&g.Workspace, "workspace", "w", "", "")
 	_ = flags.MarkHidden("workspace")
@@ -79,7 +79,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	run = runner{g: g, out: out, f: f}
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
-		run.startCmd(), run.helpTreeCmd(root), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.projectCmd(), run.initCmd(), run.resetCmd(), run.oldCleanup(), run.systemCmd(), run.completionCmd(root), run.agentsCmd(),
+		run.startCmd(), run.helpTreeCmd(root), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.oldProject(), run.initCmd(), run.resetCmd(), run.oldCleanup(), run.systemCmd(), run.completionCmd(root), run.agentsCmd(),
 		run.selfUpdateCmd(), run.versionCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("project", run.completeWorkspaces)

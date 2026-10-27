@@ -89,10 +89,10 @@
 <span class="c">› starting universe 1</span>
 <span class="k">✓</span> universe 1 is up
   http://api-u1.192-168-1-20.traefik.me</pre></div>
-  <p>That is the whole of it: <code>start</code> installs the project, makes universe 1 and starts it, and ends on an address to open. The source is anything <code>project install</code> takes — <code>owner/repo</code>, a git URL, a path, or a node in your catalog. Run it again and it starts the universe that is already there; with several, <code>-u</code> names one; <code>--open</code> opens the first address in a browser.</p>
+  <p>That is the whole of it: <code>start</code> installs the project, makes universe 1 and starts it, and ends on an address to open. The source is anything <code>catalog install</code> takes — <code>owner/repo</code>, a git URL, a path, or a node in your catalog. Run it again and it starts the universe that is already there; with several, <code>-u</code> names one; <code>--open</code> opens the first address in a browser.</p>
   <p>The same thing as the steps it takes, for when you want one of them on its own:</p>
   <div class="code"><pre><span class="c"># record the project and clone its repos</span>
-<span class="p">$ </span>multiversectl project install ./multiverse.yaml --root ~/acme
+<span class="p">$ </span>multiversectl catalog install ./multiverse.yaml --root ~/acme
 <span class="c"># universe 1: a worktree of every repo</span>
 <span class="p">$ </span>multiversectl universe new 1
 <span class="c"># start its containers</span>

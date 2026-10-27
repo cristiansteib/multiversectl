@@ -25,18 +25,18 @@ func (Writer) Agents(d app.ProjectDraft, source string) ([]byte, error) {
 	}
 
 	b.WriteString("\n## Working with it\n\n```sh\n")
-	fmt.Fprintf(&b, "multiversectl project install %s   # put the project on this machine and clone every repository\n", source)
+	fmt.Fprintf(&b, "multiversectl catalog install %s   # put the project on this machine and clone every repository\n", source)
 	b.WriteString("multiversectl universe new 1              # a worktree of every repository, on branch u1\n")
 	b.WriteString("multiversectl universe up 1               # start it\n")
 	b.WriteString("multiversectl universe status             # what is running\n")
 	b.WriteString("multiversectl universe urls 1             # the addresses it answers on\n")
 	b.WriteString("multiversectl universe rm 1               # remove it: containers, volumes and worktrees\n")
 	b.WriteString("multiversectl universe doctor                      # check the host and the project\n")
-	b.WriteString("multiversectl project update              # after this repository changes\n")
+	b.WriteString("multiversectl catalog update              # after this repository changes\n")
 	b.WriteString("```\n\n`multiversectl --help` lists everything; a command missing an argument asks for it.\n\n")
 
 	b.WriteString("## Conventions\n\n")
-	b.WriteString("- Change the project here, in `multiverse.yaml` and `catalog.yaml`, then commit and push; run `multiversectl project update` on each machine. Do not edit an installed copy.\n")
+	b.WriteString("- Change the project here, in `multiverse.yaml` and `catalog.yaml`, then commit and push; run `multiversectl catalog update` on each machine. Do not edit an installed copy.\n")
 	b.WriteString("- Keep machine-specific values out: no absolute `spec.root`, no secrets, no local paths. Where things live on a machine is chosen when installing.\n")
 	b.WriteString("- A universe is isolated: work for one change goes in its own universe, and `universe rm` discards uncommitted work in its worktrees, so commit first.\n")
 	b.WriteString("- To add a repository, add it to `spec.repos`, push, and run `catalog update`.\n")

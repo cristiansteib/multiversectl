@@ -3,7 +3,7 @@
   <p><code>up</code> says <em>service "mailpit" exposes 2 ports, so which one serves api is a guess — add a label</em>, yet the compose file on <code>main</code> has that label. A universe's checkouts keep the commit they were made from and do not follow <code>main</code>. When that may be the cause, the error ends with <em>this universe's code is out of date</em> and names the repositories and how far behind they are.</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl universe sync 1
 <span class="p">$ </span>multiversectl universe up 1</pre></div>
-  <p><code>sync</code> never touches uncommitted changes, and leaves the universe's own commits alone unless <code>--merge</code>. <code>universe status</code> and the web page warn when a universe is behind; <code>project update</code> keeps the clones current.</p>
+  <p><code>sync</code> never touches uncommitted changes, and leaves the universe's own commits alone unless <code>--merge</code>. <code>universe status</code> and the web page warn when a universe is behind; <code>catalog update</code> keeps the clones current.</p>
 </section>
 
 <section id="ts-dns">

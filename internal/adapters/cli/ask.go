@@ -170,7 +170,7 @@ func (r runner) workspaceArg(cmd *cobra.Command, args []string, bare *app.Servic
 		return "", err
 	}
 	if len(list) == 0 {
-		return "", errors.New("nothing is installed: `multiversectl project install <owner/repo>`")
+		return "", errors.New("nothing is installed: `multiversectl catalog install <owner/repo>`")
 	}
 	opts := make([]app.Option, len(list))
 	def := 0

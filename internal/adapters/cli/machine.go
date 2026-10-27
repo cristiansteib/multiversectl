@@ -140,7 +140,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 		}
 		switch {
 		case w.Stale:
-			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s` is behind its remote (%s): `multiversectl project update %s`", w.Name, strings.Join(w.Notes, " · "), w.Name))
+			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s` is behind its remote (%s): `multiversectl catalog update %s`", w.Name, strings.Join(w.Notes, " · "), w.Name))
 		case w.Advice != "":
 			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s`: %s", w.Name, w.Advice))
 		}
@@ -222,7 +222,7 @@ func (r runner) printMachine(ms machineStatus) {
 	o.Plain("%s  %s", o.Bold("Root       "), root)
 
 	if len(ms.Workspaces) == 0 {
-		o.Plain("%s  %s", o.Bold("Projects   "), o.Dim("nothing installed: ")+"`multiversectl project install <owner/repo>`")
+		o.Plain("%s  %s", o.Bold("Projects   "), o.Dim("nothing installed: ")+"`multiversectl catalog install <owner/repo>`")
 	} else {
 		o.Plain("%s", o.Bold("Projects"))
 		cells := make([][]Cell, len(ms.Workspaces))
@@ -277,7 +277,7 @@ func (r runner) printMachine(ms machineStatus) {
 		}
 	}
 	o.Plain("")
-	o.Info("detail: `multiversectl project status`  ·  `multiversectl universe status`  ·  `multiversectl universe doctor`")
+	o.Info("detail: `multiversectl catalog status`  ·  `multiversectl universe status`  ·  `multiversectl universe doctor`")
 }
 
 func pluralize(n int, noun string) string {

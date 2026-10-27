@@ -372,7 +372,7 @@ func TestHelpTreeShowsEveryCommandWhereItIsTyped(t *testing.T) {
 
 	for _, want := range []string{
 		"start  —", "universe rm  —", "system proxy up  —", "system prune  —", "system footprint  —",
-		"project install  —", "server pair  —", "agents skill install  —",
+		"catalog install  —", "catalog new  —", "server pair  —", "agents skill install  —",
 	} {
 		if !strings.Contains(flat, want) {
 			t.Errorf("want %q in:\n%s", want, flat)
@@ -460,7 +460,7 @@ func TestInitLeadsTheTreeAtTheTopLevelOnly(t *testing.T) {
 			t.Errorf("%s comes after %s", nodes[i-1].Name, nodes[i].Name)
 		}
 	}
-	// `project init` is a different command and is not pulled to the front of
+	// `catalog new` is a different command and is not pulled to the front of
 	// its own group just for sharing a name.
 	for _, n := range nodes {
 		if n.Name != "project" {

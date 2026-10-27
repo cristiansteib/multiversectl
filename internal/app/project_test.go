@@ -68,7 +68,7 @@ func TestProjectInitCreatesTheRepositoryPushesAndLinksIt(t *testing.T) {
 		t.Errorf("the catalog does not list the project's own project:\n%s", got)
 	}
 	agents := read1(t, filepath.Join(dir, "AGENTS.md"))
-	for _, want := range []string{"**acme**", "multiverse.yaml", "project install " + r.host.url, "universe up", "acme-api"} {
+	for _, want := range []string{"**acme**", "multiverse.yaml", "catalog install " + r.host.url, "universe up", "acme-api"} {
 		if !strings.Contains(agents, want) {
 			t.Errorf("AGENTS.md lacks %q:\n%s", want, agents)
 		}

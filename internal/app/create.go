@@ -186,7 +186,7 @@ func (s *Service) plan(ctx context.Context, u domain.Universe, in CreateInput) (
 	for _, key := range s.repoKeys() {
 		clone := s.Manifest.CloneDir(s.Workspace, key)
 		if !s.Files.Exists(clone) {
-			return nil, fmt.Errorf("clone `%s`: %w — run `multiversectl project update` to clone it", clone, domain.ErrNotFound)
+			return nil, fmt.Errorf("clone `%s`: %w — run `multiversectl catalog update` to clone it", clone, domain.ErrNotFound)
 		}
 		p := repoPlan{key: key, clone: clone, dest: u.RepoDir(key)}
 		if s.Files.Exists(p.dest) {

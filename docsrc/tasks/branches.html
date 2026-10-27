@@ -26,7 +26,7 @@ http://api-fix-login.10-0-0-5.traefik.me
       <span class="k">url</span>: git@github.com:acme/worker.git</pre></div>
   <p>That is the whole change: a repository no <code>apps</code> entry names gets an app of its own name, its compose files are found by convention, every service they define starts, and the addresses come from their labels. Add an <code>apps</code> entry only to change one of those, or to split the repository into several apps.</p>
   <div class="code"><pre><span class="c"># clone the new repo (already-cloned ones are skipped)</span>
-<span class="p">$ </span>multiversectl project install ./multiverse.yaml --root ~/acme
+<span class="p">$ </span>multiversectl catalog install ./multiverse.yaml --root ~/acme
 <span class="c"># add its worktree to an existing universe; existing checkouts are kept</span>
 <span class="p">$ </span>multiversectl universe new 3
 <span class="p">$ </span>multiversectl universe up 3 worker</pre></div>

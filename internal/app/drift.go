@@ -21,7 +21,7 @@ type ManifestDrift struct {
 // Diverged is when neither side contains the other, so a fast-forward is out.
 func (d ManifestDrift) Diverged() bool { return d.Ahead > 0 && d.Behind > 0 }
 
-// Updatable is when `project update` would move the manifest and not refuse.
+// Updatable is when `catalog update` would move the manifest and not refuse.
 func (d ManifestDrift) Updatable() bool { return d.Behind > 0 && !d.Dirty && d.Ahead == 0 }
 
 // Needs says whether the person should hear about it while working: something
@@ -53,7 +53,7 @@ func (d ManifestDrift) Notes(asOfLastFetch bool) []string {
 // Advice says what to do about it, in the person's terms, or "" when nothing is
 // pending. name is the project, for the command to run.
 func (d ManifestDrift) Advice(name string) string {
-	update := "`multiversectl project update " + name + "`"
+	update := "`multiversectl catalog update " + name + "`"
 	switch {
 	case d.Behind == 0:
 		return ""

@@ -44,15 +44,21 @@ func (r runner) atFlag(cmd *cobra.Command, at *string) {
 func (r runner) catalogCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "catalog",
-		Short: "Browse and edit the index of projects: list the tree, add, create and remove entries",
-		Long: "The catalog is the tree of projects and other catalogs your root points at.\n" +
-			"`list` shows it, with what is installed on this machine marked; `add`, `create`\n" +
-			"and `rm` edit it. Installing what it lists is done with `project install`.",
-		Example: "  multiversectl catalog list\n  multiversectl catalog add acme/multiverse\n  multiversectl catalog create acme --new-repo acme-index",
+		Short: "The tree of projects: list it, edit it, and install what it lists",
+		Long: "The catalog is the tree of catalogs and projects your root points at, and a\n" +
+			"project is one more node in it. Everything about a node is done here.\n\n" +
+			"  list, add, create, rm    look at the tree and edit it (shared, versioned)\n" +
+			"  new                      a guide to make a project, and list it\n" +
+			"  install, update, use,    what is on this machine, which commands act on by\n" +
+			"  status, uninstall        default, and where it has drifted from the tree\n\n" +
+			"You need no catalog to install a project: `catalog install owner/repo` and\n" +
+			"`start owner/repo` work on a machine that has none.",
+		Example: "  multiversectl catalog list\n  multiversectl catalog install acme/multiverse\n  multiversectl catalog add acme/multiverse\n  multiversectl catalog create acme --new-repo acme-index",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.catalogListCmd(), r.catalogAddCmd(), r.catalogCreateCmd(), r.catalogRmCmd())
+	cmd.AddCommand(r.catalogListCmd(), r.catalogAddCmd(), r.catalogCreateCmd(), r.catalogRmCmd(), r.catalogNewCmd(),
+		r.installCmd(), r.uninstallCmd(), r.useCmd(), r.statusCmd(), r.updateCmd())
 	return cmd
 }
 
@@ -223,7 +229,7 @@ func (r runner) catalogAddCmd() *cobra.Command {
 	var yes bool
 	cmd := &cobra.Command{
 		Use:   "add <owner/repo | url | path>",
-		Short: "Put a project in the catalog, in the place you pick",
+		Short: "Add an entry to the catalog, a project or another catalog, in the place you pick",
 		Long: "The source can be owner/repo (GitHub), any git URL, or a path. A repository\n" +
 			"with a catalog.yaml is linked as a catalog (and may list its own project\n" +
 			"and deeper catalogs); one with only a multiverse.yaml is listed as a\n" +
@@ -260,7 +266,7 @@ func (r runner) catalogAddCmd() *cobra.Command {
 		if err != nil {
 			return r.declined(err)
 		}
-		r.out.Info("next: `multiversectl project install %s`", node)
+		r.out.Info("next: `multiversectl catalog install %s`", node)
 		return nil
 	}
 	return cmd
@@ -373,7 +379,7 @@ func (r runner) installCmd() *cobra.Command {
 			"installs without a root catalog of your own. With no source it shows your\n" +
 			"catalog to pick from. A project goes in <base>/<its name> and is recorded\n" +
 			"so use and -w reach it; installing never writes to a catalog.",
-		Example:           "  multiversectl project install acme/multiverse\n  multiversectl project install acme/backend/billing\n  multiversectl project install ./multiverse.yaml --root ~/acme\n  multiversectl project install",
+		Example:           "  multiversectl catalog install acme/multiverse\n  multiversectl catalog install acme/backend/billing\n  multiversectl catalog install ./multiverse.yaml --root ~/acme\n  multiversectl catalog install",
 		ValidArgsFunction: r.completeNodes(false),
 	}
 	cmd.Flags().StringVar(&base, "base", "", "directory projects go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
@@ -422,7 +428,7 @@ func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions,
 			r.out.Info("%s", t.How)
 		}
 		if t.Skip != "" {
-			r.out.Info("%s: %s; `multiversectl project update %s` refreshes it", t.Name, t.Skip, t.Name)
+			r.out.Info("%s: %s; `multiversectl catalog update %s` refreshes it", t.Name, t.Skip, t.Name)
 			continue
 		}
 		if askRoot {
@@ -488,7 +494,7 @@ func (r runner) installedHint(bare *app.Service, added []app.InstallTarget, args
 		r.out.Info("next: `multiversectl universe new 1 && multiversectl universe up 1`")
 	case current != "" && !contains(names, current):
 		r.out.OK("installed `%s` (still using `%s`)", strings.Join(names, "`, `"), current)
-		r.out.Info("switch: `multiversectl project use %s`", names[0])
+		r.out.Info("switch: `multiversectl catalog use %s`", names[0])
 	default:
 		r.out.OK("installed `%s`; now using `%s`", strings.Join(names, "`, `"), current)
 		r.out.Info("next: `multiversectl universe new 1 && multiversectl universe up 1`")
@@ -673,7 +679,7 @@ func (r runner) updateCmd() *cobra.Command {
 			"installed, and clones any repository the new manifest lists. It refuses a\n" +
 			"manifest with local changes, and leaves a pinned one alone. With no names it\n" +
 			"updates every project.",
-		Example:           "  multiversectl project update\n  multiversectl project update acme",
+		Example:           "  multiversectl catalog update\n  multiversectl catalog update acme",
 		ValidArgsFunction: r.completeWorkspaces,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -699,7 +705,7 @@ func (r runner) updateCmd() *cobra.Command {
 				list = append(list, w)
 			}
 			if len(list) == 0 {
-				r.out.Info("nothing installed: `multiversectl project install <owner/repo>`")
+				r.out.Info("nothing installed: `multiversectl catalog install <owner/repo>`")
 				return nil
 			}
 			if _, err := c.Tree(ctx, "", true); err != nil && !strings.Contains(err.Error(), "no root catalog") {
