@@ -37,6 +37,11 @@ func (f fakeReleases) Latest(context.Context) (app.Release, error) {
 	return app.Release{Version: "v2.0.0", Assets: urls}, nil
 }
 
+func (f fakeReleases) Recent(ctx context.Context) ([]app.Release, error) {
+	rel, err := f.Latest(ctx)
+	return []app.Release{rel}, err
+}
+
 func (f fakeReleases) Download(_ context.Context, url, dest string) (string, error) {
 	body := f.assets[url]
 	if url == "checksums.txt" {

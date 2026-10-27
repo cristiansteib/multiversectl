@@ -25,6 +25,9 @@ type Backend interface {
 	Doctor(ctx context.Context, multiverse, universe string) (doctorView, error)
 	// System reports the versions of what this machine runs on.
 	System(ctx context.Context) (systemView, error)
+	// Update says what a newer release would bring: from what the last look
+	// found, or, with look, after asking for the newest releases.
+	Update(ctx context.Context, look bool) (updateView, error)
 	// Unsaved names the repositories of a universe whose worktree has uncommitted
 	// work, which removing the universe would discard.
 	Unsaved(ctx context.Context, multiverse, universe string) ([]string, error)
@@ -594,7 +597,7 @@ func (s Services) System(ctx context.Context) (systemView, error) {
 	for _, t := range v.Tools {
 		// A build from source says "dev", which is neither older nor newer than a
 		// release, so it is not told to update.
-		if t.Name == "multiversectl" && t.OK && v.Latest.Version != "" && looksLikeRelease(t.Version) {
+		if t.Name == "multiversectl" && t.OK && v.Latest.Version != "" && app.Released(t.Version) {
 			v.Latest.Newer = app.NewerVersion(v.Latest.Version, t.Version)
 		}
 	}
@@ -614,9 +617,23 @@ func wordAt(n int) func(string) string {
 	}
 }
 
-func looksLikeRelease(v string) bool {
-	v = strings.TrimPrefix(v, "v")
-	return v != "" && v[0] >= '0' && v[0] <= '9'
+// Update says what this build has missed, from the last look or, with look, from
+// a new one. A look that fails still answers with what the earlier ones found.
+func (s Services) Update(ctx context.Context, look bool) (updateView, error) {
+	var (
+		rec app.UpdateRecord
+		err error
+	)
+	if look {
+		rec, err = s.Machine.CheckForUpdate(ctx, time.Now())
+	} else {
+		rec, _ = s.Machine.CachedUpdate()
+	}
+	var v updateView
+	if n, ok := rec.Notice(s.Machine.Version); ok {
+		v.Notice = &n
+	}
+	return v, err
 }
 
 func (s Services) service(multiverse string) (*app.Service, error) {

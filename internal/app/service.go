@@ -25,6 +25,7 @@ type Deps struct {
 	Config    ConfigStore
 	Manifests ManifestLoader
 	Releases  Releases
+	Updates   UpdateStore
 	Router    Router
 	Out       Output
 	// Progress draws slow work; nil runs it without drawing.

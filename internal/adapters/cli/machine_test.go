@@ -20,14 +20,6 @@ func TestRepositoriesAreShownByPlatform(t *testing.T) {
 	}
 }
 
-func TestOnlyAReleaseIsToldToUpdate(t *testing.T) {
-	for v, want := range map[string]bool{"v1.2.3": true, "1.2.3": true, "dev": false, "": false} {
-		if got := looksReleased(v); got != want {
-			t.Errorf("looksReleased(%q) = %v", v, got)
-		}
-	}
-}
-
 func TestStatusAndCatalogAreCommandsWithTheirGroupsAndAliases(t *testing.T) {
 	root, _ := New(Factory{})
 	for _, path := range [][]string{{"status"}, {"catalog", "list"}, {"catalog", "new"}, {"catalog", "add"}, {"catalog", "ls"}, {"u", "checkout"}, {"u", "co"}} {

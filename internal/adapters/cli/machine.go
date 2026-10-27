@@ -186,19 +186,12 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 	if fetch {
 		if rel, err := bare.Releases.Latest(ctx); err == nil {
 			ms.Latest = rel.Version
-			if looksReleased(r.f.Version) && app.NewerVersion(rel.Version, r.f.Version) {
+			if app.Released(r.f.Version) && app.NewerVersion(rel.Version, r.f.Version) {
 				ms.Attention = append(ms.Attention, fmt.Sprintf("multiversectl %s is out (this is %s): `multiversectl self-update`", rel.Version, r.f.Version))
 			}
 		}
 	}
 	return ms, nil
-}
-
-// looksReleased is true for a version that came from a release, not a build
-// from source, which is neither older nor newer than one.
-func looksReleased(v string) bool {
-	v = strings.TrimPrefix(v, "v")
-	return v != "" && v[0] >= '0' && v[0] <= '9'
 }
 
 func (r runner) printMachine(ms machineStatus) {

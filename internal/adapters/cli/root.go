@@ -43,6 +43,9 @@ type Factory struct {
 	Completions func(out app.Output) *app.Completions
 	// Skills builds the use case that installs the agent skill.
 	Skills func(out app.Output) *app.Skills
+	// Detach runs this program again with args, on its own and unwaited for,
+	// so that it outlives the command that started it.
+	Detach func(args ...string)
 }
 
 // New returns the root command and the globals its flags fill in.
@@ -52,6 +55,9 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	// The pre-run hook needs the command it hangs on and the runner built after it.
 	var run runner
 	var root *cobra.Command
+	// What the pre-run hook started and the post-run hook finishes: the look for
+	// a newer release runs beside the command.
+	var endUpdateCheck = func() {}
 	root = &cobra.Command{
 		Use:           "multiversectl",
 		Short:         "Run numbered, isolated copies of a multi-repo stack side by side",
@@ -61,8 +67,11 @@ func New(f Factory) (*cobra.Command, *Globals) {
 			*out = *NewOutput(os.Stdout, ColorEnabled(os.Stdout, g.NoColor))
 			run.refreshCompletions(root, cmd)
 			run.refreshSkills(cmd)
+			endUpdateCheck = run.startUpdateCheck(cmd)
 			return applyJSON(cmd, out)
 		},
+		// Only a command that worked: after a failure the error is the news.
+		PersistentPostRun: func(*cobra.Command, []string) { endUpdateCheck() },
 	}
 	flags := root.PersistentFlags()
 	flags.StringVarP(&g.Manifest, "manifest", "f", "", "path to the multiverse manifest")
@@ -76,7 +85,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddCommand(
 		run.startCmd(), run.helpTreeCmd(root), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.initCmd(), run.systemCmd(), run.completionCmd(root), run.agentsCmd(),
-		run.selfUpdateCmd(), run.versionCmd(),
+		run.selfUpdateCmd(), run.versionCmd(), run.updateLookCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("multiverse", run.completeMultiverses)
 	root.Args = cobra.NoArgs

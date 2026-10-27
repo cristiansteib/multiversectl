@@ -238,6 +238,12 @@ func overviewOf(version string, readOnly bool, rep app.StatusReport) overviewVie
 	return v
 }
 
+// updateView is whether a newer release exists than the one this server is: no
+// notice means it is current, or is a build from source, or nothing is known.
+type updateView struct {
+	Notice *app.UpdateNotice `json:"notice,omitempty"`
+}
+
 // helloView is the first thing a page is told on the websocket.
 type helloView struct {
 	Version  string   `json:"version"`
