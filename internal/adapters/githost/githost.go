@@ -128,25 +128,28 @@ func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
 
 func (Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "github.com") }
 
-// OpenReview asks for the open pull request a branch has. --state open is the
-// question: a merged one is history, and history is what the branch itself
-// already says.
-func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
+// FindReview asks for the pull requests a branch has had. The open one is the
+// answer when there is one; otherwise the latest that was merged or closed,
+// because a branch whose request has landed is a different thing to look at
+// than one nobody has proposed.
+func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
 	if branch == "" {
 		return nil, nil
 	}
-	out, err := gh(ctx, "pr", "list", "--repo", repoURL, "--head", branch, "--state", "open",
-		"--limit", "1", "--json", "number,title,url,isDraft,author,updatedAt")
+	out, err := gh(ctx, "pr", "list", "--repo", repoURL, "--head", branch, "--state", "all",
+		"--limit", "10", "--json", "number,title,url,isDraft,state,baseRefName,author,updatedAt")
 	if err != nil {
 		return nil, err
 	}
 	var raw []struct {
-		Number    int    `json:"number"`
-		Title     string `json:"title"`
-		URL       string `json:"url"`
-		IsDraft   bool   `json:"isDraft"`
-		UpdatedAt string `json:"updatedAt"`
-		Author    struct {
+		Number      int    `json:"number"`
+		Title       string `json:"title"`
+		URL         string `json:"url"`
+		IsDraft     bool   `json:"isDraft"`
+		State       string `json:"state"`
+		BaseRefName string `json:"baseRefName"`
+		UpdatedAt   string `json:"updatedAt"`
+		Author      struct {
 			Login string `json:"login"`
 		} `json:"author"`
 	}
@@ -156,9 +159,21 @@ func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review
 	if len(raw) == 0 {
 		return nil, nil
 	}
-	r := raw[0]
-	updated, _ := time.Parse(time.RFC3339, r.UpdatedAt)
-	return &app.Review{Number: r.Number, Title: r.Title, URL: r.URL, Draft: r.IsDraft, Author: r.Author.Login, Updated: updated}, nil
+	// The list is newest first, so without an open one the first is the latest.
+	pick := raw[0]
+	for _, r := range raw {
+		if r.State == "OPEN" {
+			pick = r
+			break
+		}
+	}
+	updated, _ := time.Parse(time.RFC3339, pick.UpdatedAt)
+	state := strings.ToLower(pick.State)
+	if state == "open" && pick.IsDraft {
+		state = "draft"
+	}
+	return &app.Review{Number: pick.Number, Title: pick.Title, URL: pick.URL, State: state, Draft: state == "draft",
+		Base: pick.BaseRefName, Author: pick.Author.Login, Updated: updated}, nil
 }
 
 func parseRepos(out string) ([]app.RemoteRepo, error) {

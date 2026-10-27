@@ -42,7 +42,14 @@ type Backend interface {
 	Stats(ctx context.Context, multiverse, universe string) ([]statView, error)
 	// Code reads a universe's repositories: branch, how far it has moved from
 	// what it follows, and the pull or merge request open for it.
-	Code(ctx context.Context, multiverse, universe string) (codeView, error)
+	// With fetch the clones ask their remotes first; without it everything is as
+	// of the last fetch.
+	Code(ctx context.Context, multiverse, universe string, fetch bool) (codeView, error)
+	// Diff lists the files of one repository's change, scope being "branch"
+	// (against what it merges into) or "uncommitted"; with a file it is that
+	// file's diff instead, in the second result.
+	Diff(ctx context.Context, multiverse, universe, repo, scope string) (diffFilesView, error)
+	Patch(ctx context.Context, multiverse, universe, repo, scope, file string) (patchView, error)
 	Logs(ctx context.Context, multiverse, universe, appKey, service string, tail int, follow bool, w io.Writer) error
 	// FleetStats reads every running container of one multiverse, or of all.
 	FleetStats(ctx context.Context, multiverse string) (fleetStatsView, error)
@@ -270,27 +277,66 @@ func (s Services) Containers(ctx context.Context, multiverse, universe string) (
 
 // Code reads one universe's repositories: the branches, how far they have
 // moved, and the review each has open.
-func (s Services) Code(ctx context.Context, multiverse, universe string) (codeView, error) {
+func (s Services) Code(ctx context.Context, multiverse, universe string, fetch bool) (codeView, error) {
 	svc, err := s.service(multiverse)
 	if err != nil {
 		return codeView{}, err
 	}
-	rows, err := svc.UniverseCode(ctx, universe)
+	rows, err := svc.UniverseCode(ctx, universe, fetch)
 	if err != nil {
 		return codeView{}, err
 	}
 	v := codeView{Rows: []codeRow{}}
+	var oldest time.Time
 	for _, r := range rows {
 		row := codeRow{Repo: r.Repo, Branch: r.Branch, Follows: r.Follows,
 			Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError,
-			Work: diffOf(r.Work), Uncommitted: diffOf(r.Uncommitted)}
+			Work: diffOf(r.Work), Base: r.Base, Change: diffOf(r.Change), Uncommitted: diffOf(r.Uncommitted)}
 		if r.Review != nil {
 			row.Review = &reviewView{Number: r.Review.Number, Mark: reviewMark(r.URL), Title: r.Review.Title,
-				URL: r.Review.URL, Draft: r.Review.Draft, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
+				URL: r.Review.URL, State: r.Review.State, Draft: r.Review.Draft, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
 		}
 		v.Rows = append(v.Rows, row)
+		if !r.Fetched.IsZero() && (oldest.IsZero() || r.Fetched.Before(oldest)) {
+			oldest = r.Fetched
+		}
+	}
+	v.Fetched = stamp(oldest)
+	return v, nil
+}
+
+// Diff lists the files of one repository's change.
+func (s Services) Diff(ctx context.Context, multiverse, universe, repo, scope string) (diffFilesView, error) {
+	svc, err := s.service(multiverse)
+	if err != nil {
+		return diffFilesView{}, err
+	}
+	base, files, err := svc.UniverseDiff(ctx, universe, repo, scope)
+	if err != nil {
+		return diffFilesView{}, err
+	}
+	v := diffFilesView{Base: base, Files: []fileView{}}
+	for _, f := range files {
+		v.Files = append(v.Files, fileView{Path: f.Path, OldPath: f.OldPath, Status: f.Status, Added: f.Added, Removed: f.Removed, Binary: f.Binary})
 	}
 	return v, nil
+}
+
+// maxPatch is how much of one file's diff is sent: the page draws it as text,
+// and a generated file of a few megabytes is not something to read there.
+const maxPatch = 256 << 10
+
+// Patch is one file's diff.
+func (s Services) Patch(ctx context.Context, multiverse, universe, repo, scope, file string) (patchView, error) {
+	svc, err := s.service(multiverse)
+	if err != nil {
+		return patchView{}, err
+	}
+	patch, truncated, err := svc.UniverseDiffFile(ctx, universe, repo, scope, file, maxPatch)
+	if err != nil {
+		return patchView{}, err
+	}
+	return patchView{Path: file, Patch: patch, Truncated: truncated}, nil
 }
 
 // diffOf leaves out a change of nothing, so a page can ask whether there is one.

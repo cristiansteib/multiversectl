@@ -213,10 +213,11 @@ func (Host) Owns(repoURL string) bool {
 	return domain.Locate(repoURL, "").Platform == domain.PlatformGitLab
 }
 
-// OpenReview asks for the open merge request a branch is the source of. It
+// FindReview asks for the merge requests a branch is the source of: the open
+// one when there is one, otherwise the latest that was merged or closed. It
 // goes through the API rather than `glab mr list`, which prints a table meant
 // for a terminal and would have to be parsed back.
-func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
+func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
 	if branch == "" {
 		return nil, nil
 	}
@@ -224,17 +225,19 @@ func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review
 	if err != nil {
 		return nil, err
 	}
-	out, err := glab(ctx, "api", "projects/"+id+"/merge_requests?state=opened&per_page=1&source_branch="+url.QueryEscape(branch))
+	out, err := glab(ctx, "api", "projects/"+id+"/merge_requests?state=all&order_by=created_at&sort=desc&per_page=10&source_branch="+url.QueryEscape(branch))
 	if err != nil {
 		return nil, err
 	}
 	var raw []struct {
-		IID       int    `json:"iid"`
-		Title     string `json:"title"`
-		WebURL    string `json:"web_url"`
-		Draft     bool   `json:"draft"`
-		UpdatedAt string `json:"updated_at"`
-		Author    struct {
+		IID          int    `json:"iid"`
+		Title        string `json:"title"`
+		WebURL       string `json:"web_url"`
+		Draft        bool   `json:"draft"`
+		State        string `json:"state"`
+		TargetBranch string `json:"target_branch"`
+		UpdatedAt    string `json:"updated_at"`
+		Author       struct {
 			Username string `json:"username"`
 		} `json:"author"`
 	}
@@ -244,9 +247,20 @@ func (Host) OpenReview(ctx context.Context, repoURL, branch string) (*app.Review
 	if len(raw) == 0 {
 		return nil, nil
 	}
-	r := raw[0]
-	updated, _ := time.Parse(time.RFC3339, r.UpdatedAt)
-	return &app.Review{Number: r.IID, Title: r.Title, URL: r.WebURL, Draft: r.Draft, Author: r.Author.Username, Updated: updated}, nil
+	pick := raw[0]
+	for _, r := range raw {
+		if r.State == "opened" {
+			pick = r
+			break
+		}
+	}
+	updated, _ := time.Parse(time.RFC3339, pick.UpdatedAt)
+	state := map[string]string{"opened": "open", "merged": "merged", "closed": "closed", "locked": "closed"}[pick.State]
+	if state == "open" && pick.Draft {
+		state = "draft"
+	}
+	return &app.Review{Number: pick.IID, Title: pick.Title, URL: pick.WebURL, State: state, Draft: state == "draft",
+		Base: pick.TargetBranch, Author: pick.Author.Username, Updated: updated}, nil
 }
 
 func glab(ctx context.Context, args ...string) (string, error) {

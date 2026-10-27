@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -14,6 +15,8 @@ type codeGit struct {
 	asked     []string
 	pushed    bool
 	noDefault bool
+	fetched   time.Time
+	fetches   []string
 }
 
 // A universe's branch that has never been pushed has no counterpart on
@@ -33,6 +36,11 @@ func (g *codeGit) DefaultBranch(context.Context, string) (string, error) {
 	}
 	return "main", nil
 }
+func (g *codeGit) LastFetch(context.Context, string) time.Time { return g.fetched }
+func (g *codeGit) Fetch(_ context.Context, dir string) error {
+	g.fetches = append(g.fetches, dir)
+	return nil
+}
 func (g *codeGit) DiffStat(_ context.Context, dir, ref string) (DiffStat, error) {
 	g.asked = append(g.asked, dir+"@"+ref)
 	return g.diffs[ref], nil
@@ -50,7 +58,7 @@ type codeHost struct {
 func (h *codeHost) Name() string                    { return "Example" }
 func (h *codeHost) Owns(repoURL string) bool        { return h.owns != "" && repoURL == h.owns }
 func (h *codeHost) Available(context.Context) error { return h.available }
-func (h *codeHost) OpenReview(_ context.Context, repoURL, branch string) (*Review, error) {
+func (h *codeHost) FindReview(_ context.Context, repoURL, branch string) (*Review, error) {
 	h.asked = append(h.asked, repoURL+"#"+branch)
 	return h.review, h.err
 }
@@ -69,7 +77,7 @@ func TestEachRepositoryIsMeasuredAgainstWhatItFollows(t *testing.T) {
 		"main": {Files: 4, Added: 120, Removed: 30},
 		"":     {Files: 1, Added: 7},
 	}}
-	rows, err := codeService(git).UniverseCode(context.Background(), "3")
+	rows, err := codeService(git).UniverseCode(context.Background(), "3", false)
 	if err != nil {
 		t.Fatalf("UniverseCode: %v", err)
 	}
@@ -96,7 +104,7 @@ func TestEachRepositoryIsMeasuredAgainstWhatItFollows(t *testing.T) {
 // being "how far from main" and becomes "how far from what was pushed".
 func TestAPushedBranchIsMeasuredAgainstItsOwnCounterpart(t *testing.T) {
 	git := &codeGit{pushed: true, diffs: map[string]DiffStat{"u3": {Files: 2, Added: 9}}}
-	rows, err := codeService(git).UniverseCode(context.Background(), "3")
+	rows, err := codeService(git).UniverseCode(context.Background(), "3", false)
 	if err != nil {
 		t.Fatalf("UniverseCode: %v", err)
 	}
@@ -107,7 +115,7 @@ func TestAPushedBranchIsMeasuredAgainstItsOwnCounterpart(t *testing.T) {
 
 func TestOnlyTheServiceThatOwnsTheRepositoryIsAsked(t *testing.T) {
 	host := &codeHost{owns: "https://example.test/acme/api.git", review: &Review{Number: 12, Title: "Keep the tax column"}}
-	rows, err := codeService(&codeGit{}, host).UniverseCode(context.Background(), "3")
+	rows, err := codeService(&codeGit{}, host).UniverseCode(context.Background(), "3", false)
 	if err != nil {
 		t.Fatalf("UniverseCode: %v", err)
 	}
@@ -124,7 +132,7 @@ func TestOnlyTheServiceThatOwnsTheRepositoryIsAsked(t *testing.T) {
 
 func TestAServiceNobodyIsSignedInToIsNotAFailure(t *testing.T) {
 	host := &codeHost{owns: "https://example.test/acme/api.git", available: errors.New("not signed in")}
-	rows, err := codeService(&codeGit{}, host).UniverseCode(context.Background(), "3")
+	rows, err := codeService(&codeGit{}, host).UniverseCode(context.Background(), "3", false)
 	if err != nil {
 		t.Fatalf("UniverseCode: %v", err)
 	}
@@ -138,7 +146,7 @@ func TestAServiceNobodyIsSignedInToIsNotAFailure(t *testing.T) {
 
 func TestAServiceThatFailsSaysSoRatherThanShowingNoReview(t *testing.T) {
 	host := &codeHost{owns: "https://example.test/acme/api.git", err: errors.New("api rate limit exceeded")}
-	rows, err := codeService(&codeGit{}, host).UniverseCode(context.Background(), "3")
+	rows, err := codeService(&codeGit{}, host).UniverseCode(context.Background(), "3", false)
 	if err != nil {
 		t.Fatalf("UniverseCode: %v", err)
 	}
@@ -152,7 +160,7 @@ func TestAServiceThatFailsSaysSoRatherThanShowingNoReview(t *testing.T) {
 // committed", which the page would have drawn as committed work.
 func TestARepositoryWithNoOriginIsNotCreditedWithWork(t *testing.T) {
 	git := &codeGit{noDefault: true, diffs: map[string]DiffStat{"": {Files: 2, Added: 14}}}
-	rows, err := codeService(git).UniverseCode(context.Background(), "3")
+	rows, err := codeService(git).UniverseCode(context.Background(), "3", false)
 	if err != nil {
 		t.Fatalf("UniverseCode: %v", err)
 	}
@@ -169,5 +177,35 @@ func TestARepositoryWithNoOriginIsNotCreditedWithWork(t *testing.T) {
 		if asked != "/ws/universes/3/api@" && asked != "/ws/universes/3/ui@" {
 			t.Errorf("want only the uncommitted diff asked for, got %q", asked)
 		}
+	}
+}
+
+// A pushed branch is its own yardstick for what is left to push, so the work a
+// review shows — the branch against what it merges into — is measured apart.
+func TestWhatABranchAmountsToIsMeasuredAgainstItsBase(t *testing.T) {
+	git := &codeGit{pushed: true, diffs: map[string]DiffStat{"u3": {}, "main": {Files: 1, Added: 1}, "release": {Files: 5, Added: 50}}}
+	rows, err := codeService(git).UniverseCode(context.Background(), "3", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].Base != "main" || rows[0].Change != (DiffStat{Files: 1, Added: 1}) || !rows[0].Work.Empty() {
+		t.Errorf("want the change against main and nothing left to push, got base %q change %+v work %+v", rows[0].Base, rows[0].Change, rows[0].Work)
+	}
+
+	// A review says what it is to be merged into, and that is the yardstick.
+	host := &codeHost{owns: "https://example.test/acme/api.git", review: &Review{Number: 7, State: "open", Base: "release"}}
+	rows, _ = codeService(git, host).UniverseCode(context.Background(), "3", false)
+	if rows[0].Base != "release" || rows[0].Change.Files != 5 {
+		t.Errorf("want the change against the review's base, got base %q change %+v", rows[0].Base, rows[0].Change)
+	}
+}
+
+func TestRereadingFetchesEachCloneOnceAndLeavesItAloneOtherwise(t *testing.T) {
+	git := &codeGit{}
+	if _, err := codeService(git).UniverseCode(context.Background(), "3", false); err != nil || len(git.fetches) != 0 {
+		t.Fatalf("a plain read reached for a remote: %v %v", git.fetches, err)
+	}
+	if _, err := codeService(git).UniverseCode(context.Background(), "3", true); err != nil || len(git.fetches) != 2 {
+		t.Fatalf("want a fetch per clone, got %v %v", git.fetches, err)
 	}
 }

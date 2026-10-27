@@ -231,3 +231,77 @@ func TestNothingChangedIsNoFilesAtAll(t *testing.T) {
 		t.Errorf("want an empty stat, got %+v", d)
 	}
 }
+
+// The files of a change are what DiffStat counts, so the two are read off the
+// same repository and must agree: renames as one file, a new untracked file as
+// added lines, and a patch only for what is in the list.
+func TestDiffFilesListsTheBranchAndWhatIsNotCommitted(t *testing.T) {
+	clone, _ := repo(t)
+	ctx := context.Background()
+	// Big enough that git calls a moved and edited file a rename, and already on
+	// main, so that moving it is a change of the branch.
+	body := strings.Repeat("a line of the file\n", 12)
+	if err := os.WriteFile(filepath.Join(clone, "big"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, clone, "add", "big")
+	git(t, clone, "commit", "-qm", "big")
+	git(t, clone, "push", "-q", "origin", "main")
+	git(t, clone, "switch", "-q", "-c", "fix/x")
+	if err := os.WriteFile(filepath.Join(clone, "big"), []byte(body+"more\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, clone, "mv", "big", "renamed")
+	git(t, clone, "commit", "-qam", "rename and edit")
+	commit(t, clone, "b")
+	git(t, clone, "push", "-q", "origin", "fix/x")
+
+	files, err := Git{}.DiffFiles(ctx, clone, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]app.FileChange{}
+	for _, f := range files {
+		got[f.Path] = f
+	}
+	if r := got["renamed"]; r.Status != "renamed" || r.OldPath != "big" {
+		t.Errorf("want a rename, got %+v", r)
+	}
+	if b := got["b"]; b.Status != "added" || b.Added != 1 {
+		t.Errorf("want b added with a line, got %+v", b)
+	}
+	stat, _ := Git{}.DiffStat(ctx, clone, "main")
+	if stat.Files != len(files) {
+		t.Errorf("the stat counts %d files and the list has %d", stat.Files, len(files))
+	}
+
+	// Nothing is uncommitted until a file is edited and another is created.
+	if files, _ := (Git{}).DiffFiles(ctx, clone, ""); len(files) != 0 {
+		t.Errorf("a clean checkout has no uncommitted files: %+v", files)
+	}
+	if err := os.WriteFile(filepath.Join(clone, "b"), []byte("b\nedited\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(clone, "new.txt"), []byte("one\ntwo\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files, _ = Git{}.DiffFiles(ctx, clone, "")
+	if len(files) != 2 || files[1].Path != "new.txt" || files[1].Status != "untracked" || files[1].Added != 2 {
+		t.Fatalf("want the edit and the new file, got %+v", files)
+	}
+	if st, _ := (Git{}).DiffStat(ctx, clone, ""); st.Files != 2 || st.Added != 4 {
+		t.Errorf("the untracked file is edited work too: %+v", st)
+	}
+
+	patch, truncated, err := Git{}.DiffPatch(ctx, clone, "", "new.txt", 1<<10)
+	if err != nil || truncated || !strings.Contains(patch, "+one\n+two") {
+		t.Errorf("want the new file written as added, got %q %v %v", patch, truncated, err)
+	}
+	patch, truncated, _ = Git{}.DiffPatch(ctx, clone, "main", "renamed", 10)
+	if !truncated || len(patch) > 10 {
+		t.Errorf("want the patch cut at the limit, got %q %v", patch, truncated)
+	}
+	if _, _, err := (Git{}).DiffPatch(ctx, clone, "main", "../etc/passwd", 100); err == nil {
+		t.Error("a path that is not in the change was read")
+	}
+}

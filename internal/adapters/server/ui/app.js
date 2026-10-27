@@ -130,6 +130,11 @@ const ICONS = {
   file: { d: 'M1.5 3A1.5 1.5 0 0 1 3 1.5h3.1c.4 0 .78.16 1.06.44L8.2 3H13A1.5 1.5 0 0 1 14.5 4.5v7A1.5 1.5 0 0 1 13 13H3a1.5 1.5 0 0 1-1.5-1.5z' },
   root: { d: 'M8 1.2l2.1 4.4 4.8.7-3.5 3.4.8 4.8L8 12.2l-4.2 2.3.8-4.8L1.1 6.3l4.8-.7z' },
   catalog: { d: 'M2 3.5h12v1.6H2zM2 7.2h12v1.6H2zM2 10.9h8v1.6H2z' },
+  // GitHub's marks for the four states of a pull request.
+  prOpen: { d: 'M1.5 3.25a2.25 2.25 0 1 1 3 2.122v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.25 2.25 0 0 1 1.5 3.25Zm5.677-.177L9.573.677A.25.25 0 0 1 10 .854V2.5h1A2.5 2.5 0 0 1 13.5 5v5.628a2.251 2.251 0 1 1-1.5 0V5a1 1 0 0 0-1-1h-1v1.646a.25.25 0 0 1-.427.177L7.177 3.427a.25.25 0 0 1 0-.354ZM3.75 2.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm0 9.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm8.25.75a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Z' },
+  prDraft: { d: 'M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 14a2.25 2.25 0 1 1 0-4.5 2.25 2.25 0 0 1 0 4.5ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM14 7.5a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Zm0-4.25a1.25 1.25 0 1 1-2.5 0 1.25 1.25 0 0 1 2.5 0Z' },
+  prMerged: { d: 'M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218ZM4.25 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm8.5-4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM5 3.25a.75.75 0 1 0 0 .005V3.25Z' },
+  prClosed: { d: 'M3.25 1A2.25 2.25 0 0 1 4 5.372v5.256a2.251 2.251 0 1 1-1.5 0V5.372A2.251 2.251 0 0 1 3.25 1Zm9.5 5.5a.75.75 0 0 1 .75.75v3.378a2.251 2.251 0 1 1-1.5 0V7.25a.75.75 0 0 1 .75-.75Zm-2.03-5.273a.75.75 0 0 1 1.06 0l.97.97.97-.97a.748.748 0 0 1 1.265.332.75.75 0 0 1-.205.729l-.97.97.97.97a.751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018l-.97-.97-.97.97a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734l.97-.97-.97-.97a.75.75 0 0 1 0-1.06ZM2.5 3.25a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0ZM3.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Zm9.5 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z' },
   multiverse: { d: 'M8 1.5l5.5 3v7L8 14.5l-5.5-3v-7zM2.5 4.5L8 7.5l5.5-3M8 7.5v7', stroke: true },
 };
 
@@ -363,6 +368,7 @@ function universeCard(w, u) {
       badge(u.running ? 'ok' : 'mute', u.running ? u.running + (total ? '/' + total : '') + ' running' : 'stopped'),
       u.behind ? badge('warn', u.behind + ' behind', 'Its code lacks commits of the branches it follows (as of the last fetch). “Update code” brings them in; restart to run them.') : null,
       h('span', { class: 'grow' }),
+      h('a', { class: 'btn small', href: universeHref(w.name, u.name), title: 'This universe on a page of its own: its code, files and diffs' }, 'Open'),
       h('button', { type: 'button', class: 'btn small', title: 'Containers, stats and logs', onclick: () => sidePanel.open(w.name, u.name) }, 'Details'),
       h('button', { type: 'button', class: 'btn small', onclick: (e) => runDoctor(panel, w.name, u.name, e.target) }, 'Doctor')),
     actions,
@@ -392,21 +398,29 @@ function branchChip(u) {
 // page draws from is pushed at it whenever anything on the machine changes.
 const codeState = new Map();
 const CODE_STALE = 300000;
+// A universe in view is read again on its own, because a review is merged and
+// a branch is pushed from somewhere else; the remotes are asked less often than
+// that, since it is the part that costs.
+const CODE_EVERY = 60000;
+const CODE_FETCH_EVERY = 300000;
 const codeKey = (multiverse, universe) => JSON.stringify([multiverse, universe]);
 
-async function loadCode(key, again) {
+async function loadCode(key, again, fetch) {
   const had = codeState.get(key) || {};
   if (had.loading || (!again && had.at && Date.now() - had.at < CODE_STALE)) return;
-  codeState.set(key, { rows: had.rows, loading: true });
+  codeState.set(key, { ...had, loading: true });
   fillCode(key);
   const [multiverse, universe] = JSON.parse(key);
+  const asked = fetch || (had.fetchAt && Date.now() - had.fetchAt > CODE_FETCH_EVERY);
   try {
-    const d = await api('universe/code?' + query({ multiverse, universe }));
-    codeState.set(key, { rows: d.rows || [], at: Date.now() });
+    const d = await api('universe/code?' + query(asked ? { multiverse, universe, fetch: 1 } : { multiverse, universe }));
+    codeState.set(key, { rows: d.rows || [], fetched: d.fetched, at: Date.now(), fetchAt: asked ? Date.now() : (had.fetchAt || Date.now()) });
   } catch (e) {
-    codeState.set(key, { rows: had.rows, error: e.message, at: Date.now() });
+    codeState.set(key, { ...had, loading: false, error: e.message, at: Date.now() });
   }
   fillCode(key);
+  // What is open under a row is as old as the row was.
+  if (diffPage && diffPage.key === key) diffPage.reload();
 }
 
 // A card is built again whenever anything in the fleet changes, so what was
@@ -414,6 +428,7 @@ async function loadCode(key, again) {
 // rather than kept in a closure that outlives the card it was made for.
 function fillCode(key) {
   for (const sec of document.querySelectorAll('.code')) if (sec.dataset.key === key) drawCode(sec);
+  if (diffPage && diffPage.key === key) diffPage.paint();
 }
 
 // Nothing is read for a universe nobody has scrolled to.
@@ -425,14 +440,28 @@ const codeWatch = self.IntersectionObserver ? new IntersectionObserver((seen, ob
   }
 }, { rootMargin: '200px' }) : null;
 
+// The ones on the page, and in a tab somebody is looking at, are read again.
+setInterval(() => {
+  if (document.visibilityState !== 'visible') return;
+  const seen = new Set();
+  if (diffPage) { seen.add(diffPage.key); loadCode(diffPage.key, true); }
+  for (const sec of document.querySelectorAll('.code')) {
+    const key = sec.dataset.key;
+    if (seen.has(key) || !(codeState.get(key) || {}).rows) continue;
+    seen.add(key);
+    loadCode(key, true);
+  }
+}, CODE_EVERY);
+
 function codeSection(w, u) {
   const key = codeKey(w.name, u.name);
   const sec = h('section', { class: 'code', 'data-key': key },
     h('div', { class: 'code-head' }, h('b', null, 'Code'),
       h('span', { class: 'muted small' }, plural(u.checkouts.length, 'repository', 'repositories')),
       h('span', { class: 'grow' }),
+      h('span', { class: 'muted small code-age' }),
       copyable(u.dir, 'folder'),
-      h('button', { type: 'button', class: 'btn small ghost', title: 'Read the branches and their requests again', onclick: () => loadCode(key, true) }, 'Reread')),
+      h('button', { type: 'button', class: 'btn small ghost', title: 'Ask the remotes, then read the branches and their requests again', onclick: () => loadCode(key, true, true) }, 'Reread')),
     h('div', { class: 'code-body' }));
   drawCode(sec);
   if (codeWatch) codeWatch.observe(sec); else loadCode(key);
@@ -440,11 +469,17 @@ function codeSection(w, u) {
 }
 
 function drawCode(sec) {
-  const st = codeState.get(sec.dataset.key) || {};
+  const key = sec.dataset.key;
+  const st = codeState.get(key) || {};
   const body = sec.querySelector('.code-body');
+  const age = sec.querySelector('.code-age');
+  if (age) {
+    age.textContent = st.loading ? 'reading…' : st.fetched ? 'remotes read ' + ago(st.fetched) : '';
+    age.title = st.fetched ? 'The last time the clones asked their remotes, which is how old what is measured against them can be. Reread asks again.' : '';
+  }
   if (!st.rows) {
     body.replaceChildren(st.error ? errorBox({ message: st.error })
-      : h('div', { class: 'crepo' }, skeleton('line w3'), skeleton('line w2'), skeleton('line w4'), skeleton('line w3')));
+      : h('div', { class: 'crepo loading' }, skeleton('line w3'), skeleton('line w2'), skeleton('line w4'), skeleton('line w3')));
     return;
   }
   // The shared branch is named once, in the card's header; a row says its own
@@ -452,46 +487,367 @@ function drawCode(sec) {
   const common = [...new Set(st.rows.map((r) => r.branch).filter(Boolean))];
   body.replaceChildren(...[
     st.error ? h('p', { class: 'muted small' }, badge('warn', 'the last read failed'), ' ', st.error) : null,
-    ...st.rows.map((r) => codeRow(r, common.length === 1)),
+    ...st.rows.map((r) => codeRow(key, r, common.length === 1, sec.dataset.mode === 'page')),
   ].filter(Boolean));
 }
 
-function codeRow(r, shared) {
-  return h('div', { class: 'crepo' },
-    h('b', { class: 'crepo-name' }, r.repo),
-    shared || !r.branch ? null : h('span', { class: 'chip branch' }, r.branch),
-    ...diffOf(r),
-    reviewOf(r));
+function codeRow(key, r, shared, page) {
+  const review = reviewOf(r);
+  const top = [shared || !r.branch ? null : h('span', { class: 'chip branch', title: 'The branch checked out in this repository' }, r.branch), review].filter(Boolean);
+  return h('div', { class: 'crepo-block' },
+    h('div', { class: 'crepo' },
+      h('b', { class: 'crepo-name' }, r.repo),
+      h('div', { class: 'crepo-main' },
+        top.length ? h('div', { class: 'crepo-top' }, ...top) : null,
+        h('div', { class: 'crepo-facts' }, ...factsOf(key, r, page)))));
 }
 
-// How much work is in a branch: +120 −30 over four files answers that where
-// “3 ahead” only says how often somebody committed.
-function diffOf(r) {
+// What became of a repository, each fact in words and on its own: a terse
+// “+31 −4 3 files vs main · 2 not pushed” makes somebody work out which number
+// belongs to which question. What can be opened has a caret.
+//
+//   changed against base     what the branch amounts to, which is what a review shows
+//   not pushed               commits that are only here
+//   not committed            edits that are only in the checkout
+//   behind                   commits somebody else added to what it follows
+function factsOf(key, r, page) {
   const out = [];
-  if (r.work) {
-    out.push(h('span', { class: 'diff', title: r.work.files + ' files changed against ' + r.follows },
-      h('b', { class: 'add' }, '+' + r.work.added), h('b', { class: 'del' }, '−' + r.work.removed),
-      h('span', { class: 'muted' }, plural(r.work.files, 'file', 'files'))));
+  const [multiverse, universe] = JSON.parse(key);
+  const lines = (n) => [h('b', { class: 'add' }, '+' + n.added), h('b', { class: 'del' }, '−' + n.removed)];
+  // On a card a change is a link to the universe's page; on that page it picks
+  // the change to read there.
+  const opener = (scope, text, n, title) => {
+    if (page === 'tabs') return null; // the tabs next to them are what opens a change
+    const on = page && diffPage && diffPage.repo === r.repo && diffPage.scope === scope;
+    const kids = [h('span', { class: 'caret' }, on ? '▾' : '▸'), text, ...lines(n)];
+    return page
+      ? h('button', { type: 'button', class: 'fact opener' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', title: title + ' Click to read its files and diff below.',
+        onclick: () => diffPage && diffPage.select(r.repo, scope) }, ...kids)
+      : h('a', { class: 'fact opener', href: universeHref(multiverse, universe, r.repo, scope), title: title + ' Click to read its files and diff.' }, ...kids);
+  };
+  const note = (kind, text, title) => h('span', { class: 'fact ' + kind, title }, text);
+
+  if (r.change) {
+    out.push(opener('branch', plural(r.change.files, 'file', 'files') + ' changed against ' + r.base, r.change,
+      'What this branch adds to ' + r.base + ': what a pull request would show.'));
+  } else if (r.base) {
+    out.push(note('quiet', 'No changes against ' + r.base, 'This branch has nothing that ' + r.base + ' lacks.'));
+  } else {
+    out.push(note('quiet', 'Nothing to compare it with', 'This repository has no usable origin to measure against.'));
   }
-  if (r.behind) out.push(badge('warn', r.behind + ' behind', 'It lacks ' + r.behind + ' commits of ' + r.follows + ', as of the last fetch'));
+  if (r.ahead && r.follows) {
+    out.push(r.follows === r.base
+      ? note('mute', plural(r.ahead, 'commit', 'commits') + ', branch not pushed yet', 'These commits are only on this machine: ' + r.follows + ' on origin does not have them.')
+      : note('mute', plural(r.ahead, 'commit', 'commits') + ' not pushed', 'These commits are only on this machine, not on origin/' + r.follows + '.'));
+  }
   if (r.uncommitted) {
-    const n = r.uncommitted;
-    out.push(badge('mute', 'edited', plural(n.files, 'file', 'files') + ' changed and not committed: +' + n.added + ' \u2212' + n.removed));
+    out.push(opener('uncommitted', plural(r.uncommitted.files, 'file', 'files') + ' edited, not committed', r.uncommitted,
+      'Edits in the checkout that no commit holds yet, new files included.'));
   }
-  if (!out.length) out.push(h('span', { class: 'muted small' }, r.follows ? 'no change from ' + r.follows : 'nothing to compare it with'));
-  return out;
+  if (r.behind) {
+    out.push(note('warn', plural(r.behind, 'commit', 'commits') + ' behind ' + r.follows, 'It lacks ' + plural(r.behind, 'commit', 'commits') + ' of ' + r.follows + ', as of the last fetch. “Update code” brings them in.'));
+  }
+  return out.filter(Boolean);
 }
+
+// ── a universe's own page ──────────────────────────────────────────────
+//
+// The card says how each repository stands; what changed in it is read here,
+// where there is room: #/universe/<multiverse>/<universe>[/<repo>/<scope>].
+// Which change is open is in the address, so it can be sent to somebody.
+const universeHref = (...parts) => '#/universe/' + parts.filter((x) => x != null).map(encodeURIComponent).join('/');
+const STATUS_MARK = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R', untracked: 'U' };
+const SCOPES = { branch: 'Branch', uncommitted: 'Not committed' };
+
+// The page that is on screen, so the facts of a repository can open its diff
+// on it instead of going to it.
+let diffPage = null;
+
+views.universe = {
+  title: 'Universe',
+  mount(host, multiverse, rest) {
+    const [name, repo, scope] = rest || [];
+    if (!name) { location.hash = '#/fleet'; return {}; }
+    const key = codeKey(multiverse, name);
+    const head = h('div');
+    const browser = h('section', { class: 'cdiff-page' });
+    // These are made once and filled again, never replaced: the filter box is in
+    // one of them, and a box that is taken out of the page while somebody types in
+    // it loses what they were doing.
+    const barBox = h('div'), topBox = h('div'), listBox = h('div', { class: 'cdiff-files' });
+    const filterInput = h('input', { type: 'search', name: 'filter-files', placeholder: 'Filter files', 'aria-label': 'Filter the changed files',
+      oninput: (e) => { dv.filter = e.target.value.trim().toLowerCase(); paintTree(); } });
+    const treeList = h('div', { class: 'ftree-list' });
+    const treeBox = h('nav', { class: 'ftree', 'aria-label': 'Changed files' }, filterInput, treeList);
+    const layout = h('div', { class: 'cdiff-layout' }, treeBox, listBox);
+    browser.append(barBox, topBox, layout);
+    host.append(h('p', { class: 'crumbs' }, h('a', { href: '#/fleet' }, '← Fleet'), ' / ', multiverse), head, browser);
+    let picked = false;
+
+    // What is open: the change (a repository and a scope), the files whose
+    // diff is showing, and the ones pinned to stay showing. Opening a file
+    // closes the others unless they are pinned, because a page of diffs nobody
+    // can find the top of is worse than one click to reopen.
+    const dv = diffPage = { key, paint: () => draw(), repo: null, scope: 'branch', files: null, base: '', open: new Set(), pinned: new Set(), patches: new Map(), error: null,
+      filter: '', collapsed: new Set(), active: null,
+      async select(r, sc) {
+        const same = this.repo === r && this.scope === sc;
+        Object.assign(this, { repo: r, scope: sc });
+        if (!same) {
+          Object.assign(this, { files: null, base: '', open: new Set(), pinned: new Set(), patches: new Map(), error: null, filter: '', collapsed: new Set(), active: null });
+          filterInput.value = '';
+        }
+        history.replaceState(null, '', universeHref(multiverse, name, r, sc));
+        draw();
+        await this.reload();
+      },
+      async reload() {
+        if (!this.repo) return;
+        const mine = [this.repo, this.scope];
+        try {
+          const d = await api('universe/diff?' + query({ multiverse, universe: name, repo: this.repo, scope: this.scope }));
+          if (this.repo !== mine[0] || this.scope !== mine[1]) return;
+          this.files = d.files || []; this.base = d.base; this.error = null;
+          // A diff on screen was read before this list: read what is open again,
+          // so what is shown cannot disagree with the files above it.
+          const paths = new Set(this.files.map((f) => f.path));
+          for (const p of [...this.open]) if (!paths.has(p)) { this.open.delete(p); this.pinned.delete(p); }
+          this.patches = new Map();
+          // The first change of the list is what somebody came to see.
+          if (!this.open.size && this.files.length) { this.open.add(this.files[0].path); this.active = this.files[0].path; }
+          if (this.active && !paths.has(this.active)) this.active = null;
+          await Promise.all([...this.open].map((p) => this.patch(p)));
+        } catch (e) { this.error = e.message; }
+        draw();
+      },
+      async patch(path) {
+        try {
+          this.patches.set(path, await api('universe/diff?' + query({ multiverse, universe: name, repo: this.repo, scope: this.scope, file: path })));
+        } catch (e) { this.patches.set(path, { error: e.message }); }
+      },
+      // Opening a file closes the others unless they are pinned. Closing is
+      // only for the file's own row: the tree never closes anything.
+      async show(path, scroll) {
+        this.active = path;
+        if (!this.open.has(path)) {
+          for (const p of [...this.open]) if (!this.pinned.has(p)) this.open.delete(p);
+          this.open.add(path);
+        }
+        draw();
+        if (scroll) requestAnimationFrame(() => [...listBox.querySelectorAll('li[data-path]')].find((li) => li.dataset.path === path)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+        if (!this.patches.has(path)) { await this.patch(path); draw(); }
+      },
+      async toggle(path) {
+        if (this.open.has(path)) { this.open.delete(path); this.pinned.delete(path); draw(); return; }
+        await this.show(path, false);
+      },
+      pin(path) { if (this.pinned.has(path)) this.pinned.delete(path); else this.pinned.add(path); draw(); },
+    };
+
+    // The change a repository opens on: what the branch amounts to, or, with
+    // nothing committed, what is edited.
+    const firstScope = (r) => (r.change || !r.uncommitted ? 'branch' : 'uncommitted');
+
+    // Roving focus, as a tab list does: the arrows move between the tabs and
+    // Tab leaves the list.
+    const arrows = (e) => {
+      const keys = { ArrowRight: 1, ArrowLeft: -1, Home: 'first', End: 'last' };
+      if (!(e.key in keys)) return;
+      const tabs = [...e.currentTarget.querySelectorAll('[role=tab]')];
+      const at = tabs.indexOf(document.activeElement);
+      const to = keys[e.key] === 'first' ? 0 : keys[e.key] === 'last' ? tabs.length - 1 : (at + keys[e.key] + tabs.length) % tabs.length;
+      e.preventDefault();
+      tabs[to].focus();
+      tabs[to].click();
+    };
+
+    function draw() {
+      const st = codeState.get(key) || {};
+      const rows = st.rows || [];
+      if (!dv.repo && rows.length && !picked) {
+        picked = true;
+        const r0 = rows.find((r) => r.change || r.uncommitted) || rows[0];
+        dv.select(r0.repo, firstScope(r0));
+        return;
+      }
+      const row = rows.find((r) => r.repo === dv.repo) || {};
+      const repoTabs = rows.map((r) => {
+        const on = r.repo === dv.repo;
+        return h('button', { type: 'button', role: 'tab', class: 'tab' + (on ? ' on' : ''), 'aria-selected': on ? 'true' : 'false', tabindex: on ? '0' : '-1',
+          onclick: () => { if (!on) dv.select(r.repo, firstScope(r)); } },
+          r.review ? svg((PR_STATES[r.review.state] || PR_STATES.open).icon, 'pricon ' + (r.review.state || 'open')) : null,
+          r.repo,
+          r.change ? [h('b', { class: 'add' }, '+' + r.change.added), h('b', { class: 'del' }, '−' + r.change.removed)] : null);
+      });
+      const bar = h('div', { class: 'tabbar' },
+        rows.length ? h('div', { role: 'tablist', 'aria-label': 'Repositories', class: 'tabs', onkeydown: arrows }, repoTabs)
+          : st.error ? errorBox({ message: st.error }) : h('div', { class: 'tabs' }, skeleton('line w3')),
+        h('span', { class: 'grow' }),
+        h('span', { class: 'muted small', title: 'The last time the clones asked their remotes, which is how old what is measured against them can be.' },
+          st.loading ? 'reading…' : st.fetched ? 'remotes read ' + ago(st.fetched) : ''),
+        h('button', { type: 'button', class: 'btn small ghost', title: 'Ask the remotes, then read the branches and their requests again', onclick: () => loadCode(key, true, true) }, 'Reread'));
+
+      if (!rows.length || !dv.repo) {
+        barBox.replaceChildren(bar); topBox.replaceChildren(); treeBox.hidden = true; layout.classList.add('single');
+        listBox.replaceChildren(h('div', null, skeleton('line w3'), skeleton('line w4')));
+        return;
+      }
+
+      // What the repository is: its branch, its request and what has not moved
+      // yet. What changed is in the tabs below, so the facts leave those out.
+      const facts = factsOf(key, row, 'tabs');
+      const scopes = [row.change && 'branch', row.uncommitted && 'uncommitted'].filter(Boolean);
+      const scopeLabel = {
+        branch: ['Changes against ' + (dv.base || row.base || 'its base'), row.change],
+        uncommitted: ['Not committed', row.uncommitted],
+      };
+      const scopeTabs = scopes.length ? h('div', { role: 'tablist', 'aria-label': 'What to read', class: 'tabs sub', onkeydown: arrows }, scopes.map((sc) => {
+        const on = dv.scope === sc;
+        const n = scopeLabel[sc][1];
+        return h('button', { type: 'button', role: 'tab', class: 'tab' + (on ? ' on' : ''), 'aria-selected': on ? 'true' : 'false', tabindex: on ? '0' : '-1',
+          onclick: () => { if (!on) dv.select(dv.repo, sc); } },
+          scopeLabel[sc][0], h('span', { class: 'muted' }, plural(n.files, 'file', 'files')),
+          h('b', { class: 'add' }, '+' + n.added), h('b', { class: 'del' }, '−' + n.removed));
+      })) : null;
+
+      let list;
+      if (dv.error) list = errorBox({ message: dv.error });
+      else if (!scopes.length) list = h('p', { class: 'muted' }, 'Nothing changed in ' + dv.repo + (row.base ? ' against ' + row.base : '') + '.');
+      else if (!dv.files) list = h('div', null, skeleton('line w3'), skeleton('line w4'), skeleton('line w2'));
+      else if (!dv.files.length) list = h('p', { class: 'muted' }, 'Nothing changed.');
+      else list = h('ul', { class: 'cfiles' }, dv.files.map((f) => fileRow(f)));
+
+      barBox.replaceChildren(bar);
+      topBox.replaceChildren(h('div', { role: 'tabpanel', class: 'tabpanel' },
+        h('div', { class: 'repo-head' }, row.branch ? h('span', { class: 'chip branch', title: 'The branch checked out in this repository' }, row.branch) : null,
+          reviewOf(row), ...facts),
+        scopeTabs,
+        scopes.length && dv.files && dv.files.length > 1 ? h('p', { class: 'muted small tip' }, 'Opening a file closes the others, unless you pin it with “Keep open”.') : null));
+      const navigable = !!(dv.files && dv.files.length > 1);
+      treeBox.hidden = !navigable;
+      layout.classList.toggle('single', !navigable);
+      listBox.replaceChildren(list);
+      if (navigable) paintTree();
+    }
+
+    // The files as folders, the way GitHub and GitLab list them: a folder that
+    // holds only another folder is written as one path, and a filter shows what
+    // matches wherever it is.
+    function paintTree() {
+      const files = (dv.files || []).filter((f) => !dv.filter || f.path.toLowerCase().includes(dv.filter));
+      const root = { dirs: new Map(), files: [] };
+      for (const f of files) {
+        const parts = f.path.split('/');
+        let node = root;
+        for (const part of parts.slice(0, -1)) {
+          if (!node.dirs.has(part)) node.dirs.set(part, { dirs: new Map(), files: [] });
+          node = node.dirs.get(part);
+        }
+        node.files.push({ name: parts[parts.length - 1], f });
+      }
+      const draw1 = (node, path) => {
+        const items = [];
+        for (let [name, dir] of [...node.dirs.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+          let full = path ? path + '/' + name : name;
+          while (dir.dirs.size === 1 && !dir.files.length) { // a path of folders, shown as one
+            const [[n, d]] = dir.dirs.entries();
+            name += '/' + n; full += '/' + n; dir = d;
+          }
+          const shut = !dv.filter && dv.collapsed.has(full);
+          items.push(h('li', null,
+            h('button', { type: 'button', class: 'fdir', 'aria-expanded': shut ? 'false' : 'true', title: full, onclick: () => {
+              if (dv.collapsed.has(full)) dv.collapsed.delete(full); else dv.collapsed.add(full);
+              paintTree();
+            } }, h('span', { class: 'caret' }, shut ? '▸' : '▾'), h('span', { class: 'fname' }, name)),
+            shut ? null : draw1(dir, full)));
+        }
+        for (const { name, f } of node.files.sort((a, b) => a.name.localeCompare(b.name))) {
+          const cls = 'fnode' + (dv.active === f.path ? ' active' : '') + (dv.open.has(f.path) ? ' open' : '');
+          items.push(h('li', null, h('button', { type: 'button', class: cls, title: f.oldPath ? f.oldPath + ' \u2192 ' + f.path : f.path, onclick: () => dv.show(f.path, true) },
+            h('span', { class: 'fmark ' + f.status }, STATUS_MARK[f.status] || '?'), h('span', { class: 'fname' }, name),
+            f.binary ? null : h('span', { class: 'fstat' }, h('b', { class: 'add' }, '+' + f.added), h('b', { class: 'del' }, '−' + f.removed)))));
+        }
+        return h('ul', null, items);
+      };
+      treeList.replaceChildren(files.length ? draw1(root, '') : h('p', { class: 'muted small' }, 'No file matches.'));
+    }
+
+    function fileRow(f) {
+      const shown = dv.open.has(f.path), pinned = dv.pinned.has(f.path);
+      return h('li', { class: shown ? 'open' : '', 'data-path': f.path },
+        h('div', { class: 'cfile-row' },
+          h('button', { type: 'button', class: 'cfile', 'aria-expanded': shown ? 'true' : 'false', onclick: () => dv.toggle(f.path) },
+            h('span', { class: 'caret' }, shown ? '▾' : '▸'),
+            h('span', { class: 'fmark ' + f.status, title: f.status }, STATUS_MARK[f.status] || '?'),
+            h('span', { class: 'fpath mono' }, f.oldPath ? f.oldPath + ' → ' + f.path : f.path),
+            f.binary ? h('span', { class: 'muted small' }, 'binary') : [h('b', { class: 'add' }, '+' + f.added), h('b', { class: 'del' }, '−' + f.removed)]),
+          shown ? h('button', { type: 'button', class: 'pin' + (pinned ? ' on' : ''), 'aria-pressed': pinned ? 'true' : 'false',
+            title: pinned ? 'Pinned: stays open when another file is opened. Click to unpin.' : 'Keep this one open when another file is opened.',
+            onclick: () => dv.pin(f.path) }, pinned ? 'Pinned' : 'Keep open') : null),
+        shown ? patchBox(dv.patches.get(f.path)) : null);
+    }
+
+    // The header is the universe as the fleet lists it, so it follows the fleet.
+    const paintHead = (data) => {
+      const w = ((data || {}).multiverses || []).find((x) => x.name === multiverse);
+      const u = w && w.universes.find((x) => x.name === name);
+      if (!u) { head.replaceChildren(h('h1', null, name), h('p', { class: 'muted' }, 'This universe is not in the fleet (any more).')); return; }
+      const total = u.apps.reduce((n, a) => n + a.expected, 0);
+      head.replaceChildren(
+        h('div', { class: 'uni-head' }, h('h1', null, name), branchChip(u),
+          badge(u.running ? 'ok' : 'mute', u.running ? u.running + (total ? '/' + total : '') + ' running' : 'stopped'),
+          u.behind ? badge('warn', u.behind + ' behind') : null,
+          h('span', { class: 'grow' }),
+          h('button', { type: 'button', class: 'btn small', title: 'Containers, stats and logs', onclick: () => sidePanel.open(multiverse, name) }, 'Details')),
+        h('p', { class: 'muted' }, [u.created && 'created ' + ago(u.created), u.lastStarted && 'started ' + ago(u.lastStarted), u.domain].filter(Boolean).join(' · ')),
+        u.note ? h('p', { class: 'note' }, u.note) : null);
+    };
+    paintHead(state.fleet);
+    loadCode(key, true);
+    draw();
+    if (repo) dv.select(repo, SCOPES[scope] ? scope : 'branch');
+    return {
+      title: name,
+      onFleet(d) { paintHead(d); },
+      stop() { if (diffPage === dv) diffPage = null; },
+      async refresh() {
+        if (!state.fleet) { try { paintHead(await api('fleet?' + query({ multiverse }))); } catch (_) { /* the header waits for the socket */ } }
+      },
+    };
+  },
+};
+
+// A diff is text, drawn line by line with the mark it starts with, never as
+// markup: it is a stranger's code.
+function patchBox(p) {
+  if (!p) return h('div', { class: 'patch' }, skeleton('line w4'));
+  if (p.error) return h('div', { class: 'patch' }, errorBox({ message: p.error }));
+  const lines = (p.patch || '').split('\n');
+  return h('div', { class: 'patch mono', tabindex: '0' },
+    lines.map((l) => h('div', { class: 'pl ' + (l.startsWith('@@') ? 'hunk' : l.startsWith('+') && !l.startsWith('+++') ? 'ins' : l.startsWith('-') && !l.startsWith('---') ? 'rem' : /^(diff |index |--- |\+\+\+ |new file|deleted file|similarity|rename )/.test(l) ? 'pmeta' : '') }, l || ' ')),
+    p.truncated ? h('div', { class: 'pl pmeta' }, '… cut: the rest of this diff is not shown here.') : null);
+}
+
+const PR_STATES = {
+  open: { icon: 'prOpen', label: 'open', word: 'Open' },
+  draft: { icon: 'prDraft', label: 'draft', word: 'Draft' },
+  merged: { icon: 'prMerged', label: 'merged', word: 'Merged' },
+  closed: { icon: 'prClosed', label: 'closed', word: 'Closed' },
+};
 
 // Only a web address becomes a link, as everywhere else on this page.
 function reviewOf(r) {
   const v = r.review;
   if (v && /^https?:\/\//.test(v.url)) {
-    return h('a', { class: 'chip pr' + (v.draft ? ' draft' : ''), href: v.url, target: '_blank', rel: 'noopener noreferrer',
-      title: [v.title, v.author && 'opened by ' + v.author, v.updated && 'moved ' + ago(v.updated)].filter(Boolean).join(' \u00b7 ') },
-      h('b', null, v.mark + v.number), v.draft ? h('span', { class: 'muted' }, 'draft') : null,
+    const state = PR_STATES[v.state] || PR_STATES[v.draft ? 'draft' : 'open'];
+    const kind = v.mark === '!' ? 'merge request' : 'pull request';
+    return h('a', { class: 'chip pr ' + (v.state || (v.draft ? 'draft' : 'open')), href: v.url, target: '_blank', rel: 'noopener noreferrer',
+      title: [state.word + ' ' + kind, v.title, v.author && 'opened by ' + v.author, v.updated && 'moved ' + ago(v.updated)].filter(Boolean).join(' · ') },
+      svg(state.icon, 'pricon'), h('b', null, v.mark + v.number),
+      h('span', { class: 'prstate' }, state.label),
       h('span', { class: 'prtitle' }, v.title));
   }
-  // No chip is the answer when there is no open request: a line saying so on
+  // No chip is the answer when the branch never had a request: a line saying so on
   // every repository of every universe would drown the ones that have one.
   if (r.reviewError) return badge('warn', 'unanswered', 'The hosting service could not be asked: ' + r.reviewError);
   return null;
@@ -1336,16 +1692,16 @@ function system(v) {
 let current = null, timer = null;
 
 function route() {
-  const [, page = '', arg] = location.hash.split('/');
+  const [, page = '', arg, ...rest] = location.hash.split('/');
   const key = page === '' ? 'overview' : page;
   const view = views[key] || views.overview;
   document.querySelectorAll('.rail a').forEach((a) => {
-    if (a.dataset.route === (key === 'multiverse' ? 'overview' : key)) a.setAttribute('aria-current', 'page');
+    if (a.dataset.route === (key === 'multiverse' ? 'overview' : key === 'universe' ? 'fleet' : key)) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
   if (current && current.stop) current.stop();
   main.replaceChildren();
-  current = view.mount(main, arg ? decodeURIComponent(arg) : undefined);
+  current = view.mount(main, arg ? decodeURIComponent(arg) : undefined, rest.map(decodeURIComponent));
   document.title = view.title + ' · multiversectl';
   refresh();
   main.focus({ preventScroll: true });
@@ -1365,7 +1721,7 @@ function schedule() {
   clearInterval(timer);
   if (state.connected) return;
   timer = setInterval(() => {
-    if (!document.hidden && /^#\/(fleet|multiverse\/.*)?$|^$/.test(location.hash)) refresh();
+    if (!document.hidden && /^#\/(fleet|multiverse\/.*|universe\/.*)?$|^$/.test(location.hash)) refresh();
   }, REFRESH_MS);
 }
 

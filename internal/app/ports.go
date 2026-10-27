@@ -89,6 +89,24 @@ type Git interface {
 	// dir's HEAD that origin's branch lacks, counted from where the two
 	// parted; with none it is what is edited in dir and not committed.
 	DiffStat(ctx context.Context, dir, ref string) (DiffStat, error)
+	// DiffFiles lists what DiffStat counts, file by file, for the same ref.
+	DiffFiles(ctx context.Context, dir, ref string) ([]FileChange, error)
+	// DiffPatch is the unified diff of one of those files, cut at limit bytes;
+	// truncated says it was.
+	DiffPatch(ctx context.Context, dir, ref, path string, limit int) (patch string, truncated bool, err error)
+}
+
+// FileChange is one file of a diff.
+type FileChange struct {
+	Path string
+	// OldPath is where a renamed file came from.
+	OldPath string
+	// Status is added, modified, deleted, renamed or untracked.
+	Status  string
+	Added   int
+	Removed int
+	// Binary files change without lines to count.
+	Binary bool
 }
 
 // DiffStat is a change measured in files and lines, as `git diff --stat` says
@@ -425,10 +443,11 @@ type RepoHost interface {
 	AddTopic(ctx context.Context, repoURL, topic string) error
 	// Owns says whether a repository URL is on this service.
 	Owns(repoURL string) bool
-	// OpenReview is the open pull or merge request whose source is branch, nil
-	// when there is none. It only reads: it opens nothing and signs nobody in,
-	// and a service that cannot be reached is an error, not an absence.
-	OpenReview(ctx context.Context, repoURL, branch string) (*Review, error)
+	// FindReview is the pull or merge request whose source is branch: the open
+	// one when there is one, otherwise the latest that was merged or closed; nil
+	// when there never was one. It only reads: it opens nothing and signs nobody
+	// in, and a service that cannot be reached is an error, not an absence.
+	FindReview(ctx context.Context, repoURL, branch string) (*Review, error)
 }
 
 // Review is a pull request on GitHub or a merge request on GitLab: the one
@@ -439,8 +458,12 @@ type Review struct {
 	Number int
 	Title  string
 	URL    string
+	// State is open, draft, merged or closed.
+	State string
 	// Draft says it is not asking to be merged yet.
 	Draft bool
+	// Base is the branch it asks to be merged into.
+	Base string
 	// Author is who opened it, Updated when it last moved.
 	Author  string
 	Updated time.Time
