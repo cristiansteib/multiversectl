@@ -295,3 +295,47 @@ func sortedEntrypoints(m map[string]int) []string {
 	sort.Strings(names)
 	return names
 }
+
+// Part is what one repository says about itself, in its own file: the apps it
+// runs and the proxy entrypoints they need. The multiverse that lists the
+// repository only has to say where it is.
+type Part struct {
+	Apps        map[string]App
+	Entrypoints map[string]int
+}
+
+// Merge adds what a repository says about itself. The apps it declares replace
+// the one the multiverse would have derived for it; they cannot take the name
+// of another repository's app, and an entrypoint another part or the manifest
+// already has must be on the same port.
+func (m *Manifest) Merge(repoKey string, p Part) error {
+	if _, ok := m.Repos[repoKey]; !ok {
+		return fmt.Errorf("no repo %q to merge into", repoKey)
+	}
+	var errs []string
+	for key, a := range m.Apps {
+		if a.Repo == repoKey && a.Derived && len(p.Apps) > 0 {
+			delete(m.Apps, key)
+		}
+	}
+	for key, a := range p.Apps {
+		if other, taken := m.Apps[key]; taken {
+			errs = append(errs, fmt.Sprintf("app %q is already defined for repo %q", key, other.Repo))
+			continue
+		}
+		a.Repo = repoKey
+		m.Apps[key] = a
+	}
+	for name, port := range p.Entrypoints {
+		if have, ok := m.Proxy.Entrypoints[name]; ok && have != port {
+			errs = append(errs, fmt.Sprintf("proxy entrypoint %q is %d here and %d elsewhere", name, port, have))
+			continue
+		}
+		m.Proxy.Entrypoints[name] = port
+	}
+	if len(errs) > 0 {
+		sort.Strings(errs)
+		return &ValidationError{Problems: errs}
+	}
+	return m.Validate()
+}
