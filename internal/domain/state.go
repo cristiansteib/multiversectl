@@ -57,10 +57,10 @@ type UniverseState struct {
 	// which is what someone finding it a week later wants to open first.
 	PR       string `yaml:"pr,omitempty"`
 	Manifest string `yaml:"manifest,omitempty"`
-	// SetupDone are the apps whose setup has run in this universe, which is
-	// done once: running it again on every start would load the same data over
-	// whatever was changed since.
-	SetupDone []string `yaml:"setupDone,omitempty"`
+	// HooksDone are the hooks marked Once that have run in this universe (see
+	// Hook.Key), so a later start does not load the same data over whatever was
+	// changed since.
+	HooksDone []string `yaml:"hooksDone,omitempty"`
 	Version   string   `yaml:"version,omitempty"`
 }
 
