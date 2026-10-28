@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -340,11 +341,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 		return domain.UniverseState{}, err
 	}
 	u := s.Universe(strings.TrimSpace(in.Name))
+	s.say(1, "universe `%s`: project %s, in %s", u.Name, u.Project(), u.Dir())
 
 	dom, err := s.ResolveDomain(ctx)
 	if err != nil {
 		return domain.UniverseState{}, err
 	}
+	s.say(1, "domain: %s", dom)
 	plans, err := s.plan(ctx, u, in)
 	if err != nil {
 		return domain.UniverseState{}, err
@@ -367,6 +370,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 			s.Out.OK("%s: checkout exists on %s", p.key, current)
 			continue
 		}
+		s.say(1, "%s: adding the worktree %s on %s", p.key, p.dest, cmp.Or(p.branch, "origin/"+p.base))
 		if err := s.addWorktree(ctx, p); err != nil {
 			return domain.UniverseState{}, s.rollback(ctx, made, u, dirExisted, fmt.Errorf("%s: %w", p.key, err))
 		}
@@ -385,6 +389,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 		}
 	}
 
+	s.say(1, "copying the secret files the apps list")
 	if err := s.copySecrets(u); err != nil {
 		return domain.UniverseState{}, s.rollback(ctx, made, u, dirExisted, err)
 	}
@@ -410,11 +415,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 	}
 	// The checkouts exist now, so their compose files can be read for the
 	// labels that say which addresses this universe answers on.
+	s.say(1, "reading the addresses from the compose files")
 	rules, err := s.resolveRules(ctx, u, dom)
 	if err != nil {
 		s.Out.Warn("addresses: %v (they will be resolved on the first start)", err)
 	}
 	st.Rules, st.Hosts = rules, hostnames(rules)
+	s.sayRules(rules)
 	if err := s.Store.Save(st); err != nil {
 		return domain.UniverseState{}, s.rollback(ctx, made, u, dirExisted, err)
 	}

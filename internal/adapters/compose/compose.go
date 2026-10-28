@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/cristiansteib/multiversectl/internal/adapters/trace"
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
@@ -27,19 +28,21 @@ const (
 // Compose runs the container runtime through the docker CLI.
 type Compose struct {
 	stdout, stderr io.Writer
+	trace          *trace.Tracer
 }
 
 var _ app.Runtime = (*Compose)(nil)
 
 // New streams child output to the given writers; nil means os.Stdout / os.Stderr.
-func New(stdout, stderr io.Writer) *Compose {
+// The tracer, which may be nil, says which commands it runs.
+func New(stdout, stderr io.Writer, t *trace.Tracer) *Compose {
 	if stdout == nil {
 		stdout = os.Stdout
 	}
 	if stderr == nil {
 		stderr = os.Stderr
 	}
-	return &Compose{stdout: stdout, stderr: stderr}
+	return &Compose{stdout: stdout, stderr: stderr, trace: t}
 }
 
 func (c *Compose) Build(ctx context.Context, r app.RuntimeRequest) error {
@@ -73,7 +76,7 @@ func (c *Compose) Exec(ctx context.Context, r app.RuntimeRequest, service string
 
 func (c *Compose) ExecQuiet(ctx context.Context, r app.RuntimeRequest, service string, args []string) (string, error) {
 	var out bytes.Buffer
-	quiet := &Compose{stdout: &out, stderr: &out}
+	quiet := &Compose{stdout: &out, stderr: &out, trace: c.trace}
 	err := quiet.stream(ctx, r, nil, append([]string{"exec", "-T", service}, args...)...)
 	return out.String(), err
 }
@@ -95,7 +98,7 @@ func (c *Compose) RemoveAsRoot(ctx context.Context, dir string) error {
 
 // attached is this adapter with the process's own streams.
 func (c *Compose) attached() *Compose {
-	return &Compose{stdout: os.Stdout, stderr: os.Stderr}
+	return &Compose{stdout: os.Stdout, stderr: os.Stderr, trace: c.trace}
 }
 
 func (c *Compose) Restart(ctx context.Context, r app.RuntimeRequest, service string) error {
@@ -297,7 +300,10 @@ func (c *Compose) Inspect(ctx context.Context, r app.RuntimeRequest) (app.Projec
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
+	done := c.trace.Begin(cmd)
+	err := cmd.Run()
+	done(err)
+	if err != nil {
 		return app.ProjectConfig{}, fmt.Errorf("docker compose config: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
 
@@ -360,7 +366,10 @@ func (c *Compose) stream(ctx context.Context, r app.RuntimeRequest, stdin io.Rea
 	cmd.Stdin = stdin
 	cmd.Stdout = c.stdout
 	cmd.Stderr = c.stderr
-	if err := cmd.Run(); err != nil {
+	done := c.trace.Begin(cmd)
+	err := cmd.Run()
+	done(err)
+	if err != nil {
 		return fmt.Errorf("docker compose %s: %w", verb[0], err)
 	}
 	return nil
@@ -373,7 +382,9 @@ func (c *Compose) capture(ctx context.Context, name string, args ...string) ([]b
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stderr = &stderr
+	done := c.trace.Begin(cmd)
 	out, err := cmd.Output()
+	done(err)
 	if err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if strings.Contains(msg, "Cannot connect to the Docker daemon") || strings.Contains(msg, "docker daemon") {

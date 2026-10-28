@@ -24,6 +24,7 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/adapters/serverproc"
 	"github.com/cristiansteib/multiversectl/internal/adapters/statestore"
 	"github.com/cristiansteib/multiversectl/internal/adapters/system"
+	"github.com/cristiansteib/multiversectl/internal/adapters/trace"
 	"github.com/cristiansteib/multiversectl/internal/adapters/traefik"
 	"github.com/cristiansteib/multiversectl/internal/adapters/updatecache"
 	"github.com/cristiansteib/multiversectl/internal/app"
@@ -33,8 +34,9 @@ import (
 // Machine wires services for one binary and one version.
 type Machine struct {
 	Version string
-	// Verbose shows the stdout of the commands being run.
-	Verbose bool
+	// Verbose is how much to say of what is being done: 0 the result alone, 1 the
+	// steps and what the commands print, 2 the commands too, 3 how each ended.
+	Verbose int
 	// Ctx ends a question waiting on the terminal; nil means never.
 	Ctx context.Context
 	// Stdout and Stderr receive what the commands being run print, instead of
@@ -60,11 +62,11 @@ func LoadConfig() (app.ConfigStore, app.Config, error) {
 	return store, cfg, err
 }
 
-// Deps wires every adapter. Child-process stdout is shown only when Verbose;
+// Deps wires every adapter. Child-process stdout is shown from Verbose 1;
 // stderr, where the runtime reports progress and failures, always is.
 func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps {
 	var childOut io.Writer = io.Discard
-	if m.Verbose {
+	if m.Verbose >= 1 {
 		childOut = os.Stdout
 	}
 	if m.Stdout != nil {
@@ -74,15 +76,16 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 	if m.Stderr != nil {
 		childErr = m.Stderr
 	}
-	proxy := traefik.New(childOut, childErr)
+	tracer := trace.New(m.Verbose, os.Stderr)
+	proxy := traefik.New(childOut, childErr, tracer)
 	// Without a cache directory there is nothing to share, not a reason to fail.
 	var updates app.UpdateStore
 	if u, err := updatecache.New(); err == nil {
 		updates = u
 	}
 	return app.Deps{
-		Git:       gitcli.New(),
-		Runtime:   compose.New(childOut, childErr),
+		Git:       gitcli.New(tracer),
+		Runtime:   compose.New(childOut, childErr, tracer),
 		Proxy:     proxy,
 		Router:    proxy,
 		Files:     fsx.New(),
@@ -96,6 +99,7 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 		Locks:     lockfile.New(),
 		Out:       out,
 		Progress:  m.Progress(),
+		Verbosity: m.Verbose,
 	}
 }
 

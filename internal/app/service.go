@@ -37,6 +37,9 @@ type Deps struct {
 	// Locks keeps this process out of the way of another one working on the
 	// same multiverse. Nil runs without them, which is how the tests run.
 	Locks Locks
+	// Verbosity is how much of what is being done to say: 1 the steps, 3 the
+	// detail behind them. The commands run are the adapters' to say, from 2.
+	Verbosity int
 }
 
 // Service carries out the use cases against one multiverse.
@@ -323,4 +326,13 @@ func (s *Service) SecretPaths(u domain.Universe, appKey string) [][2]string {
 		out = append(out, [2]string{filepath.Join(clone, name), filepath.Join(u.RepoDir(app.Repo), name)})
 	}
 	return out
+}
+
+// say tells what is being done, for a person who asked to be told with -v. It
+// is for the steps a command is made of, not for its result, which the command
+// reports whatever was asked.
+func (s *Service) say(level int, format string, a ...any) {
+	if s.Verbosity >= level {
+		s.Out.Plain("  · "+format, a...)
+	}
 }

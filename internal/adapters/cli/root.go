@@ -17,7 +17,7 @@ type Globals struct {
 	Root       string
 	Multiverse string
 	NoColor    bool
-	Verbose    bool
+	Verbose    int
 	JSON       bool
 }
 
@@ -78,7 +78,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	flags.StringVarP(&g.Multiverse, "multiverse", "m", "", "multiverse to act on (default: the one whose folder you are in, else the only one installed)")
 	flags.StringVar(&g.Root, "root", "", "multiverse root (default $MULTIVERSECTL_ROOT, the manifest's spec.root, config, or the manifest's directory)")
 	flags.BoolVar(&g.NoColor, "no-color", false, "disable colour output")
-	flags.BoolVarP(&g.Verbose, "verbose", "v", false, "show the commands being run")
+	flags.CountVarP(&g.Verbose, "verbose", "v", "say what is being done: -v the steps and what the commands print, -vv the commands run, -vvv how each ended (--verbose=N too)")
 	flags.BoolVar(&g.JSON, jsonFlag, false, "machine-readable output: -o json on a listing, and --help as a document (for agents)")
 
 	run = runner{g: g, out: out, f: f}

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -50,6 +51,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		return err
 	}
 	u := s.Universe(st.Name)
+	s.say(1, "universe `%s`: starting %s", st.Name, strings.Join(apps, ", "))
 
 	// Before the proxy is touched, so a missing file leaves nothing half started.
 	var runnable []string
@@ -58,9 +60,11 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 			runnable = append(runnable, appKey)
 		}
 	}
+	s.say(1, "checking the secret files of %s", strings.Join(runnable, ", "))
 	if err := s.PrepareSecrets(u, runnable); err != nil {
 		return err
 	}
+	s.say(1, "making sure the proxy and its network are up")
 	if err := s.EnsureProxy(ctx, st.Domain); err != nil {
 		return err
 	}
@@ -68,10 +72,12 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	// Addresses may come from the compose files' labels, which can have
 	// changed since the universe was created, so resolve them again and keep
 	// the result for the commands that only read.
+	s.say(1, "reading the addresses from the compose files")
 	rules, err := s.resolveRules(ctx, u, st.Domain)
 	if err != nil {
 		return fmt.Errorf("%w%s", err, s.behindHint(ctx, st))
 	}
+	s.sayRules(rules)
 	if err := s.forwardPorts(ctx, st, rules); err != nil {
 		return err
 	}
@@ -92,11 +98,14 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 			return err
 		}
 		base := s.request(u, st, appKey, in.With)
+		s.say(1, "%s: reading its services from the compose files", appKey)
+		s.say(3, "%s: compose project %s, files %s, profiles %v", appKey, base.Project, strings.Join(base.Files, ", "), base.Profiles)
 		cfg, err := s.Runtime.Inspect(ctx, base)
 		if err != nil {
 			return fmt.Errorf("%s: reading services: %w", appKey, err)
 		}
 		defined := cfg.Names()
+		s.say(1, "%s: services %s", appKey, strings.Join(defined, ", "))
 
 		serviceEnv, err := s.serviceEnv(st, cfg)
 		if err != nil {
@@ -118,10 +127,13 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 			req.Services = defined
 		}
 		if s.Manifest.Apps[appKey].Build || buildsAnImage(cfg) {
+			s.say(1, "%s: building the images", appKey)
 			if err := s.Runtime.Build(ctx, req); err != nil {
 				return fmt.Errorf("%s: build: %w", appKey, err)
 			}
 		}
+		s.say(1, "%s: starting %s", appKey, strings.Join(req.Services, ", "))
+		s.say(3, "%s: environment given to compose: %s (names only)", appKey, strings.Join(slices.Sorted(maps.Keys(req.Env)), ", "))
 		if err := s.Runtime.Up(ctx, req); err != nil {
 			return fmt.Errorf("%s: start: %w", appKey, err)
 		}
@@ -435,6 +447,7 @@ func (s *Service) runHooks(ctx context.Context, st domain.UniverseState, appKey 
 			s.Out.Warn("%s: hook `%s` names no service, and the app has %d: set `container.service` on it", appKey, line, len(services))
 			return st
 		}
+		s.say(3, "%s: hook %s, once=%v, already done=%v", appKey, key, hook.Once, slices.Contains(st.HooksDone, key))
 		s.Out.Info("%s: running `%s` in %s", appKey, line, service)
 		if out, err := s.tryUntil(ctx, func() (string, error) { return s.Runtime.ExecQuiet(ctx, req, service, hook.Command) }); err != nil {
 			s.Out.Warn("%s: `%s` did not succeed (%v). The universe is up; run it yourself with `multiversectl universe exec %s %s --service %s -- %s`, and it is tried again on the next start",
@@ -466,6 +479,7 @@ func (s *Service) tryUntil(ctx context.Context, f func() (string, error)) (strin
 		if err == nil {
 			return out, nil
 		}
+		s.say(3, "not yet (%v); trying again in %s", err, hookEvery)
 		if ctx.Err() != nil || time.Now().Add(hookEvery).After(deadline) {
 			return out, err
 		}
@@ -483,4 +497,15 @@ func lastLines(s string, n int) string {
 		lines = lines[len(lines)-n:]
 	}
 	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+// sayRules tells which hostnames a universe answers on, which is what a person
+// following a start wants to see before anything is up.
+func (s *Service) sayRules(rules map[string]domain.RouteRule) {
+	if s.Verbosity < 3 {
+		return
+	}
+	for _, key := range slices.Sorted(maps.Keys(rules)) {
+		s.say(3, "address %s: %s", key, rules[key].Hostname)
+	}
 }

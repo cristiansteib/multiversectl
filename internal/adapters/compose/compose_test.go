@@ -87,7 +87,7 @@ func TestStatsLinesAreParsed(t *testing.T) {
 // before any container is asked.
 func TestRemovingAsRootRefusesWhatIsTooCloseToTheTop(t *testing.T) {
 	for _, dir := range []string{"", "/", "/home", "/home/dev", "relative/path/here", "."} {
-		if err := New(io.Discard, io.Discard).RemoveAsRoot(context.Background(), dir); err == nil || !strings.Contains(err.Error(), "not removing") {
+		if err := New(io.Discard, io.Discard, nil).RemoveAsRoot(context.Background(), dir); err == nil || !strings.Contains(err.Error(), "not removing") {
 			t.Errorf("%q: %v", dir, err)
 		}
 	}

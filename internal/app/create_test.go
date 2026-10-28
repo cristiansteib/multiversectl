@@ -103,7 +103,7 @@ func newBench(t *testing.T) *bench {
 		m.Repos[key] = domain.Repo{URL: origin}
 	}
 	b.svc = app.New(app.Deps{
-		Git: gitcli.New(), Files: fsx.New(), Store: statestore.New(ws), Runtime: noRuntime{}, Out: b.out,
+		Git: gitcli.New(nil), Files: fsx.New(), Store: statestore.New(ws), Runtime: noRuntime{}, Out: b.out,
 	}, ws, m, "test")
 	return b
 }
@@ -118,7 +118,7 @@ func (b *bench) create(in app.CreateInput) (domain.UniverseState, error) {
 // branchesOf lists a clone's branches, local and on origin.
 func (b *bench) branchesOf(key string) string {
 	b.t.Helper()
-	names, err := gitcli.New().Branches(context.Background(), b.clone(key))
+	names, err := gitcli.New(nil).Branches(context.Background(), b.clone(key))
 	if err != nil {
 		b.t.Fatal(err)
 	}
@@ -303,7 +303,7 @@ func TestAFailedCreateTakesBackWhatItAdded(t *testing.T) {
 	if got := b.branchesOf("api"); strings.Contains(got, "u6") {
 		t.Errorf("api kept the branch the failed universe made: %s", got)
 	}
-	if at, _ := gitcli.New().CheckedOutAt(context.Background(), b.clone("api"), "u6"); at != "" {
+	if at, _ := gitcli.New(nil).CheckedOutAt(context.Background(), b.clone("api"), "u6"); at != "" {
 		t.Errorf("a worktree was left at %s", at)
 	}
 	// And the number is free again.
