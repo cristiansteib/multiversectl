@@ -59,6 +59,12 @@ export class StatsPage {
   protected readonly paused = signal(false);
   protected readonly failed = signal<{ multiverse: string; error: string }[]>([]);
   protected readonly menuOpen = signal(false);
+  /** The menu closes when focus leaves it, not only when its button is pressed again. */
+  protected menuBlur(e: FocusEvent): void {
+    const into = e.relatedTarget as Node | null;
+    if (into && (e.currentTarget as HTMLElement).contains(into)) return;
+    this.menuOpen.set(false);
+  }
   // Which universes are left out, rather than which are in: a universe that
   // appears while the page is open is shown without being asked for.
   protected readonly hidden = signal<ReadonlySet<string>>(new Set());
@@ -242,7 +248,8 @@ export class StatsPage {
     const history = new Map<string, number[]>();
     for (const s of this.windowed()) for (const r of s.rows) {
       const k = svcOf(r);
-      history.set(k, [...(history.get(k) ?? []), r.cpu]);
+      const h = history.get(k);
+      if (h) h.push(r.cpu); else history.set(k, [r.cpu]);
     }
     return this.rows().slice().sort((a, b) =>
       natural(a.multiverse, b.multiverse) || natural(a.universe, b.universe) || natural(a.app, b.app) || natural(a.service, b.service))

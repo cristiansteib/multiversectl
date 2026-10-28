@@ -72,7 +72,8 @@ export class FleetPage {
 
   protected setText(value: string): void {
     this.text.set(value);
-    this.go({ q: value.trim() || null });
+    // As typed: a trimmed address would hand the field back without the space just typed.
+    this.go({ q: value || null });
   }
   protected setState(value: StateFilter): void { this.go({ state: value === 'all' ? null : value }); }
   protected setMultiverse(value: string): void { this.go({ mv: value || null }); }

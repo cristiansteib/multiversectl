@@ -33,7 +33,7 @@
         <label class="switch"><input type="checkbox" [checked]="times()" (change)="times.set(!times())" /> Times</label>
       </div>
       <div class="viewport">
-        <div #box class="out mono" [class.wrap]="wrap()" tabindex="0" role="log" [attr.aria-label]="'Log of ' + selected()" (scroll)="scrolled()">
+        <div #box class="out mono" [class.wrap]="wrap()" tabindex="0" role="log" aria-live="off" [attr.aria-label]="'Log of ' + selected()" (scroll)="scrolled()">
           @for (l of rows(); track l.id) {
             <div class="ll" [class]="l.level">@if (times() && l.at) {<span class="lt">{{ time(l.at) }}</span>}<span class="lm">@for (g of l.segs; track $index) {@if (g.mark) {<mark>{{ g.s }}</mark>} @else {<span [class]="g.cls">{{ g.s }}</span>}}</span></div>
           } @empty {

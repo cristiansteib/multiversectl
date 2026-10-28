@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Api } from '../../core/api.service';
 import { Events } from '../../core/events.service';
 import { Ops } from '../../core/ops.service';
@@ -38,13 +38,20 @@ export class DetailsTab {
   protected readonly plural = plural;
   protected readonly tone = (s: string): Tone => CHECK_TONE[s] ?? 'mute';
 
+  constructor() {
+    // A report is of one universe: another one's page starts without it.
+    effect(() => { this.store.query(); untracked(() => { this.doctor.set(null); this.doctorError.set(null); }); });
+  }
+
   protected async check(): Promise<void> {
+    const q = this.store.query();
     this.checking.set(true);
     this.doctorError.set(null);
     try {
-      this.doctor.set(await this.api.get<DoctorView>('doctor', this.store.query()));
+      const report = await this.api.get<DoctorView>('doctor', q);
+      if (this.store.isCurrent(q)) this.doctor.set(report);
     } catch (e) {
-      this.doctorError.set((e as Error).message);
+      if (this.store.isCurrent(q)) this.doctorError.set((e as Error).message);
     } finally {
       this.checking.set(false);
     }

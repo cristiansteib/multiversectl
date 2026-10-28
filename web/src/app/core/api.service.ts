@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom } from 'rxjs';
 
 /** A failed request: the server's own sentence, and what came with it. */
 export class ApiError extends Error {
@@ -30,7 +30,7 @@ export class Api {
     return this.send(this.http.post<T>('/api/' + path, payload, { headers: { 'X-Mvctl': '1' } }));
   }
 
-  private async send<T>(req: import('rxjs').Observable<T>): Promise<T> {
+  private async send<T>(req: Observable<T>): Promise<T> {
     try {
       return await firstValueFrom(req);
     } catch (e) {

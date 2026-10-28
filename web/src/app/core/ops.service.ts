@@ -45,7 +45,9 @@ export class Ops {
   /** Start an action and open the dock on it. A refusal comes back to the caller, which can say it where the person is looking. */
   async run(request: OpRequest): Promise<Op> {
     const op = await this.api.post<Op>('ops', request);
-    this.upsert(op);
+    // The websocket may have told the page how it went before this answer, which
+    // is how it began: what is known already is not replaced by it.
+    if (!this.list().some((o) => o.id === op.id)) this.upsert(op);
     this.shownId.set(op.id);
     this.open.set(true);
     return op;

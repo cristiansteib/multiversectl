@@ -77,11 +77,13 @@ export class CodeTab {
 
   private lastFetch = Date.now();
   private busy = false;
+  private again = false;
+  private againFetch = false;
 
   constructor() {
     effect(() => {
       const q = this.store.query();
-      if (q.multiverse && q.universe) untracked(() => void this.load(false));
+      if (q.multiverse && q.universe) untracked(() => { this.rows.set(null); void this.load(false); });
     });
     const timer = setInterval(() => { if (!document.hidden) void this.load(Date.now() - this.lastFetch > FETCH_EVERY_MS); }, EVERY_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
@@ -118,23 +120,37 @@ export class CodeTab {
   protected scopeStat(s: Scope) { return s === 'branch' ? this.row()?.change : this.row()?.uncommitted; }
 
   private async load(fetch: boolean): Promise<void> {
-    if (this.busy) return;
+    // One read at a time; one asked for meanwhile (another universe, a fetch) is
+    // run when this ends, so what is shown is never what was asked for before.
+    if (this.busy) { this.again = true; this.againFetch ||= fetch; return; }
     this.busy = true;
     this.loading.set(true);
+    try {
+      let f = fetch;
+      do {
+        this.again = false;
+        this.againFetch = false;
+        await this.readOnce(f);
+        f = this.againFetch;
+      } while (this.again);
+    } finally {
+      this.busy = false;
+      this.loading.set(false);
+    }
+  }
+
+  private async readOnce(fetch: boolean): Promise<void> {
     const q = this.store.query();
     try {
       const d = await this.api.get<CodeView>('universe/code', { ...q, fetch });
-      if (q.universe !== this.store.name()) return;
+      if (!this.store.isCurrent(q)) return;
       this.rows.set(d.rows ?? []);
       this.fetched.set(d.fetched);
       this.error.set(null);
       if (fetch) this.lastFetch = Date.now();
       this.tick.update((n) => n + 1);
     } catch (e) {
-      this.error.set((e as Error).message);
-    } finally {
-      this.busy = false;
-      this.loading.set(false);
+      if (this.store.isCurrent(q)) this.error.set((e as Error).message);
     }
   }
 }

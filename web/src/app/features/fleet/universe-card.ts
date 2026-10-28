@@ -15,7 +15,7 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
   imports: [RouterLink, Badge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <a class="tile" [class.stopped]="state() === 'stopped'" [routerLink]="link()" [attr.aria-label]="'Universe ' + universe().name + ', ' + status()">
+    <a class="tile" [class.stopped]="state() === 'stopped'" [routerLink]="link()">
       <span class="top">
         <span class="dot" [class]="tone()" [class.pulse]="state() === 'partial'"></span>
         <span class="num" [class.word]="!isNumber()">{{ universe().name }}</span>

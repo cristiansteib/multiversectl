@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, input, output, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, inject, input, output, viewChild } from '@angular/core';
 
 /**
  * A dialog on the platform's own <dialog>: focus is trapped, Escape closes it,
@@ -26,7 +26,13 @@ export class Modal {
   readonly closed = output<void>();
   private readonly dlg = viewChild.required<ElementRef<HTMLDialogElement>>('dlg');
 
-  constructor() { afterNextRender(() => this.dlg().nativeElement.showModal()); }
+  constructor() {
+    // The dialog is removed rather than closed, so focus is put back by hand: on
+    // what had it when the dialog opened.
+    const opener = document.activeElement as HTMLElement | null;
+    inject(DestroyRef).onDestroy(() => { if (opener?.isConnected) opener.focus(); });
+    afterNextRender(() => this.dlg().nativeElement.showModal());
+  }
 
   close(): void { this.dlg().nativeElement.close(); }
   /** A press on the backdrop, not on the dialog's own content. */

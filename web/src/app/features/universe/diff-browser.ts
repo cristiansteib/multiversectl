@@ -47,7 +47,6 @@ export class DiffBrowser {
   protected readonly mark = STATUS_MARK;
   protected readonly navigable = computed(() => (this.files()?.length ?? 0) > 1);
   protected readonly tree = computed(() => fileTree(this.files() ?? [], this.filter().trim(), this.collapsed()));
-  protected readonly name = (p: string) => p;
 
   private sig = '';
   private busy = false;
@@ -73,9 +72,21 @@ export class DiffBrowser {
   }
 
   private async load(): Promise<void> {
-    // One read at a time; one asked for meanwhile waits.
+    // One read at a time; one asked for meanwhile waits, and is run when this ends
+    // whatever this one finds (an answer for what is no longer shown is dropped).
     if (this.busy) { this.again = true; return; }
     this.busy = true;
+    try {
+      do {
+        this.again = false;
+        await this.readOnce();
+      } while (this.again);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async readOnce(): Promise<void> {
     const mine = [this.repo(), this.scope()];
     try {
       const d = await this.api.get<DiffFilesView>('universe/diff', this.params());
@@ -97,10 +108,7 @@ export class DiffBrowser {
       await Promise.all([...this.open()].map((p) => this.fetchPatch(p)));
     } catch (e) {
       this.error.set((e as Error).message);
-    } finally {
-      this.busy = false;
     }
-    if (this.again) { this.again = false; await this.load(); }
   }
 
   private async fetchPatch(path: string): Promise<void> {

@@ -49,7 +49,7 @@
         </span>
       </div>
       @if (r.open && r.node.kind === 'multiverse') {
-        <dl class="detail" [style.--depth]="r.depth" [attr.aria-label]="r.node.name + ', details'">
+        <dl class="detail" role="group" [style.--depth]="r.depth" [attr.aria-label]="r.node.name + ', details'">
           <dt>Repository</dt><dd><mv-place [loc]="r.node.loc" /></dd>
           <dt>Branch</dt><dd>{{ r.node.ref || 'the default branch' }}</dd>
           <dt>Manifest</dt><dd class="mono">{{ r.node.file || 'multiverse.yaml' }}</dd>
@@ -60,6 +60,8 @@
                 @if (list.length) {
                   <span class="chips">@for (x of list; track x.key) { <mv-repo-chip [loc]="x.loc" [name]="x.key" /> }</span>
                 } @else { <span class="muted">None listed.</span> }
+              } @else if (reposOf(inst) === null) {
+                <span class="muted">Could not be read.</span> <button type="button" class="btn small ghost" (click)="retryRepos(inst)">Try again</button>
               } @else { <span class="muted">Reading…</span> }
             } @else {
               <span class="muted">Listed in its manifest, which is read when it is installed.</span>

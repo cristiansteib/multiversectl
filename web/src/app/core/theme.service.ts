@@ -7,7 +7,20 @@ export type Theme = 'light' | 'dark';
 export class ThemeService {
   readonly theme = signal<Theme>(this.initial());
 
-  constructor() { this.apply(this.theme()); }
+  constructor() {
+    this.apply(this.theme());
+    // Until a choice is made the theme is the system's, and follows it.
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (this.chosen()) return;
+      const next: Theme = e.matches ? 'dark' : 'light';
+      this.theme.set(next);
+      this.apply(next);
+    });
+  }
+
+  private chosen(): boolean {
+    try { return localStorage.getItem('theme') !== null; } catch { return false; }
+  }
 
   toggle(): void {
     const next: Theme = this.theme() === 'dark' ? 'light' : 'dark';

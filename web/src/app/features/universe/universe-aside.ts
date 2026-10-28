@@ -1,12 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Ops } from '../../core/ops.service';
-import { ago } from '../../core/util';
+import { ago, isHttpUrl } from '../../core/util';
 import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { Icon } from '../../shared/ui/icon';
 import { PrChip } from '../../shared/ui/pr-chip';
 import { RepoChip } from '../../shared/ui/repo-chip';
-import { isWebUrl } from './patch';
 import { UniverseStore } from './universe.store';
 
 /**
@@ -34,7 +33,7 @@ export class UniverseAside {
     const out: { url: string; label: string; from: string }[] = [];
     for (const a of this.u()?.apps ?? []) {
       for (const x of a.urls ?? []) {
-        if (!isWebUrl(x.url) || seen.has(x.url)) continue;
+        if (!isHttpUrl(x.url) || seen.has(x.url)) continue;
         seen.add(x.url);
         out.push({ url: x.url, label: x.url.replace(/^https?:\/\//, ''), from: a.key === x.service ? a.key : `${a.key}/${x.service}` });
       }

@@ -2,9 +2,9 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, e
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Api } from '../../core/api.service';
 import { Events } from '../../core/events.service';
-import { ContainerView, ServiceView, StatView } from '../../core/models';
+import { ContainerView, StatView } from '../../core/models';
 import { Ops } from '../../core/ops.service';
-import { plural } from '../../core/util';
+import { plural, isHttpUrl } from '../../core/util';
 import { Sparkline } from '../../shared/chart/sparkline';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { EmptyState } from '../../shared/ui/empty-state';
@@ -12,7 +12,6 @@ import { ErrorBox } from '../../shared/ui/error-box';
 import { Icon } from '../../shared/ui/icon';
 import { Skeleton } from '../../shared/ui/skeleton';
 import { LogViewer } from './log-viewer';
-import { isWebUrl } from './patch';
 import { UniverseStore } from './universe.store';
 
 const STATS_MS = 3000;
@@ -43,6 +42,9 @@ export class ServicesTab {
   private readonly destroyRef = inject(DestroyRef);
   private readonly logPanel = viewChild(LogViewer, { read: ElementRef });
 
+  /** Which universe the readings are of. */
+  private key = '';
+  private polling = false;
   protected readonly rows = signal<ContainerView[] | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly stats = signal<Record<string, StatView>>({});
@@ -57,7 +59,6 @@ export class ServicesTab {
   protected readonly choices = computed(() => (this.rows() ?? []).map((r) => ({ key: `${r.app}/${r.service}`, running: r.running })));
   protected readonly readOnly = this.events.readOnly;
   protected readonly min = (n: number) => Math.min(100, Math.max(0, n));
-  protected readonly webUrl = isWebUrl;
   protected readonly plural = plural;
   protected readonly dot = (state: string) => STATE_DOT[state] ?? '';
   protected readonly tone = (pct: number) => (pct >= 85 ? 'bad' : pct >= 60 ? 'warn' : 'ok');
@@ -71,7 +72,14 @@ export class ServicesTab {
     effect(() => {
       this.events.fleet();
       const q = this.store.query();
-      if (q.multiverse && q.universe) untracked(() => void this.loadRows());
+      if (q.multiverse && q.universe) untracked(() => {
+        // Another universe: what was read for the last is not shown for this one.
+        if (this.key !== `${q.multiverse}/${q.universe}`) {
+          this.key = `${q.multiverse}/${q.universe}`;
+          this.rows.set(null); this.stats.set({}); this.history.set({});
+        }
+        void this.loadRows();
+      });
     });
     this.ops.finished$.pipe(takeUntilDestroyed()).subscribe(() => void this.loadRows());
 
@@ -81,9 +89,6 @@ export class ServicesTab {
     effect(() => { const want = this.log(); if (want) untracked(() => this.selected.set(want)); });
   }
 
-  protected svcTitle(s: ServiceView): string {
-    return [s.state, s.detail, s.published && `publishes ${s.published}`].filter(Boolean).join(' · ');
-  }
 
   protected showLog(key: string): void {
     this.selected.set(key);
@@ -109,7 +114,7 @@ export class ServicesTab {
   /** Where this container is reached: the addresses the proxy routes to this very service. */
   protected urlsFor(r: ContainerView): string[] {
     const app = this.u()?.apps.find((a) => a.key === r.app);
-    return (app?.urls ?? []).filter((x) => x.service === r.service && isWebUrl(x.url)).map((x) => x.url);
+    return (app?.urls ?? []).filter((x) => x.service === r.service && isHttpUrl(x.url)).map((x) => x.url);
   }
 
   protected shell(r: ContainerView): string {
@@ -120,20 +125,24 @@ export class ServicesTab {
     const q = this.store.query();
     try {
       const r = await this.api.get<{ containers: ContainerView[] | null }>('universe/containers', q);
-      if (q.universe !== this.store.name()) return;
+      if (!this.store.isCurrent(q)) return;
       this.rows.set(r.containers ?? []);
       this.error.set(null);
     } catch (e) {
+      if (!this.store.isCurrent(q)) return;
       this.error.set((e as Error).message);
       if (this.rows() === null) this.rows.set([]);
     }
   }
 
   private async pollStats(): Promise<void> {
-    if (document.hidden || !(this.rows() ?? []).some((r) => r.running)) return;
+    // One reading at a time: `docker stats` can take longer than the interval.
+    if (this.polling || document.hidden || !(this.rows() ?? []).some((r) => r.running)) return;
+    this.polling = true;
     const q = this.store.query();
     try {
       const r = await this.api.get<{ stats: StatView[] | null }>('universe/stats', q);
+      if (!this.store.isCurrent(q)) return;
       const list = r.stats ?? [];
       this.stats.set(Object.fromEntries(list.map((s) => [s.name, s])));
       this.history.update((h) => {
@@ -141,6 +150,8 @@ export class ServicesTab {
         for (const s of list) next[s.name] = [...(next[s.name] ?? []), s.cpu].slice(-SPARK_POINTS);
         return next;
       });
-    } catch { /* the next reading tries again */ }
+    } catch { /* the next reading tries again */ } finally {
+      this.polling = false;
+    }
   }
 }

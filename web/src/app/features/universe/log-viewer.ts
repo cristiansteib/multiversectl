@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, model, signal, untracked, viewChild } from '@angular/core';
 import { Toasts } from '../../core/toast.service';
-import { plural } from '../../core/util';
+import { copyText, plural } from '../../core/util';
 import { EmptyState } from '../../shared/ui/empty-state';
 import { Icon } from '../../shared/ui/icon';
 import { LogLine, Run, parseLogLine } from './ansi';
@@ -86,8 +86,18 @@ export class LogViewer {
   private flushing: ReturnType<typeof setTimeout> | undefined;
   private nextId = 0;
 
+  /** A followed log holds a docker process and one of the server's few log slots: not while nobody is looking. */
+  private readonly hidden = signal(document.hidden);
+
   constructor() {
+    const watch = () => this.hidden.set(document.hidden);
+    document.addEventListener('visibilitychange', watch);
+    inject(DestroyRef).onDestroy(() => document.removeEventListener('visibilitychange', watch));
     effect(() => {
+      if (this.hidden()) {
+        untracked(() => { this.abort?.abort(); this.abort = null; if (this.state() === 'following') this.state.set('loaded'); });
+        return;
+      }
       const key = this.selected();
       const tail = this.tail();
       const follow = this.follow();
@@ -123,10 +133,7 @@ export class LogViewer {
 
   protected async copy(): Promise<void> {
     const n = this.rows().length;
-    const ok = await Promise.race([
-      navigator.clipboard?.writeText(this.asText()).then(() => true, () => false) ?? Promise.resolve(false),
-      new Promise<boolean>((say) => setTimeout(() => say(false), 1000)),
-    ]);
+    const ok = await copyText(this.asText());
     this.toasts.show(ok ? `Copied ${plural(n, 'line')}` : 'Copy failed: select the lines and press ctrl-C', ok ? 'ok' : 'bad');
   }
 

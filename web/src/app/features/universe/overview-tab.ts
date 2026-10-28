@@ -1,3 +1,4 @@
+import { isHttpUrl } from '../../core/util';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Badge } from '../../shared/ui/badge';
 import { EmptyState } from '../../shared/ui/empty-state';
@@ -6,7 +7,6 @@ import { Icon } from '../../shared/ui/icon';
 import { PrChip } from '../../shared/ui/pr-chip';
 import { RepoChip } from '../../shared/ui/repo-chip';
 import { reasonsFor } from '../fleet/universe-state';
-import { isWebUrl } from './patch';
 import { UniverseStore } from './universe.store';
 
 const SERVICE_DOT: Record<string, string> = { running: 'ok', stopped: 'warn' };
@@ -15,7 +15,7 @@ const SERVICE_DOT: Record<string, string> = { running: 'ok', stopped: 'warn' };
 interface ServiceRow { name: string; state?: string; detail?: string; published?: string; urls: UrlView[] }
 
 /** The rows of an app: its services, each with its addresses; an address for a service that is not listed gets a row of its own. */
-export function rowsOf(a: AppView): ServiceRow[] {
+function rowsOf(a: AppView): ServiceRow[] {
   const urls = a.urls ?? [];
   const rows: ServiceRow[] = (a.services ?? []).map((s) => ({ ...s, urls: urls.filter((x) => x.service === s.name) }));
   const known = new Set(rows.map((r) => r.name));
@@ -41,7 +41,7 @@ export class OverviewTab {
     const row = this.store.code().get(a.repo);
     return { app: a, rows: rowsOf(a), code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo) };
   }));
-  protected readonly webUrl = isWebUrl;
+  protected readonly webUrl = isHttpUrl;
 
   protected dot = (s: string): string => SERVICE_DOT[s] ?? '';
   protected svcTitle(s: { state?: string; detail?: string; published?: string }): string {

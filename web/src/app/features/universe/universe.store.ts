@@ -31,10 +31,21 @@ export class UniverseStore {
   /** Where each repository lives, by name, for a chip to say it and link to it. */
   readonly places = signal<ReadonlyMap<string, LocView>>(new Map());
 
+  /** Whether an answer is still about the universe in view: the same name in another multiverse is another universe. */
+  isCurrent(q: { multiverse: string; universe: string }): boolean {
+    return q.multiverse === this.multiverse() && q.universe === this.name();
+  }
+
   constructor() {
     effect(() => {
       this.query();
-      untracked(() => { void this.readCode(); void this.readPlaces(); });
+      untracked(() => {
+        // What was read for the universe before is not this one's.
+        this.code.set(new Map());
+        this.places.set(new Map());
+        void this.readCode();
+        void this.readPlaces();
+      });
     });
     // What an operation did (a start, an update of the code) is on the page when it ends.
     this.ops.finished$.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe(() => void this.readCode());
@@ -45,6 +56,7 @@ export class UniverseStore {
     if (!q.multiverse || !q.universe) return;
     try {
       const view = await this.api.get<CodeView>('universe/code', { ...q, fetch: false });
+      if (!this.isCurrent(q)) return;
       this.code.set(new Map(view.rows.map((r) => [r.repo, r])));
     } catch {
       // The chips and the summary are extras: the page is whole without them.
@@ -56,6 +68,7 @@ export class UniverseStore {
     if (!name) return;
     try {
       const view = await this.api.get<MultiverseView>(`multiverses/${encodeURIComponent(name)}`);
+      if (name !== this.multiverse()) return;
       this.places.set(new Map(view.repos.filter((r) => r.loc).map((r) => [r.key, r.loc as LocView])));
     } catch {
       // Without it a chip names the repository by its key and does not link.

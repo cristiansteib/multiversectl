@@ -72,4 +72,3 @@ export function fileTree(files: FileLike[], filter: string, collapsed: ReadonlyS
 export const STATUS_MARK: Record<string, string> = { added: 'A', modified: 'M', deleted: 'D', renamed: 'R', untracked: 'U' };
 
 /** Only a web address becomes a link: the field is free text that anyone with a shell wrote. */
-export const isWebUrl = (s: string | undefined): s is string => !!s && /^https?:\/\//.test(s);

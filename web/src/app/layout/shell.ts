@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { filter, map } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs';
 import { Events } from '../core/events.service';
 import { Ops } from '../core/ops.service';
 import { ThemeService } from '../core/theme.service';
@@ -41,8 +41,21 @@ export class Shell {
   protected readonly version = computed(() => this.events.hello()?.version ?? this.events.overview()?.version ?? '');
   protected readonly dockOpen = computed(() => this.ops.list().length > 0);
 
-  // Closing the menu when the route changes keeps it from covering the page it led to.
-  private readonly navigated = toSignal(this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map(() => this.menu.set(false))));
+  private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
+
+  constructor() {
+    // A new screen: close the menu that led to it, and put the keyboard at its start, as a page load would.
+    this.router.events.pipe(filter((e) => e instanceof NavigationEnd), takeUntilDestroyed()).subscribe(() => {
+      this.menu.set(false);
+      this.main().nativeElement.focus({ preventScroll: true });
+    });
+  }
+
+  /** The link is to the page's own #main, which `<base href="/">` would make a visit to the overview. */
+  protected skipToMain(e: Event): void {
+    e.preventDefault();
+    this.main().nativeElement.focus();
+  }
 
   protected async refresh(): Promise<void> {
     this.refreshing.set(true);

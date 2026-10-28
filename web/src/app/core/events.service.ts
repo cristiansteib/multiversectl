@@ -49,7 +49,7 @@ export class Events {
   }
 
   /** Ask for both again; `fetch` also contacts the remotes. */
-  async reload(fetch = false): Promise<void> {
+  async reload(fetch = false): Promise<boolean> {
     try {
       const [overview, fleet] = await Promise.all([
         this.api.get<OverviewView>('overview', { fetch }),
@@ -59,8 +59,10 @@ export class Events {
       this.fleet.set(named(fleet));
       this.updatedAt.set(new Date());
       this.error.set(null);
+      return true;
     } catch (e) {
       this.error.set((e as Error).message);
+      return false;
     }
   }
 

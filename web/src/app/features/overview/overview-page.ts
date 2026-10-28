@@ -1,3 +1,4 @@
+import { Op } from '../../core/models';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Events } from '../../core/events.service';
@@ -96,7 +97,11 @@ export class OverviewPage {
       }
     }
 
-    for (const op of this.ops.list()) {
+    // A failure is news until the same thing has been tried again: the latest try
+    // of each action on each universe is the one that counts.
+    const latest = new Map<string, Op>();
+    for (const op of this.ops.list()) latest.set(`${op.multiverse}/${op.universe ?? ''}/${op.action}`, op);
+    for (const op of latest.values()) {
       if (op.state === 'failed') {
         out.push({ id: 'op-' + op.id, tone: 'bad', title: `${op.title} failed`, detail: op.error,
           action: { label: 'Show output', run: () => { this.ops.show(op.id); this.ops.open.set(true); } } });
@@ -108,8 +113,8 @@ export class OverviewPage {
   protected async compare(): Promise<void> {
     this.comparing.set(true);
     try {
-      await this.events.reload(true);
-      this.toasts.show('Compared with the remotes', 'ok');
+      const ok = await this.events.reload(true);
+      this.toasts.show(ok ? 'Compared with the remotes' : (this.events.error() ?? 'Could not compare with the remotes'), ok ? 'ok' : 'bad');
     } finally {
       this.comparing.set(false);
     }

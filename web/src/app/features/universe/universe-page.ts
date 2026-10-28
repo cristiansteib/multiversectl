@@ -2,12 +2,11 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, input } f
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { Events } from '../../core/events.service';
 import { Ops } from '../../core/ops.service';
-import { ago } from '../../core/util';
+import { ago, isHttpUrl } from '../../core/util';
 import { Badge } from '../../shared/ui/badge';
 import { EmptyState } from '../../shared/ui/empty-state';
 import { Icon } from '../../shared/ui/icon';
 import { Skeleton } from '../../shared/ui/skeleton';
-import { isWebUrl } from './patch';
 import { UniverseAside } from './universe-aside';
 import { UniverseStore } from './universe.store';
 
@@ -41,7 +40,7 @@ export class UniversePage {
     const u = this.u();
     return u ? [u.created && `created ${ago(u.created)}`, u.lastStarted && `started ${ago(u.lastStarted)}`, u.domain].filter(Boolean) : [];
   });
-  protected readonly webUrl = isWebUrl;
+  protected readonly webUrl = isHttpUrl;
   protected readonly base = computed(() => ['/universe', this.multiverse(), this.universe()]);
 
   constructor() {

@@ -42,8 +42,8 @@
                         <td>
                           @if (r.urls.length) {
                             <ul class="urls">
-                              @for (u of r.urls; track u.url) {
-                                <li>@if (webUrl(u.url)) { <a [href]="u.url" target="_blank" rel="noopener noreferrer"><span class="u">{{ u.url }}</span><mv-icon name="external" /></a> } @else { <span class="mono">{{ u.url }}</span> }</li>
+                              @for (a of r.urls; track a.url) {
+                                <li>@if (webUrl(a.url)) { <a [href]="a.url" target="_blank" rel="noopener noreferrer"><span class="u">{{ a.url }}</span><mv-icon name="external" /></a> } @else { <span class="mono">{{ a.url }}</span> }</li>
                               }
                             </ul>
                           } @else { <span class="faint">—</span> }

@@ -70,7 +70,7 @@ export interface StatView { name: string; cpu: number; memory: number; memUsage:
 export interface FleetStatRow extends StatView { multiverse: string; universe: string; app: string; service: string }
 export interface FleetStatsView { at: string; rows: FleetStatRow[]; sources?: { multiverse: string; error: string }[] }
 
-export type OpAction = 'up' | 'down' | 'rm' | 'sync' | 'restart' | 'new' | 'checkout' | 'update' | 'use' | 'selfupdate';
+export type OpAction = 'up' | 'down' | 'rm' | 'sync' | 'restart' | 'new' | 'checkout' | 'update' | 'selfupdate';
 export interface OpRequest {
   action: OpAction; multiverse?: string; universe?: string; app?: string; service?: string; name?: string; note?: string;
   branch?: string; base?: string; onlyExisting?: boolean; confirm?: string; force?: boolean;

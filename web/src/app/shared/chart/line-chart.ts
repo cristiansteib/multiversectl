@@ -41,11 +41,13 @@ export class LineChart {
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor() {
     afterNextRender(() => {
       const ro = new ResizeObserver((e) => this.width.set(Math.max(160, Math.round(e[0].contentRect.width))));
       ro.observe(this.host.nativeElement);
-      inject(DestroyRef).onDestroy(() => ro.disconnect());
+      this.destroyRef.onDestroy(() => ro.disconnect());
     });
   }
 

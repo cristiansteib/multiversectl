@@ -22,7 +22,7 @@ const PHASE: Record<string, [Tone, string]> = {
     <section class="card progress" aria-live="polite">
       <h3>Reading catalogs <span class="muted count">{{ finished() }} of {{ steps().length }}</span></h3>
       <ul class="list">
-        @for (s of steps(); track s.repo) {
+        @for (s of steps(); track $index) {
           <li>
             <span class="repo mono" [attr.title]="s.repo">{{ short(s.repo) }}</span>
             <span class="state">

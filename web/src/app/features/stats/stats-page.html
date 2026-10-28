@@ -6,8 +6,8 @@
 </header>
 
 <div class="controls" role="group" aria-label="Chart settings">
-  <div class="picker">
-    <button type="button" class="btn" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()" aria-haspopup="true">
+  <div class="picker" (focusout)="menuBlur($event)" (keydown.escape)="menuOpen.set(false)">
+    <button type="button" class="btn" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()">
       Universes <b>{{ pickerLabel() }}</b> <mv-icon name="chevronDown" />
     </button>
     @if (menuOpen()) {

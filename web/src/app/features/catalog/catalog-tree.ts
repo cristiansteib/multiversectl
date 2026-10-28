@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Api } from '../../core/api.service';
 import { Events } from '../../core/events.service';
 import { MultiverseView, NodeView, RepoView } from '../../core/models';
+import { Ops } from '../../core/ops.service';
 import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { EmptyState } from '../../shared/ui/empty-state';
@@ -41,7 +43,7 @@ export class CatalogTree {
   protected readonly events = inject(Events);
   private readonly api = inject(Api);
   /** The repositories of the installed multiverses that have been opened, by the name they are installed as. */
-  private readonly repos = signal<ReadonlyMap<string, RepoView[]>>(new Map());
+  private readonly repos = signal<ReadonlyMap<string, RepoView[] | null>>(new Map());
 
   private readonly el = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly open = signal<ReadonlySet<string>>(new Set(['']));
@@ -49,6 +51,13 @@ export class CatalogTree {
   private seeded = false;
 
   constructor() {
+    // What an operation did (an update clones what the manifest newly lists) is
+    // not what was read before: the repositories of the open rows are read again.
+    inject(Ops).finished$.pipe(takeUntilDestroyed()).subscribe(() => {
+      const names = this.rows().filter((r) => r.open && r.node.kind === 'multiverse' && r.node.installedAs).map((r) => r.node.installedAs as string);
+      this.repos.set(new Map());
+      names.forEach((n) => void this.loadRepos(n));
+    });
     effect(() => {
       const root = this.root();
       if (this.seeded) return;
@@ -115,16 +124,18 @@ export class CatalogTree {
     if (r.node.kind === 'multiverse' && r.node.installedAs && next.has(r.node.path)) void this.loadRepos(r.node.installedAs);
   }
 
-  protected reposOf(installedAs: string): RepoView[] | undefined { return this.repos().get(installedAs); }
+  protected reposOf(installedAs: string): RepoView[] | null | undefined { return this.repos().get(installedAs); }
+  protected retryRepos(name: string): void { const next = new Map(this.repos()); next.delete(name); this.repos.set(next); void this.loadRepos(name); }
 
   /** What its manifest lists is only known once it is installed: it is read from the multiverse itself. */
   private async loadRepos(name: string): Promise<void> {
-    if (this.repos().has(name)) return;
+    if (this.repos().get(name)) return;
     try {
       const view = await this.api.get<MultiverseView>(`multiverses/${encodeURIComponent(name)}`);
       this.repos.set(new Map(this.repos()).set(name, view.repos));
     } catch {
-      this.repos.set(new Map(this.repos()).set(name, []));
+      // Said, with a way to try again; not remembered as "none".
+      this.repos.set(new Map(this.repos()).set(name, null));
     }
   }
 
@@ -146,7 +157,6 @@ export class CatalogTree {
   protected kindLabel(r: Row): string { return r.root ? 'root catalog' : r.node.kind; }
   protected canIgnore(r: Row): boolean { return !r.root && !this.events.readOnly(); }
   protected icon(r: Row): string { return r.node.kind === 'multiverse' ? 'multiverse' : 'catalog'; }
-  protected reasonOf(n: NodeView): string { return n.unavailable ?? ''; }
 
   protected key(e: KeyboardEvent, r: Row, i: number): void {
     if (e.target !== e.currentTarget || e.altKey || e.ctrlKey || e.metaKey) return;

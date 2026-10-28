@@ -1,11 +1,10 @@
 import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
+import { copyText } from '../../core/util';
 import { Icon } from './icon';
 
 /**
  * A value people want in a terminal: one click copies it, and the button says
- * so where it was pressed. The clipboard is raced against a second of patience:
- * a browser that will not write does not always refuse, and a button that
- * waits forever is a button that does nothing.
+ * so where it was pressed.
  */
 @Component({
   selector: 'mv-copy',
@@ -35,18 +34,9 @@ export class CopyButton {
   private timer: ReturnType<typeof setTimeout> | undefined;
 
   protected async copy(): Promise<void> {
-    const ok = await this.write(this.text());
+    const ok = await copyText(this.text());
     this.state.set(ok ? 'copied' : 'failed');
     clearTimeout(this.timer);
     this.timer = setTimeout(() => this.state.set('idle'), 1500);
-  }
-
-  private write(text: string): Promise<boolean> {
-    const clip = navigator.clipboard;
-    if (!clip) return Promise.resolve(false);
-    return Promise.race([
-      clip.writeText(text).then(() => true, () => false),
-      new Promise<boolean>((say) => setTimeout(() => say(false), 1000)),
-    ]);
   }
 }

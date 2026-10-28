@@ -75,9 +75,11 @@ export class CatalogPage {
       this.error.set(null);
       if (fetch) { this.fetchedAt.set(new Date().toISOString()); this.toasts.show('Catalogs read from their remotes', 'ok'); }
     } catch (e) {
-      this.error.set((e as Error).message);
+      // With a tree on the page, a failed read is said and the tree stays.
+      if (this.data()) this.toasts.show((e as Error).message, 'bad');
+      else this.error.set((e as Error).message);
     } finally {
-      this.fetching.set(false);
+      if (fetch) this.fetching.set(false);
     }
   }
 

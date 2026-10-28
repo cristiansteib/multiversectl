@@ -31,5 +31,3 @@ export const byName = (a: UniverseView, b: UniverseView): number => {
   return a.name.localeCompare(b.name, undefined, { numeric: true });
 };
 
-/** Only a web address becomes a link: the field is free text that anyone with a shell wrote. */
-export const isWebUrl = (s: string | undefined): boolean => !!s && /^https?:\/\//.test(s);

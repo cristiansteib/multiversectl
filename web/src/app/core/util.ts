@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { LocView } from './models';
 
 /** A repository as a short name: owner/repo from a URL. */
@@ -7,7 +8,15 @@ export const shortRepoName = (u: string): string =>
 /** Counting out loud, in the one place that knows the rule. */
 export const plural = (n: number, one: string, many = one + 's'): string => `${n} ${n === 1 ? one : many}`;
 
-export function ago(iso: string | undefined, now = Date.now()): string {
+/**
+ * What relative times are measured from. It moves every half minute, and
+ * `ago` reads it, so a time on a page left open keeps counting without each
+ * place that shows one having to ask.
+ */
+export const clock = signal(Date.now());
+if (typeof setInterval === 'function') setInterval(() => clock.set(Date.now()), 30_000);
+
+export function ago(iso: string | undefined, now = clock()): string {
   if (!iso) return '';
   const s = (now - Date.parse(iso)) / 1000;
   if (!(s >= 90)) return 'just now';
@@ -37,4 +46,18 @@ export function branchUrlOf(loc: LocView | null | undefined, branch: string): st
 }
 
 /** Only a web address becomes a link: the field is free text that anyone with a shell wrote. */
-export const isHttpUrl = (s: string | undefined | null): boolean => !!s && /^https?:\/\//.test(s);
+export const isHttpUrl = (s: string | undefined | null): s is string => !!s && /^https?:\/\//.test(s);
+
+/**
+ * Put text on the clipboard. It is raced against a second of patience: a browser
+ * that will not write does not always refuse, and a button that waits for ever
+ * is a button that does nothing when pressed.
+ */
+export function copyText(text: string): Promise<boolean> {
+  const clip = navigator.clipboard;
+  if (!clip) return Promise.resolve(false);
+  return Promise.race([
+    clip.writeText(text).then(() => true, () => false),
+    new Promise<boolean>((say) => setTimeout(() => say(false), 1000)),
+  ]);
+}
