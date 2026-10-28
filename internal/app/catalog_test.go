@@ -35,9 +35,20 @@ type fakeRepos struct {
 	dirty     bool      // the working tree has uncommitted changes
 	lastFetch time.Time // when dir last fetched; zero is never
 	ffed      []string  // branches fast-forwarded
+
+	hang      map[string]bool // url -> a clone of it never answers (a VPN that is down)
+	hangFetch bool            // every fetch never answers
+	tried     []string        // urls a clone was started for
 }
 
-func (f *fakeRepos) Clone(_ context.Context, url, dest string) error {
+// block is a network call that answers only when it is cancelled.
+func block(ctx context.Context) error { <-ctx.Done(); return ctx.Err() }
+
+func (f *fakeRepos) Clone(ctx context.Context, url, dest string) error {
+	f.tried = append(f.tried, url)
+	if f.hang[url] {
+		return block(ctx)
+	}
 	src, ok := f.repos[url]
 	if !ok {
 		return errors.New("repository not found")
@@ -45,8 +56,11 @@ func (f *fakeRepos) Clone(_ context.Context, url, dest string) error {
 	f.cloned = append(f.cloned, url)
 	return os.CopyFS(dest, os.DirFS(src))
 }
-func (f *fakeRepos) Fetch(_ context.Context, dir string) error {
+func (f *fakeRepos) Fetch(ctx context.Context, dir string) error {
 	f.fetched = append(f.fetched, dir)
+	if f.hangFetch {
+		return block(ctx)
+	}
 	return nil
 }
 func (f *fakeRepos) DefaultBranch(context.Context, string) (string, error) {
@@ -242,4 +256,76 @@ func (f *fakeRepos) Behind(context.Context, string, string) (int, error) { retur
 func (f *fakeRepos) FastForward(_ context.Context, _, branch string) error {
 	f.ffed = append(f.ffed, branch)
 	return nil
+}
+
+// A catalog behind a VPN that is down costs one timeout, not one per
+// repository on that host, and the catalogs that answer are still usable.
+func TestTreeTimesOutAnUnreachableHostOnceAndKeepsTheRest(t *testing.T) {
+	local, remote := t.TempDir(), t.TempDir()
+	write(t, local, "catalog.yaml", cat("me", `  catalogs:
+    - name: vpn1
+      source: {repo: git@vpn.example.test:acme/one.git}
+    - name: vpn2
+      source: {repo: git@vpn.example.test:acme/two.git}
+    - name: open
+      source: {repo: git@example.test:acme/open.git}
+`))
+	write(t, remote, "catalog.yaml", cat("open", `  multiverses:
+    - name: billing
+      source: {repo: git@example.test:me/billing.git}
+`))
+	git := &fakeRepos{
+		repos: map[string]string{"git@example.test:acme/open.git": remote},
+		hang:  map[string]bool{"git@vpn.example.test:acme/one.git": true},
+	}
+	cache := t.TempDir()
+	c := app.NewCatalogs(app.CatalogDeps{Git: git, Files: fsx.New(), Decoder: catalog.Decoder{}, CacheDir: cache, Timeout: 50 * time.Millisecond, Out: &quiet{}})
+	start := time.Now()
+	root, err := c.Tree(context.Background(), filepath.Join(local, "catalog.yaml"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Errorf("took %s: the timeout did not bound it", time.Since(start))
+	}
+	for _, name := range []string{"vpn1", "vpn2"} {
+		n, _ := root.Find(name)
+		if !strings.Contains(n.Unavailable, "timed out") {
+			t.Errorf("%s: unavailable = %q, want a timeout", name, n.Unavailable)
+		}
+	}
+	if len(git.tried) != 2 {
+		t.Errorf("clones tried %v: the second repository on a host that timed out must not be tried", git.tried)
+	}
+	if _, ok := root.Find("open/billing"); !ok {
+		t.Error("the reachable catalog is not usable")
+	}
+}
+
+// A fetch that times out keeps the copy fetched before.
+func TestRefreshFallsBackToTheCopyFetchedEarlier(t *testing.T) {
+	local, remote := t.TempDir(), t.TempDir()
+	write(t, local, "catalog.yaml", cat("me", `  catalogs:
+    - name: acme
+      source: {repo: git@example.test:acme/index.git}
+`))
+	write(t, remote, "catalog.yaml", cat("acme", `  multiverses:
+    - name: api
+      source: {path: api.yaml}
+`))
+	git := &fakeRepos{repos: map[string]string{"git@example.test:acme/index.git": remote}}
+	cache := t.TempDir()
+	c := app.NewCatalogs(app.CatalogDeps{Git: git, Files: fsx.New(), Decoder: catalog.Decoder{}, CacheDir: cache, Timeout: 50 * time.Millisecond, Out: &quiet{}})
+	source := filepath.Join(local, "catalog.yaml")
+	if _, err := c.Tree(context.Background(), source, false); err != nil {
+		t.Fatal(err)
+	}
+	git.hangFetch = true
+	root, err := c.Tree(context.Background(), source, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := root.Find("acme/api"); !ok || n.Unavailable != "" {
+		t.Errorf("the cached copy was not used: %+v", root)
+	}
 }

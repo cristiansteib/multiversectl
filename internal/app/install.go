@@ -16,6 +16,9 @@ type InstallOptions struct {
 	Root  string // the exact directory, for a single multiverse
 	Name  string // the name to record, for a single multiverse; refused if taken
 	Fetch bool   // refresh catalogs first
+	// Exclude are catalog paths left out of what a node's argument installs: a
+	// multiverse, or a whole branch of the tree.
+	Exclude []string
 }
 
 // InstallTarget is one multiverse to set up. Skip says why it is not.
@@ -58,6 +61,15 @@ func (c *Catalogs) PlanInstall(ctx context.Context, args []string, o InstallOpti
 			for _, bad := range unreadable(n) {
 				c.Out.Warn("%s is unavailable: %s", bad.Path, bad.Unavailable)
 			}
+		}
+	}
+
+	for _, x := range o.Exclude {
+		if root == nil {
+			return nil, fmt.Errorf("--exclude %q needs a root catalog to be read from: %w", x, firstErr(rootErr, errors.New("none is set")))
+		}
+		if _, ok := root.Find(strings.Trim(x, "/")); !ok || strings.Trim(x, "/") == "" {
+			return nil, fmt.Errorf("--exclude %q is not in your catalog; `multiversectl catalog list` shows the tree", x)
 		}
 	}
 
@@ -213,6 +225,12 @@ func (c *Catalogs) resolveSource(ctx context.Context, arg string, root *domain.N
 			leaves := n.Leaves()
 			if len(leaves) == 0 {
 				return nil, fmt.Errorf("%q has no multiverses under it", arg)
+			}
+			if kept := withoutExcluded(leaves, o.Exclude); len(kept) == 0 {
+				return nil, fmt.Errorf("everything under %q is excluded", arg)
+			} else if len(kept) < len(leaves) {
+				c.Out.Info("leaving out %d of %d multiverses under %s", len(leaves)-len(kept), len(leaves), arg)
+				leaves = kept
 			}
 			out := make([]found, len(leaves))
 			for i, l := range leaves {
@@ -399,6 +417,22 @@ func (c *Catalogs) pickLeaves(root domain.Node, cfg Config) ([]found, error) {
 }
 
 // unreadable lists the layers that could not be read, at any depth.
+// withoutExcluded drops the leaves at or under any excluded path.
+func withoutExcluded(leaves []domain.Node, exclude []string) []domain.Node {
+	var kept []domain.Node
+next:
+	for _, l := range leaves {
+		for _, x := range exclude {
+			x = strings.Trim(x, "/")
+			if l.Path == x || strings.HasPrefix(l.Path, x+"/") {
+				continue next
+			}
+		}
+		kept = append(kept, l)
+	}
+	return kept
+}
+
 func unreadable(n domain.Node) []domain.Node {
 	var out []domain.Node
 	for _, ch := range n.Children {

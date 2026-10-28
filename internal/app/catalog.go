@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -43,7 +44,15 @@ type CatalogDeps struct {
 
 	// Yes answers every confirmation with its default, for scripts.
 	Yes bool
+
+	// Timeout bounds each clone or fetch of a catalog repository, so one that
+	// cannot be reached (offline, behind a VPN that is down) costs a few
+	// seconds, not the minutes git would wait. Zero means DefaultFetchTimeout.
+	Timeout time.Duration
 }
+
+// DefaultFetchTimeout is how long one catalog repository gets to answer.
+const DefaultFetchTimeout = 20 * time.Second
 
 // Catalogs resolves and browses the tree of catalogs.
 type Catalogs struct{ CatalogDeps }
@@ -54,6 +63,9 @@ func NewCatalogs(d CatalogDeps) *Catalogs {
 	}
 	if d.Progress == nil {
 		d.Progress = noProgress{}
+	}
+	if d.Timeout <= 0 {
+		d.Timeout = DefaultFetchTimeout
 	}
 	return &Catalogs{d}
 }
@@ -148,7 +160,7 @@ func (c *Catalogs) tree(ctx context.Context, source string, refresh, offline boo
 			return domain.Node{}, errors.New("no root catalog: `multiversectl init`  (installing a single multiverse does not need one)")
 		}
 	}
-	r := &resolver{Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, fetched: map[string]bool{}}
+	r := &resolver{Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, fetched: map[string]bool{}, down: map[string]string{}}
 	root := location{}
 	if isGitURL(source) {
 		root.repo = source
@@ -188,6 +200,29 @@ type resolver struct {
 	// and must never reach for the network.
 	offline bool
 	fetched map[string]bool
+	// down is the hosts that timed out in this run, with why: the next
+	// repository on one fails at once instead of waiting out its own timeout.
+	down map[string]string
+}
+
+// network runs a git operation against repo's host within the timeout. A
+// timeout says what it probably means, and marks the host unreachable for the
+// rest of the run; any other failure (no access, not found) says nothing about
+// the host and the next repository on it is still tried.
+func (r *resolver) network(repo string, op func(ctx context.Context) error) error {
+	host, _, _ := strings.Cut(canonical(repo), "/")
+	if why, bad := r.down[host]; bad {
+		return errors.New(why)
+	}
+	ctx, cancel := context.WithTimeout(r.ctx, r.Timeout)
+	defer cancel()
+	err := op(ctx)
+	if err != nil && ctx.Err() == context.DeadlineExceeded && r.ctx.Err() == nil {
+		why := fmt.Sprintf("timed out after %s: is %s reachable? (offline, or behind a VPN that is down)", r.Timeout, host)
+		r.down[host] = why
+		return errors.New(why)
+	}
+	return err
 }
 
 func (r *resolver) load(at location, name, nodePath string, stack []string) (domain.Node, error) {
@@ -294,13 +329,16 @@ func (r *resolver) ensure(repo, ref string) (dir string, fresh bool, err error) 
 		if err := r.Files.MkdirAll(filepath.Dir(dir)); err != nil {
 			return "", false, err
 		}
-		if err := r.Git.Clone(r.ctx, repo, dir); err != nil {
+		if err := r.network(repo, func(ctx context.Context) error { return r.Git.Clone(ctx, repo, dir) }); err != nil {
+			// A clone that did not finish must not be taken for a cached one next time.
+			_ = r.Files.RemoveAll(dir)
 			return "", false, fmt.Errorf("clone %s: %w", repo, err)
 		}
 		fresh = true
 	case r.refresh && !r.fetched[dir]:
-		if err := r.Git.Fetch(r.ctx, dir); err != nil {
-			return "", false, fmt.Errorf("fetch %s: %w", repo, err)
+		if err := r.network(repo, func(ctx context.Context) error { return r.Git.Fetch(ctx, dir) }); err != nil {
+			// What was fetched before is still a catalog: use it, and say it may be old.
+			r.Out.Warn("%s could not be fetched (%s); using the copy fetched earlier", shortRepo(repo), reason(err, repo))
 		}
 	}
 	first := !r.fetched[dir]

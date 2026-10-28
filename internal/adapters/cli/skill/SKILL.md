@@ -31,6 +31,12 @@ A **catalog** is an index file (`catalog.yaml`) in a git repository. The **root 
 - **`catalog add <owner/repo | url | path>`** lists something that already exists (a repository that has a `catalog.yaml` or `multiverse.yaml`). Use `add` for what exists and `new` for what does not yet.
 - Flags: `--at <path>` where in the tree (default: asked; with `--yes` the root); `--url <repo>` use an existing repository for the new multiverse; `--repo <url>` a repository to include, repeatable, `--repo name=<url>` to set its name; `--name` the multiverse's name; `--create owner/name` make its repository; `--provider github|gitlab` and `--host <host>` for where; `--same-repo` (a catalog kept as a file in its parent's repository); `--local` commit but do not push; `--no-install` do not start it on this machine afterwards; `--yes` accept every question (nothing asks, so pass every answer you need).
 
+### Offline catalogs, and installing part of the tree
+
+Each catalog repository gets 20 seconds (`MULTIVERSECTL_CATALOG_TIMEOUT=5s` changes it). One that does not answer, say behind a VPN that is down, shows as `unavailable` in `catalog list --json` (`unavailable` field), the rest of its host is skipped for that run, and everything else stays usable. A repository fetched before is used from its last copy, with a warning. So an `unavailable` node is not an error to fix: tell the user which one and carry on with the others.
+
+`multiversectl start <catalog-path> --install-only` installs every multiverse under that node and makes no universe; `--exclude <catalog-path>` (repeatable) leaves a multiverse or a whole branch out. Without `--install-only`, `start` runs one.
+
 ### A multiverse in its own repository
 
 1. Create the empty repository (below), and clone it.
