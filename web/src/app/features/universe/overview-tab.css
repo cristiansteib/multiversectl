@@ -1,10 +1,15 @@
 :host { display: block }
 .banner { margin-bottom: 6px } .banner ul { margin: 6px 0 0; padding-left: 20px }
-.apps { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)) }
-.app h3 { margin-bottom: 14px } .repo { font-weight: 400; font-size: .85rem }
-.svcs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 18px; line-height: 1.5 }
-.svcs li { display: inline-flex; align-items: center; gap: 7px; color: var(--muted) }
-.urls { list-style: none; margin: 14px 0 0; padding: 14px 0 0; border-top: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 8px; font: .86rem/1.5 var(--mono); overflow-wrap: anywhere }
+.apps { display: flex; flex-direction: column; gap: 22px }
+.app h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 1rem }
+.repo { font-weight: 400; font-size: .85rem }
+.none { margin: 0; font-size: .9rem }
+th:first-child { width: 36% }
+.svc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+td { vertical-align: middle }
+.name { font-family: var(--mono); font-size: .9rem } .state { font-size: .84rem }
+.urls { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font: .86rem/1.5 var(--mono); overflow-wrap: anywhere }
 .urls a { text-decoration: none }
 .urls a .u { text-decoration: underline; text-underline-offset: 3px }
 .urls a mv-icon { margin-left: 7px }
+@media (max-width: 560px) { th:first-child { width: auto } }
