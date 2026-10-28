@@ -142,6 +142,26 @@
   <p>A command in a service after the app is up is tried again for a few minutes, because the service may still be starting (a database migrating under it); <code>retryFor</code> asks any command to be, and <code>timeout</code> ends a try that hangs. <code>onFailure</code> says what a failure means: <code>warn</code> says so, with how to run it by hand, and goes on, the hooks after it waiting since they may depend on it, and it is tried again next time; <code>fail</code> ends the command with an error; <code>ignore</code> goes on. A <code>preUp</code> fails by default, since what it prepares is what the start needs; the rest warn, so a hook that breaks cannot keep a universe from being stopped or removed. <code>once</code> runs a hook on the first start of each universe only; without it a hook runs every time, so it should be safe to repeat. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>.</p>
 </section>
 
+<section id="hw-select">
+  <h2 id="hw-select"><a href="#hw-select">Start the dev service and not the production one</a></h2>
+  <p>A compose file often defines the same app twice, a dev server and a production build, and both start by default. Say which, in the manifest, without touching the repository:</p>
+  <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
+<span class="k">services</span>: [app-dev, api]          <span class="c"># only these start</span>
+<span class="c"># or, if the compose file marks the extra ones with profiles:</span>
+<span class="k">profiles</span>: [dev]                   <span class="c"># always on, as --profile dev</span></pre></div>
+  <p class="muted">Only the services that start are given an address and lose their published ports; the others are never created. <code>optional</code> adds groups on demand with <code>--with</code>.</p>
+</section>
+
+<section id="hw-build-secrets">
+  <h2 id="hw-build-secrets"><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></h2>
+  <p>Recent buildx refuses a build whose <code>secrets: file:</code> lives outside the project (<code>~/.netrc</code>) unless it is allowed. The tool does not decide that for you; <code>spec.env</code> reaches every compose and build call, so the project says it once:</p>
+  <div class="code"><pre><span class="c"># multiverse.yaml</span>
+<span class="k">env</span>:
+  - <span class="k">name</span>: BUILDX_BAKE_ENTITLEMENTS_FS
+    <span class="k">value</span>: "0"</pre></div>
+  <p class="muted">Anything else a build needs from the machine is the same: an environment variable in <code>spec.env</code>, or a <code>preUp</code> hook that prepares it.</p>
+</section>
+
 <section id="hw-optional">
   <h2 id="hw-optional"><a href="#hw-optional">Run optional services on demand</a></h2>
   <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
@@ -186,6 +206,8 @@
       <li><a href="#hw-publish">Keep a service&#39;s published port</a></li>
       <li><a href="#hw-default-service">Choose where exec and run go</a></li>
       <li><a href="#hw-hooks">Run your own tools at the points of a universe&#39;s life</a></li>
+      <li><a href="#hw-select">Start the dev service and not the production one</a></li>
+      <li><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></li>
       <li><a href="#hw-optional">Run optional services on demand</a></li>
       <li><a href="#hw-dynamic">Configure what depends on the universe</a></li>
     </ul>

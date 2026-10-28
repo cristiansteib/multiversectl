@@ -326,6 +326,13 @@ type Files interface {
 	Size(path string) (int64, error)
 }
 
+// Answer is what an address said to a probe: the HTTP status, and the start of
+// the body, which is what tells the proxy's own error from the service's.
+type Answer struct {
+	Status int
+	Body   string
+}
+
 // System is the host port: identity, network facts and tool lookup.
 type System interface {
 	UID() int
@@ -336,9 +343,9 @@ type System interface {
 	PortFree(ctx context.Context, port int) (bool, error)
 	// FreePort asks the kernel for a port nothing is listening on.
 	FreePort(ctx context.Context) (int, error)
-	// Probe asks url once and returns the HTTP status it answered with, without
-	// following redirects: any answer means something is listening.
-	Probe(ctx context.Context, url string) (int, error)
+	// Probe asks url once and returns what it answered, without following
+	// redirects: any answer means something is listening.
+	Probe(ctx context.Context, url string) (Answer, error)
 	Which(name string) (string, bool)
 }
 

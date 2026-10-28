@@ -251,21 +251,27 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 	}
 }
 
-// checkAddresses asks each address of a running app once. Any answer counts:
-// a 401 or a 404 from the app itself proves the route and the service are
-// there, which a container listing cannot. Only a refused connection or the
-// proxy's own "no backend" statuses are findings, and warnings, because an app
-// may legitimately not serve "/".
+// checkAddresses asks each address of a running app once. An answer from the
+// app counts, even a 401 or a 404: it proves the route and the service are
+// there, which a container listing cannot. What are findings, as warnings
+// because an app may legitimately not serve "/", are a refused connection, the
+// proxy's own answers (its "no backend" statuses, and the 404 it gives an
+// address no route matches) and a service that fails on its front page.
 func (s *Service) checkAddresses(ctx context.Context, add addCheck, st domain.UniverseState, appKey string) {
 	for _, route := range s.Routes(st, appKey) {
 		url := s.routeURL(route)
 		name := "url " + appKey + "/" + strings.TrimSuffix(route.Name, "-"+st.Slug)
-		status, err := s.System.Probe(ctx, url)
+		answer, err := s.System.Probe(ctx, url)
+		status := answer.Status
 		switch {
 		case err != nil:
 			add(name, StatusWarn, "%s does not answer: %v", url, err)
 		case status == 502 || status == 503 || status == 504:
 			add(name, StatusWarn, "%s answered %d: the proxy has no running service behind it", url, status)
+		case status == 404 && isProxyNotFound(answer.Body):
+			add(name, StatusWarn, "%s answered the proxy's own 404: no route matches this address (check the host, its entrypoint and that the service joined the proxy's network)", url)
+		case status >= 500:
+			add(name, StatusWarn, "%s answered %d: the service is failing on it (a gRPC service needs `scheme: h2c` on its host; otherwise see its logs)", url, status)
 		default:
 			add(name, StatusOK, "%s answers %d", url, status)
 		}
@@ -296,4 +302,10 @@ func firstHost(hosts map[string]string) (string, bool) {
 	}
 	sort.Strings(keys)
 	return hosts[keys[0]], true
+}
+
+// isProxyNotFound recognises the page Traefik gives an address no router
+// matches, as opposed to a 404 from an app that does not serve that path.
+func isProxyNotFound(body string) bool {
+	return strings.TrimSpace(body) == "404 page not found"
 }
