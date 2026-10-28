@@ -6,6 +6,17 @@ import { CatalogProgress, FleetView, Hello, Op, OpLine, OverviewView, UpdateNoti
 const POLL_MS = 10_000;
 
 /**
+ * A universe's own `multiverse` field is the name of its compose project
+ * ("acme-u1"), not the multiverse it belongs to; every request and link needs the
+ * latter, which is the entry it is listed under. Said once, here, so nothing
+ * downstream has to remember it.
+ */
+const named = (f: FleetView): FleetView => ({
+  ...f,
+  multiverses: (f.multiverses ?? []).map((m) => ({ ...m, universes: (m.universes ?? []).map((u) => ({ ...u, multiverse: m.name })) })),
+});
+
+/**
  * What the page knows about the machine, fed by the websocket. Screens read the
  * signals and are redrawn when a piece changes. While the socket is down the
  * store asks for itself every ten seconds, so the page still works behind
@@ -45,7 +56,7 @@ export class Events {
         this.api.get<FleetView>('fleet'),
       ]);
       this.overview.set(overview);
-      this.fleet.set(fleet);
+      this.fleet.set(named(fleet));
       this.updatedAt.set(new Date());
       this.error.set(null);
     } catch (e) {
@@ -82,7 +93,7 @@ export class Events {
   private onEvent(e: { type: string; data: never }): void {
     switch (e.type) {
       case 'hello': this.hello.set(e.data); break;
-      case 'fleet': this.fleet.set(e.data); this.updatedAt.set(new Date()); break;
+      case 'fleet': this.fleet.set(named(e.data)); this.updatedAt.set(new Date()); break;
       case 'overview': this.overview.set(e.data); this.updatedAt.set(new Date()); break;
       case 'update': this.update.set((e.data as { notice?: UpdateNotice }).notice ?? null); break;
       case 'catalogProgress': this.catalogProgress$.next(e.data); break;
