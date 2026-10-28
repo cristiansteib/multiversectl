@@ -132,8 +132,18 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
   <thead><tr><th scope="col">Setting</th><th scope="col">Hostnames</th><th scope="col">Resolution</th></tr></thead><tbody>
   <tr><td data-l="Setting"><code>auto</code> with <code>expose: lan</code></td><td data-l="Hostnames"><code>api-u3.192-168-1-20.traefik.me</code></td><td data-l="Resolution">A public wildcard DNS service answers with the address in the name, so any device on the network resolves it with nothing installed.</td></tr>
   <tr><td data-l="Setting"><code>auto</code> with <code>expose: local</code></td><td data-l="Hostnames"><code>api-u3.localhost</code></td><td data-l="Resolution">Browsers resolve <code>*.localhost</code> themselves. No DNS query leaves the machine.</td></tr>
+  <tr><td data-l="Setting"><code>domain: none</code></td><td data-l="Hostnames">none: <code>http://192.168.1.20:41000</code></td><td data-l="Resolution">Nothing is looked up, by anyone. Every host is forwarded to a port of its own on the machine's address, so the proxy is out of the path; <code>expose</code> still decides the interface.</td></tr>
   <tr><td data-l="Setting">A domain you own</td><td data-l="Hostnames"><code>api-u3.dev.example.com</code></td><td data-l="Resolution">Yours to point at the machine, with your own wildcard certificate.</td></tr>
   </tbody></table></div>
+</section>
+
+<section id="no-dns">
+  <h2 id="no-dns"><a href="#no-dns">Without any DNS name</a></h2>
+  <p>The default <code>lan</code> setting builds names under a public wildcard service, which puts your machine's address in a stranger's DNS logs and needs a resolver that answers it. <code>domain: none</code> opts out entirely:</p>
+  <div class="code"><pre><span class="k">spec</span>:
+  <span class="k">expose</span>: lan       <span class="c"># 0.0.0.0, so another device can reach it</span>
+  <span class="k">domain</span>: none      <span class="c"># and no name anywhere</span></pre></div>
+  <p>Each host is published on a free port of its own on the machine's address (the <a href="../concepts/labels.html#host-forward">portForward</a> mechanism, applied to every host), and that <code>http://&lt;ip&gt;:&lt;port&gt;</code> is what <code>ls</code>, the web view, <code>&lt;HOST&gt;_URL</code> and <code>origins</code> show. The port is chosen once and kept for the life of the universe. With <code>expose: local</code> it is <code>127.0.0.1</code>. The cost is the one a name was hiding: a front-end built to call its API on a fixed port (an entrypoint with <code>alsoMatch</code>) cannot be given that port by every universe, so such an app needs the address from <code>&lt;HOST&gt;_URL</code> instead.</p>
 </section>
 
 <section id="expose">
@@ -187,6 +197,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
       <li><a href="#entrypoints">Entrypoints</a></li>
       <li><a href="#hostnames">Hostnames</a></li>
       <li><a href="#domains">Domains</a></li>
+      <li><a href="#no-dns">Without any DNS name</a></li>
       <li><a href="#expose">Who can reach a universe</a></li>
       <li><a href="#ports">Why nothing publishes a port</a></li>
       <li><a href="#inside">Talking between services</a></li>

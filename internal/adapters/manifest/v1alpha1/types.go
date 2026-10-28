@@ -71,7 +71,10 @@ type Spec struct {
 	// Wildcard domain every hostname is built under. "auto" derives
 	// it from expose: <dashed-lan-ip>.traefik.me for "lan", localhost for
 	// "local". Set it to a domain you own when you want your own
-	// certificates; expose still decides which interface answers.
+	// certificates; expose still decides which interface answers. "none" opts
+	// out of hostnames altogether: nothing is resolved, and every host is
+	// reached at this machine's address on a port of its own (portForward is
+	// implied), so a universe is just <ip>:<port>.
 	// +default=auto
 	Domain string `yaml:"domain"`
 

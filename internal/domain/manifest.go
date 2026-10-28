@@ -64,6 +64,15 @@ type Proxy struct {
 	Network     string
 }
 
+// DomainNone is the domain that opts out of hostnames: a universe is reached by
+// the machine's address and a port of its own, and no name is looked up.
+const DomainNone = "none"
+
+// IPOnly reports that a universe is reached by IP and port, with no hostname
+// anyone is asked to resolve. The proxy still routes by an internal name
+// (.localhost), but no address shown or handed to a service uses it.
+func (m *Manifest) IPOnly() bool { return m.Domain == DomainNone }
+
 // LocalOnly reports that universes must not be reachable from the network.
 func (m *Manifest) LocalOnly() bool { return m.Expose == ExposeLocal }
 

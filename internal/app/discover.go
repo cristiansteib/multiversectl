@@ -114,7 +114,7 @@ func (s *Service) resolveEnvSource(source string, st domain.UniverseState, hosts
 		if !known {
 			return "", fmt.Errorf("no host %q in this multiverse", key)
 		}
-		return hostname, nil
+		return s.hostOf(st, key, hostname), nil
 	}
 	if key, ok := strings.CutPrefix(source, srcURL); ok {
 		if _, known := st.Hosts[key]; !known {
@@ -150,6 +150,11 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			return fmt.Errorf("host %q: scheme %q: want %s", hostKey, rule.Scheme, strings.Join(domain.Schemes, ", "))
 		}
 		rule.Entrypoint = orWeb(rule.Entrypoint)
+		if s.Manifest.IPOnly() {
+			// The address is the forwarded port: without a hostname that is the
+			// only way to tell one universe's copy of a host from another's.
+			rule.PortForward = domain.PortForwardAuto
+		}
 		rule.Hostname = u.Hostname(hostKey, dom)
 		rules[hostKey] = rule
 		return nil
