@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -88,20 +89,22 @@ func (System) FreePort(ctx context.Context) (int, error) {
 // "answers" from "does not".
 const probeTimeout = 3 * time.Second
 
-func (System) Probe(ctx context.Context, url string) (int, error) {
+func (System) Probe(ctx context.Context, url string) (app.Answer, error) {
 	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return 0, err
+		return app.Answer{}, err
 	}
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	resp, err := client.Do(req)
 	if err != nil {
-		return 0, err
+		return app.Answer{}, err
 	}
-	_ = resp.Body.Close()
-	return resp.StatusCode, nil
+	defer resp.Body.Close()
+	// Only the start: enough to recognise an error page, not to hold a download.
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+	return app.Answer{Status: resp.StatusCode, Body: string(body)}, nil
 }
 
 // RunHost runs a command with no shell, in dir, adding env to this process's own.
