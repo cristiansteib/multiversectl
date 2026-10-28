@@ -1,12 +1,10 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { Shell } from './layout/shell';
 
 @Component({
-  imports: [RouterOutlet],
   selector: 'app-root',
-  styleUrl: './app.css',
-  templateUrl: './app.html',
+  imports: [Shell],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: '<mv-shell />',
 })
-export class App {
-  protected readonly title = signal('web');
-}
+export class App {}

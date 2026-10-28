@@ -1,0 +1,44 @@
+<a class="skip" href="#main">Skip to content</a>
+<mv-update-banner />
+<div class="shell" [class.has-dock]="dockOpen()">
+  <header class="top">
+    <button type="button" class="btn icon ghost menu" (click)="menu.set(!menu())" [attr.aria-expanded]="menu()" aria-controls="rail" aria-label="Sections">
+      <mv-icon name="menu" />
+    </button>
+    <a class="brand" routerLink="/" aria-label="multiversectl, overview">
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.2"><rect x="6" y="6" width="14" height="14" rx="3" class="a" /><rect x="12" y="12" width="14" height="14" rx="3" /></g></svg>
+      <span>multiversectl</span>
+      @if (version()) { <small>{{ version() }}</small> }
+    </a>
+    <span class="grow"></span>
+    @if (events.updatedAt(); as at) { <span class="stamp muted" aria-live="polite">Updated {{ at.toISOString() | ago }}</span> }
+    <span class="live" [class.on]="events.connected()" role="status"
+          [attr.title]="events.connected() ? 'Changes are pushed to this page as they happen' : 'The connection dropped; this page asks again every ten seconds until it is back'">
+      <span class="dot" [class.ok]="events.connected()" [class.warn]="!events.connected()" [class.pulse]="!events.connected()"></span>
+      {{ events.connected() ? 'Live' : 'Reconnecting' }}
+    </span>
+    <button type="button" class="btn small" (click)="refresh()" [disabled]="refreshing()" [attr.aria-busy]="refreshing()" title="Read everything again now">
+      <mv-icon name="refresh" /> Refresh
+    </button>
+    <button type="button" class="btn small icon ghost" (click)="theme.toggle()" [attr.aria-label]="theme.theme() === 'dark' ? 'Switch to the light theme' : 'Switch to the dark theme'">
+      <mv-icon [name]="theme.theme() === 'dark' ? 'sun' : 'moon'" />
+    </button>
+  </header>
+
+  <nav id="rail" class="rail" [class.open]="menu()" aria-label="Sections">
+    @for (s of sections; track s.path) {
+      <a [routerLink]="s.path" routerLinkActive="current" [routerLinkActiveOptions]="{ exact: !!s.exact }" ariaCurrentWhenActive="page">
+        <mv-icon [name]="s.icon" /> {{ s.label }}
+        @if (s.path === '/fleet' && ops.running() > 0) { <span class="count" [attr.title]="ops.running() + ' running'">{{ ops.running() }}</span> }
+      </a>
+    }
+    <p class="rail-note">
+      @if (events.readOnly()) { Read-only: the server was started with <code>--read-only</code>. }
+      @else { Whatever you do here the command line does too. }
+    </p>
+  </nav>
+
+  <main id="main" tabindex="-1"><router-outlet /></main>
+</div>
+<mv-ops-dock />
+<mv-toast-host />
