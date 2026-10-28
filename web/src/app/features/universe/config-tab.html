@@ -1,0 +1,74 @@
+@if (error(); as message) {
+  <mv-error [message]="message" />
+} @else if (data(); as d) {
+  <div class="cols">
+    <section class="card">
+      <h3>Manifest now</h3>
+      <dl>
+        <dt>File</dt><dd><mv-copy [text]="d.path" /></dd>
+        @if (d.source) { <dt>From</dt><dd class="mono wrap">{{ d.source }}@if (d.from) { <span class="muted"> · {{ d.from }}</span> }</dd> }
+        <dt>Fingerprint</dt><dd><mv-copy [text]="d.sha256" [label]="d.sha256.slice(0, 12)" /></dd>
+        <dt>Size</dt><dd>{{ d.bytes }} bytes · {{ plural(lines().length || 0, 'line') }}</dd>
+        <dt>Loads</dt>
+        <dd>
+          @if (d.problems.length) { <mv-badge tone="bad">{{ plural(d.problems.length, 'problem') }}</mv-badge> }
+          @else { <mv-badge tone="ok"><mv-icon name="check" /> without complaint</mv-badge> }
+        </dd>
+      </dl>
+      @if (d.problems.length) {
+        <ul class="problems">@for (p of d.problems; track p) { <li class="mono">{{ p }}</li> }</ul>
+      }
+    </section>
+
+    <section class="card">
+      <h3>Started with</h3>
+      @if (d.startedWith; as rec) {
+        <dl>
+          <dt>Last started</dt><dd [attr.title]="rec.at">{{ rec.at | ago }}</dd>
+          @if (rec.version) { <dt>By build</dt><dd class="mono">{{ rec.version }}</dd> }
+          <dt>Fingerprint</dt><dd><mv-copy [text]="rec.sha256" [label]="rec.sha256.slice(0, 12)" /></dd>
+          <dt>Compared with now</dt>
+          <dd>
+            @if (d.changed) { <mv-badge tone="warn">edited since it was started</mv-badge> }
+            @else { <mv-badge tone="ok"><mv-icon name="check" /> the same</mv-badge> }
+          </dd>
+        </dl>
+        @if (d.changed) {
+          <p class="muted note">The universe goes on running on what it was started with. Starting it again uses the current manifest.</p>
+        }
+        @if (d.snapshotProblems?.length) {
+          <p class="muted note">What it was started with would not load either:</p>
+          <ul class="problems">@for (p of d.snapshotProblems; track p) { <li class="mono">{{ p }}</li> }</ul>
+        }
+      } @else {
+        <p class="muted">Not recorded: this universe has not been started since the manifest began to be kept, or was started before. Start it to record one.</p>
+      }
+    </section>
+  </div>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="Which manifest">
+      <button type="button" [attr.aria-pressed]="view() === 'current'" (click)="pick('current')">Now</button>
+      @if (d.snapshot) {
+        <button type="button" [attr.aria-pressed]="view() === 'started'" (click)="pick('started')">As started</button>
+        <button type="button" [attr.aria-pressed]="view() === 'changes'" (click)="pick('changes')">Changes@if (d.changed) { <span class="dim"> +{{ counts().added }} −{{ counts().removed }}</span> }</button>
+      }
+    </div>
+    <span class="grow"></span>
+    @if (view() !== 'changes') { <button type="button" class="btn small" (click)="copy()"><mv-icon name="copy" /> Copy</button> }
+  </div>
+
+  @if (view() === 'changes') {
+    @if (!d.changed) {
+      <mv-empty title="Nothing has changed">The manifest is the one this universe was started with.</mv-empty>
+    } @else {
+      <pre class="code diff" tabindex="0" aria-label="Changes since the universe was started">@for (l of changes(); track $index) {<span class="ln" [class.add]="l.op === '+'" [class.del]="l.op === '-'"><i class="no">{{ l.oldNo ?? '' }}</i><i class="no">{{ l.newNo ?? '' }}</i><b class="op">{{ l.op }}</b>{{ l.text }}
+</span>}</pre>
+    }
+  } @else {
+    <pre class="code" tabindex="0" [attr.aria-label]="view() === 'started' ? 'The manifest it was started with' : 'The manifest now'">@for (l of lines(); track $index) {<span class="ln"><i class="no">{{ $index + 1 }}</i>{{ l }}
+</span>}</pre>
+  }
+} @else {
+  <div class="stack"><mv-skeleton height="9rem" /><mv-skeleton height="14rem" /></div>
+}

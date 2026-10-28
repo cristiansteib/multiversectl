@@ -43,6 +43,13 @@ export interface MultiverseView {
   repos: RepoView[]; apps: AppDefView[]; env?: Record<string, string>;
 }
 
+export interface ConfigRecord { sha256: string; at: string; version?: string }
+/** The manifest a universe uses, with the one it was last started with beside it. */
+export interface ConfigView {
+  path: string; from?: string; source?: string; sha256: string; bytes: number; yaml: string; problems: string[];
+  startedWith?: ConfigRecord; snapshot?: string; snapshotProblems?: string[]; changed: boolean;
+}
+
 export interface CheckView { name: string; status: string; detail?: string }
 export interface DoctorView { checks: CheckView[]; ok: boolean }
 

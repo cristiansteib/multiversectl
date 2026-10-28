@@ -23,7 +23,9 @@ func (p *pruneStore) Load(id string) (domain.UniverseState, error) {
 	}
 	return domain.UniverseState{}, domain.ErrNotFound
 }
-func (p *pruneStore) Delete(id string) error { p.deleted = append(p.deleted, id); return nil }
+func (p *pruneStore) Delete(id string) error            { p.deleted = append(p.deleted, id); return nil }
+func (p *pruneStore) SaveConfig(string, []byte) error   { return nil }
+func (p *pruneStore) LoadConfig(string) ([]byte, error) { return nil, domain.ErrNotFound }
 
 type pruneRuntime struct {
 	Runtime

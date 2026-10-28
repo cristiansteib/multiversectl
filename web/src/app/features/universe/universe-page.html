@@ -52,6 +52,7 @@
       <a [routerLink]="base()" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" title="Overview"><mv-icon name="overview" /> <span class="label">Overview</span></a>
       <a [routerLink]="[...base(), 'containers']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Containers and logs"><mv-icon name="terminal" /> <span class="label">Containers and logs</span></a>
       <a [routerLink]="[...base(), 'code']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Code"><mv-icon name="branch" /> <span class="label">Code</span></a>
+      <a [routerLink]="[...base(), 'config']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Configuration"><mv-icon name="doc" /> <span class="label">Configuration</span></a>
       <a [routerLink]="[...base(), 'settings']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Settings"><mv-icon name="system" /> <span class="label">Settings</span></a>
     </nav>
     <div class="content">

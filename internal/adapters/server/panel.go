@@ -70,6 +70,24 @@ func (s *Server) code(w http.ResponseWriter, r *http.Request) {
 	reply(w, v)
 }
 
+// config is the manifest a universe uses, with the one it was last started with
+// beside it: a read, like the rest of the panel.
+func (s *Server) config(w http.ResponseWriter, r *http.Request) {
+	project, universe := r.URL.Query().Get("multiverse"), r.URL.Query().Get("universe")
+	if project == "" || universe == "" {
+		fail(w, http.StatusBadRequest, "multiverse and universe are required")
+		return
+	}
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	v, err := s.b.Config(ctx, project, universe)
+	if err != nil {
+		failErr(w, err)
+		return
+	}
+	reply(w, v)
+}
+
 // diff is the files of one repository's change, or with a file, that file's
 // diff. A read, like the rest of the panel, and it names no path of its own:
 // the backend only answers for files that are in the change.

@@ -83,6 +83,16 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	}
 	st.Rules, st.Hosts = rules, hostnames(rules)
 	st.LastStarted = time.Now().UTC()
+	// Which manifest it starts with is kept: the file can be edited later, and the
+	// universe goes on running on what it was started with until it is started again.
+	if rec, err := s.recordConfig(st.ID); err != nil {
+		s.Out.Warn("could not keep the manifest this universe starts with: %v", err)
+	} else {
+		if prev := st.StartedWith.SHA256; prev != "" && prev != rec.SHA256 {
+			s.Out.Info("the manifest changed since this universe was last started; it starts with the current one (`multiversectl universe config` shows what changed)")
+		}
+		st.StartedWith = rec
+	}
 	if err := s.Store.Save(st); err != nil {
 		return err
 	}

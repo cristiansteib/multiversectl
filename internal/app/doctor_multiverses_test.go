@@ -9,6 +9,10 @@ import (
 
 type fakeLoader map[string]*domain.Manifest
 
+func (f fakeLoader) Decode([]byte, string) (*domain.Manifest, error) {
+	return nil, domain.ErrNoManifest
+}
+
 func (f fakeLoader) Load(path string) (*domain.Manifest, error) {
 	if m, ok := f[path]; ok {
 		return m, nil
