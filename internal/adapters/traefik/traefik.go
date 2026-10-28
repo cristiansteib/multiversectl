@@ -18,6 +18,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/cristiansteib/multiversectl/internal/adapters/trace"
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
@@ -35,6 +36,7 @@ var tmpl = template.Must(template.New("").Funcs(template.FuncMap{
 // expresses routes as compose labels (app.Router).
 type Traefik struct {
 	stdout, stderr io.Writer
+	trace          *trace.Tracer
 }
 
 var (
@@ -43,18 +45,23 @@ var (
 )
 
 // New streams child output to the given writers; nil means os.Stdout / os.Stderr.
-func New(stdout, stderr io.Writer) *Traefik {
+// The tracer, which may be nil, says which commands it runs.
+func New(stdout, stderr io.Writer, t *trace.Tracer) *Traefik {
 	if stdout == nil {
 		stdout = os.Stdout
 	}
 	if stderr == nil {
 		stderr = os.Stderr
 	}
-	return &Traefik{stdout: stdout, stderr: stderr}
+	return &Traefik{stdout: stdout, stderr: stderr, trace: t}
 }
 
 func (t *Traefik) EnsureNetwork(ctx context.Context, name string) error {
-	if exec.CommandContext(ctx, "docker", "network", "inspect", name).Run() == nil {
+	inspect := exec.CommandContext(ctx, "docker", "network", "inspect", name)
+	done := t.trace.Begin(inspect)
+	err := inspect.Run()
+	done(err)
+	if err == nil {
 		return nil
 	}
 	return t.docker(ctx, "network", "create", name)
@@ -112,7 +119,9 @@ func (t *Traefik) Status(ctx context.Context) (app.ProxyStatus, error) {
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "docker", "compose", "--project-name", proxyProject, "-f", file, "ps", "--format", "{{json .}}")
 	cmd.Stderr = &stderr
+	done := t.trace.Begin(cmd)
 	out, err := cmd.Output()
+	done(err)
 	if err != nil {
 		return st, fmt.Errorf("docker compose ps: %w: %s", err, strings.TrimSpace(stderr.String()))
 	}
@@ -340,7 +349,10 @@ func (t *Traefik) docker(ctx context.Context, args ...string) error {
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Stdout = t.stdout
 	cmd.Stderr = t.stderr
-	if err := cmd.Run(); err != nil {
+	done := t.trace.Begin(cmd)
+	err := cmd.Run()
+	done(err)
+	if err != nil {
 		return fmt.Errorf("docker %s: %w", strings.Join(args[:min(len(args), 2)], " "), err)
 	}
 	return nil

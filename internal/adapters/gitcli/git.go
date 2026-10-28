@@ -13,19 +13,24 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cristiansteib/multiversectl/internal/adapters/trace"
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-type Git struct{}
+// Git runs the git program. A nil trace says nothing of what it runs.
+type Git struct{ trace *trace.Tracer }
 
-func New() *Git { return &Git{} }
+func New(t *trace.Tracer) *Git { return &Git{trace: t} }
 
-func (Git) run(ctx context.Context, args ...string) (string, error) {
+func (g Git) run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
+	done := g.trace.Begin(cmd)
+	err := cmd.Run()
+	done(err)
+	if err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			return "", fmt.Errorf("git %s: %w", named(args), err)
@@ -67,7 +72,10 @@ func (g Git) Fetch(ctx context.Context, repoDir string) error {
 func (g Git) FetchQuietly(ctx context.Context, repoDir string) error {
 	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "fetch", "--quiet", "origin")
 	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
-	if out, err := cmd.CombinedOutput(); err != nil {
+	done := g.trace.Begin(cmd)
+	out, err := cmd.CombinedOutput()
+	done(err)
+	if err != nil {
 		return fmt.Errorf("git fetch: %s", strings.TrimSpace(string(out)))
 	}
 	return nil
@@ -133,7 +141,9 @@ func (g Git) CheckedOutAt(ctx context.Context, repoDir, branch string) (string, 
 // ancestor is `git merge-base --is-ancestor a b`: exit 1 is the answer "no".
 func (g Git) ancestor(ctx context.Context, repoDir, a, b string) (bool, error) {
 	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "merge-base", "--is-ancestor", a, b)
+	done := g.trace.Begin(cmd)
 	err := cmd.Run()
+	done(err)
 	if err == nil {
 		return true, nil
 	}
@@ -222,7 +232,9 @@ func (g Git) CurrentBranch(ctx context.Context, dir string) (string, error) {
 // early on a missing branch, so an error read as absence skips its guards.
 func (g Git) refPresent(ctx context.Context, repoDir, full string) (bool, error) {
 	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "show-ref", "--verify", "--quiet", full)
+	done := g.trace.Begin(cmd)
 	err := cmd.Run()
+	done(err)
 	if err == nil {
 		return true, nil
 	}
