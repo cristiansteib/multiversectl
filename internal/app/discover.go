@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,7 +48,15 @@ const (
 	srcSlug     = "slug"     // the part its hostnames carry
 	srcHost     = "host:"    // one host key's hostname
 	srcURL      = "url:"     // one host key's address
+	srcForward  = "forward:" // one host key's address by IP and port, when it is forwarded
 )
+
+// separators are what a list source (origins, hosts) can be joined with, named
+// after the source and a colon: `origins:space`. A framework decides the shape
+// of its own setting (Django's CORS_ALLOWED_ORIGINS is a space-separated list
+// where CSRF_TRUSTED_ORIGINS is a comma-separated one), so the tool names the
+// shapes and does not guess. Comma is the default.
+var separators = map[string]string{"comma": ",", "space": " ", "semicolon": ";", "newline": "\n"}
 
 // serviceEnv resolves the dev.multiversectl.env.* labels of every service of an app.
 // It fails on a source it does not know rather than leaving a variable unset:
@@ -76,6 +86,16 @@ func (s *Service) serviceEnv(st domain.UniverseState, cfg ProjectConfig) ([]Serv
 }
 
 func (s *Service) resolveEnvSource(source string, st domain.UniverseState, hosts, origins []string) (string, error) {
+	if list, sep, ok := strings.Cut(source, ":"); ok && (list == srcOrigins || list == srcHosts) {
+		joiner, known := separators[sep]
+		if !known {
+			return "", fmt.Errorf("unknown separator %q for %s: want %s", sep, list, strings.Join(slices.Sorted(maps.Keys(separators)), ", "))
+		}
+		if list == srcOrigins {
+			return strings.Join(origins, joiner), nil
+		}
+		return strings.Join(hosts, joiner), nil
+	}
 	switch source {
 	case srcOrigins:
 		return strings.Join(origins, ","), nil
@@ -101,7 +121,17 @@ func (s *Service) resolveEnvSource(source string, st domain.UniverseState, hosts
 		}
 		return s.originOf(st, key, st.Hosts[key]), nil
 	}
-	return "", fmt.Errorf("unknown source %q: want %s, %s, %s, %s, %s, host:<key> or url:<key>",
+	if key, ok := strings.CutPrefix(source, srcForward); ok {
+		rule, known := st.Rules[key]
+		if !known {
+			return "", fmt.Errorf("no host %q in this multiverse", key)
+		}
+		if rule.ForwardURL == "" {
+			return "", fmt.Errorf("host %q is not forwarded: set portForward: auto on it", key)
+		}
+		return rule.ForwardURL, nil
+	}
+	return "", fmt.Errorf("unknown source %q: want %s, %s (each also as origins:space), %s, %s, %s, host:<key>, url:<key> or forward:<key>",
 		source, srcOrigins, srcHosts, srcDomain, srcUniverse, srcSlug)
 }
 

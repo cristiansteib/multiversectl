@@ -186,7 +186,7 @@ func TestServiceEnvFromLabels(t *testing.T) {
 			"devapi": "devapi-fix-login.example.test",
 		},
 		Rules: map[string]domain.RouteRule{
-			"api":    {Entrypoint: "web"},
+			"api":    {Entrypoint: "web", PortForward: "auto", HostPort: 41000, ForwardURL: "http://192.0.2.7:41000"},
 			"devapi": {Entrypoint: "devapi"},
 		},
 	}
@@ -198,6 +198,9 @@ func TestServiceEnvFromLabels(t *testing.T) {
 		"dev.multiversectl.env.API_BASE":                    "url:devapi",
 		"dev.multiversectl.env.OWN_HOST":                    "host:api",
 		"dev.multiversectl.env.WHICH":                       "universe",
+		"dev.multiversectl.env.CORS_ALLOWED_ORIGINS":        "origins:space",
+		"dev.multiversectl.env.ALLOWED_HOSTS_LINES":         "hosts:newline",
+		"dev.multiversectl.env.PHONE_URL":                   "forward:api",
 		"dev.multiversectl.host.api":                        "8001",
 	}}}}
 	got, err := svc.serviceEnv(st, cfg)
@@ -217,6 +220,12 @@ func TestServiceEnvFromLabels(t *testing.T) {
 		"API_BASE":                    "http://devapi-fix-login.example.test:8001",
 		"OWN_HOST":                    "api-fix-login.example.test",
 		"WHICH":                       "fix/login",
+		// A framework decides the shape of its own list: Django's CORS setting wants
+		// spaces where its CSRF one wants commas.
+		"CORS_ALLOWED_ORIGINS": "http://api-fix-login.example.test http://devapi-fix-login.example.test:8001",
+		"ALLOWED_HOSTS_LINES":  "api-fix-login.example.test\ndevapi-fix-login.example.test",
+		// A client that cannot use the hostname is given the address by IP and port.
+		"PHONE_URL": "http://192.0.2.7:41000",
 	} {
 		if vars[name] != want {
 			t.Errorf("%s = %q, want %q", name, vars[name], want)
@@ -227,7 +236,7 @@ func TestServiceEnvFromLabels(t *testing.T) {
 		t.Error("a host label leaked into the environment")
 	}
 
-	for _, bad := range []string{"nonsense", "host:nope", "url:nope"} {
+	for _, bad := range []string{"nonsense", "host:nope", "url:nope", "forward:nope", "forward:devapi", "origins:tab"} {
 		cfg.Services["web"] = ServiceConfig{Labels: map[string]string{"dev.multiversectl.env.X": bad}}
 		if _, err := svc.serviceEnv(st, cfg); err == nil {
 			t.Errorf("%q: want an error naming the problem", bad)
