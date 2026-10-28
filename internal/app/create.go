@@ -530,7 +530,7 @@ func baseRef(base string, kind RefKind) string {
 func (s *Service) copySecrets(u domain.Universe) error {
 	for appKey := range s.Manifest.Apps {
 		for _, pair := range s.SecretPaths(u, appKey) {
-			if _, err := s.provideSecret(appKey, pair[0], pair[1]); err != nil {
+			if _, err := s.provideSecret(appKey, pair); err != nil {
 				return err
 			}
 		}
@@ -538,34 +538,44 @@ func (s *Service) copySecrets(u domain.Universe) error {
 	return nil
 }
 
-// provideSecret puts one secret file in the universe (dst), taking it from the
-// shared clone (src). When the clone has none, it does what the repositories
-// themselves do on first run, `cp .env.example .env`: a tracked <name>.example
-// beside it is copied to src, once, so the credentials are filled in one place
-// and every universe copies them from there. found is false only when there is
-// neither the file nor an example, which the caller reports.
-func (s *Service) provideSecret(appKey, src, dst string) (found bool, err error) {
-	if s.Files.Exists(dst) {
+// provideSecret puts one secret file in the universe, taking it from the
+// shared clone. When the clone has none, it does what the repositories
+// themselves do on first run, `cp .env.example .env`: the template (by default
+// the secret's name with .example added, or what the manifest names) is copied
+// into the clone, once, so the credentials are filled in one place and every
+// universe copies them from there. found is false only when there is neither
+// the file nor a template, which the caller reports.
+func (s *Service) provideSecret(appKey string, p SecretPath) (found bool, err error) {
+	if s.Files.Exists(p.Dst) {
 		return true, nil
 	}
-	if !s.Files.Exists(src) {
-		example := src + ".example"
-		if !s.Files.Exists(example) {
+	if !s.Files.Exists(p.Src) {
+		if p.Template == "" || !s.Files.Exists(p.Template) {
 			return false, nil
 		}
-		if err := s.Files.CopyFile(example, src); err != nil {
+		s.say(1, "%s: no %s in the clone; making it from %s", appKey, p.Name, filepath.Base(p.Template))
+		if err := s.Files.CopyFile(p.Template, p.Src); err != nil {
 			return false, err
 		}
-		// A note, not a warning: a repository that ships an example meant for a
+		// A note, not a warning: a repository that ships a template meant for a
 		// local run has nothing wrong with it, and a "!" says somebody must go and
 		// edit it before it works.
-		s.Out.Info("%s: there was no `%s`, so it was made from %s, which is what a local universe runs on; put real credentials in it where something needs them, and every universe copies it from there", appKey, src, filepath.Base(example))
+		s.Out.Info("%s: there was no `%s`, so it was made from %s, which is what a local universe runs on; put real credentials in it where something needs them, and every universe copies it from there", appKey, p.Src, filepath.Base(p.Template))
 	}
-	if err := s.Files.CopyFile(src, dst); err != nil {
+	if err := s.Files.CopyFile(p.Src, p.Dst); err != nil {
 		return false, err
 	}
-	s.Out.OK("%s: copied %s", appKey, filepath.Base(dst))
+	s.Out.OK("%s: copied %s", appKey, filepath.Base(p.Dst))
 	return true, nil
+}
+
+// templateHint says what a missing secret could have been made from, so a
+// person is told the manifest's choice and not only that there is none.
+func (s *Service) templateHint(p SecretPath) string {
+	if p.Template == "" {
+		return " (the manifest says it is never made from a template)"
+	}
+	return fmt.Sprintf(" (or add `%s` to the repository, which it is made from)", filepath.Base(p.Template))
 }
 
 // PrepareSecrets makes sure the secret files of the apps about to start are in
@@ -578,12 +588,12 @@ func (s *Service) PrepareSecrets(u domain.Universe, apps []string) error {
 	var missing []string
 	for _, appKey := range apps {
 		for _, pair := range s.SecretPaths(u, appKey) {
-			found, err := s.provideSecret(appKey, pair[0], pair[1])
+			found, err := s.provideSecret(appKey, pair)
 			if err != nil {
 				return err
 			}
 			if !found {
-				missing = append(missing, fmt.Sprintf("  %s needs %s\n      put your copy at `%s`", appKey, filepath.Base(pair[1]), pair[0]))
+				missing = append(missing, fmt.Sprintf("  %s needs %s\n      put your copy at `%s`%s", appKey, filepath.Base(pair.Dst), pair.Src, s.templateHint(pair)))
 			}
 		}
 	}

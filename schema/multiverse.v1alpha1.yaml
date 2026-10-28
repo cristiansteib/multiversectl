@@ -252,6 +252,18 @@ spec:
                           universe half-start.
                         items:
                           type: string
+                      secretTemplates:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                        description: >-
+                          Where a secret is in neither the clone nor the
+                          universe, it is made from the file named here, in
+                          the repository, and kept in the clone so every
+                          universe copies the same one. By default that is
+                          the secret's own name with .example added (.env
+                          from .env.example); name another file to use it
+                          instead, or "" to never make one, so a missing
+                          secret stops the start and says where to put it.
                       hooks:
                         type: object
                         properties:

@@ -110,7 +110,10 @@ type App struct {
 	Services []string            // services to start; empty means every one the compose files define
 	Optional map[string][]string // name -> extra services, enabled with --with
 	Secrets  []string            // repo-relative files copied into each universe
-	Publish  []string            // the few services allowed to keep a published host port
+	// SecretTemplates says, for a secret, the repo-relative file a missing one is
+	// made from; absent means <name>.example, and "" means none.
+	SecretTemplates map[string]string
+	Publish         []string // the few services allowed to keep a published host port
 	// DefaultService is where exec and run go when no service is named and the
 	// app has several.
 	DefaultService string
@@ -192,6 +195,17 @@ func (m *Manifest) Validate() error {
 		}
 		if app.DefaultService != "" && len(app.Services) > 0 && !slices.Contains(app.Services, app.DefaultService) {
 			errs = append(errs, fmt.Sprintf("apps.%s.defaultService: %q is not one of its services (%s)", key, app.DefaultService, strings.Join(app.Services, ", ")))
+		}
+		for name, tpl := range app.SecretTemplates {
+			switch {
+			case !slices.Contains(app.Secrets, name):
+				errs = append(errs, fmt.Sprintf("apps.%s.secretTemplates.%s: not one of its secrets (%s)", key, name, strings.Join(app.Secrets, ", ")))
+			case tpl != "" && !filepath.IsLocal(tpl):
+				// It is read from the shared clone: it must stay inside it.
+				errs = append(errs, fmt.Sprintf("apps.%s.secretTemplates.%s: %q must be a path inside the repository", key, name, tpl))
+			case tpl == name:
+				errs = append(errs, fmt.Sprintf("apps.%s.secretTemplates.%s: a secret cannot be made from itself", key, name))
+			}
 		}
 		for i, hook := range app.After {
 			if len(hook.Command) == 0 {

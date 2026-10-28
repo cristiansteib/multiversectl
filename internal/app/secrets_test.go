@@ -107,3 +107,41 @@ func TestASecretAlreadyInTheUniverseIsLeftAlone(t *testing.T) {
 		t.Errorf("an edit in the universe was overwritten: %q", got)
 	}
 }
+
+func TestAManifestCanNameTheFileASecretIsMadeFrom(t *testing.T) {
+	b, u := secretBench(t)
+	b.svc.Manifest.Apps["api"] = withTemplates(b.svc.Manifest.Apps["api"], map[string]string{".env": "env.local"})
+	clone := b.clone("api")
+	// The convention is not looked at once the manifest has named another file.
+	for name, body := range map[string]string{".env.example": "TOKEN=example\n", "env.local": "TOKEN=local\n"} {
+		if err := os.WriteFile(filepath.Join(clone, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := b.svc.PrepareSecrets(u, []string{"api"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, filepath.Join(u.RepoDir("api"), ".env")); got != "TOKEN=local\n" {
+		t.Errorf("the universe's .env = %q, want the one named", got)
+	}
+}
+
+func TestAManifestCanSayASecretIsNeverMadeFromAnExample(t *testing.T) {
+	b, u := secretBench(t)
+	b.svc.Manifest.Apps["api"] = withTemplates(b.svc.Manifest.Apps["api"], map[string]string{".env": ""})
+	if err := os.WriteFile(filepath.Join(b.clone("api"), ".env.example"), []byte("TOKEN=example\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := b.svc.PrepareSecrets(u, []string{"api"})
+	if err == nil || !strings.Contains(err.Error(), "never made from a template") {
+		t.Fatalf("want the start stopped, saying why the example was not used, got %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(b.clone("api"), ".env")); statErr == nil {
+		t.Error("a .env was made from the example although the manifest said not to")
+	}
+}
+
+func withTemplates(a domain.App, t map[string]string) domain.App {
+	a.SecretTemplates = t
+	return a
+}

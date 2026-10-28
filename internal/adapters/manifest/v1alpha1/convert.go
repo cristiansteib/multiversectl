@@ -105,16 +105,17 @@ func Convert(w *Multiverse, dir string) (*domain.Manifest, error) {
 
 func convertApp(a App) (domain.App, error) {
 	app := domain.App{
-		Repo:           a.Repo,
-		Compose:        a.Compose,
-		Profiles:       a.Profiles,
-		Services:       a.Services,
-		Secrets:        a.Secrets,
-		Publish:        a.Publish,
-		Build:          a.Build,
-		DefaultService: a.DefaultService,
-		Optional:       map[string][]string{},
-		Hosts:          map[string]domain.HostRule{},
+		Repo:            a.Repo,
+		Compose:         a.Compose,
+		Profiles:        a.Profiles,
+		Services:        a.Services,
+		Secrets:         a.Secrets,
+		SecretTemplates: a.SecretTemplates,
+		Publish:         a.Publish,
+		Build:           a.Build,
+		DefaultService:  a.DefaultService,
+		Optional:        map[string][]string{},
+		Hosts:           map[string]domain.HostRule{},
 	}
 	for _, h := range a.Hooks.After {
 		app.After = append(app.After, domain.Hook{Service: h.Container.Service, Command: h.Container.Command, Once: h.Once})

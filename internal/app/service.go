@@ -316,14 +316,25 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 	return routes
 }
 
-// SecretPaths lists an app's secret files as (source in the clone, destination
-// in the universe) pairs.
-func (s *Service) SecretPaths(u domain.Universe, appKey string) [][2]string {
+// SecretPath is one secret file of an app: its name in the repository, where it
+// is kept in the clone, where it goes in the universe, and the file a missing
+// one is made from (empty when none is).
+type SecretPath struct{ Name, Src, Dst, Template string }
+
+// SecretPaths lists an app's secret files for a universe.
+func (s *Service) SecretPaths(u domain.Universe, appKey string) []SecretPath {
 	app := s.Manifest.Apps[appKey]
 	clone := s.Manifest.CloneDir(s.Multiverse, app.Repo)
-	var out [][2]string
+	var out []SecretPath
 	for _, name := range app.Secrets {
-		out = append(out, [2]string{filepath.Join(clone, name), filepath.Join(u.RepoDir(app.Repo), name)})
+		p := SecretPath{Name: name, Src: filepath.Join(clone, name), Dst: filepath.Join(u.RepoDir(app.Repo), name)}
+		// Set and empty means none; not set means the convention.
+		if tpl, set := app.SecretTemplates[name]; !set {
+			p.Template = p.Src + ".example"
+		} else if tpl != "" {
+			p.Template = filepath.Join(clone, tpl)
+		}
+		out = append(out, p)
 	}
 	return out
 }

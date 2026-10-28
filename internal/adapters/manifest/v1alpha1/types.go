@@ -191,6 +191,14 @@ type App struct {
 	// one is missing, rather than letting the universe half-start.
 	Secrets []string `yaml:"secrets"`
 
+	// Where a secret is in neither the clone nor the universe, it is made from
+	// the file named here, in the repository, and kept in the clone so every
+	// universe copies the same one. By default that is the secret's own name
+	// with .example added (.env from .env.example); name another file to use it
+	// instead, or "" to never make one, so a missing secret stops the start and
+	// says where to put it.
+	SecretTemplates map[string]string `yaml:"secretTemplates"`
+
 	// Commands run at points of this app's life in a universe, the way Skaffold
 	// runs lifecycle hooks, with only what is needed here: after the app's
 	// services are up, in one of them.
