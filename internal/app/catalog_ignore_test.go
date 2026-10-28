@@ -105,3 +105,28 @@ func TestAnIgnoredMultiverseIsNotInstalledWithItsParent(t *testing.T) {
 		t.Error("search should not be")
 	}
 }
+
+// A multiverse installed straight from its repository is marked in the catalog
+// that lists it, however the two wrote the address.
+func TestInstalledIsMatchedByRepositoryNotByHowItIsSpelled(t *testing.T) {
+	local := t.TempDir()
+	write(t, local, "catalog.yaml", cat("me", `  multiverses:
+    - name: billing
+      source: {repo: "https://example.test/acme/billing"}
+`))
+	cfg := &memConfig{c: app.Config{Catalog: filepath.Join(local, "catalog.yaml"), Multiverses: map[string]app.MultiverseEntry{
+		"billing": {Source: app.Origin{Repo: "git@example.test:acme/billing.git", Path: "multiverse.yaml"}},
+	}}}
+	c := app.NewCatalogs(app.CatalogDeps{Git: &fakeRepos{}, Files: fsx.New(), Decoder: catalog.Decoder{}, CacheDir: t.TempDir(), Config: cfg, Out: &quiet{}})
+	root, err := c.Tree(context.Background(), "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.InstalledIn(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["billing"] != "billing" {
+		t.Fatalf("installed = %v", got)
+	}
+}

@@ -165,11 +165,21 @@ func installedAs(cfg Config, from string, o Origin) (string, bool) {
 		if from != "" && e.From == from {
 			return name, true
 		}
-		if o != (Origin{}) && e.Source == o {
+		if sameOrigin(e.Source, o) {
 			return name, true
 		}
 	}
 	return "", false
+}
+
+// sameOrigin says two sources are one multiverse definition: the same repository
+// however it was written (ssh or https, with or without .git) at the same ref and
+// file, where a ref or file left out means the default and matches any.
+func sameOrigin(a, b Origin) bool {
+	if a.Repo == "" || b.Repo == "" || !sameRepo(a.Repo, b.Repo) {
+		return false
+	}
+	return (a.Ref == b.Ref || a.Ref == "" || b.Ref == "") && (a.Path == b.Path || a.Path == "" || b.Path == "")
 }
 
 // clashError refuses a second multiverse under a name already in use: the

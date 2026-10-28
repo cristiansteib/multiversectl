@@ -7,6 +7,7 @@ import { CopyButton } from '../../shared/ui/copy-button';
 import { EmptyState } from '../../shared/ui/empty-state';
 import { Icon } from '../../shared/ui/icon';
 import { Place } from '../../shared/ui/place';
+import { plural } from '../../core/util';
 import { FetchProgress } from './fetch-progress';
 import { Step, countNodes, stepKey } from './catalog.model';
 
@@ -71,8 +72,9 @@ export class CatalogTree {
     const out: Row[] = [];
     const walk = (n: NodeView, depth: number, parent: string | null) => {
       if (!kept.has(n.path)) return;
-      const expandable = n.kind === 'catalog' && !n.ignored;
-      const isOpen = expandable && (!!f || open.has(n.path));
+      // A catalog opens to its children; a multiverse opens to what is known of it.
+      const expandable = n.kind === 'multiverse' || !n.ignored;
+      const isOpen = expandable && (n.kind === 'catalog' ? !!f || open.has(n.path) : open.has(n.path));
       out.push({ node: n, depth, expandable, open: isOpen, root: depth === 0, parent, step: n.kind === 'catalog' && !n.ignored && n.repo ? steps.get(stepKey(n.repo, n.ref)) : undefined });
       if (isOpen) (n.children ?? []).forEach((c) => walk(c, depth + 1, n.path));
     };
@@ -101,7 +103,7 @@ export class CatalogTree {
   }
 
   protected toggle(r: Row): void {
-    if (!r.expandable || this.filter()) return;
+    if (!r.expandable || (this.filter() && r.node.kind === 'catalog')) return;
     const next = new Set(this.open());
     if (next.has(r.node.path)) next.delete(r.node.path); else next.add(r.node.path);
     this.open.set(next);
@@ -112,6 +114,14 @@ export class CatalogTree {
     this.focused.set(r.node.path);
     if ((e.target as HTMLElement).closest('a, button')) return;
     this.toggle(r);
+  }
+
+  /** How many universes an installed multiverse has, and how many of them run. */
+  protected universesOf(name: string): string {
+    const m = this.events.fleet()?.multiverses.find((x) => x.name === name);
+    if (!m) return '';
+    const running = m.universes.filter((u) => u.running).length;
+    return m.universes.length ? `${plural(m.universes.length, 'universe')}, ${running} running` : 'no universes yet';
   }
 
   protected kindLabel(r: Row): string { return r.root ? 'root catalog' : r.node.kind; }

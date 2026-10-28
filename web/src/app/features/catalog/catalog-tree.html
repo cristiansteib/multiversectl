@@ -48,6 +48,24 @@
           }
         </span>
       </div>
+      @if (r.open && r.node.kind === 'multiverse') {
+        <dl class="detail" [style.--depth]="r.depth" [attr.aria-label]="r.node.name + ', details'">
+          <dt>Repository</dt><dd><mv-place [loc]="r.node.loc" /></dd>
+          <dt>Branch</dt><dd>{{ r.node.ref || 'the default branch' }}</dd>
+          <dt>Manifest</dt><dd class="mono">{{ r.node.file || 'multiverse.yaml' }}</dd>
+          <dt>In the catalog</dt><dd><mv-copy [text]="r.node.path" /></dd>
+          <dt>On this machine</dt>
+          <dd>
+            @if (r.node.installedAs; as inst) {
+              Installed as <a [routerLink]="['/multiverse', inst]">{{ inst }}</a>@if (universesOf(inst); as u) { <span class="muted">, {{ u }}</span> }
+            } @else if (r.node.ignored) {
+              <span class="muted">Ignored: not offered for installing.</span>
+            } @else {
+              <span class="muted">Not installed.</span> <mv-copy [text]="'multiversectl start ' + r.node.path" label="Install" />
+            }
+          </dd>
+        </dl>
+      }
     }
   </div>
 } @else {
