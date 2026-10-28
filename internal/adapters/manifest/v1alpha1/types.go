@@ -365,6 +365,14 @@ type Host struct {
 	// a compose label asks for the same with dev.multiversectl.host.<name>.portForward.
 	// +enum=auto
 	PortForward string `yaml:"portForward"`
+
+	// How the proxy talks to the service. Leave it out for plain http; "h2c" is
+	// for a service that speaks HTTP/2 without TLS, such as a gRPC one, which
+	// otherwise answers the proxy's HTTP/1.1 with an error. A host that comes
+	// from a compose label asks for the same with
+	// dev.multiversectl.host.<name>.scheme.
+	// +enum=http;https;h2c
+	Scheme string `yaml:"scheme"`
 }
 
 type EnvVar struct {

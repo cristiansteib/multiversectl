@@ -149,6 +149,7 @@ func convertApp(a App) (domain.App, error) {
 			Entrypoint:  orDefault(h.Entrypoint, defaultEntrypoint),
 			AlsoMatch:   h.AlsoMatch,
 			PortForward: h.PortForward,
+			Scheme:      h.Scheme,
 		})
 		if err != nil {
 			return app, err
