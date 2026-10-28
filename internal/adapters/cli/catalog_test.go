@@ -81,3 +81,24 @@ func TestReportFetchedSaysHowEachRepositoryWent(t *testing.T) {
 		}
 	}
 }
+
+// A listing that shows something "not installed" says how to install it, with a path
+// from the tree itself.
+func TestCatalogListSaysHowToInstallWhatIsNot(t *testing.T) {
+	root := domain.Node{Name: "index", Kind: domain.CatalogNode, Children: []domain.Node{
+		{Name: "billing", Path: "billing", Kind: domain.MultiverseNode},
+		{Name: "search", Path: "search", Kind: domain.MultiverseNode},
+	}}
+	var buf bytes.Buffer
+	r := runner{out: NewOutput(&buf, false)}
+	r.sayHowToInstall(root, map[string]string{"billing": "billing"})
+	got := buf.String()
+	if !strings.Contains(got, "multiversectl start search --install-only") || strings.Contains(got, "start billing") {
+		t.Errorf("the example should be the first multiverse that is not installed:\n%s", got)
+	}
+	buf.Reset()
+	r.sayHowToInstall(root, map[string]string{"billing": "billing", "search": "search"})
+	if buf.Len() != 0 {
+		t.Errorf("nothing to install, nothing to say:\n%s", buf.String())
+	}
+}
