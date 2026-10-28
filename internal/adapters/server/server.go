@@ -124,6 +124,8 @@ func (s *Server) Handler() http.Handler {
 
 	ui, _ := fs.Sub(uiFiles, "ui")
 	mux.Handle("/", http.FileServerFS(ui))
+	app, _ := fs.Sub(webappFiles, "webapp")
+	mux.Handle(appPrefix, appHandler(app))
 	return s.guard(mux)
 }
 

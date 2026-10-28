@@ -12,6 +12,8 @@ make test lint    # go test ./... ; gofmt -l + go vet
 make schema       # regenerate schema/multiverse.v1alpha1.yaml from the Go types
 make schema-check # fail if that file is stale (CI runs it)
 make docs         # regenerate docs/ from docsrc/ (sources, layout and menu)
+make ui           # build the Angular app (web/) into the server's embed dir; never committed
+make ui-dev       # ng serve with hot reload on :4200, proxied to a running multiversectl-server
 ```
 
 Run `make schema` after touching `internal/adapters/manifest/v1alpha1/types.go`

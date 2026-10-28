@@ -15,3 +15,7 @@ coverage.*
 # Scratch drafts kept in the working tree; not project content.
 /issue.reply*
 /*.draft
+
+# Angular
+/web/node_modules/
+/web/.angular/

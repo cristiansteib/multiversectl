@@ -25,13 +25,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The Angular app is built once, here, and handed to the jobs that build the
+  # binaries: it is embedded into them and never committed.
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npx ng build
+        working-directory: web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webapp
+          path: web/dist/web/browser
+          if-no-files-found: error
+
   from-commits:
+    needs: ui
     if: github.ref_type != 'tag'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: webapp
+          path: internal/adapters/server/webapp
 
       - id: semantic
         uses: cycjimmy/semantic-release-action@v4
@@ -73,12 +100,17 @@ jobs:
           GORELEASER_CURRENT_TAG: v${{ steps.semantic.outputs.new_release_version }}
 
   from-tag:
+    needs: ui
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: webapp
+          path: internal/adapters/server/webapp
       - uses: actions/setup-go@v5
         with:
           go-version: "1.27"

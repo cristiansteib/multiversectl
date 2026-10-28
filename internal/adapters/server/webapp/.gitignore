@@ -1,0 +1,5 @@
+# The Angular build is copied here (make ui). It is never committed: the release
+# builds it in its own job and embeds it into the binary.
+*
+!.gitignore
+!placeholder.html
