@@ -56,7 +56,11 @@ type CatalogDeps struct {
 const DefaultFetchTimeout = 20 * time.Second
 
 // Catalogs resolves and browses the tree of catalogs.
-type Catalogs struct{ CatalogDeps }
+type Catalogs struct {
+	CatalogDeps
+	// cfgMu serialises changes of the configuration that read it first.
+	cfgMu sync.Mutex
+}
 
 func NewCatalogs(d CatalogDeps) *Catalogs {
 	if len(d.Hosts) == 0 && d.Host != nil {
@@ -68,7 +72,7 @@ func NewCatalogs(d CatalogDeps) *Catalogs {
 	if d.Timeout <= 0 {
 		d.Timeout = DefaultFetchTimeout
 	}
-	return &Catalogs{d}
+	return &Catalogs{CatalogDeps: d}
 }
 
 type noProgress struct{}
@@ -163,6 +167,7 @@ func (c *Catalogs) TreeObserved(ctx context.Context, source string, refresh bool
 }
 
 func (c *Catalogs) treeObserved(ctx context.Context, source string, refresh, offline bool, observe func(CatalogEvent)) (domain.Node, error) {
+	other := false // a catalog that is not this machine's root
 	if source == "" {
 		cfg, err := c.Config.Load()
 		if err != nil {
@@ -171,8 +176,17 @@ func (c *Catalogs) treeObserved(ctx context.Context, source string, refresh, off
 		if source = cfg.Catalog; source == "" {
 			return domain.Node{}, errors.New("no root catalog: `multiversectl init`  (installing a single multiverse does not need one)")
 		}
+	} else if c.Config != nil {
+		if cfg, err := c.Config.Load(); err == nil {
+			other = source != cfg.Catalog
+		}
 	}
 	r := c.newResolver(ctx, refresh, offline, observe)
+	if other {
+		// The paths this machine leaves out are paths of its root catalog: they
+		// mean nothing in another one that happens to have a node of that name.
+		r.ignored = map[string]bool{}
+	}
 	root := location{}
 	if isGitURL(source) {
 		root.repo = source
@@ -226,6 +240,8 @@ type resolver struct {
 	// and must never reach for the network.
 	offline bool
 	observe func(CatalogEvent)
+	// ignored is the paths this machine leaves out: they are not read.
+	ignored map[string]bool
 
 	// Sibling catalogs are read at the same time, so everything below is shared
 	// between goroutines. A repository is read once per run, by whoever gets
@@ -249,7 +265,15 @@ type flight struct {
 }
 
 func (c *Catalogs) newResolver(ctx context.Context, refresh, offline bool, observe func(CatalogEvent)) *resolver {
-	return &resolver{Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, observe: observe,
+	ignored := map[string]bool{}
+	if c.Config != nil {
+		if cfg, err := c.Config.Load(); err == nil {
+			for _, p := range cfg.Ignored {
+				ignored[p] = true
+			}
+		}
+	}
+	return &resolver{ignored: ignored, Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, observe: observe,
 		flight: map[string]*flight{}, down: map[string]string{}, stale: map[string]string{},
 		slots: make(chan struct{}, maxParallelFetches)}
 }
@@ -344,9 +368,10 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 	wg.Wait()
 	node.Children = append(node.Children, children...)
 	for _, ref := range cat.Multiverses {
+		path := domain.ChildPath(nodePath, ref.Name)
 		node.Children = append(node.Children, domain.Node{
-			Name: ref.Name, Path: domain.ChildPath(nodePath, ref.Name), Kind: domain.MultiverseNode,
-			Source: r.absolute(at, ref.Source),
+			Name: ref.Name, Path: path, Kind: domain.MultiverseNode,
+			Source: r.absolute(at, ref.Source), Ignored: r.ignored[path],
 		})
 	}
 	return node, nil
@@ -355,6 +380,12 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 // child reads one nested catalog; one that cannot be read is a node that says why.
 func (r *resolver) child(at location, ref domain.CatalogRef, nodePath string, stack []string) domain.Node {
 	child := domain.Node{Name: ref.Name, Path: domain.ChildPath(nodePath, ref.Name), Kind: domain.CatalogNode}
+	if r.ignored[child.Path] {
+		// Left out: not located, not fetched, so an unreachable one costs nothing.
+		child.Ignored = true
+		child.Source = domain.Source{Repo: firstOf(ref.Source.Repo, at.repo), Ref: ref.Source.Ref, Path: ref.Source.Path}
+		return child
+	}
 	loc, err := r.locate(at, ref.Source)
 	if err == nil {
 		var sub domain.Node

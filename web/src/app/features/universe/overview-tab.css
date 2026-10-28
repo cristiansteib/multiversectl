@@ -1,0 +1,15 @@
+:host { display: block }
+.banner { margin-bottom: 6px } .banner ul { margin: 6px 0 0; padding-left: 20px }
+.apps { display: flex; flex-direction: column; gap: 22px }
+.app h3 { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin: 0 0 8px; font-size: 1rem }
+.chips { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; font-weight: 400 }
+.none { margin: 0; font-size: .9rem }
+th:first-child { width: 36% }
+.svc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+td { vertical-align: middle }
+.name { font-family: var(--mono); font-size: .9rem } .state { font-size: .84rem }
+.urls { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font: .86rem/1.5 var(--mono); overflow-wrap: anywhere }
+.urls a { text-decoration: none }
+.urls a .u { text-decoration: underline; text-underline-offset: 3px }
+.urls a mv-icon { margin-left: 7px }
+@media (max-width: 560px) { th:first-child { width: auto } }

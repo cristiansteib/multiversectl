@@ -1,0 +1,28 @@
+@if (ops.shown(); as op) {
+  <aside class="dock" aria-label="Operations">
+    <div class="head">
+      @if (op.state === 'running') { <span class="spin" aria-hidden="true"></span> }
+      <mv-badge [tone]="state(op.state)[0]">{{ state(op.state)[1] }}</mv-badge>
+      <strong class="title">{{ op.title }}</strong>
+      @if (ops.running() > 1) { <span class="muted">{{ ops.running() }} running</span> }
+      <span class="grow"></span>
+      <button type="button" class="btn small ghost" (click)="ops.toggle()" [attr.aria-expanded]="ops.open()">
+        <mv-icon [name]="ops.open() ? 'chevronDown' : 'terminal'" /> {{ ops.open() ? 'Hide' : 'Show output' }}
+      </button>
+    </div>
+    @if (ops.open()) {
+      <pre #log class="log" tabindex="0" [attr.aria-label]="'Output of ' + op.title">@for (l of op.lines; track $index) {<span class="l" [class]="l.kind">{{ l.text }}
+</span>}@if (op.error) {<span class="l err">{{ op.error }}
+</span>}</pre>
+      @if (ops.list().length > 1) {
+        <div class="chips">
+          @for (o of ops.list().slice().reverse(); track o.id) {
+            <button type="button" class="chip" [class.on]="o.id === op.id" (click)="ops.show(o.id)">
+              {{ o.state === 'failed' ? '✗' : o.state === 'done' ? '✓' : '…' }} {{ o.title }}
+            </button>
+          }
+        </div>
+      }
+    }
+  </aside>
+}

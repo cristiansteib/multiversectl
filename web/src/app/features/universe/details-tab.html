@@ -1,0 +1,84 @@
+@if (u(); as u) {
+  <div class="cols">
+    <section class="card">
+      <h3>Where it is</h3>
+      <dl>
+        <dt>Folder</dt><dd><mv-copy [text]="u.dir" /></dd>
+        <dt>Domain</dt><dd class="mono">{{ u.domain }}</dd>
+        <dt>Multiverse</dt><dd>{{ u.multiverse }}</dd>
+        @if (u.created) { <dt>Created</dt><dd [attr.title]="u.created">{{ ago(u.created) }}</dd> }
+        @if (u.lastStarted) { <dt>Last started</dt><dd [attr.title]="u.lastStarted">{{ ago(u.lastStarted) }}</dd> }
+      </dl>
+    </section>
+
+    <section class="card">
+      <h3>Branches</h3>
+      @if (branches().length) {
+        <dl>
+          @for (b of branches(); track b[0]) { <dt class="mono">{{ b[0] }}</dt><dd class="mono">{{ b[1] }}</dd> }
+        </dl>
+      } @else { <p class="muted">No branch is recorded for this universe.</p> }
+    </section>
+  </div>
+
+  <h2>Checkouts <span class="muted count">{{ plural(u.checkouts.length, 'repository', 'repositories') }}</span></h2>
+  @if (u.checkouts.length) {
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Repository</th><th>Branch</th><th>Follows</th><th>State</th><th>Path</th></tr></thead>
+        <tbody>
+          @for (c of u.checkouts; track c.path) {
+            <tr>
+              <td><strong>{{ c.repo }}</strong>@if (c.app) { <div class="muted small">app {{ c.app }}</div> }</td>
+              <td class="mono">{{ c.branch || '—' }}</td>
+              <td class="mono">{{ c.follows || '—' }}</td>
+              <td>
+                <span class="row states">
+                  @if (c.dirty) { <mv-badge tone="warn" hint="Edits in the checkout that no commit holds yet">edited</mv-badge> }
+                  @if (c.behind) { <mv-badge tone="warn">{{ c.behind }} behind</mv-badge> }
+                  @if (c.ahead) { <mv-badge tone="info">{{ c.ahead }} ahead</mv-badge> }
+                  @if (!c.dirty && !c.behind && !c.ahead) { <span class="muted">clean</span> }
+                </span>
+              </td>
+              <td><mv-copy [text]="c.path" /></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else { <p class="muted">No repositories are checked out.</p> }
+
+  <h2>Health</h2>
+  <div class="card">
+    <div class="row">
+      <button type="button" class="btn" [disabled]="checking()" [attr.aria-busy]="checking()" (click)="check()">
+        @if (checking()) { <span class="spin"></span> Checking… } @else { <mv-icon name="check" /> Run doctor }
+      </button>
+      <span class="muted">Checks the tools, the clones and the containers of this universe.</span>
+      <span class="grow"></span>
+      @if (doctor()) { <button type="button" class="btn small ghost" (click)="doctor.set(null)">Dismiss</button> }
+    </div>
+    @if (doctorError(); as e) { <mv-error [message]="e" /> }
+    @if (doctor(); as d) {
+      <p class="verdict"><mv-badge [tone]="d.ok ? 'ok' : 'bad'">{{ d.ok ? 'No failures' : 'Something failed' }}</mv-badge></p>
+      <ul class="checks">
+        @for (c of d.checks; track c.name) {
+          <li><mv-badge [tone]="tone(c.status)">{{ c.status }}</mv-badge><span class="mono">{{ c.name }}</span><span class="muted">{{ c.detail }}</span></li>
+        }
+      </ul>
+    }
+  </div>
+
+  @if (!events.readOnly()) {
+    <h2>Remove this universe</h2>
+    <div class="card danger-zone">
+      <p>Deletes its worktrees (uncommitted work in them is lost), its containers and volumes, and its state. The shared clones and their branches are not touched.</p>
+      <button type="button" class="btn danger" [disabled]="busy()" [attr.title]="busy() ? 'Another operation is running in ' + store.multiverse() : null" (click)="removing.set(true)">
+        <mv-icon name="trash" /> Remove universe {{ u.name }}…
+      </button>
+    </div>
+    @if (removing()) {
+      <mv-remove-universe-dialog [multiverse]="store.multiverse()" [universe]="u.name" (closed)="removing.set(false)" />
+    }
+  }
+}

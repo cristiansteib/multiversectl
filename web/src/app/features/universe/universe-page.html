@@ -1,0 +1,65 @@
+<nav class="crumbs" aria-label="Where this is">
+  <a routerLink="/fleet">Universes</a><span aria-hidden="true">/</span>
+  <a [routerLink]="['/multiverse', multiverse()]">{{ multiverse() }}</a>
+</nav>
+
+@if (u(); as u) {
+  <header class="head">
+    <div class="who">
+      <h1 class="numeral" [class.live]="u.running">{{ u.name }}</h1>
+      <div class="row state">
+        <mv-badge [tone]="u.running ? 'ok' : 'mute'">
+          @if (u.running) { <span class="dot ok"></span> {{ u.running }}@if (store.expected()) {/{{ store.expected() }}} running }
+          @else { Stopped }
+        </mv-badge>
+        @if (branches().length === 1) {
+          <span class="chip" title="Every repository is on this branch"><mv-icon name="branch" /> {{ branches()[0] }}</span>
+        } @else if (branches().length > 1) {
+          <span class="chip" [attr.title]="branches().join(', ')"><mv-icon name="branch" /> {{ branches().length }} branches</span>
+        }
+        @if (u.behind) {
+          <mv-badge tone="warn" hint="Its code lacks commits of the branches it follows, as of the last fetch. Update code brings them in; restart to run them.">{{ u.behind }} behind</mv-badge>
+        }
+      </div>
+      <p class="muted meta">{{ meta().join(' · ') }}</p>
+      @if (u.pr) {
+        <p class="note">@if (webUrl(u.pr)) { <a [href]="u.pr" target="_blank" rel="noopener noreferrer">{{ u.pr }}</a> } @else { {{ u.pr }} }</p>
+      }
+      @if (u.note) { <p class="note">{{ u.note }}</p> }
+    </div>
+
+    @if (!events.readOnly()) {
+      <div class="actions">
+        @if (canStart()) {
+          <button type="button" class="btn primary" [disabled]="busy()" [attr.title]="busyHint()" (click)="act('up')"><mv-icon name="play" /> Start</button>
+        }
+        @if (u.running) {
+          <button type="button" class="btn" [disabled]="busy()" [attr.title]="busyHint()" (click)="act('down')"><mv-icon name="stop" /> Stop</button>
+        }
+        @if (u.behind) {
+          <button type="button" class="btn" [disabled]="busy()" [attr.title]="busyHint() || 'Bring in the commits its branches lack'" (click)="act('sync')"><mv-icon name="arrowDown" /> Update code</button>
+        }
+      </div>
+    }
+  </header>
+
+  <div class="layout">
+    <nav class="side" aria-label="This universe">
+      <a [routerLink]="base()" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><mv-icon name="overview" /> Overview</a>
+      <a [routerLink]="[...base(), 'containers']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="terminal" /> Containers and logs</a>
+      <a [routerLink]="[...base(), 'code']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="branch" /> Code</a>
+      <a [routerLink]="[...base(), 'settings']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="system" /> Settings</a>
+    </nav>
+    <div class="content"><router-outlet /></div>
+    <mv-universe-aside class="summary" />
+  </div>
+
+} @else if (!store.loaded()) {
+  <header class="head"><div class="who"><mv-skeleton width="9rem" height="2.6rem" /><mv-skeleton width="16rem" height="1rem" /></div></header>
+  <mv-skeleton height="8rem" />
+} @else {
+  <mv-empty title="This universe is not in the fleet">
+    It may have been removed, or never started on this machine.
+    <a routerLink="/fleet">See every universe</a>.
+  </mv-empty>
+}

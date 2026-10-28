@@ -1,0 +1,26 @@
+:host { display: block; min-width: 0 }
+.chart { position: relative }
+.plot { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y }
+.plot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.grid line { stroke: var(--line-soft); stroke-width: 1 }
+.axis { fill: var(--muted); font: 400 11px var(--mono) }
+.line { fill: none; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round }
+.hair { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3 }
+.dot-hit { stroke: var(--panel); stroke-width: 1.5 }
+.head { stroke: var(--panel); stroke-width: 1 }
+
+.tip { position: absolute; top: 6px; transform: translateX(12px); z-index: 2; pointer-events: none; min-width: 140px; max-width: 280px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--raise); box-shadow: 0 6px 20px rgb(0 0 0 / .18); font-size: .84rem }
+.tip.flip { transform: translateX(calc(-100% - 12px)) }
+.when { color: var(--muted); font: 400 .78rem var(--mono); margin-bottom: 4px }
+.hit { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.hit .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.key-line { flex: none } .key-line line { stroke-width: 2.4 }
+
+.legend { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 10px 0 0; padding: 0 }
+.key { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; font: 400 .84rem var(--sans); color: var(--text); background: none;
+  border: 1px solid transparent; border-radius: var(--r-md); padding: 3px 8px; cursor: pointer }
+.key:hover { border-color: var(--line); background: var(--sunk) }
+.key .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
+.key b { color: var(--muted); font-weight: 500 }
+.key.off { color: var(--faint) } .key.off .name { text-decoration: line-through } .key.off .key-line { opacity: .35 }

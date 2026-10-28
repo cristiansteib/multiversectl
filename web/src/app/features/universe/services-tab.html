@@ -1,0 +1,72 @@
+<section aria-labelledby="containers-h">
+  <h2 id="containers-h">
+    Containers
+    @if (rows(); as list) { <span class="muted count">{{ running() }} of {{ list.length }} running</span> }
+  </h2>
+  @if (error(); as e) { <mv-error [message]="e" /> }
+  @if (rows() === null) {
+    <div class="stack"><mv-skeleton height="4.5rem" /><mv-skeleton height="4.5rem" /></div>
+  } @else if (!rows()!.length) {
+    <mv-empty title="No containers yet: this universe is not started">
+      @if (!readOnly()) {
+        <button type="button" class="btn primary" [disabled]="busy()" (click)="start()"><mv-icon name="play" /> Start it</button>
+      }
+    </mv-empty>
+  } @else {
+    <ul class="rows">
+      @for (r of rows(); track r.name) {
+        <li class="crow" [class.off]="!r.running">
+          <div class="head">
+            <span class="dot" [class.ok]="r.running" [class.warn]="!r.running"></span>
+            <strong>{{ r.app }}/{{ r.service }}</strong>
+            <span class="grow"></span>
+            <span class="muted status">{{ r.status }}</span>
+          </div>
+          @if (r.running) {
+            @if (stats()[r.name]; as st) {
+              <div class="meters">
+                <span class="meter" [attr.title]="'CPU ' + st.cpu.toFixed(1) + '%'">
+                  <span class="lab">CPU</span>
+                  <span class="track"><span class="fill" [class]="tone(st.cpu)" [style.width.%]="min(st.cpu)"></span></span>
+                  <span class="mono val">{{ st.cpu.toFixed(1) }}%</span>
+                </span>
+                <span class="meter" [attr.title]="st.memUsage">
+                  <span class="lab">Memory</span>
+                  <span class="track"><span class="fill" [class]="tone(st.memory)" [style.width.%]="min(st.memory)"></span></span>
+                  <span class="mono val">{{ st.memUsage.split('/')[0] }}</span>
+                </span>
+                @if ((history()[r.name] ?? []).length > 1) {
+                  <mv-sparkline [values]="history()[r.name]" [max]="100" [label]="'CPU of ' + r.app + '/' + r.service" />
+                }
+                <span class="muted small net">net {{ st.netIO || '—' }} · {{ plural(st.pids, 'process', 'processes') }}</span>
+              </div>
+            } @else {
+              <div class="meters muted small">Reading…</div>
+            }
+          }
+          @for (url of urlsFor(r); track url) {
+            <div class="url"><a [href]="url" target="_blank" rel="noopener noreferrer">{{ url }} <mv-icon name="external" /></a></div>
+          }
+          @if (r.ports) { <div class="muted mono small">{{ r.ports }}</div> }
+          <div class="row tools">
+            <button type="button" class="btn small" (click)="showLog(r.app + '/' + r.service)"><mv-icon name="terminal" /> Logs</button>
+            @if (r.running && !readOnly()) {
+              <button type="button" class="btn small" [class.danger]="confirming() === r.app + '/' + r.service" [disabled]="busy()"
+                      title="Restart the container in place; it does not pick up a changed image" (click)="restart(r)">
+                <mv-icon name="refresh" /> {{ confirming() === r.app + '/' + r.service ? 'Restart, really' : 'Restart' }}
+              </button>
+            }
+            <mv-copy [text]="shell(r)" label="Shell command" />
+            <span class="grow"></span>
+            <mv-copy [text]="r.name" label="Container name" />
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+<section aria-labelledby="logs-h">
+  <h2 id="logs-h">Logs</h2>
+  <mv-log-viewer [multiverse]="store.multiverse()" [universe]="store.name()" [choices]="choices()" [(selected)]="selected" />
+</section>

@@ -46,6 +46,8 @@ type nodeView struct {
 	Unavailable string `json:"unavailable,omitempty"`
 	// Stale is why it could not be refreshed and is shown as last fetched.
 	Stale string `json:"stale,omitempty"`
+	// Ignored says this machine leaves it out: it is not read or offered.
+	Ignored bool `json:"ignored,omitempty"`
 	// Loc is where the node lives and Within the file inside it, when that is
 	// not the default: two catalogs in one repository differ only by it.
 	Loc      *locView   `json:"loc,omitempty"`

@@ -59,7 +59,7 @@ func (r runner) catalogCmd() *cobra.Command {
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
 	cmd.AddCommand(r.catalogListCmd(), r.catalogAddCmd(), r.catalogRmCmd(), r.catalogNewCmd(),
-		r.updateCmd())
+		r.catalogIgnoreCmd(true), r.catalogIgnoreCmd(false), r.updateCmd())
 	return cmd
 }
 
@@ -180,12 +180,13 @@ type jsonNode struct {
 	InstalledAs string     `json:"installedAs,omitempty"`
 	Unavailable string     `json:"unavailable,omitempty"`
 	Stale       string     `json:"stale,omitempty"`
+	Ignored     bool       `json:"ignored,omitempty"`
 	Children    []jsonNode `json:"children,omitempty"`
 }
 
 func toJSON(n domain.Node, installed map[string]string) jsonNode {
 	j := jsonNode{Name: n.Name, Path: n.Path, Kind: string(n.Kind), Repo: n.Source.Repo, Ref: n.Source.Ref,
-		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable, Stale: n.Stale}
+		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable, Stale: n.Stale, Ignored: n.Ignored}
 	for _, c := range n.Children {
 		j.Children = append(j.Children, toJSON(c, installed))
 	}
@@ -229,6 +230,11 @@ func (r runner) renderTree(root domain.Node, installed map[string]string) []stri
 		}
 		if n.Stale != "" {
 			parts = append(parts, r.out.Dim("⚠ not refreshed: "+n.Stale))
+		}
+		if n.Ignored {
+			parts = append(parts, r.out.Dim("⊘ ignored on this machine"))
+			lines = append(lines, strings.TrimRight(strings.Join(parts, "  "), " "))
+			continue
 		}
 		switch {
 		case n.Kind == domain.MultiverseNode && n.Unavailable == "":
@@ -338,6 +344,40 @@ func (r runner) catalogRmCmd() *cobra.Command {
 			return err
 		}
 		return r.declined(c.Remove(cmd.Context(), node))
+	}
+	return cmd
+}
+
+// catalogIgnoreCmd is `catalog ignore` and `catalog unignore`: leave a branch of the
+// tree out on this machine, or bring it back. It is kept in this machine's
+// configuration; no catalog repository changes.
+func (r runner) catalogIgnoreCmd(ignore bool) *cobra.Command {
+	use, short, long := "unignore <path>...", "Bring ignored catalog entries back", "Entries that are ignored are read and offered again."
+	example := "  multiversectl catalog unignore acme/backend"
+	if ignore {
+		use, short = "ignore <path>...", "Leave a branch of the catalog tree out on this machine"
+		long = "An ignored catalog is not read (so one that is unreachable, behind a VPN\n" +
+			"say, costs no wait) and what is under it is left out with it; an ignored\n" +
+			"multiverse is not offered for installing. It is a setting of this machine:\n" +
+			"nothing in any catalog repository changes. `catalog unignore` undoes it."
+		example = "  multiversectl catalog ignore acme/vpn-only\n  multiversectl catalog ignore acme/backend/legacy"
+	}
+	cmd := &cobra.Command{
+		Use: use, Short: short, Long: long, Example: example,
+		Args:              cobra.MinimumNArgs(1),
+		ValidArgsFunction: r.completeNodes(false),
+	}
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		c, err := r.catalogs(true)
+		if err != nil {
+			return err
+		}
+		if err := c.Ignore(cmd.Context(), args, ignore); err != nil {
+			return err
+		}
+		verb := map[bool]string{true: "ignoring", false: "no longer ignoring"}[ignore]
+		r.out.OK("%s %s", verb, strings.Join(args, ", "))
+		return nil
 	}
 	return cmd
 }

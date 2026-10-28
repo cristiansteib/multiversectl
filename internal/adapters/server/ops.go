@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -154,6 +155,10 @@ func bad(code int, msg string) *opError {
 	return &opError{code: code, body: map[string]any{"error": msg}}
 }
 
+// selfScope is what the update of the program holds. It is not a multiverse's
+// name, which cannot start with a '#'.
+const selfScope = "#self"
+
 var needsUniverse = map[string]bool{"up": true, "down": true, "rm": true, "sync": true, "restart": true}
 
 func title(r opRequest) string {
@@ -177,6 +182,8 @@ func title(r opRequest) string {
 		return "Check out " + r.Branch + " in " + r.Multiverse
 	case "update":
 		return "Update " + r.Multiverse
+	case "selfupdate":
+		return "Update multiversectl"
 	}
 	return r.Action
 }
@@ -193,6 +200,8 @@ func scopeOf(r opRequest) string {
 		return r.Multiverse + "/" + r.Universe
 	case "new", "checkout":
 		return r.Multiverse + "#create"
+	case "selfupdate":
+		return selfScope
 	}
 	return r.Multiverse
 }
@@ -200,6 +209,17 @@ func scopeOf(r opRequest) string {
 // conflict says which running operation stops this one from starting. The
 // caller holds m.mu.
 func (m *ops) conflict(r opRequest, key string) (string, bool) {
+	// While the program is being replaced nothing else may start, and it does not
+	// start while anything else runs: it ends by starting the server again, which
+	// would cut that short.
+	if id, ok := m.busy[selfScope]; ok {
+		return id, true
+	}
+	if key == selfScope {
+		for _, id := range m.busy {
+			return id, true
+		}
+	}
 	if id, ok := m.busy[r.Multiverse]; ok {
 		return id, true // the multiverse itself is being changed
 	}
@@ -216,12 +236,15 @@ func (m *ops) conflict(r opRequest, key string) (string, bool) {
 
 // start checks a request and begins it.
 func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
+	if m.s.restarting.Load() {
+		return opView{}, bad(http.StatusServiceUnavailable, "the server is restarting to run the update; try again in a moment")
+	}
 	switch r.Action {
-	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update":
+	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update", "selfupdate":
 	default:
 		return opView{}, bad(http.StatusBadRequest, fmt.Sprintf("unknown action %q", r.Action))
 	}
-	if r.Multiverse == "" {
+	if r.Multiverse == "" && r.Action != "selfupdate" {
 		return opView{}, bad(http.StatusBadRequest, "multiverse is required")
 	}
 	if needsUniverse[r.Action] && r.Universe == "" {
@@ -261,7 +284,11 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	key := scopeOf(r)
 	if id, busy := m.conflict(r, key); busy {
 		m.mu.Unlock()
-		return opView{}, bad(http.StatusConflict, "another operation ("+id+") is running in "+r.Multiverse+"; wait for it to finish")
+		where := ""
+		if r.Multiverse != "" && key != selfScope {
+			where = " in " + r.Multiverse
+		}
+		return opView{}, bad(http.StatusConflict, "another operation ("+id+") is running"+where+"; wait for it to finish")
 	}
 	m.seq++
 	o := &op{key: key, view: opView{
@@ -284,6 +311,10 @@ func (m *ops) run(o *op, r opRequest) {
 	k := &sink{o: o, m: m}
 	err := m.s.b.Do(m.s.runCtx, r, k)
 	k.flush()
+	restart := errors.Is(err, ErrRestart)
+	if restart {
+		err = nil
+	}
 
 	o.mu.Lock()
 	o.view.Ended = time.Now().UTC().Format(time.RFC3339)
@@ -299,6 +330,9 @@ func (m *ops) run(o *op, r opRequest) {
 	m.mu.Unlock()
 	m.s.hub.publish("", event{Type: "op", Data: o.snapshot(false)})
 	m.s.refresh() // what it did is on the page in a moment, not at the next look
+	if restart {
+		m.s.restartSoon()
+	}
 }
 
 // sink is where an operation's words go: both the use case's own messages and

@@ -1,0 +1,9 @@
+.controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px 14px }
+.controls .field { flex: 1 1 200px; margin-bottom: 0 } .field small { font-weight: 400; color: var(--muted); margin-left: 4px }
+.run { flex: none; margin-bottom: 0 }
+.result { margin-top: 18px; border-top: 1px solid var(--line-soft); padding-top: 14px }
+.result-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin-bottom: 6px }
+.checks li { display: grid; grid-template-columns: 92px minmax(0, 150px) minmax(0, 1fr); gap: 4px 12px; align-items: baseline }
+.checks mv-badge { justify-self: start }
+.cname { color: var(--muted) } .detail { overflow-wrap: anywhere }
+@media (max-width: 620px) { .checks li { grid-template-columns: auto minmax(0, 1fr) } .detail { grid-column: 1 / -1 } }

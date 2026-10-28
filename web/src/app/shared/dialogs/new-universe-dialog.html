@@ -1,0 +1,63 @@
+<mv-modal #modal [title]="'New universe in ' + multiverse()" (closed)="closed.emit()">
+  <form (submit)="submit($event)">
+    <div class="modes" role="radiogroup" aria-label="How to start">
+      <label class="radio">
+        <input type="radio" name="mode" value="new" [checked]="mode() === 'new'" (change)="mode.set('new')" />
+        <span><b>A fresh branch</b><small>Starts branches that do not exist yet, so it cannot clash with any</small></span>
+      </label>
+      <label class="radio">
+        <input type="radio" name="mode" value="checkout" [checked]="mode() === 'checkout'" (change)="mode.set('checkout')" />
+        <span><b>An existing branch</b><small>Checks out a branch that is already there, to work on or review it</small></span>
+      </label>
+    </div>
+
+    @if (mode() === 'new') {
+      <label class="field">
+        <span>Number or name</span>
+        <input type="text" name="name" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus placeholder="Next free number"
+               [value]="name()" (input)="name.set(val($event))" />
+        @if (skipped()) { <small>{{ skipped() }}</small> }
+      </label>
+      <label class="field">
+        <span>Start from (optional)</span>
+        <input type="text" name="base" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Default: each repository's default branch"
+               [value]="base()" (input)="base.set(val($event))" />
+      </label>
+      <label class="field">
+        <span>Name of the new branch (optional)</span>
+        <input type="text" name="branch" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Default: the number or name"
+               [value]="newBranch()" (input)="newBranch.set(val($event))" />
+      </label>
+    } @else {
+      <label class="field">
+        <span>Branch to check out</span>
+        <input type="text" name="pick" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus placeholder="Start typing a branch"
+               [attr.list]="listId" [value]="pick()" (input)="pick.set(val($event))" />
+        <datalist [id]="listId">
+          @for (b of branches(); track b.name) { <option [value]="b.name">{{ b.repos.join(', ') }}</option> }
+        </datalist>
+        <small class="hint">{{ where() }}</small>
+      </label>
+      <label class="field">
+        <span>Name the universe (optional)</span>
+        <input type="text" name="pickname" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Default: the branch"
+               [value]="pickName()" (input)="pickName.set(val($event))" />
+      </label>
+      <label class="check">
+        <input type="checkbox" name="only" [checked]="only()" (change)="only.set($any($event.target).checked)" />
+        <span>Leave repositories that lack it on their base branch, detached, instead of starting a branch there</span>
+      </label>
+    }
+
+    <label class="field">
+      <span>Note (optional)</span>
+      <input type="text" name="note" autocomplete="off" placeholder="Why it exists, shown beside it" [value]="note()" (input)="note.set(val($event))" />
+    </label>
+
+    @if (error()) { <mv-error [message]="error()!" /> }
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" (click)="modal.close()">Cancel</button>
+      <button type="submit" class="btn primary" [disabled]="!ready() || busy()" [attr.aria-busy]="busy()">Create universe</button>
+    </div>
+  </form>
+</mv-modal>

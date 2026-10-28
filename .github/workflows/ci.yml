@@ -33,19 +33,40 @@ jobs:
             echo "$unformatted"
             exit 1
           fi
-      # The web view is one embedded script; if it does not parse the page stays
-      # blank on "connecting…" and no Go test notices.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: web view scripts parse
-        run: |
-          for f in internal/adapters/server/ui/*.js; do
-            node --check "$f"
-          done
       - run: go vet ./...
       - run: go build ./...
       - run: go test ./...
+
+  # The Angular app builds, and its output is what the release embeds: the job
+  # the binaries are built in downloads it, so it is never committed.
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npx ng build
+        working-directory: web
+      # The server writes a nonce where index.html says CSP_NONCE; without the
+      # marker Angular's styles would be blocked by the page's policy.
+      - run: grep -q 'ngcspnonce="CSP_NONCE"' web/dist/web/browser/index.html
+      # What goes in the binary is what was built: embed it and run the tests.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+      - run: cp -R web/dist/web/browser/. internal/adapters/server/webapp/
+      - run: go test ./internal/adapters/server/...
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webapp
+          path: web/dist/web/browser
+          if-no-files-found: error
 
   # Known vulnerabilities in what this depends on, and in the Go toolchain
   # itself. govulncheck reports only the ones whose affected code is actually

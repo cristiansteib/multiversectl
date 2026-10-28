@@ -1,0 +1,53 @@
+@if (!multiverses().length) {
+  <mv-empty title="Nothing is installed yet">The checks look at one multiverse at a time. Install one with <mv-copy text="multiversectl start <owner/repo>" />.</mv-empty>
+} @else {
+  <div class="card">
+    <form class="controls" (submit)="$event.preventDefault(); run()">
+      <label class="field">
+        <span>Multiverse</span>
+        <select name="multiverse" [value]="multiverse()" (change)="pick($any($event.target).value)">
+          @for (m of multiverses(); track m) { <option [value]="m" [selected]="m === multiverse()">{{ m }}</option> }
+        </select>
+      </label>
+      <label class="field">
+        <span>Universe <small>optional</small></span>
+        <select name="universe" (change)="universe.set($any($event.target).value)">
+          <option value="" [selected]="!universe()">The whole multiverse</option>
+          @for (u of universes(); track u.name) { <option [value]="u.name" [selected]="u.name === universe()">{{ u.name }}</option> }
+        </select>
+      </label>
+      <button type="submit" class="btn primary run" [disabled]="running()" [attr.aria-busy]="running()">
+        @if (running()) { <span class="spin" aria-hidden="true"></span> Checking… } @else { <mv-icon name="play" /> Run checks }
+      </button>
+    </form>
+
+    @if (error(); as message) { <mv-error [message]="message" /> }
+
+    @if (report(); as r) {
+      <div class="result" aria-live="polite">
+        <div class="result-head">
+          <strong>{{ counts().fail ? 'Something failed' : counts().warn ? 'No failures, with warnings' : 'Everything checks out' }}</strong>
+          <span class="muted">in {{ r.of }}</span>
+          <span class="grow"></span>
+          @if (counts().fail) { <mv-badge tone="bad">{{ counts().fail }} failed</mv-badge> }
+          @if (counts().warn) { <mv-badge tone="warn">{{ counts().warn }} {{ counts().warn === 1 ? 'warning' : 'warnings' }}</mv-badge> }
+          <mv-badge tone="ok">{{ counts().ok }} OK</mv-badge>
+          @if (counts().fail || counts().warn) {
+            <button type="button" class="btn small ghost" [attr.aria-pressed]="onlyProblems()" (click)="onlyProblems.set(!onlyProblems())">
+              {{ onlyProblems() ? 'Show all checks' : 'Only problems' }}
+            </button>
+          }
+        </div>
+        <ul class="checks list">
+          @for (c of shown(); track $index) {
+            <li>
+              <mv-badge [tone]="tone(c.status)">{{ word(c.status) }}</mv-badge>
+              <span class="mono cname">{{ c.name }}</span>
+              <span class="detail">{{ c.detail }}</span>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  </div>
+}

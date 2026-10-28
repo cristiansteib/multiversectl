@@ -12,7 +12,6 @@ package server
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,14 +22,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
-
-//go:embed ui
-var uiFiles embed.FS
 
 // requestTimeout bounds one API call. The slow ones ask the container runtime
 // or the network, and a stuck one should not hold a connection open for ever.
@@ -49,6 +46,11 @@ type Options struct {
 	ReadOnly bool
 	// Token is the credential; made at random when empty.
 	Token string
+	// Restart replaces the running server with the newly installed one, after an
+	// update; the process itself starts again when nil. Tests stand in for it.
+	Restart func()
+	// App is the web app's files; the build embedded in the binary when nil.
+	App fs.FS
 	// UpdateEvery is how often to look for a newer release; zero is
 	// app.UpdateEvery.
 	UpdateEvery time.Duration
@@ -70,6 +72,9 @@ type Server struct {
 	logSlots chan struct{}
 	// pair is the code that lets a second machine in without the link.
 	pair pairing
+	// restarting is set once an update has replaced the program: the server is
+	// about to start again, so it takes nothing new.
+	restarting atomic.Bool
 }
 
 // New builds a server and starts what watches the fleet for changes. Close it.
@@ -105,6 +110,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/overview", s.overview)
 	mux.HandleFunc("/api/catalog", s.catalog)
+	mux.HandleFunc("/api/catalog/ignore", s.catalogIgnore)
 	mux.HandleFunc("/api/fleet", s.fleet)
 	mux.HandleFunc("/api/multiverses/", s.multiverse)
 	mux.HandleFunc("/api/doctor", s.doctor)
@@ -122,8 +128,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "no such endpoint") })
 	mux.HandleFunc("/ws", s.ws)
 
-	ui, _ := fs.Sub(uiFiles, "ui")
-	mux.Handle("/", http.FileServerFS(ui))
+	mux.HandleFunc("/style.css", serveSignInCSS)
+	mux.HandleFunc("/app/", toRoot)
+	files := s.o.App
+	if files == nil {
+		files, _ = fs.Sub(webappFiles, "webapp")
+	}
+	mux.Handle("/", appHandler(files))
 	return s.guard(mux)
 }
 
@@ -232,6 +243,33 @@ func (s *Server) catalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, v)
+}
+
+// catalogIgnore leaves a branch of the catalog tree out on this machine, or brings
+// it back: {"path": "backend/legacy", "ignore": true}. Only a POST, which is what
+// the guard holds to the read-only refusal and the CSRF header.
+func (s *Server) catalogIgnore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		fail(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	var req struct {
+		Path   string `json:"path"`
+		Ignore bool   `json:"ignore"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxReqBody)).Decode(&req); err != nil || strings.TrimSpace(req.Path) == "" {
+		fail(w, http.StatusBadRequest, "the path of the catalog entry is required")
+		return
+	}
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	if err := s.b.Ignore(ctx, req.Path, req.Ignore); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.refresh() // the overview's drift reads the tree too
+	reply(w, map[string]any{"path": strings.Trim(req.Path, "/"), "ignored": req.Ignore})
 }
 
 func (s *Server) fleet(w http.ResponseWriter, r *http.Request) {

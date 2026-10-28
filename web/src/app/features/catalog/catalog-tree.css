@@ -1,0 +1,33 @@
+:host { display: block }
+.tree { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); padding: 6px; }
+.node { --step: 22px; position: relative; display: flex; align-items: flex-start; gap: 8px; min-height: 42px; padding: 8px 10px 8px calc(var(--depth) * var(--step) + 6px);
+  border-radius: var(--r-md); cursor: default; }
+/* Guides: one hairline per level of depth, so the way up is visible at a glance. */
+.node::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: calc(var(--depth) * var(--step));
+  background: repeating-linear-gradient(to right, transparent 0 calc(var(--step) - 1px - 5px), var(--line-soft) calc(var(--step) - 1px - 5px) calc(var(--step) - 5px), transparent calc(var(--step) - 5px) var(--step)); pointer-events: none }
+.node.expandable { cursor: pointer }
+.node:hover { background: var(--sunk) }
+.node:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.twisty { flex: none; width: 16px; padding-top: 3px; color: var(--muted) }
+.kind-icon { flex: none; margin-top: 3px; font-size: 1.05em; color: var(--muted) }
+.kind-icon.multiverse { color: var(--accent) }
+.root .name { font-weight: 600 }
+.main { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px }
+.line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; min-width: 0 }
+.name { font-weight: 500; overflow-wrap: anywhere }
+.kind { font-size: .82rem }
+.reason { font-size: .86rem; overflow-wrap: anywhere }
+.reason.bad { color: var(--bad) } .reason.warn { color: var(--warn) }
+.tags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; justify-content: flex-end; margin-left: auto }
+a.installed { text-decoration: none; cursor: pointer } a.installed:hover { filter: brightness(1.1); text-decoration: underline }
+@media (max-width: 560px) { .node { --step: 16px } .tags { margin-left: 24px; justify-content: flex-start; flex-basis: 100% } }
+.node.ignored .name, .node.ignored .kind-icon, .node.ignored mv-place { opacity: .55 }
+.node.ignored .name { text-decoration: line-through; text-decoration-color: var(--faint) }
+/* Quiet until the row is hovered or focused, and always there on a screen with no hover. */
+@media (hover: hover) { .ignore { opacity: 0 } .node:hover .ignore, .node:focus-within .ignore, .ignore:focus-visible { opacity: 1 } }
+/* What a multiverse row opens to: set under its name, in the width of the row. */
+.detail { --step: 22px; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 0 10px 8px calc(var(--depth) * var(--step) + 56px); padding: 10px 14px;
+  border-left: 2px solid var(--line); font-size: .9rem }
+.detail dt { color: var(--muted) } .detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere }
+@media (max-width: 560px) { .detail { --step: 16px; margin-left: calc(var(--depth) * var(--step) + 30px); grid-template-columns: minmax(0, 1fr); gap: 0 } .detail dd { margin-bottom: 8px } }
+.detail .chips { display: flex; flex-wrap: wrap; gap: 6px }

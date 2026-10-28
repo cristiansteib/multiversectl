@@ -1,0 +1,11 @@
+:host { display: block }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px }
+dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; margin: 0; align-items: center }
+dt { color: var(--muted); font-size: .88rem } dd { margin: 0; overflow-wrap: anywhere }
+.count { font-weight: 400; font-size: .88rem; margin-left: 8px }
+.small { font-size: .82rem } .states { gap: 6px }
+.verdict { margin: 14px 0 6px }
+.checks { list-style: none; margin: 0; padding: 0 }
+.checks li { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--line-soft) }
+.checks li:first-child { border-top: 0 }
+.danger-zone { border-color: var(--bad) } .danger-zone p { margin-top: 0 }

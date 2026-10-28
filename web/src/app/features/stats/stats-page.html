@@ -1,0 +1,172 @@
+<header class="page-head">
+  <div>
+    <h1>Resources</h1>
+    <p>What every running container is using, read live. The server keeps no history, so the charts start when this page opens and are lost when it closes.</p>
+  </div>
+</header>
+
+<div class="controls" role="group" aria-label="Chart settings">
+  <div class="picker" (focusout)="menuBlur($event)" (keydown.escape)="menuOpen.set(false)">
+    <button type="button" class="btn" (click)="menuOpen.set(!menuOpen())" [attr.aria-expanded]="menuOpen()">
+      Universes <b>{{ pickerLabel() }}</b> <mv-icon name="chevronDown" />
+    </button>
+    @if (menuOpen()) {
+      <div class="menu" role="group" aria-label="Universes to show">
+        <div class="menu-head">
+          <button type="button" class="btn small ghost" (click)="showAll()">All</button>
+          <button type="button" class="btn small ghost" (click)="showNone()">None</button>
+        </div>
+        @for (u of universes(); track u.key) {
+          <label class="menu-item">
+            <input type="checkbox" [checked]="!hidden().has(u.key)" (change)="setShown(u.key, $any($event.target).checked)" />
+            @if (u.colour) { <span class="swatch" [style.background]="u.colour"></span> }
+            <span>{{ u.universe }}</span>
+            <span class="muted">{{ u.multiverse }}</span>
+          </label>
+        } @empty {
+          <p class="menu-item muted">Nothing is running.</p>
+        }
+      </div>
+    }
+  </div>
+
+  <label class="pick"><span>Group by</span>
+    <select (change)="group.set($any($event.target).value)" [value]="group()">
+      <option value="universe">Universe</option>
+      <option value="app">App</option>
+      <option value="service">Container</option>
+    </select>
+  </label>
+  <label class="pick"><span>Window</span>
+    <select (change)="span.set(asNumber($any($event.target).value))">
+      @for (w of windows; track w[0]) { <option [value]="w[0]" [selected]="w[0] === span()">{{ w[1] }}</option> }
+    </select>
+  </label>
+  <label class="pick"><span>Read</span>
+    <select (change)="every.set(asNumber($any($event.target).value))">
+      @for (e of everies; track e[0]) { <option [value]="e[0]" [selected]="e[0] === every()">{{ e[1] }}</option> }
+    </select>
+  </label>
+  <button type="button" class="btn" [class.primary]="paused()" (click)="togglePause()" [attr.aria-pressed]="paused()">
+    <mv-icon [name]="paused() ? 'play' : 'stop'" /> {{ paused() ? 'Resume' : 'Pause' }}
+  </button>
+  <span class="grow"></span>
+  <span class="state" role="status">
+    @if (paused()) { <mv-badge tone="warn">Paused</mv-badge> } @else { <mv-badge tone="ok">Reading {{ every() / 1000 }} s</mv-badge> }
+    <span class="muted">{{ last() ? 'Last reading at ' + clock(last()!.t) : 'Waiting for the first reading' }}</span>
+  </span>
+</div>
+
+@for (f of failed(); track f.multiverse) { <mv-error [message]="f.multiverse + ': ' + f.error" /> }
+
+@if (!last()) {
+  <div class="tiles" aria-busy="true">
+    @for (t of ['Running', 'CPU', 'Memory', 'Busiest']; track t) {
+      <div class="card tile"><h3>{{ t }}</h3><mv-skeleton width="60%" height="2rem" /><mv-skeleton width="80%" /></div>
+    }
+  </div>
+  <div class="charts" aria-busy="true">
+    @for (t of ['CPU', 'Memory']; track t) {
+      <section class="card"><h3>{{ t }}</h3><mv-skeleton height="190px" /></section>
+    }
+  </div>
+} @else {
+  <div class="tiles">
+    <div class="card tile">
+      <h3>Running</h3>
+      <div class="big">{{ totals().count }}</div>
+      <div class="muted">{{ totals().count === 1 ? 'container' : 'containers' }} in {{ plural(totals().universes, 'universe') }}</div>
+    </div>
+    <div class="card tile">
+      <h3>CPU</h3>
+      <div class="big">{{ percent(totals().cpu) }}</div>
+      <div class="muted">of one core, added up</div>
+    </div>
+    <div class="card tile">
+      <h3>Memory</h3>
+      <div class="big">{{ bytes(totals().mem) }}</div>
+      <div class="muted">in use, added up</div>
+    </div>
+    <div class="card tile">
+      <h3>Busiest</h3>
+      <div class="big">{{ totals().busiest ? percent(totals().busiest!.cpu) : '–' }}</div>
+      <div class="muted">
+        @if (totals().busiest; as b) { {{ b.app }}/{{ b.service }} in {{ b.universe }} } @else { Nothing is running }
+      </div>
+    </div>
+  </div>
+
+  @if (!hasReadings()) {
+    <mv-empty [title]="hidden().size ? 'Every universe is hidden' : 'Start a universe to see its resources'">
+      @if (hidden().size) { Choose at least one in the Universes menu above. }
+      @else { Nothing is running on this machine. Start one in <a routerLink="/fleet">Universes</a> and its containers appear here. }
+    </mv-empty>
+  } @else {
+    @if (watching() !== null) {
+      <p class="banner info watch">This page has been watching for {{ watching() }} s, so the charts show that much of the {{ span() / 60000 }}-minute window.</p>
+    }
+    <div class="charts">
+      <section class="card">
+        <div class="chart-head"><h3>CPU</h3><span class="muted">Percent of one core; a container on four cores can pass 100%.</span></div>
+        <mv-line-chart label="CPU" [series]="model().cpu" [from]="from()" [to]="to()" [format]="percent" />
+      </section>
+      <section class="card">
+        <div class="chart-head"><h3>Memory</h3><span class="muted">Memory in use, added up.</span></div>
+        <mv-line-chart label="Memory" [series]="model().mem" [from]="from()" [to]="to()" [format]="bytes" [base]="1024" />
+      </section>
+    </div>
+
+    @if (facets(); as f) {
+      <h2>Per universe</h2>
+      <p class="muted facet-note">CPU of each universe, all on the same scale so their heights compare.</p>
+      <div class="facets">
+        @for (c of f.cards; track c.key) {
+          <article class="card facet">
+            <div class="facet-head">
+              <span class="dot" [class.ok]="c.live"></span>
+              <a [routerLink]="link(c.multiverse, c.universe)"><b>{{ c.universe }}</b></a>
+              <span class="muted">{{ c.multiverse }}</span>
+              <span class="grow"></span>
+              <b class="mono">{{ percent(c.current) }}</b>
+            </div>
+            <mv-line-chart [compact]="true" [height]="70" [floor]="f.peak" [series]="c.series" [from]="from()" [to]="to()"
+                           [format]="percent" [label]="'CPU of ' + c.universe" />
+          </article>
+        }
+      </div>
+    }
+
+    <h2>Containers</h2>
+    <div class="table-wrap">
+      <table class="stats-table">
+        <caption class="sr-only">Every running container and what it is using</caption>
+        <thead>
+          <tr>
+            <th scope="col">Universe</th><th scope="col">Service</th><th scope="col" class="num">CPU</th>
+            <th scope="col">Last {{ span() / 60000 }} min</th><th scope="col" class="num">Memory</th>
+            <th scope="col">Network in / out</th><th scope="col" class="num">Processes</th><th scope="col"><span class="sr-only">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of table(); track svcOf(t.r)) {
+            <tr>
+              <td><b>{{ t.r.universe }}</b> <span class="muted">{{ t.r.multiverse }}</span></td>
+              <td>
+                @if (t.style; as s) { <svg class="key-line" width="18" height="8" aria-hidden="true"><line x1="0" x2="18" y1="4" y2="4" [style.stroke]="s.colour" [attr.stroke-dasharray]="s.dash || null" /></svg> }
+                <span class="mono">{{ t.r.app }}/{{ t.r.service }}</span>
+              </td>
+              <td class="num mono">{{ percent(t.r.cpu) }}</td>
+              <td><mv-sparkline [values]="t.history" [colour]="t.style?.colour" [label]="'CPU of ' + t.r.app + '/' + t.r.service" /></td>
+              <td class="num mono" [attr.title]="t.r.memUsage">
+                {{ bytes(t.r.mem ?? 0) }}@if (t.r.memLimit) { <span class="muted"> of {{ bytes(t.r.memLimit) }}</span> }
+              </td>
+              <td class="mono muted">{{ t.r.netIO || '–' }}</td>
+              <td class="num mono muted">{{ t.r.pids || 0 }}</td>
+              <td><a class="btn small" [routerLink]="link(t.r.multiverse, t.r.universe)">Open</a></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+}

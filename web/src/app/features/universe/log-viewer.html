@@ -1,0 +1,54 @@
+@if (!choices().length) {
+  <mv-empty title="Nothing to read yet">Start the universe, and its services will be listed here.</mv-empty>
+} @else {
+  <div class="card logs">
+    <div class="bar">
+      <select [attr.aria-label]="'Service to read'" (change)="pick($event)">
+        <option value="" [selected]="!selected()">Choose a service…</option>
+        @for (c of choices(); track c.key) { <option [value]="c.key" [selected]="c.key === selected()">{{ c.key }}{{ c.running ? '' : ' (stopped)' }}</option> }
+      </select>
+      @if (selected()) {
+        <span class="state" role="status">
+          <span class="dot" [class]="stateLabel()[0]" [class.pulse]="state() === 'following'"></span>
+          <span class="muted">{{ stateLabel()[1] }}{{ detail() ? ': ' + detail() : '' }}</span>
+        </span>
+      }
+      <span class="grow"></span>
+      @if (selected()) {
+        <select aria-label="Lines of history" (change)="setTail($event)">
+          @for (n of tails; track n) { <option [value]="n" [selected]="n === tail()">Last {{ n }}</option> }
+        </select>
+        <label class="switch"><input type="checkbox" [checked]="follow()" (change)="follow.set(!follow())" /> Follow</label>
+      }
+    </div>
+
+    @if (!selected()) {
+      <p class="muted pick">Pick a service to read its log. It streams from docker only while it is open here.</p>
+    } @else {
+      <div class="bar">
+        <input type="search" class="filter" name="filter-log" placeholder="Only lines containing…" aria-label="Filter the lines" [value]="filter()" (input)="filter.set($any($event.target).value)" />
+        <span class="muted small">{{ count() }}</span>
+        <span class="grow"></span>
+        <label class="switch"><input type="checkbox" [checked]="wrap()" (change)="wrap.set(!wrap())" /> Wrap</label>
+        <label class="switch"><input type="checkbox" [checked]="times()" (change)="times.set(!times())" /> Times</label>
+      </div>
+      <div class="viewport">
+        <div #box class="out mono" [class.wrap]="wrap()" tabindex="0" role="log" aria-live="off" [attr.aria-label]="'Log of ' + selected()" (scroll)="scrolled()">
+          @for (l of rows(); track l.id) {
+            <div class="ll" [class]="l.level">@if (times() && l.at) {<span class="lt">{{ time(l.at) }}</span>}<span class="lm">@for (g of l.segs; track $index) {@if (g.mark) {<mark>{{ g.s }}</mark>} @else {<span [class]="g.cls">{{ g.s }}</span>}}</span></div>
+          } @empty {
+            <p class="muted note">{{ filter() ? 'No line contains that.' : state() === 'loading' ? 'Opening the log…' : 'Nothing logged yet.' }}</p>
+          }
+        </div>
+        @if (!atEnd()) { <button type="button" class="btn small latest" (click)="latest()"><mv-icon name="arrowDown" /> Latest</button> }
+      </div>
+      <div class="bar">
+        <button type="button" class="btn small" (click)="clear()">Clear</button>
+        <button type="button" class="btn small" (click)="copy()"><mv-icon name="copy" /> Copy</button>
+        <button type="button" class="btn small" (click)="download()">Download</button>
+        <span class="grow"></span>
+        <span class="muted small">docker logs of {{ selected() }}</span>
+      </div>
+    }
+  </div>
+}

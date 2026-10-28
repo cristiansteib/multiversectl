@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/coder/websocket"
@@ -89,6 +90,10 @@ func (f *fake) Multiverse(_ context.Context, name string) (multiverseView, error
 	f.ask("multiverse:" + name)
 	return f.ws, f.err
 }
+func (f *fake) Ignore(_ context.Context, path string, ignore bool) error {
+	f.ask("ignore:" + path + ":" + map[bool]string{true: "on", false: "off"}[ignore])
+	return f.err
+}
 func (f *fake) Doctor(_ context.Context, ws, u string) (doctorView, error) {
 	f.ask("doctor:" + ws + ":" + u)
 	return f.doctor, f.err
@@ -163,6 +168,9 @@ func (f *fake) Do(ctx context.Context, r opRequest, k Sink) error {
 			return ctx.Err()
 		}
 	}
+	if r.Action == "selfupdate" {
+		return ErrRestart
+	}
 	if f.doErr == nil {
 		k.OK("done %s", r.Action)
 	}
@@ -170,9 +178,21 @@ func (f *fake) Do(ctx context.Context, r opRequest, k Sink) error {
 }
 
 // serve starts a server and returns it with its handler.
+// testApp stands for the Angular build, which `go test` does not have.
+func testApp() fstest.MapFS {
+	return fstest.MapFS{
+		"index.html":       {Data: []byte(`<!doctype html><title>multiversectl</title><app-root ngcspnonce="CSP_NONCE"></app-root>`)},
+		"main-TEST.js":     {Data: []byte("console.log('app')")},
+		"placeholder.html": {Data: []byte("not built")},
+	}
+}
+
 func serve(t *testing.T, f *fake, o Options) (*Server, http.Handler) {
 	t.Helper()
 	o.Token = testToken
+	if o.App == nil {
+		o.App = testApp()
+	}
 	s := New(f, o)
 	t.Cleanup(s.Close)
 	return s, s.Handler()
@@ -246,7 +266,7 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 
 func TestNothingIsServedWithoutTheToken(t *testing.T) {
 	_, h := serve(t, &fake{}, Options{})
-	for _, path := range []string{"/", "/app.js", "/api/overview", "/api/fleet", "/ws", "/api/ops"} {
+	for _, path := range []string{"/", "/main-TEST.js", "/api/overview", "/api/fleet", "/ws", "/api/ops"} {
 		if rec := get(t, h, path, map[string]string{"Cookie": ""}); rec.Code != http.StatusUnauthorized {
 			t.Errorf("%s without a cookie: %d", path, rec.Code)
 		}
@@ -403,11 +423,10 @@ func TestOnlyThisMachineMayAskUnlessExposed(t *testing.T) {
 
 func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
 	_, h := serve(t, &fake{}, Options{})
-	for _, path := range []string{"/", "/api/overview", "/app.js", "/nope"} {
+	for _, path := range []string{"/", "/api/overview", "/main-TEST.js", "/nope.js"} {
 		rec := get(t, h, path, nil)
 		hd := rec.Header()
-		// http.FileServer removes Cache-Control from its own 404s; nothing is cached there.
-		noStore := hd.Get("Cache-Control") == "no-store" || path == "/nope"
+		noStore := hd.Get("Cache-Control") == "no-store"
 		csp := hd.Get("Content-Security-Policy")
 		if !noStore || hd.Get("X-Content-Type-Options") != "nosniff" || hd.Get("X-Frame-Options") != "DENY" ||
 			!strings.Contains(csp, "default-src 'self'") || !strings.Contains(csp, "connect-src 'self'") {
@@ -424,22 +443,32 @@ func TestThePageAndItsAssetsAreServed(t *testing.T) {
 	if rec := get(t, h, "/", nil); rec.Code != 200 || !strings.Contains(rec.Body.String(), "multiversectl") || !strings.Contains(rec.Header().Get("Content-Type"), "text/html") {
 		t.Errorf("/: %d %s", rec.Code, rec.Header().Get("Content-Type"))
 	}
-	for _, p := range []string{"/app.js", "/style.css"} {
+	for _, p := range []string{"/main-TEST.js", "/style.css"} {
 		if rec := get(t, h, p, nil); rec.Code != 200 || rec.Body.Len() == 0 {
 			t.Errorf("%s: %d", p, rec.Code)
 		}
 	}
-	if rec := get(t, h, "/etc/passwd", nil); rec.Code != 404 {
-		t.Errorf("unknown file: %d", rec.Code)
+	// A route of the app is the app; a file that is not there is not.
+	if rec := get(t, h, "/universe/acme/1", nil); rec.Code != 200 || !strings.Contains(rec.Body.String(), "app-root") {
+		t.Errorf("an app route: %d", rec.Code)
 	}
-	// Nothing in the page loads from outside, which is what the CSP enforces, and
-	// nothing is built from strings the data could turn into markup.
-	page := get(t, h, "/", nil).Body.String() + get(t, h, "/app.js", nil).Body.String()
-	// The CSP forbids inline styles, so a style set from script is silently dropped.
-	for _, banned := range []string{"https://", "http://cdn", "style: '", "innerHTML", "outerHTML", "insertAdjacentHTML", "eval(", "document.write"} {
-		if strings.Contains(strings.ReplaceAll(page, "http://www.w3.org/2000/svg", ""), banned) {
-			t.Errorf("the page contains %q", banned)
+	if rec := get(t, h, "/etc/passwd", nil); strings.Contains(rec.Body.String(), "root:") {
+		t.Errorf("a file outside the app was served: %s", rec.Body)
+	}
+	if rec := get(t, h, "/missing.js", nil); rec.Code != 404 {
+		t.Errorf("a missing asset: %d", rec.Code)
+	}
+	// ...and never on another site, however the path is written.
+	for _, p := range []string{"/app/%2Fevil.example.test", "/app//evil.example.test", "/app/%5Cevil.example.test"} {
+		rec := get(t, h, p, nil)
+		loc := rec.Header().Get("Location")
+		if rec.Code/100 != 3 || !strings.HasPrefix(loc, "/") || strings.HasPrefix(loc, "//") {
+			t.Errorf("%s: %d redirects to %q, want a path on this server", p, rec.Code, loc)
 		}
+	}
+	// The old address of the app lands on the new one.
+	if rec := get(t, h, "/app/fleet?mv=acme", nil); rec.Code != http.StatusPermanentRedirect || rec.Header().Get("Location") != "/fleet?mv=acme" {
+		t.Errorf("/app/ redirect: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 }
 
@@ -764,7 +793,7 @@ func TestServeListensWithATokenAndStopsWithItsContext(t *testing.T) {
 	urls := make(chan string, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- Serve(ctx, &fake{status: app.StatusReport{Next: "x"}}, Options{Addr: "127.0.0.1:0", Version: "v"}, func(u string) { urls <- u })
+		done <- Serve(ctx, &fake{status: app.StatusReport{Next: "x"}}, Options{Addr: "127.0.0.1:0", Version: "v", App: testApp()}, func(u string) { urls <- u })
 	}()
 	var link string
 	select {
@@ -1033,5 +1062,27 @@ func TestWhileTheCatalogIsReadEachRepositoryReportsItsStateToThePage(t *testing.
 	}
 	if got[0].Phase != "fetching" || got[1].Phase != "stale" || got[1].Millis != 20000 || got[1].Repo == "" {
 		t.Errorf("steps = %+v", got)
+	}
+}
+
+func TestIgnoringACatalogBranchIsAPostThatReadOnlyRefuses(t *testing.T) {
+	f := &fake{}
+	_, h := serve(t, f, Options{})
+	rec := do(t, h, "POST", "/api/catalog/ignore", `{"path":"backend/legacy","ignore":true}`, map[string]string{"X-Mvctl": "1"})
+	if rec.Code != 200 || !strings.Contains(f.asks(), "ignore:backend/legacy:on") {
+		t.Fatalf("ignore: %d %s (%s)", rec.Code, rec.Body, f.asks())
+	}
+	if rec := do(t, h, "POST", "/api/catalog/ignore", `{"path":""}`, map[string]string{"X-Mvctl": "1"}); rec.Code != 400 {
+		t.Errorf("without a path: %d", rec.Code)
+	}
+	if rec := do(t, h, "GET", "/api/catalog/ignore", "", nil); rec.Code != 405 {
+		t.Errorf("a GET: %d", rec.Code)
+	}
+	if rec := do(t, h, "POST", "/api/catalog/ignore", `{"path":"x","ignore":true}`, nil); rec.Code == 200 {
+		t.Error("it needs the header the page sends")
+	}
+	_, ro := serve(t, &fake{}, Options{ReadOnly: true})
+	if rec := do(t, ro, "POST", "/api/catalog/ignore", `{"path":"x","ignore":true}`, map[string]string{"X-Mvctl": "1"}); rec.Code == 200 {
+		t.Error("a read-only server must refuse it")
 	}
 }

@@ -1,0 +1,64 @@
+@if (u(); as u) {
+  @if (reasons().length) {
+    <div class="banner warn" role="status">
+      <strong>Needs a look</strong>
+      <ul>@for (r of reasons(); track r) { <li>{{ r }}</li> }</ul>
+    </div>
+  }
+
+  <section aria-labelledby="apps-h">
+    <h2 id="apps-h">Apps</h2>
+    @if (!u.apps.length) {
+      <mv-empty title="This multiverse defines no apps">Add them under <code>spec.apps</code> in its manifest.</mv-empty>
+    } @else {
+      <div class="apps">
+        @for (x of apps(); track x.app.key) {
+          <article class="app" [attr.aria-label]="x.app.key">
+            <h3>
+              {{ x.app.key }}
+              <span class="chips">
+                @if (x.app.repo) { <mv-repo-chip [loc]="x.loc" [name]="x.app.repo" /> }
+                @if (x.branch) { <mv-repo-chip [loc]="x.loc" [name]="x.app.repo" [branch]="x.branch" /> }
+                @if (x.code) { <mv-pr-chip [review]="x.code.review" [error]="x.code.reviewError" /> }
+              </span>
+              <span class="grow"></span>
+              @if (x.app.expected) { <mv-badge [tone]="x.app.running === x.app.expected ? 'ok' : x.app.running ? 'warn' : 'mute'">{{ x.app.running }}/{{ x.app.expected }} up</mv-badge> }
+            </h3>
+            @if (x.rows.length) {
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th scope="col">Service</th><th scope="col">Addresses</th></tr></thead>
+                  <tbody>
+                    @for (r of x.rows; track r.name) {
+                      <tr>
+                        <td [attr.title]="svcTitle(r)">
+                          <div class="svc">
+                            <span class="dot" [class]="dot(r.state ?? '')"></span>
+                            <span class="name">{{ r.name }}</span>
+                            @if (r.state) { <span class="muted state">{{ r.state }}</span> }
+                            @if (r.published) { <mv-badge tone="warn" hint="Published on the host, so only one universe can hold it">{{ r.published }}</mv-badge> }
+                          </div>
+                        </td>
+                        <td>
+                          @if (r.urls.length) {
+                            <ul class="urls">
+                              @for (a of r.urls; track a.url) {
+                                <li>@if (webUrl(a.url)) { <a [href]="a.url" target="_blank" rel="noopener noreferrer"><span class="u">{{ a.url }}</span><mv-icon name="external" /></a> } @else { <span class="mono">{{ a.url }}</span> }</li>
+                              }
+                            </ul>
+                          } @else { <span class="faint">—</span> }
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            } @else {
+              <p class="muted none">Nothing runs on its own here: no services or addresses.</p>
+            }
+          </article>
+        }
+      </div>
+    }
+  </section>
+}

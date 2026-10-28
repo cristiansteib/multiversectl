@@ -2,9 +2,13 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -21,6 +25,8 @@ type Backend interface {
 	// Catalog is the tree; observe is told, while it is read, which repository
 	// is being fetched and how that went. It may be nil.
 	Catalog(ctx context.Context, fetch bool, observe func(app.CatalogEvent)) (catalogView, error)
+	// Ignore leaves a path of the catalog tree out on this machine, or brings it back.
+	Ignore(ctx context.Context, path string, ignore bool) error
 	// Fleet lists the universes of one installed multiverse, or of all.
 	Fleet(ctx context.Context, multiverse string) (fleetView, error)
 	Multiverse(ctx context.Context, name string) (multiverseView, error)
@@ -120,9 +126,17 @@ func (s Services) Catalog(ctx context.Context, fetch bool, observe func(app.Cata
 	return catalogView{Root: toNode(tree, installed), Installs: len(installed)}, nil
 }
 
+// Ignore takes no part in s.mu, which a read of the catalog holds for as long as
+// its slowest fetch: ignoring a catalog that hangs is what it is for, and it must
+// not wait for the very read it is meant to stop. It reads the tree offline and
+// the configuration serialises its own change.
+func (s Services) Ignore(ctx context.Context, path string, ignore bool) error {
+	return s.Catalogs.Ignore(ctx, []string{path}, ignore)
+}
+
 func toNode(n domain.Node, installed map[string]string) nodeView {
 	v := nodeView{Name: n.Name, Path: n.Path, Kind: string(n.Kind), Repo: n.Source.Repo, Ref: n.Source.Ref,
-		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable, Stale: n.Stale, Loc: locOf(n.Location()), Within: n.FileWithin()}
+		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable, Stale: n.Stale, Ignored: n.Ignored, Loc: locOf(n.Location()), Within: n.FileWithin()}
 	for _, c := range n.Children {
 		v.Children = append(v.Children, toNode(c, installed))
 	}
@@ -493,8 +507,60 @@ func (s Services) Unsaved(ctx context.Context, multiverse, universe string) ([]s
 	return svc.Unsaved(ctx, universe)
 }
 
+// ErrRestart is what an action returns when it succeeded and the server has to
+// start again to run what it installed: not a failure, so the operation ends as
+// done and the server then replaces itself.
+var ErrRestart = errors.New("restart to run the new build")
+
+// selfUpdate replaces the programs on disk with the latest release. The command
+// line is looked for beside this server, then on the PATH; the server's own file
+// is the one that is running, which is why the process has to start again.
+func (s Services) selfUpdate(ctx context.Context, k Sink) error {
+	if !app.Released(s.Machine.Version) {
+		return fmt.Errorf("this server is %s, a build from source: it is not replaced by a release", s.Machine.Version)
+	}
+	server, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	server = strings.TrimSuffix(server, " (deleted)")
+	// What replaces the running file is the file, not a link to it.
+	if resolved, err := filepath.EvalSymlinks(server); err == nil {
+		server = resolved
+	}
+	// The command line is beside the server, or on the PATH; a machine that has
+	// only the server has none, and none is made.
+	cli := filepath.Join(filepath.Dir(server), "multiversectl")
+	if _, err := os.Stat(cli); err != nil {
+		cli = ""
+		if p, err := exec.LookPath("multiversectl"); err == nil {
+			cli = p
+		}
+	}
+	if resolved, err := filepath.EvalSymlinks(cli); cli != "" && err == nil {
+		cli = resolved
+	}
+	m := *s.Machine
+	m.Out, m.Progress = k, nil
+	res, err := m.SelfUpdate(ctx, app.SelfUpdateInput{
+		CurrentVersion: s.Machine.Version, OS: runtime.GOOS, Arch: runtime.GOARCH, BinaryPath: cli, ServerPath: server,
+	})
+	if err != nil {
+		return err
+	}
+	if !res.Updated {
+		k.OK("already up to date (%s)", res.From)
+		return nil
+	}
+	k.OK("updated %s -> %s; the web view restarts to run it", res.From, res.To)
+	return ErrRestart
+}
+
 // Do runs one action as the command line would, with the sink as its terminal.
 func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
+	if r.Action == "selfupdate" {
+		return s.selfUpdate(ctx, k)
+	}
 	w, err := s.Machine.MultiverseNamed(r.Multiverse)
 	if err != nil {
 		return err

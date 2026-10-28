@@ -1,0 +1,22 @@
+:host { display: block }
+.logs { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px }
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.bar select { width: auto; min-width: 180px } .filter { max-width: 320px }
+.state { display: inline-flex; align-items: center; gap: 7px; font-size: .84rem }
+.switch { display: inline-flex; align-items: center; gap: 6px; font-size: .88rem; color: var(--muted); cursor: pointer }
+.small { font-size: .82rem } .pick { margin: 0 }
+.viewport { position: relative }
+.out { height: min(52vh, 520px); overflow: auto; background: var(--sunk); border: 1px solid var(--line); border-radius: var(--r-md); padding: 8px 0; font-size: .82rem; line-height: 1.5 }
+.ll { display: flex; gap: 12px; padding: 0 12px; white-space: pre; width: max-content; min-width: 100% }
+.out.wrap .ll { white-space: pre-wrap; overflow-wrap: anywhere; width: auto }
+.ll:hover { background: var(--line-soft) }
+.ll.err { background: var(--bad-bg); color: var(--bad) } .ll.warn { color: var(--warn) } .ll.dim { opacity: .65 }
+.lt { color: var(--faint); flex: none; user-select: none }
+.lm { min-width: 0 }
+mark { background: var(--warn-bg); color: inherit; outline: 1px solid var(--warn); border-radius: 2px }
+.note { padding: 12px }
+.latest { position: absolute; right: 14px; bottom: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .25) }
+/* What the program painted a line in; the page's policy allows no style of its own, so these are classes. */
+.ac0 { color: var(--faint) } .ac1 { color: var(--bad) } .ac2 { color: var(--ok) } .ac3 { color: var(--warn) }
+.ac4 { color: var(--info) } .ac5 { color: var(--s7) } .ac6 { color: var(--s3) } .ac7 { color: var(--text) }
+.ab { font-weight: 600 } .ad { opacity: .65 } .ai { font-style: italic } .au { text-decoration: underline }

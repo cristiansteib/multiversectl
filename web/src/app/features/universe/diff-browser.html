@@ -1,0 +1,56 @@
+@if (error(); as e) {
+  <mv-error [message]="e" />
+} @else if (files() === null) {
+  <div class="stack"><mv-skeleton height="2.2rem" /><mv-skeleton height="2.2rem" /><mv-skeleton width="60%" height="2.2rem" /></div>
+} @else if (!files()!.length) {
+  <p class="muted">Nothing changed.</p>
+} @else {
+  <div class="layout" [class.single]="!navigable()">
+    @if (navigable()) {
+      <nav class="tree" aria-label="Changed files">
+        <input type="search" name="filter-files" placeholder="Filter files" aria-label="Filter the changed files" [value]="filter()" (input)="filter.set($any($event.target).value)" />
+        <ul>
+          @for (r of tree(); track r.kind === 'dir' ? 'd:' + r.full : 'f:' + r.file.path) {
+            <li [class]="'d' + (r.depth > 6 ? 6 : r.depth)">
+              @if (r.kind === 'dir') {
+                <button type="button" class="dir" [attr.aria-expanded]="!r.shut" [title]="r.full" (click)="fold(r.full)">
+                  <mv-icon [name]="r.shut ? 'chevron' : 'chevronDown'" /><span class="fname">{{ r.name }}</span>
+                </button>
+              } @else {
+                <button type="button" class="node" [class.active]="active() === r.file.path" [class.open]="open().has(r.file.path)" [title]="title(r.file)" (click)="show(r.file.path, true)">
+                  <span class="mark" [class]="r.file.status">{{ mark[r.file.status] || '?' }}</span>
+                  <span class="fname">{{ r.name }}</span>
+                  @if (!r.file.binary) { <span class="stat"><b class="add">+{{ r.file.added }}</b><b class="del">−{{ r.file.removed }}</b></span> }
+                </button>
+              }
+            </li>
+          } @empty { <li class="muted small">No file matches.</li> }
+        </ul>
+      </nav>
+    }
+    <div class="files">
+      @if (navigable()) { <p class="muted small tip">Opening a file closes the others, unless you pin it with “Keep open”.</p> }
+      <ul>
+        @for (f of files(); track f.path) {
+          <li class="file" [class.is-open]="open().has(f.path)" [attr.data-path]="f.path">
+            <div class="file-row">
+              <button type="button" class="file-head" [attr.aria-expanded]="open().has(f.path)" (click)="toggle(f.path)">
+                <mv-icon [name]="open().has(f.path) ? 'chevronDown' : 'chevron'" />
+                <span class="mark" [class]="f.status" [title]="f.status">{{ mark[f.status] || '?' }}</span>
+                <span class="fpath mono">{{ title(f) }}</span>
+                @if (f.binary) { <span class="muted small">binary</span> } @else { <b class="add">+{{ f.added }}</b><b class="del">−{{ f.removed }}</b> }
+              </button>
+              @if (open().has(f.path) && navigable()) {
+                <button type="button" class="btn small ghost" [attr.aria-pressed]="pinned().has(f.path)"
+                        [title]="pinned().has(f.path) ? 'Pinned: stays open when another file is opened. Press to unpin.' : 'Keep this one open when another file is opened.'" (click)="pin(f.path)">
+                  {{ pinned().has(f.path) ? 'Pinned' : 'Keep open' }}
+                </button>
+              }
+            </div>
+            @if (open().has(f.path)) { <mv-patch-view [patch]="patches()[f.path]" /> }
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+}

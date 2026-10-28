@@ -1,0 +1,91 @@
+@if (rows().length) {
+  <div class="tree" role="tree" aria-label="Catalog">
+    @for (r of rows(); track r.node.path; let i = $index) {
+      <div class="node" role="treeitem" [attr.data-path]="r.node.path" [attr.aria-level]="r.depth + 1"
+           [attr.aria-expanded]="r.expandable ? r.open : null"
+           [class.expandable]="r.expandable" [class.root]="r.root" [class.bad]="!!r.node.unavailable" [class.warn]="!!r.node.stale" [class.ignored]="!!r.node.ignored"
+           [style.--depth]="r.depth" [attr.tabindex]="r.node.path === tabStop() ? 0 : -1"
+           (click)="press($event, r)" (keydown)="key($event, r, i)">
+        <span class="twisty" aria-hidden="true">
+          @if (r.expandable) { <mv-icon [name]="r.open ? 'chevronDown' : 'chevron'" /> }
+        </span>
+        <mv-icon class="kind-icon" [class]="r.node.kind" [name]="icon(r)" />
+        <span class="main">
+          <span class="line">
+            <span class="name">{{ r.node.name }}</span>
+            <span class="kind muted">{{ kindLabel(r) }}</span>
+            <mv-place [loc]="r.node.loc" [within]="r.node.within" />
+          </span>
+          @if (r.node.ignored) { <span class="reason">Left out on this machine: not read, not offered for installing.</span> }
+          @else if (r.node.unavailable) { <span class="reason bad">{{ r.node.unavailable }}</span> }
+          @else if (r.node.stale) { <span class="reason warn">{{ r.node.stale }}. Shown as last fetched.</span> }
+        </span>
+        <span class="tags">
+          @if (reading() && r.step; as s) {
+            @if (s.phase === 'fetching') { <span class="spin" role="status" aria-label="Reading"></span> }
+            <mv-badge [tone]="s.phase === 'done' ? 'ok' : s.phase === 'stale' ? 'warn' : s.phase === 'unavailable' ? 'bad' : 'info'">
+              {{ s.phase === 'fetching' ? 'Reading' : s.phase === 'done' ? 'Up to date' : s.phase === 'stale' ? 'Not refreshed' : 'Unavailable' }}
+            </mv-badge>
+          }
+          @if (r.node.ignored) { <mv-badge tone="mute">Ignored</mv-badge> }
+          @else if (r.node.unavailable) { <mv-badge tone="bad">Unavailable</mv-badge> }
+          @else if (r.node.stale) { <mv-badge tone="warn" [hint]="r.node.stale">Not refreshed</mv-badge> }
+          @if (r.node.kind === 'multiverse' && !r.node.unavailable) {
+            @if (r.node.installedAs; as inst) {
+              <a class="badge ok installed" [routerLink]="['/multiverse', inst]" [attr.title]="'Open ' + inst"><mv-icon name="check" /> Installed as {{ inst }}</a>
+            } @else if (!r.node.ignored) {
+              <mv-badge tone="mute">Not installed</mv-badge>
+              <mv-copy [text]="'multiversectl start ' + r.node.path" label="Install" />
+            }
+          }
+          @if (canIgnore(r)) {
+            @if (r.node.ignored) {
+              <button type="button" class="btn small" (click)="ignoreChange.emit({ node: r.node, ignore: false })" [attr.aria-label]="'Include ' + r.node.name + ' again'">Include again</button>
+            } @else {
+              <button type="button" class="btn small ghost ignore" (click)="ignoreChange.emit({ node: r.node, ignore: true })" [attr.aria-label]="'Ignore ' + r.node.name"
+                      title="Leave it out on this machine: it is not read and not offered for installing. You can include it again.">Ignore</button>
+            }
+          }
+        </span>
+      </div>
+      @if (r.open && r.node.kind === 'multiverse') {
+        <dl class="detail" role="group" [style.--depth]="r.depth" [attr.aria-label]="r.node.name + ', details'">
+          <dt>Repository</dt><dd><mv-place [loc]="r.node.loc" /></dd>
+          <dt>Branch</dt><dd>{{ r.node.ref || 'the default branch' }}</dd>
+          <dt>Manifest</dt><dd class="mono">{{ r.node.file || 'multiverse.yaml' }}</dd>
+          <dt>Repositories</dt>
+          <dd>
+            @if (r.node.installedAs; as inst) {
+              @if (reposOf(inst); as list) {
+                @if (list.length) {
+                  <span class="chips">@for (x of list; track x.key) { <mv-repo-chip [loc]="x.loc" [name]="x.key" /> }</span>
+                } @else { <span class="muted">None listed.</span> }
+              } @else if (reposOf(inst) === null) {
+                <span class="muted">Could not be read.</span> <button type="button" class="btn small ghost" (click)="retryRepos(inst)">Try again</button>
+              } @else { <span class="muted">Reading…</span> }
+            } @else {
+              <span class="muted">Listed in its manifest, which is read when it is installed.</span>
+            }
+          </dd>
+          <dt>In the catalog</dt><dd><mv-copy [text]="r.node.path" /></dd>
+          <dt>On this machine</dt>
+          <dd>
+            @if (r.node.installedAs; as inst) {
+              Installed as <a [routerLink]="['/multiverse', inst]">{{ inst }}</a>@if (universesOf(inst); as u) { <span class="muted">, {{ u }}</span> }
+            } @else if (r.node.ignored) {
+              <span class="muted">Ignored: not offered for installing.</span>
+            } @else {
+              <span class="muted">Not installed.</span> <mv-copy [text]="'multiversectl start ' + r.node.path" label="Install" />
+            }
+          </dd>
+        </dl>
+      }
+    }
+  </div>
+} @else {
+  @if (filter()) {
+    <mv-empty title="Nothing matches this filter">Try part of a name, a path or a repository.</mv-empty>
+  } @else {
+    <mv-empty title="The catalog is empty">Add a multiverse or another catalog: <mv-copy text="multiversectl catalog add <owner/repo>" /></mv-empty>
+  }
+}
