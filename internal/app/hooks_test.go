@@ -411,3 +411,61 @@ func TestTheCommandToRunByHandCanBePasted(t *testing.T) {
 		t.Errorf("a plain command was quoted: %s", got)
 	}
 }
+
+func TestHooksAreListedInTheOrderTheEventsHappen(t *testing.T) {
+	s := lockedService(&fakeLocks{})
+	s.System = fakeSystem{}
+	s.Manifest.Apps = map[string]domain.App{"api": {Repo: "api", Hooks: map[domain.HookEvent][]domain.Hook{
+		domain.PreRemove: {{Host: true, Command: []string{"cleanup"}}},
+		domain.PostUp:    {{Service: "web", Command: []string{"seed"}, Once: true}},
+		domain.PreUp:     {{Host: true, Dir: "api", Command: []string{"sh", "-c", "echo hi"}}},
+	}}}
+	s.Manifest.Hooks = map[domain.HookEvent][]domain.Hook{domain.PostUp: {{Host: true, Name: "announce", Command: []string{"echo"}}}}
+	got, err := s.Hooks("3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var order []string
+	for _, h := range got {
+		order = append(order, string(h.Event)+":"+h.App)
+	}
+	if want := "preUp:api postUp: postUp:api preRemove:api"; strings.Join(order, " ") != want {
+		t.Errorf("order %v, want %s", order, want)
+	}
+	if got[0].Where != "host in api" || got[0].Command != "sh -c 'echo hi'" || got[0].OnFailure != domain.FailStop {
+		t.Errorf("preUp %+v", got[0])
+	}
+	if got[2].Where != "service web" || !got[2].Once || got[2].Done {
+		t.Errorf("postUp %+v", got[2])
+	}
+}
+
+// Run by hand, a once-only hook runs every time and is not marked, and a failure
+// is an error however the hook says to take it: nobody is starting anything.
+func TestRunningAnEventByHandIgnoresOnceAndFailsLoudly(t *testing.T) {
+	m := &machine{}
+	s := lockedService(&fakeLocks{})
+	s.System, s.Files, s.Commands = fakeSystem{}, &tempFiles{}, m
+	s.Manifest.Apps = map[string]domain.App{"api": {Repo: "api", Hooks: map[domain.HookEvent][]domain.Hook{
+		domain.PostUp: {{Host: true, Once: true, Command: []string{"seed"}}},
+	}}}
+	for i := 0; i < 2; i++ {
+		if err := s.RunHooks(context.Background(), "3", domain.PostUp, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(m.ran) != 2 {
+		t.Errorf("a once hook ran %d times by hand, want 2", len(m.ran))
+	}
+	m.failures = -1
+	s.Manifest.Apps["api"].Hooks[domain.PostUp][0].OnFailure = domain.FailIgnore
+	if err := s.RunHooks(context.Background(), "3", domain.PostUp, nil); err == nil {
+		t.Error("a failure by hand was ignored")
+	}
+	if err := s.RunHooks(context.Background(), "3", "sometimes", nil); err == nil || !strings.Contains(err.Error(), "preUp") {
+		t.Errorf("an unknown event: %v", err)
+	}
+	if err := s.RunHooks(context.Background(), "3", domain.PostUp, []string{"nope"}); err == nil {
+		t.Error("an unknown app was accepted")
+	}
+}

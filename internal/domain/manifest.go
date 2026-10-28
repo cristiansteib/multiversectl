@@ -488,7 +488,7 @@ func validateHooks(path string, hooks map[HookEvent][]Hook, services []string, i
 	var errs []string
 	for _, ev := range slices.Sorted(maps.Keys(hooks)) {
 		if !ev.Valid() {
-			errs = append(errs, fmt.Sprintf("%s.%s: not an event (%s)", path, ev, joinEvents()))
+			errs = append(errs, fmt.Sprintf("%s.%s: not an event (%s)", path, ev, JoinHookEvents()))
 			continue
 		}
 		for i, hook := range hooks[ev] {
@@ -526,7 +526,7 @@ func validateHooks(path string, hooks map[HookEvent][]Hook, services []string, i
 	return errs
 }
 
-func joinEvents() string {
+func JoinHookEvents() string {
 	names := make([]string, len(HookEvents))
 	for i, e := range HookEvents {
 		names[i] = string(e)

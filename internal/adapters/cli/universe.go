@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // parseBranches reads repeated --branch flags. A bare name is the branch for
@@ -759,7 +761,7 @@ func (r runner) universeCmd() *cobra.Command {
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
 	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.downCmd(), r.syncCmd(), r.noteCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
-		r.envCmd(), r.runCmd(), r.execCmd(), r.universeConfigCmd())
+		r.envCmd(), r.runCmd(), r.execCmd(), r.universeConfigCmd(), r.hooksCmd())
 	return cmd
 }
 
@@ -1035,5 +1037,68 @@ func (r runner) noteCmd() *cobra.Command {
 			return nil
 		})(cmd, args)
 	}
+	return cmd
+}
+
+// hooksCmd lists a universe's lifecycle hooks, and runs an event's by hand.
+func (r runner) hooksCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "hooks <universe>",
+		Short: "The commands tied to a universe's life, and a way to run an event's now",
+		Long: "Lists the hooks the manifest ties to the universe's life (postCreate, preUp, postUp,\n" +
+			"preDown, postDown, preRemove): which event, where each runs, whether a once-only one\n" +
+			"has run, and what a failure means. `hooks run` runs an event's now, for one app or\n" +
+			"for all of them: how a hook that was warned about is run again, and how one is\n" +
+			"tried before it is trusted to a start. A once-only hook runs again and is not marked.",
+		Example: "  multiversectl universe hooks 3\n  multiversectl universe hooks run 3 postUp api",
+		Args:    cobra.ExactArgs(1),
+	}
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return r.withService(func(_ context.Context, s *app.Service) error {
+			hooks, err := s.Hooks(args[0])
+			if err != nil {
+				return err
+			}
+			if len(hooks) == 0 {
+				r.out.Info("the manifest ties no commands to this universe's life")
+				return nil
+			}
+			rows := make([][]string, len(hooks))
+			for i, h := range hooks {
+				state := string(h.OnFailure)
+				switch {
+				case h.Done:
+					state += ", done"
+				case h.Once:
+					state += ", once"
+				}
+				rows[i] = []string{string(h.Event), cmp.Or(h.App, "(multiverse)"), h.Where, cmp.Or(h.Name, h.Command), state}
+			}
+			r.out.Table([]string{"EVENT", "APP", "RUNS", "COMMAND", "ON FAILURE"}, rows)
+			return nil
+		})(cmd, args)
+	}
+	run := &cobra.Command{
+		Use:     "run <universe> <event> [app...]",
+		Short:   "Run the hooks of an event on a universe now",
+		Example: "  multiversectl universe hooks run 3 postUp\n  multiversectl universe hooks run 3 preUp api",
+		Args:    cobra.MinimumNArgs(2),
+		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+			if len(args) == 1 {
+				events := make([]string, len(domain.HookEvents))
+				for i, e := range domain.HookEvents {
+					events[i] = string(e)
+				}
+				return events, cobra.ShellCompDirectiveNoFileComp
+			}
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		},
+	}
+	run.RunE = func(cmd *cobra.Command, args []string) error {
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			return s.RunHooks(ctx, args[0], domain.HookEvent(args[1]), args[2:])
+		})(cmd, args)
+	}
+	cmd.AddCommand(run)
 	return cmd
 }
