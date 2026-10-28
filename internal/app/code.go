@@ -61,7 +61,7 @@ func (s *Service) UniverseCode(ctx context.Context, name string, fetch bool) ([]
 	if fetch {
 		s.refetch(ctx, st)
 	}
-	ready := s.hostsReady(ctx)
+	ready := &readiness{}
 	// checkouts comes in the repositories' own order, which is the order the
 	// rows keep.
 	checkouts := s.checkouts(st)
@@ -102,19 +102,32 @@ func (s *Service) refetch(ctx context.Context, st domain.UniverseState) {
 	wg.Wait()
 }
 
-// hostsReady asks each hosting service whether it can be used, once. That is a
-// process of its own and a call over the network, and one answer serves every
-// repository asked about, however many it owns.
-func (s *Service) hostsReady(ctx context.Context) []func() error {
-	ready := make([]func() error, len(s.Hosts))
-	for i := range s.Hosts {
-		host := s.Hosts[i]
-		ready[i] = sync.OnceValue(func() error { return host.Available(ctx) })
-	}
-	return ready
+// readiness asks a hosting service whether it can be used, once per instance.
+// That is a process of its own and a call over the network, and one answer
+// serves every repository asked about, however many it owns. An instance is a
+// service and the host it is on: gitlab.com and a company's own GitLab are
+// signed in separately, and one being usable says nothing of the other.
+type readiness struct {
+	mu    sync.Mutex
+	asked map[string]func() error
 }
 
-func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) CodeStatus {
+func (r *readiness) check(ctx context.Context, host RepoHost, instance string) error {
+	key := host.Name() + "@" + instance
+	r.mu.Lock()
+	if r.asked == nil {
+		r.asked = map[string]func() error{}
+	}
+	f, ok := r.asked[key]
+	if !ok {
+		f = sync.OnceValue(func() error { return host.Available(ctx) })
+		r.asked[key] = f
+	}
+	r.mu.Unlock()
+	return f()
+}
+
+func (s *Service) codeOf(ctx context.Context, c Checkout, ready *readiness) CodeStatus {
 	cs := CodeStatus{Repo: c.Repo, App: c.App, Branch: c.Branch, Path: c.Path}
 	if s.Manifest == nil {
 		return cs
@@ -180,17 +193,24 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready []func() error) 
 
 // reviewOf asks the service the repository is on, and only that one: a URL no
 // host owns is a repository nobody can have opened a review on.
-func (s *Service) reviewOf(ctx context.Context, ready []func() error, repoURL, branch string) (*Review, string) {
+func (s *Service) reviewOf(ctx context.Context, ready *readiness, repoURL, branch string) (*Review, string) {
 	if repoURL == "" || branch == "" {
 		return nil, ""
 	}
-	for i, h := range s.Hosts {
+	for _, h := range s.Hosts {
 		if !h.Owns(repoURL) {
 			continue
 		}
+		// A repository on a company's own GitLab or GitHub is asked there: left to
+		// its tool's default, the question goes to the public service, which has
+		// never heard of the project (or of the user), and there is no review to show.
+		instance := domain.Locate(repoURL, "").Host
+		if at, ok := h.(HostAt); ok && instance != "" {
+			h = at.At(instance)
+		}
 		// A service that is not installed or not signed in is not an error
 		// worth showing on every repository of every universe.
-		if err := ready[i](); err != nil {
+		if err := ready.check(ctx, h, instance); err != nil {
 			return nil, ""
 		}
 		r, err := h.FindReview(ctx, repoURL, branch)
@@ -281,7 +301,7 @@ func (s *Service) diffTarget(ctx context.Context, name, repo, scope, base string
 			clone := s.Manifest.CloneDir(s.Multiverse, c.Repo)
 			var review *Review
 			if r, ok := s.Manifest.Repos[c.Repo]; ok {
-				review, _ = s.reviewOf(ctx, s.hostsReady(ctx), r.URL, c.Branch)
+				review, _ = s.reviewOf(ctx, &readiness{}, r.URL, c.Branch)
 			}
 			if b := s.baseOf(ctx, clone, review); b != "" {
 				return c.Path, b, nil
