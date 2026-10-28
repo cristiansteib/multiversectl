@@ -1,0 +1,101 @@
+@let u = universe();
+<article class="uni" [class.stopped]="state() === 'stopped'" [attr.aria-label]="'Universe ' + u.name">
+  <header>
+    <a class="num" [class.word]="!isNumber()" [routerLink]="link()" [attr.title]="'Open universe ' + u.name">
+      <span class="dot" [class.ok]="state() === 'running'" [class.warn]="state() === 'partial'" aria-hidden="true"></span>
+      {{ u.name }}
+    </a>
+    <div class="state">
+      <mv-badge [tone]="state() === 'running' ? 'ok' : state() === 'partial' ? 'warn' : 'mute'">
+        @switch (state()) {
+          @case ('stopped') { Stopped }
+          @case ('partial') { {{ u.running }} of {{ total() }} up }
+          @default { Running{{ total() ? ' · ' + u.running + '/' + total() : '' }} }
+        }
+      </mv-badge>
+      @if (u.behind) {
+        <mv-badge tone="warn" hint="Its code lacks commits of the branches it follows (as of the last fetch). Update code brings them in; restart to run them.">{{ u.behind }} behind</mv-badge>
+      }
+    </div>
+  </header>
+
+  <div class="facts">
+    @if (branchNames().length === 1) {
+      <span class="branch" [attr.title]="'Every repository is on ' + branchNames()[0]"><mv-icon name="branch" /> {{ branchNames()[0] }}</span>
+    } @else if (branchNames().length > 1) {
+      <span class="branch" [attr.title]="branchNames().join(', ')"><mv-icon name="branch" /> {{ branchNames().length }} branches</span>
+    }
+    @if (u.created) { <span class="muted" [attr.title]="u.created">Created {{ u.created | ago }}</span> }
+    @if (u.lastStarted) { <span class="muted" [attr.title]="u.lastStarted">Started {{ u.lastStarted | ago }}</span> }
+  </div>
+
+  @if (u.pr) {
+    <p class="note">
+      @if (isWeb(u.pr)) { <a [href]="u.pr" target="_blank" rel="noopener noreferrer">{{ u.pr }}</a> } @else { {{ u.pr }} }
+    </p>
+  }
+  @if (u.note) { <p class="note">{{ u.note }}</p> }
+  @if (reasons().length) {
+    <ul class="reasons" aria-label="Needs a look">
+      @for (r of reasons(); track r) { <li><mv-icon name="warn" /> {{ r }}</li> }
+    </ul>
+  }
+
+  @if (u.apps.length) {
+    <ul class="apps">
+      @for (a of u.apps; track a.key) {
+        <li>
+          <div class="app-head">
+            <b>{{ a.key }}</b>
+            @if (a.repo && a.repo !== a.key) { <span class="muted small">{{ a.repo }}</span> }
+            @if (a.expected) { <mv-badge [tone]="a.running === a.expected ? 'ok' : a.running ? 'warn' : 'mute'">{{ a.running }}/{{ a.expected }} up</mv-badge> }
+          </div>
+          @if (a.services?.length) {
+            <div class="svcs">
+              @for (s of a.services; track s.name) {
+                <span class="svc" [attr.title]="svcTitle(s)"><span class="dot" [class]="dot(s.state)"></span>{{ s.name }}@if (s.published) { <span class="badge warn">{{ s.published }}</span> }</span>
+              }
+            </div>
+          }
+          @if (a.urls?.length) {
+            <div class="urls">
+              @for (x of a.urls; track x.url) {
+                @if (isWeb(x.url)) { <a [href]="x.url" target="_blank" rel="noopener noreferrer" [attr.title]="x.service">{{ x.url }}</a> }
+              }
+            </div>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  <footer>
+    <a class="btn small" [routerLink]="link()" title="This universe on a page of its own: containers, logs, code and diffs">
+      Open <mv-icon name="chevron" />
+    </a>
+    <mv-doctor-button [multiverse]="u.multiverse" [universe]="u.name" label="Doctor" />
+    <span class="grow"></span>
+    @if (!events.readOnly()) {
+      @if (u.behind) {
+        <button type="button" class="btn small" [disabled]="busy()" [attr.title]="tip() || 'Bring the branches it follows into its checkouts'" (click)="run('sync')">
+          <mv-icon name="arrowDown" /> Update code
+        </button>
+      }
+      @if (state() !== 'running') {
+        <button type="button" class="btn small primary" [disabled]="busy()" [attr.title]="tip() || (state() === 'partial' ? 'Start the containers that are down' : 'Start this universe')" (click)="run('up')">
+          <mv-icon name="play" /> Start
+        </button>
+      }
+      @if (u.running) {
+        <button type="button" class="btn small" [disabled]="busy()" [attr.title]="tip() || 'Stop its containers; its data is kept'" (click)="run('down')">
+          <mv-icon name="stop" /> Stop
+        </button>
+      }
+      <button type="button" class="btn small icon ghost danger-hover" [disabled]="busy()" [attr.title]="tip() || 'Remove this universe'" [attr.aria-label]="'Remove universe ' + u.name" (click)="removing.set(true)">
+        <mv-icon name="trash" />
+      </button>
+    }
+  </footer>
+  <mv-doctor-result [multiverse]="u.multiverse" [universe]="u.name" />
+</article>
+@if (removing()) { <mv-remove-universe-dialog [multiverse]="u.multiverse" [universe]="u.name" (closed)="removing.set(false)" /> }

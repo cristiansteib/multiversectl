@@ -1,0 +1,49 @@
+@if (rows().length) {
+  <div class="tree" role="tree" aria-label="Catalog">
+    @for (r of rows(); track r.node.path; let i = $index) {
+      <div class="node" role="treeitem" [attr.data-path]="r.node.path" [attr.aria-level]="r.depth + 1"
+           [attr.aria-expanded]="r.expandable ? r.open : null"
+           [class.expandable]="r.expandable" [class.root]="r.root" [class.bad]="!!r.node.unavailable" [class.warn]="!!r.node.stale"
+           [style.--depth]="r.depth" [attr.tabindex]="r.node.path === tabStop() ? 0 : -1"
+           (click)="press($event, r)" (keydown)="key($event, r, i)">
+        <span class="twisty" aria-hidden="true">
+          @if (r.expandable) { <mv-icon [name]="r.open ? 'chevronDown' : 'chevron'" /> }
+        </span>
+        <mv-icon class="kind-icon" [class]="r.node.kind" [name]="icon(r)" />
+        <span class="main">
+          <span class="line">
+            <span class="name">{{ r.node.name }}</span>
+            <span class="kind muted">{{ kindLabel(r) }}</span>
+            <mv-place [loc]="r.node.loc" [within]="r.node.within" />
+          </span>
+          @if (r.node.unavailable) { <span class="reason bad">{{ r.node.unavailable }}</span> }
+          @else if (r.node.stale) { <span class="reason warn">{{ r.node.stale }}. Shown as last fetched.</span> }
+        </span>
+        <span class="tags">
+          @if (reading() && r.step; as s) {
+            @if (s.phase === 'fetching') { <span class="spin" role="status" aria-label="Reading"></span> }
+            <mv-badge [tone]="s.phase === 'done' ? 'ok' : s.phase === 'stale' ? 'warn' : s.phase === 'unavailable' ? 'bad' : 'info'">
+              {{ s.phase === 'fetching' ? 'Reading' : s.phase === 'done' ? 'Up to date' : s.phase === 'stale' ? 'Not refreshed' : 'Unavailable' }}
+            </mv-badge>
+          }
+          @if (r.node.unavailable) { <mv-badge tone="bad">Unavailable</mv-badge> }
+          @else if (r.node.stale) { <mv-badge tone="warn" [hint]="r.node.stale">Not refreshed</mv-badge> }
+          @if (r.node.kind === 'multiverse' && !r.node.unavailable) {
+            @if (r.node.installedAs; as inst) {
+              <a class="badge ok installed" [routerLink]="['/multiverse', inst]" [attr.title]="'Open ' + inst"><mv-icon name="check" /> Installed as {{ inst }}</a>
+            } @else {
+              <mv-badge tone="mute">Not installed</mv-badge>
+              <mv-copy [text]="'multiversectl start ' + r.node.path" label="Install" />
+            }
+          }
+        </span>
+      </div>
+    }
+  </div>
+} @else {
+  @if (filter()) {
+    <mv-empty title="Nothing matches this filter">Try part of a name, a path or a repository.</mv-empty>
+  } @else {
+    <mv-empty title="The catalog is empty">Add a multiverse or another catalog: <mv-copy text="multiversectl catalog add <owner/repo>" /></mv-empty>
+  }
+}

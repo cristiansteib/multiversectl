@@ -1,0 +1,14 @@
+:host { display: block }
+.bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px }
+.repos { margin: 0; border: 0; flex-wrap: wrap }
+.tab { display: inline-flex; align-items: center; gap: 7px; font: 500 .9rem var(--sans); color: var(--muted); background: none; border: 1px solid transparent; border-radius: var(--r-md); padding: 6px 12px; cursor: pointer }
+.tab:hover { color: var(--text); background: var(--sunk) }
+.tab.on { color: var(--text); background: var(--accent-soft); border-color: transparent }
+.tab b { font-size: .8rem }
+.add { color: var(--ok); font-weight: 500 } .del { color: var(--bad); font-weight: 500 }
+.small { font-size: .82rem }
+.head { gap: 8px 10px; margin-bottom: 14px }
+.chip { display: inline-flex; align-items: center; gap: 5px; font: 500 .8rem var(--mono); padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel) }
+.fact { font-size: .86rem; padding: 2px 0 }
+.fact.warn { color: var(--warn); font-weight: 500 } .fact.mute { color: var(--muted) } .fact.quiet { color: var(--faint) }
+.sub { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 14px }

@@ -1,0 +1,9 @@
+.fetched { font-size: .86rem }
+.hint { margin-top: 14px }
+.summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 14px }
+.stat { color: var(--muted); font-size: .92rem } .stat strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums }
+.toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 12px }
+.search { flex: 1 1 260px }
+.keyhint { font-size: .84rem }
+.skeleton-tree { display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel) }
+@media (max-width: 560px) { .keyhint { display: none } }

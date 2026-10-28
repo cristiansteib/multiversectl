@@ -1,0 +1,63 @@
+<div class="chart" [class.compact]="compact()">
+  <svg class="plot" [attr.viewBox]="'0 0 ' + width() + ' ' + height()" [attr.width]="width()" [attr.height]="height()"
+       role="img" tabindex="0" [attr.aria-label]="summary()"
+       (pointermove)="move($event)" (pointerleave)="cursor.set(null)" (blur)="cursor.set(null)" (keydown)="key($event)">
+    <g class="grid">
+      @for (t of yTicks(); track t.v) {
+        <line [attr.x1]="pad().l" [attr.x2]="width() - pad().r" [attr.y1]="t.y" [attr.y2]="t.y" />
+        <text class="axis" [attr.x]="pad().l - 6" [attr.y]="t.y + 4" text-anchor="end">{{ t.text }}</text>
+      }
+    </g>
+    @for (t of xTicks(); track t.x) {
+      <text class="axis" [attr.x]="t.x" [attr.y]="height() - 6" [attr.text-anchor]="t.anchor">{{ t.text }}</text>
+    }
+    @for (l of lines(); track l.s.key) {
+      <path class="line" [attr.d]="l.d" [style.stroke]="l.s.colour" [attr.stroke-dasharray]="l.s.dash || null" />
+      <circle class="head" [attr.cx]="l.hx" [attr.cy]="l.hy" r="2.5" [style.fill]="l.s.colour" />
+    }
+    @if (cursor() !== null) {
+      <line class="hair" [attr.x1]="cursorX()" [attr.x2]="cursorX()" [attr.y1]="pad().t" [attr.y2]="height() - pad().b" />
+      @for (h of hits(); track h.s.key) {
+        <circle class="dot-hit" [attr.cx]="x(h.p[0])" [attr.cy]="y(h.p[1])" r="3.5" [style.fill]="h.s.colour" />
+      }
+    }
+  </svg>
+
+  @if (cursor() !== null && hits().length) {
+    <div class="tip" [class.flip]="flip()" [style.left.px]="cursorX()" role="status">
+      <div class="when">{{ cursorTime() }}</div>
+      @for (h of hits(); track h.s.key) {
+        <div class="hit">
+          <svg class="key-line" width="18" height="8" aria-hidden="true"><line x1="0" x2="18" y1="4" y2="4" [style.stroke]="h.s.colour" [attr.stroke-dasharray]="h.s.dash || null" /></svg>
+          <b class="mono">{{ format()(h.p[1]) }}</b>
+          <span class="muted">{{ h.s.label }}</span>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!compact() && series().length) {
+    <ul class="legend">
+      @for (s of series(); track s.key) {
+        <li>
+          <button type="button" class="key" [class.off]="off().has(s.key)" [attr.aria-pressed]="!off().has(s.key)"
+                  [attr.title]="off().has(s.key) ? 'Show ' + s.label : 'Hide ' + s.label" (click)="toggle(s.key)">
+            <svg class="key-line" width="22" height="8" aria-hidden="true"><line x1="0" x2="22" y1="4" y2="4" [style.stroke]="s.colour" [attr.stroke-dasharray]="s.dash || null" /></svg>
+            <span class="name">{{ s.label }}</span>
+            <b class="mono">{{ format()(latest(s)) }}</b>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+
+  <table class="sr-only">
+    <caption>{{ label() || 'Readings' }}</caption>
+    <thead><tr><th>Series</th><th>Latest</th><th>Highest</th></tr></thead>
+    <tbody>
+      @for (s of series(); track s.key) {
+        <tr><td>{{ s.label }}</td><td>{{ format()(latest(s)) }}</td><td>{{ format()(peak(s)) }}</td></tr>
+      }
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,71 @@
+<header class="page-head">
+  <div>
+    <h1>Universes</h1>
+    <p>Every universe of every installed multiverse, and what is running in it.</p>
+  </div>
+</header>
+
+@if (fleet(); as f) {
+  @if (f.error) {
+    <mv-error [message]="f.error" />
+  } @else if (!f.multiverses.length) {
+    <mv-empty title="Nothing is installed yet">Install a multiverse to make universes in it: <mv-copy text="multiversectl start <owner/repo>" /></mv-empty>
+  } @else {
+    <div class="filters" role="search">
+      <div class="search">
+        <mv-icon name="search" />
+        <input #search type="search" name="q" placeholder="Search by number, branch or note" aria-label="Search universes" aria-keyshortcuts="/"
+               autocomplete="off" [value]="text()" (input)="setText($any($event.target).value)" />
+      </div>
+      @if (names().length > 1) {
+        <select aria-label="Multiverse" [value]="only()" (change)="setMultiverse($any($event.target).value)">
+          <option value="">All multiverses</option>
+          @for (n of names(); track n) { <option [value]="n" [selected]="n === only()">{{ n }}</option> }
+        </select>
+      }
+      <div class="seg" role="group" aria-label="Show">
+        @for (s of states; track s.value) {
+          <button type="button" [attr.aria-pressed]="stateFilter() === s.value" (click)="setState(s.value)">{{ s.label }}</button>
+        }
+      </div>
+      <span class="grow"></span>
+      <span class="muted count" aria-live="polite">
+        @if (filtering()) { {{ shown() }} of {{ plural(total(), 'universe') }} }
+        @else { {{ plural(total(), 'universe') }} }
+      </span>
+      @if (filtering()) { <button type="button" class="btn small ghost" (click)="clear()"><mv-icon name="x" /> Clear filters</button> }
+    </div>
+
+    @for (g of groups(); track g.w.name) {
+      <section class="group" [attr.aria-label]="g.w.name">
+        <div class="group-head">
+          <h2><a [routerLink]="['/multiverse', g.w.name]">{{ g.w.name }}</a></h2>
+          <span class="muted">{{ plural(g.w.universes.length, 'universe') }}</span>
+          <span class="grow"></span>
+          <mv-multiverse-actions [name]="g.w.name" [create]="true" [update]="true" />
+          <mv-doctor-button [multiverse]="g.w.name" />
+        </div>
+        <mv-doctor-result [multiverse]="g.w.name" />
+        @if (g.w.error) { <mv-error [message]="g.w.error" /> }
+        @for (x of g.w.warnings ?? []; track x) { <p class="muted"><mv-badge tone="warn">warning</mv-badge> {{ x }}</p> }
+        @if (g.list.length) {
+          <div class="universes">
+            @for (u of g.list; track u.name) { <mv-universe-card [universe]="u" /> }
+          </div>
+        } @else if (!g.w.error) {
+          @if (g.w.universes.length) {
+            <mv-empty title="No universe matches">Change the filters, or <button type="button" class="btn small" (click)="clear()">clear them</button>.</mv-empty>
+          } @else {
+            <mv-empty title="No universes yet">Make the first one with the button above, or on the command line: <mv-copy [text]="'multiversectl -m ' + g.w.name + ' universe new 1'" /></mv-empty>
+          }
+        }
+      </section>
+    }
+  }
+} @else if (events.error(); as err) {
+  <mv-error [message]="err" />
+} @else {
+  <div class="universes" aria-busy="true">
+    @for (i of [1, 2, 3]; track i) { <div class="card"><mv-skeleton width="30%" height="2.6rem" /><br /><mv-skeleton height="3.2rem" /></div> }
+  </div>
+}

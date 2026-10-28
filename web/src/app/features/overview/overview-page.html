@@ -1,0 +1,98 @@
+<header class="page-head">
+  <div>
+    <h1>Overview</h1>
+    <p>{{ summary() }}</p>
+  </div>
+  <button type="button" class="btn" (click)="compare()" [disabled]="comparing()" [attr.aria-busy]="comparing()" title="git fetch every catalog and manifest, then compare">
+    @if (comparing()) { <span class="spin" aria-hidden="true"></span> } @else { <mv-icon name="refresh" /> }
+    Fetch remotes and compare
+  </button>
+</header>
+
+@if (data(); as d) {
+  <section aria-labelledby="attn">
+    <h2 id="attn" class="first">Needs a look</h2>
+    @if (attention().length) {
+      <ul class="attention">
+        @for (a of attention(); track a.id) {
+          <li [class]="a.tone">
+            <mv-icon [name]="a.tone === 'bad' ? 'x' : 'warn'" />
+            <div class="what">
+              <strong>{{ a.title }}</strong>
+              @if (a.detail) { <span class="muted wrap">{{ a.detail }}</span> }
+              @if (a.command) { <mv-copy [text]="a.command" /> }
+            </div>
+            <div class="row act">
+              @if (a.link) { <a class="btn small ghost" [routerLink]="a.link.to" [queryParams]="a.link.query">{{ a.link.label }}</a> }
+              @if (a.action) { <button type="button" class="btn small" [disabled]="a.action.busy" (click)="a.action.run()">{{ a.action.label }}</button> }
+            </div>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="clear"><mv-icon name="check" /> Nothing needs a look. Everything installed matches where it came from.</p>
+    }
+    @if (stopped() > 0) {
+      <p class="muted">{{ plural(stopped(), 'universe') }} {{ stopped() === 1 ? 'is' : 'are' }} stopped. <a routerLink="/fleet" [queryParams]="{ state: 'stopped' }">See {{ stopped() === 1 ? 'it' : 'them' }}</a></p>
+    }
+    @if (status()?.next; as next) {
+      <p class="next"><b>Next</b> <mv-copy [text]="next" /></p>
+    }
+  </section>
+
+  <section class="catalog card" aria-labelledby="cat">
+    <h3 id="cat">Catalog</h3>
+    @if (!status()?.catalog?.source) {
+      <p class="muted">None. Multiverses can still be installed from a repository.</p>
+      <mv-copy text="multiversectl init" />
+    } @else {
+      <div class="row">
+        @if (d.rootLoc) { <mv-place [loc]="d.rootLoc" /> } @else { <span class="mono wrap">{{ status()?.catalog?.source }}</span> }
+        @if (status()?.catalog?.unavailable) { <mv-badge tone="bad">Unavailable</mv-badge> }
+        @else { <mv-badge tone="ok">Readable</mv-badge> }
+        @if (status()?.catalog?.noRemote) { <mv-badge tone="warn">Local only</mv-badge> }
+        <span class="grow"></span>
+        <a class="btn small" routerLink="/catalog">Browse the tree <mv-icon name="chevron" /></a>
+      </div>
+    }
+  </section>
+
+  <h2>Installed multiverses</h2>
+  @if (!multiverses().length) {
+    <mv-empty title="Nothing is installed yet">Install one from your catalog or a repository: <mv-copy text="multiversectl start <owner/repo>" /></mv-empty>
+  } @else {
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Multiverse</th><th>Universes</th><th>Source</th><th>State</th><th>Root</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+          @for (w of multiverses(); track w.name) {
+            <tr>
+              <td>
+                <a class="name" [routerLink]="['/multiverse', w.name]">{{ w.name }}</a>
+                @if (w.from) { <div class="muted mono small wrap">{{ w.from }}</div> }
+              </td>
+              <td>
+                @let c = countsOf(w.name);
+                <a [routerLink]="['/fleet']" [queryParams]="{ mv: w.name }">{{ c.total }} {{ c.total === 1 ? 'universe' : 'universes' }}</a>
+                <span class="muted">, {{ c.running }} running</span>
+              </td>
+              <td>@if (d.sources?.[w.name]; as loc) { <mv-place [loc]="loc" /> } @else { <span class="muted">—</span> }</td>
+              <td>
+                <span class="row">
+                  @for (n of w.notes ?? []; track n) { <mv-badge [tone]="w.stale ? 'warn' : 'mute'">{{ n }}</mv-badge> }
+                  @if (!w.notes?.length) { <mv-badge tone="ok">Up to date</mv-badge> }
+                </span>
+              </td>
+              <td><mv-copy [text]="w.root" /></td>
+              <td class="end"><mv-multiverse-actions [name]="w.name" [create]="true" [update]="true" /></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+} @else if (events.error(); as err) {
+  <mv-error [message]="err" />
+} @else {
+  <div aria-busy="true"><mv-skeleton height="4rem" /><br /><mv-skeleton height="8rem" /></div>
+}

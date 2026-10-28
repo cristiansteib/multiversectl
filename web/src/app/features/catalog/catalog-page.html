@@ -1,0 +1,53 @@
+<div class="page-head">
+  <div>
+    <h1>Catalog</h1>
+    <p>Your index of multiverses, as a tree. A node is addressed by its path, like <code>acme/backend/billing</code>.</p>
+  </div>
+  <div class="row">
+    @if (fetchedAt(); as at) { <span class="muted fetched">Read {{ at | ago }}</span> }
+    <button type="button" class="btn primary" (click)="load(true)" [disabled]="fetching()" [attr.aria-busy]="fetching()"
+            title="git fetch every catalog repository and read them again">
+      @if (fetching()) { <span class="spin" aria-hidden="true"></span> Reading… } @else { <mv-icon name="refresh" /> Fetch from remotes }
+    </button>
+  </div>
+</div>
+
+@if (error(); as message) {
+  <mv-error [message]="message" />
+  @if (noRoot()) {
+    <p class="muted hint">There is no root catalog on this machine yet. Make one with <mv-copy text="multiversectl init" />.</p>
+  }
+} @else if (!data()) {
+  <div class="skeleton-tree" aria-busy="true">
+    @for (w of ['58%', '72%', '44%', '66%', '52%']; track $index) { <mv-skeleton height="22px" [width]="w" /> }
+  </div>
+} @else if (tally(); as t) {
+  <div class="summary">
+    <span class="stat"><strong>{{ t.multiverses }}</strong> {{ t.multiverses === 1 ? 'multiverse' : 'multiverses' }}</span>
+    <span class="stat"><strong>{{ t.catalogs }}</strong> {{ t.catalogs === 1 ? 'sub-catalog' : 'sub-catalogs' }}</span>
+    <span class="stat"><strong>{{ t.installed }}</strong> installed</span>
+    @if (t.unavailable) { <mv-badge tone="bad">{{ t.unavailable }} unavailable</mv-badge> }
+    @if (t.stale) { <mv-badge tone="warn" hint="Shown as last fetched">{{ t.stale }} not refreshed</mv-badge> }
+    @if (!t.unavailable && !t.stale) { <mv-badge tone="ok"><mv-icon name="check" /> Every catalog was read</mv-badge> }
+  </div>
+
+  <div class="toolbar">
+    <div class="search">
+      <mv-icon name="search" />
+      <input #search type="search" name="filter" placeholder="Filter by name, path or repository" aria-label="Filter the catalog" aria-keyshortcuts="/"
+             [value]="filter()" (input)="setFilter($any($event.target).value)" />
+    </div>
+    <span class="muted keyhint"><kbd>/</kbd> to filter</span>
+    <span class="grow"></span>
+    <button type="button" class="btn small ghost" (click)="expandAll()" [disabled]="!!filter()">Expand all</button>
+    <button type="button" class="btn small ghost" (click)="collapseAll()" [disabled]="!!filter()">Collapse all</button>
+  </div>
+
+  @if (showProgress()) { <mv-fetch-progress [map]="steps()" /> }
+
+  @if (empty() && !filter()) {
+    <mv-empty title="The catalog is empty">Add a multiverse or another catalog: <mv-copy text="multiversectl catalog add <owner/repo>" /></mv-empty>
+  } @else {
+    <mv-catalog-tree [root]="data()!.root" [filter]="filter()" [steps]="steps()" [reading]="fetching()" />
+  }
+}

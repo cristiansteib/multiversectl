@@ -1,0 +1,75 @@
+<div class="page-head">
+  <div>
+    <h1>System</h1>
+    <p>The versions of what this machine runs on, and whether it is set up to run universes.</p>
+  </div>
+  <button type="button" class="btn" (click)="load()" [disabled]="loading()" [attr.aria-busy]="loading()" title="Check the tools and the latest release again">
+    <mv-icon name="refresh" /> Check again
+  </button>
+</div>
+
+@if (error(); as message) {
+  <mv-error [message]="message" />
+} @else if (data(); as v) {
+  @if (v.latest.newer) {
+    <div class="banner info update">
+      <strong>Update available</strong>
+      <span>multiversectl {{ v.latest.version }} is out.</span>
+      <mv-copy text="multiversectl self-update" />
+    </div>
+  }
+
+  <div class="grid cards">
+    <section class="card">
+      <h3>This server</h3>
+      <div class="big mono">{{ v.server.version || '—' }}</div>
+      <dl>
+        @if (v.server.commit) { <div><dt>Commit</dt><dd class="mono">{{ v.server.commit }}</dd></div> }
+        @if (v.server.date) { <div><dt>Built</dt><dd>{{ v.server.date }}</dd></div> }
+        @if (v.listen) { <div><dt>Listening on</dt><dd class="mono">{{ v.listen }}</dd></div> }
+        @if (v.started) { <div><dt>Up for</dt><dd>{{ since(v.started) }}</dd></div> }
+      </dl>
+      <div class="row">
+        @if (v.readOnly) { <mv-badge tone="warn" hint="The server was started with --read-only">Read-only</mv-badge> }
+        @else { <mv-badge tone="ok">Actions enabled</mv-badge> }
+        <mv-badge [tone]="events.connected() ? 'ok' : 'warn'">{{ events.connected() ? 'Live' : 'Reconnecting' }}</mv-badge>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3>Command line</h3>
+      <div class="big mono">{{ cli()?.ok ? cli()!.version : 'Not found' }}</div>
+      <p class="muted wrap">{{ cli()?.path || 'multiversectl is not beside this server or on the PATH.' }}</p>
+    </section>
+
+    <section class="card">
+      <h3>Latest release</h3>
+      <div class="big mono">{{ v.latest.version || '—' }}</div>
+      <p class="muted">
+        @if (v.latest.error) { Could not check: {{ v.latest.error }} }
+        @else if (v.latest.newer) { Newer than the command line. }
+        @else { The command line is current. }
+      </p>
+    </section>
+
+    <section class="card">
+      <h3>File format</h3>
+      <div class="big mono">{{ v.format || '—' }}</div>
+      <p class="muted">The <code>apiVersion</code> of manifests and catalogs.</p>
+    </section>
+  </div>
+
+  <h2>
+    Tools
+    @if (missing().length) { <mv-badge tone="warn">{{ missing().length }} missing</mv-badge> }
+    @else { <mv-badge tone="ok"><mv-icon name="check" /> All found</mv-badge> }
+  </h2>
+  <mv-tools-table [tools]="v.tools" />
+} @else {
+  <div class="grid cards" aria-busy="true">
+    @for (i of [1, 2, 3, 4]; track i) { <div class="card"><mv-skeleton width="45%" height="14px" /><br /><mv-skeleton width="30%" height="28px" /><br /><mv-skeleton height="14px" /></div> }
+  </div>
+}
+
+<h2>Doctor</h2>
+<mv-doctor-panel />

@@ -1,0 +1,54 @@
+<div class="bar">
+  @if (rows(); as list) {
+    <div class="tabs repos" role="tablist" aria-label="Repositories" (keydown)="arrows($event, list.length, pickRepo.bind(this), repoIndex())">
+      @for (r of list; track r.repo) {
+        <button type="button" role="tab" class="tab" [class.on]="r.repo === row()?.repo" [attr.aria-selected]="r.repo === row()?.repo" [attr.tabindex]="r.repo === row()?.repo ? 0 : -1" (click)="select(r.repo)">
+          @if (r.review) { <mv-icon [name]="r.review.state === 'merged' ? 'prMerged' : r.review.state === 'closed' ? 'prClosed' : r.review.state === 'draft' ? 'prDraft' : 'prOpen'" /> }
+          {{ r.repo }}
+          @if (r.change) { <b class="add">+{{ r.change.added }}</b><b class="del">−{{ r.change.removed }}</b> }
+        </button>
+      }
+    </div>
+  } @else if (error(); as e) {
+    <mv-error [message]="e" />
+  } @else {
+    <mv-skeleton width="22rem" height="2.2rem" />
+  }
+  <span class="grow"></span>
+  <span class="muted small" title="The last time the clones asked their remotes, which is how old what is measured against them can be.">{{ age() }}</span>
+  @if (store.universe(); as u) { <mv-copy [text]="u.dir" label="Folder" /> }
+  <button type="button" class="btn small" [disabled]="loading()" [attr.aria-busy]="loading()" title="Ask the remotes, then read the branches and their requests again" (click)="reread()">
+    <mv-icon name="refresh" /> Reread
+  </button>
+</div>
+
+@if (error() && rows()) { <p class="muted small"><mv-badge tone="warn">the last read failed</mv-badge> {{ error() }}</p> }
+
+@if (row(); as r) {
+  <section class="repo" role="tabpanel" [attr.aria-label]="r.repo">
+    <div class="head row">
+      @if (r.branch) { <span class="chip" title="The branch checked out in this repository"><mv-icon name="branch" /> {{ r.branch }}</span> }
+      <mv-review-chip [row]="r" />
+      @for (f of facts(); track f.text) { <span class="fact" [class]="f.kind" [attr.title]="f.title">{{ f.text }}</span> }
+    </div>
+
+    @if (scopes().length) {
+      <div class="tabs sub" role="tablist" aria-label="What to read" (keydown)="arrows($event, scopes().length, pickScope.bind(this), scopeIndex())">
+        @for (s of scopes(); track s) {
+          <button type="button" role="tab" class="tab" [class.on]="s === activeScope()" [attr.aria-selected]="s === activeScope()" [attr.tabindex]="s === activeScope() ? 0 : -1" (click)="select(r.repo, s)">
+            {{ scopeLabel(s) }}
+            <span class="muted">{{ plural(scopeStat(s)!.files, 'file') }}</span>
+            <b class="add">+{{ scopeStat(s)!.added }}</b><b class="del">−{{ scopeStat(s)!.removed }}</b>
+          </button>
+        }
+      </div>
+      <mv-diff-browser [multiverse]="store.multiverse()" [universe]="store.name()" [repo]="r.repo" [scope]="activeScope()" [base]="r.base ?? ''" [tick]="tick()" />
+    } @else {
+      <p class="muted">Nothing changed in {{ r.repo }}{{ r.base ? ' against ' + r.base : '' }}.</p>
+    }
+  </section>
+} @else if (rows() && !rows()!.length) {
+  <p class="muted">This universe has no repositories checked out.</p>
+} @else if (!error()) {
+  <div class="stack"><mv-skeleton height="2rem" /><mv-skeleton height="2rem" width="70%" /><mv-skeleton height="2rem" width="85%" /></div>
+}

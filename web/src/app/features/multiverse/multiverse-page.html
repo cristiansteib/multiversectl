@@ -1,0 +1,94 @@
+<nav class="crumbs" aria-label="Breadcrumb"><a routerLink="/">Overview</a><mv-icon name="chevron" /><span>{{ name() }}</span></nav>
+<header class="page-head">
+  <div>
+    <h1>{{ name() }}</h1>
+    @if (data.value(); as w) { <p><mv-copy [text]="w.root" /></p> }
+  </div>
+  <mv-multiverse-actions [name]="name()" [create]="true" [update]="true" />
+</header>
+
+@if (data.error(); as err) {
+  <mv-error [message]="$any(err).message" />
+} @else if (data.value(); as w) {
+  <section class="summary">
+    <div class="card">
+      <h3>Universes</h3>
+      @if (universes().length) {
+        <p>{{ plural(universes().length, 'universe') }}, {{ running() }} running.</p>
+        <a class="btn small" [routerLink]="['/fleet']" [queryParams]="{ mv: w.name }">See them <mv-icon name="chevron" /></a>
+      } @else {
+        <p class="muted">None yet.</p>
+        <mv-copy [text]="'multiversectl -m ' + w.name + ' universe new 1'" />
+      }
+    </div>
+    <div class="card">
+      <h3>How it is reached</h3>
+      <p>Domain <b>{{ w.domain }}</b>, {{ w.expose || 'default exposure' }}.</p>
+      @if (w.manifest || w.from) {
+        <p class="muted small">Defined in <span class="mono wrap">{{ w.manifest || w.from }}</span></p>
+      }
+    </div>
+    <div class="card">
+      <h3>Proxy</h3>
+      <p class="mono wrap">{{ w.network }}</p>
+      <div class="row">
+        @for (e of entrypoints(w); track e[0]) { <span class="chip">{{ e[0] }} :{{ e[1] }}</span> }
+      </div>
+    </div>
+  </section>
+
+  <h2>Repositories</h2>
+  @if (w.repos.length) {
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Repository</th><th>Clone</th></tr></thead>
+        <tbody>
+          @for (r of w.repos; track r.key) {
+            <tr>
+              <td><b>{{ r.key }}</b></td>
+              <td>@if (r.loc) { <mv-place [loc]="r.loc" /> } @else { <span class="mono wrap">{{ r.url }}</span> }</td>
+              <td>
+                <span class="row">
+                  @if (r.cloned) { <mv-badge tone="ok">Cloned</mv-badge> } @else { <mv-badge tone="warn">Not cloned</mv-badge> }
+                  @if (r.behind) { <mv-badge tone="warn" hint="The shared clone lacks these commits; Update on the multiverse brings them in.">{{ r.behind }} behind {{ r.follows }}</mv-badge> }
+                  @if (r.dirty) { <mv-badge tone="warn" hint="The shared clone has uncommitted changes">Edited</mv-badge> }
+                </span>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else {
+    <mv-empty title="No repositories">The manifest lists none.</mv-empty>
+  }
+
+  <h2>Apps</h2>
+  @if (w.apps.length) {
+    <div class="grid">
+      @for (a of w.apps; track a.key) {
+        <div class="card">
+          <h3>{{ a.key }}</h3>
+          <p class="muted">Repository <b class="mono">{{ a.repo }}</b></p>
+          @if (a.services?.length) { <div class="row svcs">@for (s of a.services; track s) { <span class="chip">{{ s }}</span> }</div> }
+          @if (a.optional?.length) { <p class="muted small">Optional: {{ a.optional!.join(', ') }}</p> }
+          @for (x of a.hosts ?? []; track x.name) {
+            <div class="mono small wrap">{{ x.name }} → {{ x.service }}:{{ x.port }}{{ x.entrypoint !== 'web' ? ' (' + x.entrypoint + ')' : '' }}</div>
+          }
+        </div>
+      }
+    </div>
+  } @else {
+    <mv-empty title="No apps">Add <code>spec.apps</code> to the manifest to say how its repositories run.</mv-empty>
+  }
+
+  <div class="health">
+    <h2>Health</h2>
+    <mv-doctor-button [multiverse]="w.name" />
+  </div>
+  <mv-doctor-result [multiverse]="w.name" />
+} @else {
+  <div class="summary" aria-busy="true">
+    @for (i of [1, 2, 3]; track i) { <div class="card"><mv-skeleton width="40%" /><br /><mv-skeleton height="2.4rem" /></div> }
+  </div>
+}
