@@ -85,3 +85,26 @@ func TestACreatedUniverseIsNamedOnItsOperation(t *testing.T) {
 		t.Fatalf("the operation is about %q (%v), want 7", v.Universe, err)
 	}
 }
+
+// A universe made without a name is listed under the number the server picked.
+func TestAnOperationLearnsTheNumberTheServerPicked(t *testing.T) {
+	_, h := serve(t, &fake{}, Options{})
+	if rec := do(t, h, "POST", "/api/ops", `{"action":"new","multiverse":"acme"}`, map[string]string{"X-Mvctl": "1"}); rec.Code != http.StatusAccepted {
+		t.Fatalf("new: %d %s", rec.Code, rec.Body)
+	}
+	var last opView
+	for range 100 {
+		var body struct{ Ops []opView }
+		_ = json.Unmarshal(do(t, h, "GET", "/api/ops", "", nil).Body.Bytes(), &body)
+		if len(body.Ops) > 0 {
+			last = body.Ops[len(body.Ops)-1]
+		}
+		if last.State == "done" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if last.State != "done" || last.Universe != "7" {
+		t.Fatalf("the operation: %+v", last)
+	}
+}

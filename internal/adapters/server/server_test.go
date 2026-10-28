@@ -158,7 +158,10 @@ func (f *fake) Do(ctx context.Context, r opRequest, k Sink) error {
 	f.mu.Unlock()
 	k.Info("starting %s", r.Action)
 	if r.Action == "new" {
-		k.OK("universe 7 ready (acme-u7)") // as the real one reports the number it picked
+		if n, ok := k.(interface{ Universe(string) }); ok {
+			n.Universe("7") // as the real one reports the number it picked
+		}
+		k.OK("universe 7 ready (acme-u7)")
 	}
 	_, _ = io.WriteString(k.Stdout(), "compose says hello\nsecond line")
 	if hold != nil {

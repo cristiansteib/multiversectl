@@ -607,6 +607,9 @@ func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
 		if err != nil {
 			return err
 		}
+		if n, ok := k.(interface{ Universe(string) }); ok {
+			n.Universe(st.Name)
+		}
 		k.OK("universe %s ready (%s)", st.Name, st.Project)
 		return nil
 	case "update":

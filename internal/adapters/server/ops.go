@@ -371,6 +371,16 @@ func (k *sink) line(kind, text string) {
 	k.m.s.hub.publish("", event{Type: "opline", Data: map[string]any{"id": id, "kind": l.Kind, "text": l.Text}})
 }
 
+// Universe tells the operation which universe it made, when the request left the
+// name to the server (the next free number): from then on it is listed with that
+// universe's others.
+func (k *sink) Universe(name string) {
+	k.o.mu.Lock()
+	k.o.view.Universe = name
+	k.o.mu.Unlock()
+	k.m.s.hub.publish("", event{Type: "op", Data: k.o.snapshot(false)})
+}
+
 func (k *sink) Info(f string, a ...any)  { k.line("info", fmt.Sprintf(f, a...)) }
 func (k *sink) OK(f string, a ...any)    { k.line("ok", fmt.Sprintf(f, a...)) }
 func (k *sink) Warn(f string, a ...any)  { k.line("warn", fmt.Sprintf(f, a...)) }
