@@ -33,7 +33,7 @@
             @if (a.urls?.length) {
               <ul class="urls">
                 @for (x of a.urls; track x.url) {
-                  <li>@if (webUrl(x.url)) { <a [href]="x.url" target="_blank" rel="noopener noreferrer" [attr.title]="x.service">{{ x.url }} <mv-icon name="external" /></a> } @else { <span class="mono">{{ x.url }}</span> }</li>
+                  <li>@if (webUrl(x.url)) { <a [href]="x.url" target="_blank" rel="noopener noreferrer" [attr.title]="x.service"><span class="u">{{ x.url }}</span><mv-icon name="external" /></a> } @else { <span class="mono">{{ x.url }}</span> }</li>
                 }
               </ul>
             }
