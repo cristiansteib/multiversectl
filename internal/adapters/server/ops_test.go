@@ -71,3 +71,17 @@ func TestSelfUpdateWaitsForOtherOperationsAndNothingStartsAfterIt(t *testing.T) 
 		t.Fatalf("after the update: %d %s", rec.Code, rec.Body)
 	}
 }
+
+// Creating a universe is listed with the universe it makes, once it has a name.
+func TestACreatedUniverseIsNamedOnItsOperation(t *testing.T) {
+	_, h := serve(t, &fake{}, Options{})
+	hdr := map[string]string{"X-Mvctl": "1"}
+	rec := do(t, h, "POST", "/api/ops", `{"action":"new","multiverse":"acme","name":" 7 "}`, hdr)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("new: %d %s", rec.Code, rec.Body)
+	}
+	var v opView
+	if err := json.Unmarshal(rec.Body.Bytes(), &v); err != nil || v.Universe != "7" {
+		t.Fatalf("the operation is about %q (%v), want 7", v.Universe, err)
+	}
+}
