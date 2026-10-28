@@ -5,7 +5,7 @@ export interface LocView { platform: string; short: string; path: string; host?:
 
 export interface NodeView {
   name: string; path: string; kind: 'catalog' | 'multiverse'; repo?: string; ref?: string; file?: string;
-  installedAs?: string; unavailable?: string; stale?: string; loc?: LocView; within?: string; children?: NodeView[];
+  installedAs?: string; unavailable?: string; stale?: string; ignored?: boolean; loc?: LocView; within?: string; children?: NodeView[];
 }
 export interface CatalogView { root: NodeView; installed: number }
 export interface CatalogProgress { repo: string; ref?: string; phase: 'fetching' | 'done' | 'stale' | 'unavailable'; detail?: string; ms?: number }
@@ -70,9 +70,9 @@ export interface StatView { name: string; cpu: number; memory: number; memUsage:
 export interface FleetStatRow extends StatView { multiverse: string; universe: string; app: string; service: string }
 export interface FleetStatsView { at: string; rows: FleetStatRow[]; sources?: { multiverse: string; error: string }[] }
 
-export type OpAction = 'up' | 'down' | 'rm' | 'sync' | 'restart' | 'new' | 'checkout' | 'update' | 'use';
+export type OpAction = 'up' | 'down' | 'rm' | 'sync' | 'restart' | 'new' | 'checkout' | 'update' | 'use' | 'selfupdate';
 export interface OpRequest {
-  action: OpAction; multiverse: string; universe?: string; app?: string; service?: string; name?: string; note?: string;
+  action: OpAction; multiverse?: string; universe?: string; app?: string; service?: string; name?: string; note?: string;
   branch?: string; base?: string; onlyExisting?: boolean; confirm?: string; force?: boolean;
 }
 export interface OpLine { kind: 'info' | 'ok' | 'warn' | 'out' | 'err'; text: string }

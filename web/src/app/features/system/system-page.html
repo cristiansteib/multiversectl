@@ -15,6 +15,7 @@
     <div class="banner info update">
       <strong>Update available</strong>
       <span>multiversectl {{ v.latest.version }} is out.</span>
+      @if (updater.notice()) { <button type="button" class="btn small primary" (click)="updater.show()"><mv-icon name="arrowDown" /> Update…</button> }
       <mv-copy text="multiversectl self-update" />
     </div>
   }

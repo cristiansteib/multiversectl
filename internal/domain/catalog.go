@@ -66,6 +66,11 @@ type Node struct {
 	// Source.Repo is that repository and Source.Path is empty.
 	Implied bool
 
+	// Ignored is a node this machine has been told to leave out: a catalog is not
+	// read, so it costs no fetch and has no children here, and a multiverse is not
+	// offered for installing.
+	Ignored bool
+
 	// Unavailable says why a subtree could not be read (no access, a bad file),
 	// so one unreachable layer does not hide the rest of the tree.
 	Unavailable string

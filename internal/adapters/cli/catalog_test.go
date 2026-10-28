@@ -22,6 +22,7 @@ func TestRenderTree(t *testing.T) {
 		}},
 		{Name: "private", Path: "private", Kind: domain.CatalogNode, Unavailable: "no access or not found: github:acme/private"},
 		{Name: "old", Path: "old", Kind: domain.CatalogNode, Stale: "timed out after 20s", Source: domain.Source{Repo: "git@gitlab.com:acme/old.git"}},
+		{Name: "vpn", Path: "vpn", Kind: domain.CatalogNode, Ignored: true, Source: domain.Source{Repo: "git@vpn.example.test:acme/index.git"}},
 	}}
 	var buf bytes.Buffer
 	r := runner{out: NewOutput(&buf, false)}
@@ -33,6 +34,7 @@ func TestRenderTree(t *testing.T) {
 		"gitlab:acme/index", "gitlab:acme/pay@v1", "multiverse", "✓ installed as payments",
 		"✗ no access or not found: github:acme/private",
 		"⚠ not refreshed: timed out after 20s",
+		"⊘ ignored on this machine",
 		"○ not installed", // notes is a project that is listed and not on this machine
 		"1/1 installed",   // acme: payments is installed
 		"0/1 installed",   // personal: notes is not

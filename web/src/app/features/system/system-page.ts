@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Api } from '../../core/api.service';
 import { Events } from '../../core/events.service';
+import { Updater } from '../../core/updater.service';
 import { SystemView } from '../../core/models';
 import { ago } from '../../core/util';
 import { Badge } from '../../shared/ui/badge';
@@ -22,6 +23,7 @@ import { ToolsTable } from './tools-table';
 export class SystemPage {
   private readonly api = inject(Api);
   protected readonly events = inject(Events);
+  protected readonly updater = inject(Updater);
 
   protected readonly data = signal<SystemView | null>(null);
   protected readonly error = signal<string | null>(null);

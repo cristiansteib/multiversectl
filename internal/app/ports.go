@@ -397,6 +397,10 @@ type Config struct {
 	// Catalog is where this machine's catalog lives: a git URL or a local
 	// file. Empty until one is chosen.
 	Catalog string `yaml:"catalog,omitempty"`
+
+	// Ignored is the paths of catalog nodes this machine leaves out (see
+	// domain.Node.Ignored), as they are written in the tree: "backend/billing".
+	Ignored []string `yaml:"ignored,omitempty"`
 }
 
 // ConfigStore persists Config for the current user.

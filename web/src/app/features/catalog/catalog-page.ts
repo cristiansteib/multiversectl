@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, HostListener, computed,
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Api } from '../../core/api.service';
 import { Events } from '../../core/events.service';
-import { CatalogView } from '../../core/models';
+import { CatalogView, NodeView } from '../../core/models';
 import { Toasts } from '../../core/toast.service';
 import { AgoPipe } from '../../shared/ui/ago.pipe';
 import { Badge } from '../../shared/ui/badge';
@@ -78,6 +78,17 @@ export class CatalogPage {
       this.error.set((e as Error).message);
     } finally {
       this.fetching.set(false);
+    }
+  }
+
+  /** Leave a branch of the tree out on this machine, or bring it back. */
+  protected async setIgnored(e: { node: NodeView; ignore: boolean }): Promise<void> {
+    try {
+      await this.api.post('catalog/ignore', { path: e.node.path, ignore: e.ignore });
+      this.toasts.show(e.ignore ? `${e.node.name} is ignored. Include it again from its row.` : `${e.node.name} is included again`, 'ok');
+      await this.load(false);
+    } catch (err) {
+      this.toasts.show((err as Error).message, 'bad');
     }
   }
 

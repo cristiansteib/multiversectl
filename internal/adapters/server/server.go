@@ -45,6 +45,9 @@ type Options struct {
 	ReadOnly bool
 	// Token is the credential; made at random when empty.
 	Token string
+	// Restart replaces the running server with the newly installed one, after an
+	// update; the process itself starts again when nil. Tests stand in for it.
+	Restart func()
 	// App is the web app's files; the build embedded in the binary when nil.
 	App fs.FS
 	// UpdateEvery is how often to look for a newer release; zero is
@@ -103,6 +106,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/overview", s.overview)
 	mux.HandleFunc("/api/catalog", s.catalog)
+	mux.HandleFunc("/api/catalog/ignore", s.catalogIgnore)
 	mux.HandleFunc("/api/fleet", s.fleet)
 	mux.HandleFunc("/api/multiverses/", s.multiverse)
 	mux.HandleFunc("/api/doctor", s.doctor)
@@ -235,6 +239,33 @@ func (s *Server) catalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, v)
+}
+
+// catalogIgnore leaves a branch of the catalog tree out on this machine, or brings
+// it back: {"path": "backend/legacy", "ignore": true}. Only a POST, which is what
+// the guard holds to the read-only refusal and the CSRF header.
+func (s *Server) catalogIgnore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		fail(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	var req struct {
+		Path   string `json:"path"`
+		Ignore bool   `json:"ignore"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxReqBody)).Decode(&req); err != nil || strings.TrimSpace(req.Path) == "" {
+		fail(w, http.StatusBadRequest, "the path of the catalog entry is required")
+		return
+	}
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	if err := s.b.Ignore(ctx, req.Path, req.Ignore); err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.refresh() // the overview's drift reads the tree too
+	reply(w, map[string]any{"path": strings.Trim(req.Path, "/"), "ignored": req.Ignore})
 }
 
 func (s *Server) fleet(w http.ResponseWriter, r *http.Request) {

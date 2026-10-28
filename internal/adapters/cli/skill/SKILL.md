@@ -37,6 +37,8 @@ Each catalog repository gets 20 seconds (`MULTIVERSECTL_CATALOG_TIMEOUT=5s` chan
 
 `multiversectl start <catalog-path> --install-only` installs every multiverse under that node and makes no universe; `--exclude <catalog-path>` (repeatable) leaves a multiverse or a whole branch out. Without `--install-only`, `start` runs one.
 
+To leave a branch out for good on this machine (an unreachable VPN catalog, say), `multiversectl catalog ignore <catalog-path>`: it is not read or fetched, what is under it goes with it, and it is not offered for installing; `catalog unignore <catalog-path>` undoes it. It is a setting of the machine: no catalog repository changes. The web view's Catalog page has the same on each row.
+
 ### A multiverse in its own repository
 
 1. Create the empty repository (below), and clone it.

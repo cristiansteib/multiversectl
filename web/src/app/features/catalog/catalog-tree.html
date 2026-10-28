@@ -3,7 +3,7 @@
     @for (r of rows(); track r.node.path; let i = $index) {
       <div class="node" role="treeitem" [attr.data-path]="r.node.path" [attr.aria-level]="r.depth + 1"
            [attr.aria-expanded]="r.expandable ? r.open : null"
-           [class.expandable]="r.expandable" [class.root]="r.root" [class.bad]="!!r.node.unavailable" [class.warn]="!!r.node.stale"
+           [class.expandable]="r.expandable" [class.root]="r.root" [class.bad]="!!r.node.unavailable" [class.warn]="!!r.node.stale" [class.ignored]="!!r.node.ignored"
            [style.--depth]="r.depth" [attr.tabindex]="r.node.path === tabStop() ? 0 : -1"
            (click)="press($event, r)" (keydown)="key($event, r, i)">
         <span class="twisty" aria-hidden="true">
@@ -16,7 +16,8 @@
             <span class="kind muted">{{ kindLabel(r) }}</span>
             <mv-place [loc]="r.node.loc" [within]="r.node.within" />
           </span>
-          @if (r.node.unavailable) { <span class="reason bad">{{ r.node.unavailable }}</span> }
+          @if (r.node.ignored) { <span class="reason">Left out on this machine: not read, not offered for installing.</span> }
+          @else if (r.node.unavailable) { <span class="reason bad">{{ r.node.unavailable }}</span> }
           @else if (r.node.stale) { <span class="reason warn">{{ r.node.stale }}. Shown as last fetched.</span> }
         </span>
         <span class="tags">
@@ -26,14 +27,23 @@
               {{ s.phase === 'fetching' ? 'Reading' : s.phase === 'done' ? 'Up to date' : s.phase === 'stale' ? 'Not refreshed' : 'Unavailable' }}
             </mv-badge>
           }
-          @if (r.node.unavailable) { <mv-badge tone="bad">Unavailable</mv-badge> }
+          @if (r.node.ignored) { <mv-badge tone="mute">Ignored</mv-badge> }
+          @else if (r.node.unavailable) { <mv-badge tone="bad">Unavailable</mv-badge> }
           @else if (r.node.stale) { <mv-badge tone="warn" [hint]="r.node.stale">Not refreshed</mv-badge> }
           @if (r.node.kind === 'multiverse' && !r.node.unavailable) {
             @if (r.node.installedAs; as inst) {
               <a class="badge ok installed" [routerLink]="['/multiverse', inst]" [attr.title]="'Open ' + inst"><mv-icon name="check" /> Installed as {{ inst }}</a>
-            } @else {
+            } @else if (!r.node.ignored) {
               <mv-badge tone="mute">Not installed</mv-badge>
               <mv-copy [text]="'multiversectl start ' + r.node.path" label="Install" />
+            }
+          }
+          @if (canIgnore(r)) {
+            @if (r.node.ignored) {
+              <button type="button" class="btn small" (click)="ignoreChange.emit({ node: r.node, ignore: false })" [attr.aria-label]="'Include ' + r.node.name + ' again'">Include again</button>
+            } @else {
+              <button type="button" class="btn small ghost ignore" (click)="ignoreChange.emit({ node: r.node, ignore: true })" [attr.aria-label]="'Ignore ' + r.node.name"
+                      title="Leave it out on this machine: it is not read and not offered for installing. You can include it again.">Ignore</button>
             }
           }
         </span>

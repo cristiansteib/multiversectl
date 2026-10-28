@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -177,6 +178,8 @@ func title(r opRequest) string {
 		return "Check out " + r.Branch + " in " + r.Multiverse
 	case "update":
 		return "Update " + r.Multiverse
+	case "selfupdate":
+		return "Update multiversectl"
 	}
 	return r.Action
 }
@@ -193,6 +196,8 @@ func scopeOf(r opRequest) string {
 		return r.Multiverse + "/" + r.Universe
 	case "new", "checkout":
 		return r.Multiverse + "#create"
+	case "selfupdate":
+		return "self" // not in any multiverse: it only waits for itself
 	}
 	return r.Multiverse
 }
@@ -217,11 +222,11 @@ func (m *ops) conflict(r opRequest, key string) (string, bool) {
 // start checks a request and begins it.
 func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	switch r.Action {
-	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update":
+	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update", "selfupdate":
 	default:
 		return opView{}, bad(http.StatusBadRequest, fmt.Sprintf("unknown action %q", r.Action))
 	}
-	if r.Multiverse == "" {
+	if r.Multiverse == "" && r.Action != "selfupdate" {
 		return opView{}, bad(http.StatusBadRequest, "multiverse is required")
 	}
 	if needsUniverse[r.Action] && r.Universe == "" {
@@ -284,6 +289,10 @@ func (m *ops) run(o *op, r opRequest) {
 	k := &sink{o: o, m: m}
 	err := m.s.b.Do(m.s.runCtx, r, k)
 	k.flush()
+	restart := errors.Is(err, ErrRestart)
+	if restart {
+		err = nil
+	}
 
 	o.mu.Lock()
 	o.view.Ended = time.Now().UTC().Format(time.RFC3339)
@@ -299,6 +308,9 @@ func (m *ops) run(o *op, r opRequest) {
 	m.mu.Unlock()
 	m.s.hub.publish("", event{Type: "op", Data: o.snapshot(false)})
 	m.s.refresh() // what it did is on the page in a moment, not at the next look
+	if restart {
+		m.s.restartSoon()
+	}
 }
 
 // sink is where an operation's words go: both the use case's own messages and

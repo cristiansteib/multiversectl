@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Events } from '../../core/events.service';
 import { NodeView } from '../../core/models';
 import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
@@ -32,6 +33,9 @@ export class CatalogTree {
   readonly filter = input('');
   readonly steps = input<ReadonlyMap<string, Step>>(new Map());
   readonly reading = input(false);
+  /** Leave a node out on this machine, or bring it back. */
+  readonly ignoreChange = output<{ node: NodeView; ignore: boolean }>();
+  protected readonly events = inject(Events);
 
   private readonly el = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly open = signal<ReadonlySet<string>>(new Set(['']));
@@ -67,9 +71,9 @@ export class CatalogTree {
     const out: Row[] = [];
     const walk = (n: NodeView, depth: number, parent: string | null) => {
       if (!kept.has(n.path)) return;
-      const expandable = n.kind === 'catalog';
+      const expandable = n.kind === 'catalog' && !n.ignored;
       const isOpen = expandable && (!!f || open.has(n.path));
-      out.push({ node: n, depth, expandable, open: isOpen, root: depth === 0, parent, step: n.kind === 'catalog' && n.repo ? steps.get(stepKey(n.repo, n.ref)) : undefined });
+      out.push({ node: n, depth, expandable, open: isOpen, root: depth === 0, parent, step: n.kind === 'catalog' && !n.ignored && n.repo ? steps.get(stepKey(n.repo, n.ref)) : undefined });
       if (isOpen) (n.children ?? []).forEach((c) => walk(c, depth + 1, n.path));
     };
     walk(this.root(), 0, null);
@@ -111,6 +115,7 @@ export class CatalogTree {
   }
 
   protected kindLabel(r: Row): string { return r.root ? 'root catalog' : r.node.kind; }
+  protected canIgnore(r: Row): boolean { return !r.root && !this.events.readOnly(); }
   protected icon(r: Row): string { return r.node.kind === 'multiverse' ? 'multiverse' : 'catalog'; }
   protected reasonOf(n: NodeView): string { return n.unavailable ?? ''; }
 

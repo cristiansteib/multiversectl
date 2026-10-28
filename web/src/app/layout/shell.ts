@@ -5,18 +5,19 @@ import { filter, map } from 'rxjs';
 import { Events } from '../core/events.service';
 import { Ops } from '../core/ops.service';
 import { ThemeService } from '../core/theme.service';
+import { Updater } from '../core/updater.service';
 import { AgoPipe } from '../shared/ui/ago.pipe';
 import { Icon } from '../shared/ui/icon';
 import { OpsDock } from './ops-dock';
 import { ToastHost } from './toast-host';
-import { UpdateBanner } from './update-banner';
+import { UpdateDialog } from './update-dialog';
 
 interface Section { path: string; label: string; icon: string; exact?: boolean }
 
 /** The frame: the top bar, the sections on the left, and what the section shows. */
 @Component({
   selector: 'mv-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, OpsDock, ToastHost, UpdateBanner, AgoPipe],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, OpsDock, ToastHost, UpdateDialog, AgoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shell.html',
   styleUrl: './shell.css',
@@ -25,6 +26,7 @@ export class Shell {
   protected readonly events = inject(Events);
   protected readonly ops = inject(Ops);
   protected readonly theme = inject(ThemeService);
+  protected readonly updater = inject(Updater);
   private readonly router = inject(Router);
 
   protected readonly sections: Section[] = [

@@ -1,5 +1,4 @@
 <a class="skip" href="#main">Skip to content</a>
-<mv-update-banner />
 <div class="shell" [class.has-dock]="dockOpen()">
   <header class="top">
     <button type="button" class="btn icon ghost menu" (click)="menu.set(!menu())" [attr.aria-expanded]="menu()" aria-controls="rail" aria-label="Sections">
@@ -11,6 +10,11 @@
       @if (version()) { <small>{{ version() }}</small> }
     </a>
     <span class="grow"></span>
+    @if (updater.notice(); as n) {
+      <button type="button" class="update-pill" (click)="updater.show()" [attr.title]="'multiversectl ' + n.latest + ' is out; you are on ' + n.current" [attr.aria-label]="'Update available: ' + n.latest">
+        <mv-icon name="arrowUp" /> Update to {{ n.latest }}
+      </button>
+    }
     @if (events.updatedAt(); as at) { <span class="stamp muted" aria-live="polite">Updated {{ at.toISOString() | ago }}</span> }
     <span class="live" [class.on]="events.connected()" role="status"
           [attr.title]="events.connected() ? 'Changes are pushed to this page as they happen' : 'The connection dropped; this page asks again every ten seconds until it is back'">
@@ -41,4 +45,5 @@
   <main id="main" tabindex="-1"><router-outlet /></main>
 </div>
 <mv-ops-dock />
+<mv-update-dialog />
 <mv-toast-host />

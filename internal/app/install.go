@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -222,9 +223,18 @@ func (c *Catalogs) resolveSource(ctx context.Context, arg string, root *domain.N
 			if n.Unavailable != "" {
 				return nil, fmt.Errorf("%q is unavailable: %s", arg, n.Unavailable)
 			}
+			if n.Ignored {
+				return nil, fmt.Errorf("%q is ignored on this machine: `multiversectl catalog unignore %s` brings it back", arg, n.Path)
+			}
 			leaves := n.Leaves()
 			if len(leaves) == 0 {
 				return nil, fmt.Errorf("%q has no multiverses under it", arg)
+			}
+			if kept := slices.DeleteFunc(slices.Clone(leaves), func(l domain.Node) bool { return l.Ignored }); len(kept) < len(leaves) {
+				if len(kept) == 0 {
+					return nil, fmt.Errorf("everything under %q is ignored on this machine", arg)
+				}
+				leaves = kept
 			}
 			if kept := withoutExcluded(leaves, o.Exclude); len(kept) == 0 {
 				return nil, fmt.Errorf("everything under %q is excluded", arg)

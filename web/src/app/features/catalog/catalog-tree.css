@@ -21,3 +21,7 @@
 .tags { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; justify-content: flex-end; margin-left: auto }
 a.installed { text-decoration: none; cursor: pointer } a.installed:hover { filter: brightness(1.1); text-decoration: underline }
 @media (max-width: 560px) { .node { --step: 16px } .tags { margin-left: 24px; justify-content: flex-start; flex-basis: 100% } }
+.node.ignored .name, .node.ignored .kind-icon, .node.ignored mv-place { opacity: .55 }
+.node.ignored .name { text-decoration: line-through; text-decoration-color: var(--faint) }
+/* Quiet until the row is hovered or focused, and always there on a screen with no hover. */
+@media (hover: hover) { .ignore { opacity: 0 } .node:hover .ignore, .node:focus-within .ignore, .ignore:focus-visible { opacity: 1 } }

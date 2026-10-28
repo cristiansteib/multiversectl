@@ -90,6 +90,10 @@ func (f *fake) Multiverse(_ context.Context, name string) (multiverseView, error
 	f.ask("multiverse:" + name)
 	return f.ws, f.err
 }
+func (f *fake) Ignore(_ context.Context, path string, ignore bool) error {
+	f.ask("ignore:" + path + ":" + map[bool]string{true: "on", false: "off"}[ignore])
+	return f.err
+}
 func (f *fake) Doctor(_ context.Context, ws, u string) (doctorView, error) {
 	f.ask("doctor:" + ws + ":" + u)
 	return f.doctor, f.err
@@ -163,6 +167,9 @@ func (f *fake) Do(ctx context.Context, r opRequest, k Sink) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	if r.Action == "selfupdate" {
+		return ErrRestart
 	}
 	if f.doErr == nil {
 		k.OK("done %s", r.Action)
@@ -1047,5 +1054,27 @@ func TestWhileTheCatalogIsReadEachRepositoryReportsItsStateToThePage(t *testing.
 	}
 	if got[0].Phase != "fetching" || got[1].Phase != "stale" || got[1].Millis != 20000 || got[1].Repo == "" {
 		t.Errorf("steps = %+v", got)
+	}
+}
+
+func TestIgnoringACatalogBranchIsAPostThatReadOnlyRefuses(t *testing.T) {
+	f := &fake{}
+	_, h := serve(t, f, Options{})
+	rec := do(t, h, "POST", "/api/catalog/ignore", `{"path":"backend/legacy","ignore":true}`, map[string]string{"X-Mvctl": "1"})
+	if rec.Code != 200 || !strings.Contains(f.asks(), "ignore:backend/legacy:on") {
+		t.Fatalf("ignore: %d %s (%s)", rec.Code, rec.Body, f.asks())
+	}
+	if rec := do(t, h, "POST", "/api/catalog/ignore", `{"path":""}`, map[string]string{"X-Mvctl": "1"}); rec.Code != 400 {
+		t.Errorf("without a path: %d", rec.Code)
+	}
+	if rec := do(t, h, "GET", "/api/catalog/ignore", "", nil); rec.Code != 405 {
+		t.Errorf("a GET: %d", rec.Code)
+	}
+	if rec := do(t, h, "POST", "/api/catalog/ignore", `{"path":"x","ignore":true}`, nil); rec.Code == 200 {
+		t.Error("it needs the header the page sends")
+	}
+	_, ro := serve(t, &fake{}, Options{ReadOnly: true})
+	if rec := do(t, ro, "POST", "/api/catalog/ignore", `{"path":"x","ignore":true}`, map[string]string{"X-Mvctl": "1"}); rec.Code == 200 {
+		t.Error("a read-only server must refuse it")
 	}
 }

@@ -92,7 +92,14 @@ export class Events {
 
   private onEvent(e: { type: string; data: never }): void {
     switch (e.type) {
-      case 'hello': this.hello.set(e.data); break;
+      case 'hello': {
+        // The server came back as a newer build: the page in front of it is the old one.
+        const hello = e.data as Hello;
+        const before = this.hello()?.version;
+        if (before && hello.version && before !== hello.version) { location.reload(); return; }
+        this.hello.set(hello);
+        break;
+      }
       case 'fleet': this.fleet.set(named(e.data)); this.updatedAt.set(new Date()); break;
       case 'overview': this.overview.set(e.data); this.updatedAt.set(new Date()); break;
       case 'update': this.update.set((e.data as { notice?: UpdateNotice }).notice ?? null); break;
