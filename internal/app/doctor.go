@@ -227,10 +227,10 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 
 	for _, appKey := range appKeys {
 		for _, pair := range s.SecretPaths(u, appKey) {
-			if s.Files.Exists(pair[1]) {
-				add("secret "+appKey, StatusOK, "%s", pair[1])
+			if s.Files.Exists(pair.Dst) {
+				add("secret "+appKey, StatusOK, "%s", pair.Dst)
 			} else {
-				add("secret "+appKey, StatusFail, "missing %s", pair[1])
+				add("secret "+appKey, StatusFail, "missing %s", pair.Dst)
 			}
 		}
 	}
