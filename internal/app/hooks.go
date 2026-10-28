@@ -92,6 +92,13 @@ func (s *Service) hookContext(u domain.Universe, st domain.UniverseState, ev dom
 // the usual one. services are the ones the app defines, for choosing where a
 // command with no service of its own runs.
 func (s *Service) fire(ctx context.Context, ev domain.HookEvent, st domain.UniverseState, appKey string, req *RuntimeRequest, services []string) (domain.UniverseState, error) {
+	return s.runHooks(ctx, ev, st, appKey, req, services, false)
+}
+
+// runHooks is fire, and with manual it is what a person asked for: a hook
+// marked Once runs again and is not marked, and one that does not succeed is an
+// error whatever it says it means, since there is no start to protect.
+func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.UniverseState, appKey string, req *RuntimeRequest, services []string, manual bool) (domain.UniverseState, error) {
 	hooks := s.Manifest.Hooks[ev]
 	if appKey != multiverseHooks {
 		hooks = s.Manifest.Apps[appKey].Hooks[ev]
@@ -115,7 +122,7 @@ func (s *Service) fire(ctx context.Context, ev domain.HookEvent, st domain.Unive
 		key := hook.Key(appKey, ev)
 		done := slices.Contains(st.HooksDone, key)
 		s.say(3, "%s: %s hook %s, once=%v, already done=%v", owner, ev, key, hook.Once, done)
-		if hook.Once && done {
+		if hook.Once && done && !manual {
 			continue
 		}
 		line := shellLine(hook.Command)
@@ -166,7 +173,11 @@ func (s *Service) fire(ctx context.Context, ev domain.HookEvent, st domain.Unive
 		}
 		out, err := s.tryFor(ctx, hook.Retry(ev, hookGiveUp), attempt)
 		if err != nil {
-			switch hook.Policy(ev) {
+			policy := hook.Policy(ev)
+			if manual {
+				policy = domain.FailStop
+			}
+			switch policy {
 			case domain.FailIgnore:
 				s.say(1, "%s: %s did not succeed (%v); ignored", owner, what, err)
 				continue
@@ -183,7 +194,7 @@ func (s *Service) fire(ctx context.Context, ev domain.HookEvent, st domain.Unive
 		if tail := lastLines(out, 20); tail != "" {
 			s.say(2, "%s", strings.ReplaceAll(tail, "\n", "\n    "))
 		}
-		if !hook.Once {
+		if !hook.Once || manual {
 			continue
 		}
 		st.HooksDone = append(slices.Clone(st.HooksDone), key)
@@ -275,4 +286,109 @@ func shellLine(args []string) string {
 		}
 	}
 	return strings.Join(words, " ")
+}
+
+// HookInfo is one hook of a universe as `universe hooks` lists it.
+type HookInfo struct {
+	Event     domain.HookEvent
+	App       string // "" for the multiverse's own
+	Name      string
+	Command   string
+	Where     string // "host", "host in api", or "service web"
+	Once      bool
+	Done      bool // a Once hook that has run in this universe
+	OnFailure domain.Failure
+}
+
+// Hooks lists the hooks a universe runs, in the order the events happen.
+func (s *Service) Hooks(universe string) ([]HookInfo, error) {
+	st, err := s.Resolve(universe)
+	if err != nil {
+		return nil, err
+	}
+	var out []HookInfo
+	list := func(app string, hooks map[domain.HookEvent][]domain.Hook) {
+		for _, ev := range domain.HookEvents {
+			for _, h := range hooks[ev] {
+				where := "service " + cmp.Or(h.Service, s.Manifest.Apps[app].DefaultService, "(its only one)")
+				if h.Host {
+					where = "host"
+					if h.Dir != "" {
+						where += " in " + h.Dir
+					}
+				}
+				out = append(out, HookInfo{
+					Event: ev, App: app, Name: h.Name, Command: shellLine(h.Command), Where: where,
+					Once: h.Once, Done: h.Once && slices.Contains(st.HooksDone, h.Key(app, ev)), OnFailure: h.Policy(ev),
+				})
+			}
+		}
+	}
+	list(multiverseHooks, s.Manifest.Hooks)
+	for _, appKey := range s.Manifest.RunnableApps() {
+		list(appKey, s.Manifest.Apps[appKey].Hooks)
+	}
+	slices.SortStableFunc(out, func(a, b HookInfo) int {
+		return slices.Index(domain.HookEvents, a.Event) - slices.Index(domain.HookEvents, b.Event)
+	})
+	return out, nil
+}
+
+// RunHooks runs the hooks of one event on a universe now, as a person asking:
+// for one app, or with none named for the multiverse's own and then every app's.
+// It is how a hook that was warned about is run again, and how one is tried
+// before it is trusted to a start.
+func (s *Service) RunHooks(ctx context.Context, universe string, ev domain.HookEvent, apps []string) error {
+	if !ev.Valid() {
+		return fmt.Errorf("%q is not an event: want one of %s", ev, domain.JoinHookEvents())
+	}
+	st, err := s.Resolve(universe)
+	if err != nil {
+		return err
+	}
+	unlock, err := s.lockUniverse(ctx, st.ID, st.Name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if st, err = s.Resolve(universe); err != nil {
+		return err
+	}
+	targets := apps
+	if len(targets) == 0 {
+		targets = append([]string{multiverseHooks}, s.Manifest.RunnableApps()...)
+	}
+	ran := false
+	for _, appKey := range targets {
+		hooks := s.Manifest.Hooks[ev]
+		if appKey != multiverseHooks {
+			if _, ok := s.Manifest.Apps[appKey]; !ok {
+				return fmt.Errorf("no app %q in this multiverse", appKey)
+			}
+			hooks = s.Manifest.Apps[appKey].Hooks[ev]
+		}
+		if len(hooks) == 0 {
+			continue
+		}
+		ran = true
+		var services []string
+		// Asked of the compose files only when a command in a service does not name
+		// one, since it is what lets an app with a single service leave it out.
+		if appKey != multiverseHooks && needsService(hooks, s.Manifest.Apps[appKey]) {
+			if cfg, err := s.inspect(ctx, s.Universe(st.Name), appKey); err == nil {
+				services = cfg.Names()
+			}
+		}
+		if st, err = s.runHooks(ctx, ev, st, appKey, nil, services, true); err != nil {
+			return err
+		}
+	}
+	if !ran {
+		s.Out.Info("no %s hooks to run", ev)
+	}
+	return nil
+}
+
+func needsService(hooks []domain.Hook, app domain.App) bool {
+	return app.DefaultService == "" && slices.ContainsFunc(hooks, func(h domain.Hook) bool { return !h.Host && h.Service == "" })
 }
