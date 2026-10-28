@@ -366,7 +366,11 @@ type Host struct {
 	// http://<this machine's address>:<port>. The port is chosen once and kept;
 	// `universe ls` shows the address as <host>:forward. A host that comes from
 	// a compose label asks for the same with dev.multiversectl.host.<name>.portForward.
-	// +enum=auto
+	// "only" is the same without the hostname: the host is reached by that IP and
+	// port alone, and no address shown or handed to a service is a name, for a
+	// service that should not be known by one. `domain: none` does this for
+	// every host.
+	// +enum=auto;only
 	PortForward string `yaml:"portForward"`
 
 	// How the proxy talks to the service. Leave it out for plain http; "h2c" is

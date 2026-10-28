@@ -274,6 +274,15 @@ var Schemes = []string{"http", "https", "h2c"}
 // the tool chooses: free when first chosen, then kept.
 const PortForwardAuto = "auto"
 
+// PortForwardOnly is auto without the hostname: the host is reached by IP and
+// its port alone, and no address shown or handed to a service is a name.
+const PortForwardOnly = "only"
+
+// Forwarded says whether a portForward value publishes the host on a port.
+func Forwarded(portForward string) bool {
+	return portForward == PortForwardAuto || portForward == PortForwardOnly
+}
+
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // Validate reports every problem it finds, so one run fixes the manifest.
@@ -333,6 +342,9 @@ func (m *Manifest) Validate() error {
 			seenHost[hostKey] = key
 			if rule.Service == "" {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.service: required", key, hostKey))
+			}
+			if rule.PortForward != "" && !Forwarded(rule.PortForward) {
+				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.portForward: want %q or %q", key, hostKey, PortForwardAuto, PortForwardOnly))
 			}
 			if rule.Scheme != "" && !slices.Contains(Schemes, rule.Scheme) {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.scheme: want %s", key, hostKey, strings.Join(Schemes, ", ")))

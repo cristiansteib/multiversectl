@@ -157,7 +157,7 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 // routeURL is where a route answers, with the entrypoint port when it is not
 // the default.
 func (s *Service) routeURL(route Route) string {
-	if route.ForwardURL != "" && s.Manifest.IPOnly() {
+	if route.ByIP {
 		return route.ForwardURL
 	}
 	port := s.Manifest.Proxy.Entrypoints[route.Entrypoint]
@@ -193,7 +193,7 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 				Service: route.Service,
 				URL:     s.routeURL(route),
 			})
-			if route.ForwardURL != "" {
+			if route.ForwardURL != "" && !route.ByIP {
 				summary.URLs = append(summary.URLs, HostURL{
 					Host:    strings.TrimSuffix(route.Name, "-"+u.Slug()) + ":forward",
 					Service: route.Service,
