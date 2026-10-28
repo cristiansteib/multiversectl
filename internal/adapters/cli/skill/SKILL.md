@@ -37,6 +37,8 @@ Each catalog repository gets 20 seconds (`MULTIVERSECTL_CATALOG_TIMEOUT=5s` chan
 
 `multiversectl start <catalog-path> --install-only` installs every multiverse under that node and makes no universe; `--exclude <catalog-path>` (repeatable) leaves a multiverse or a whole branch out. Without `--install-only`, `start` runs one.
 
+A repository can define several multiverses: every `.yaml`/`.yml` file in it that says `kind: Multiverse`, wherever it is and whatever it is called. Pick one with `multiversectl start <name> <owner/repo>` (or `<owner/repo>:<name>`); with no catalog and no `init`. With no name, a script gets an error that lists the names.
+
 To leave a branch out for good on this machine (an unreachable VPN catalog, say), `multiversectl catalog ignore <catalog-path>`: it is not read or fetched, what is under it goes with it, and it is not offered for installing; `catalog unignore <catalog-path>` undoes it. It is a setting of the machine: no catalog repository changes. The web view's Catalog page has the same on each row. Its rows also install: **Install** on a multiverse, or **Install…** on a catalog (with a tick per multiverse under it) runs `start <catalog-path> --install-only` for you, and the dialog shows the command to copy. `multiversectl catalog manage` is the same on one keyboard-driven screen (install, uninstall, leave out, bring back, remove, add, update) for a person at a terminal; its review list names the command for each change, and an agent should use those commands, not the screen. It is a setting of the machine: no catalog repository changes. The web view's Catalog page has the same on each row.
 
 ### A multiverse in its own repository

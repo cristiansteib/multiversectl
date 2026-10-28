@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -27,14 +28,18 @@ func (r runner) startCmd() *cobra.Command {
 	var open, yes, installOnly bool
 	var exclude []string
 	cmd := &cobra.Command{
-		Use:   "start [source]",
+		Use:   "start [name] [source]",
 		Short: "Install a multiverse, make a universe and start it, in one command",
 		Long: "From nothing to something running. The source is read in this order:\n" +
 			"  1. a node in your catalog\n" +
 			"  2. a path on this machine: a multiverse file, a catalog, or a directory\n" +
 			"  3. a git URL\n" +
-			"  4. owner/repo, meaning GitHub; owner/repo:name picks one multiverse of a\n" +
-			"     repository that defines several (multiverse.yaml, multiverse/*.yaml)\n" +
+			"  4. owner/repo, meaning GitHub\n" +
+			"A repository may define any number of multiverses: every .yaml or .yml file\n" +
+			"in it that says `kind: Multiverse` is one, wherever it is and whatever it is\n" +
+			"called (dependency, build and dot folders are not searched). Name the one you\n" +
+			"want in front of the source, `start billing acme/platform`, or after it,\n" +
+			"`start acme/platform:billing`; with neither it asks which, or lists them.\n" +
 			"A repository that defines no multiverse but has a compose file runs as itself,\n" +
 			"named after the repository (longer, with its owner, if that name is taken).\n" +
 			"A multiverse already installed is used as it is. With no source, the one\n" +
@@ -49,12 +54,13 @@ func (r runner) startCmd() *cobra.Command {
 		Example: "  multiversectl start acme/multiverse\n" +
 			"  multiversectl start acme --install-only --exclude acme/legacy   # all of acme but one branch\n" +
 			"  multiversectl start acme/multiverse --open\n" +
-			"  multiversectl start acme/platform:billing # one of several multiverses in a repository\n" +
+			"  multiversectl start billing acme/platform # one of several multiverses in a repository\n" +
+			"  multiversectl start acme/platform:billing # the same, the name after the source\n" +
 			"  multiversectl start acme/api             # a repository with only a compose file\n" +
 			"  multiversectl start .                    # the checkout you are in\n" +
 			"  multiversectl start                      # the multiverse you are in, or pick one\n" +
 			"  multiversectl start -u 3",
-		Args:              cobra.MaximumNArgs(1),
+		Args:              cobra.MaximumNArgs(2),
 		ValidArgsFunction: r.completeNodes(false),
 	}
 	cmd.Flags().StringVar(&base, "base", "", "directory multiverses go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
@@ -67,6 +73,10 @@ func (r runner) startCmd() *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("exclude", r.completeNodes(false))
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
+		args, err := nameAndSource(args)
+		if err != nil {
+			return err
+		}
 		if installOnly {
 			if len(args) == 0 {
 				return errors.New("--install-only needs a source: a catalog node, a path or a repository")
@@ -102,6 +112,25 @@ func (r runner) startCmd() *cobra.Command {
 		return r.startDone(ctx, s, name, open)
 	}
 	return cmd
+}
+
+var multiverseWordRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`)
+
+// nameAndSource reads `start <name> <source>` as the source with the name after
+// it, `<source>:<name>`, which is how a multiverse of a repository is picked
+// everywhere else. One argument is a source, as it always was.
+func nameAndSource(args []string) ([]string, error) {
+	if len(args) != 2 {
+		return args, nil
+	}
+	name, source := args[0], args[1]
+	if !multiverseWordRE.MatchString(name) {
+		return nil, fmt.Errorf("with two arguments the first is the name of a multiverse and the second where it is: %q is not a name (letters, digits, - and _); `multiversectl start <name> <owner/repo>`", name)
+	}
+	if i := strings.LastIndex(source, ":"); i > 0 && multiverseWordRE.MatchString(source[i+1:]) && !strings.Contains(source[i+1:], "/") && !strings.HasPrefix(source[i:], "://") {
+		return nil, fmt.Errorf("%q already names a multiverse (%q); give the name once", source, source[i+1:])
+	}
+	return []string{source + ":" + name}, nil
 }
 
 // startProject is the multiverse to act on: the source installed when one was

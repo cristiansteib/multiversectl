@@ -280,3 +280,52 @@ func TestInstallFromACatalogNodeCanLeaveABranchOut(t *testing.T) {
 		t.Error("an excluded path that is not in the catalog must be refused, it is a typo")
 	}
 }
+
+func multiverseFile(name string) string {
+	return "apiVersion: multiverse/v1alpha1\nkind: Multiverse\nmetadata:\n  name: " + name + "\nspec:\n  repos:\n    api: {url: git@example.test:acme/api.git}\n"
+}
+
+// A repository may keep multiverses in files of any name, anywhere: a file is one when it says so.
+func TestAMultiverseIsFoundWhereverItIsByItsKind(t *testing.T) {
+	r := newRig(t, &fakeRepos{})
+	dir := filepath.Join(r.root, "platform")
+	write(t, dir, "multiverse.yaml", multiverseFile("main"))
+	write(t, dir, "multiverse/extra.yml", multiverseFile("extra"))
+	write(t, dir, "deploy/prod.yaml", multiverseFile("prod"))
+	write(t, dir, "ops/envs/staging.yml", multiverseFile("staging"))
+	// What is not one: another kind, a compose file, and what is in folders not searched.
+	write(t, dir, "docker-compose.yml", "services:\n  web:\n    image: nginx\n")
+	write(t, dir, "notes.yaml", "kind: Catalog\nmetadata: {name: x}\n")
+	write(t, dir, "node_modules/pkg/m.yaml", multiverseFile("dependency"))
+	write(t, dir, ".github/workflows/ci.yaml", multiverseFile("hidden"))
+
+	got := plan(t, r, []string{dir + ":staging"}, app.InstallOptions{})
+	if len(got) != 1 || got[0].Name != "staging" || !strings.HasSuffix(filepath.ToSlash(got[0].ManifestSource), "ops/envs/staging.yml") {
+		t.Fatalf("targets = %+v", got)
+	}
+	_, err := r.PlanInstall(context.Background(), []string{dir + ":nope"}, app.InstallOptions{Base: "/ws"})
+	if err == nil {
+		t.Fatal("a name the repository does not define should be refused")
+	}
+	for _, want := range []string{"main", "extra", "prod", "staging"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the error should list %q: %v", want, err)
+		}
+	}
+	for _, not := range []string{"dependency", "hidden"} {
+		if strings.Contains(err.Error(), not) {
+			t.Errorf("%q is in a folder that is not searched: %v", not, err)
+		}
+	}
+}
+
+func TestTwoFilesWithOneNameAreRefused(t *testing.T) {
+	r := newRig(t, &fakeRepos{})
+	dir := filepath.Join(r.root, "dup")
+	write(t, dir, "a/one.yaml", multiverseFile("same"))
+	write(t, dir, "b/two.yaml", multiverseFile("same"))
+	_, err := r.PlanInstall(context.Background(), []string{dir + ":same"}, app.InstallOptions{Base: "/ws"})
+	if err == nil || !strings.Contains(err.Error(), "both define a multiverse named") {
+		t.Fatalf("error = %v", err)
+	}
+}
