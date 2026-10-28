@@ -1,9 +1,8 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { Events } from '../../core/events.service';
 import { Ops } from '../../core/ops.service';
 import { ago } from '../../core/util';
-import { RemoveUniverseDialog } from '../../shared/dialogs/remove-universe-dialog';
 import { Badge } from '../../shared/ui/badge';
 import { EmptyState } from '../../shared/ui/empty-state';
 import { Icon } from '../../shared/ui/icon';
@@ -14,7 +13,7 @@ import { UniverseStore } from './universe.store';
 /** One universe: its number, whether it runs, what can be done to it, and its tabs. */
 @Component({
   selector: 'mv-universe-page',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, Badge, Icon, EmptyState, Skeleton, RemoveUniverseDialog],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, Badge, Icon, EmptyState, Skeleton],
   providers: [UniverseStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './universe-page.html',
@@ -28,7 +27,6 @@ export class UniversePage {
   protected readonly store = inject(UniverseStore);
   protected readonly events = inject(Events);
   protected readonly ops = inject(Ops);
-  protected readonly removing = signal(false);
 
   protected readonly u = this.store.universe;
   protected readonly busy = computed(() => this.ops.busy(this.multiverse()));

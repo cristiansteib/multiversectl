@@ -39,21 +39,20 @@
         @if (u.behind) {
           <button type="button" class="btn" [disabled]="busy()" [attr.title]="busyHint() || 'Bring in the commits its branches lack'" (click)="act('sync')"><mv-icon name="arrowDown" /> Update code</button>
         }
-        <button type="button" class="btn danger" [disabled]="busy()" [attr.title]="busyHint()" (click)="removing.set(true)"><mv-icon name="trash" /> Remove…</button>
       </div>
     }
   </header>
 
-  <nav class="tabs" aria-label="This universe">
-    <a [routerLink]="base()" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Services</a>
-    <a [routerLink]="[...base(), 'code']" routerLinkActive="active" ariaCurrentWhenActive="page">Code</a>
-    <a [routerLink]="[...base(), 'details']" routerLinkActive="active" ariaCurrentWhenActive="page">Details</a>
-  </nav>
-  <router-outlet />
+  <div class="layout">
+    <nav class="side" aria-label="This universe">
+      <a [routerLink]="base()" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><mv-icon name="overview" /> Overview</a>
+      <a [routerLink]="[...base(), 'containers']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="terminal" /> Containers and logs</a>
+      <a [routerLink]="[...base(), 'code']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="branch" /> Code</a>
+      <a [routerLink]="[...base(), 'settings']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="system" /> Settings</a>
+    </nav>
+    <div class="content"><router-outlet /></div>
+  </div>
 
-  @if (removing()) {
-    <mv-remove-universe-dialog [multiverse]="multiverse()" [universe]="universe()" (closed)="removing.set(false)" />
-  }
 } @else if (!store.loaded()) {
   <header class="head"><div class="who"><mv-skeleton width="9rem" height="2.6rem" /><mv-skeleton width="16rem" height="1rem" /></div></header>
   <mv-skeleton height="8rem" />

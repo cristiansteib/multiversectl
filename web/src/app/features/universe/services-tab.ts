@@ -6,7 +6,6 @@ import { ContainerView, ServiceView, StatView } from '../../core/models';
 import { Ops } from '../../core/ops.service';
 import { plural } from '../../core/util';
 import { Sparkline } from '../../shared/chart/sparkline';
-import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { EmptyState } from '../../shared/ui/empty-state';
 import { ErrorBox } from '../../shared/ui/error-box';
@@ -28,7 +27,7 @@ const STATE_DOT: Record<string, string> = { running: 'ok', healthy: 'ok', exited
  */
 @Component({
   selector: 'mv-services-tab',
-  imports: [Badge, CopyButton, EmptyState, ErrorBox, Icon, Skeleton, Sparkline, LogViewer],
+  imports: [CopyButton, EmptyState, ErrorBox, Icon, Skeleton, Sparkline, LogViewer],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './services-tab.html',
   styleUrl: './services-tab.css',

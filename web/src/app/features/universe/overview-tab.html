@@ -1,0 +1,45 @@
+@if (u(); as u) {
+  @if (reasons().length) {
+    <div class="banner warn" role="status">
+      <strong>Needs a look</strong>
+      <ul>@for (r of reasons(); track r) { <li>{{ r }}</li> }</ul>
+    </div>
+  }
+
+  <section aria-labelledby="apps-h">
+    <h2 id="apps-h">Apps</h2>
+    @if (!u.apps.length) {
+      <mv-empty title="This multiverse defines no apps">Add them under <code>spec.apps</code> in its manifest.</mv-empty>
+    } @else {
+      <div class="apps">
+        @for (a of u.apps; track a.key) {
+          <article class="card app">
+            <h3>
+              {{ a.key }}
+              @if (a.repo && a.repo !== a.key) { <span class="muted repo">{{ a.repo }}</span> }
+              <span class="grow"></span>
+              @if (a.expected) { <mv-badge [tone]="a.running === a.expected ? 'ok' : a.running ? 'warn' : 'mute'">{{ a.running }}/{{ a.expected }} up</mv-badge> }
+            </h3>
+            @if (a.services?.length) {
+              <ul class="svcs">
+                @for (s of a.services; track s.name) {
+                  <li [attr.title]="svcTitle(s)">
+                    <span class="dot" [class]="dot(s.state)"></span>{{ s.name }}
+                    @if (s.published) { <mv-badge tone="warn" hint="Published on the host, so only one universe can hold it">{{ s.published }}</mv-badge> }
+                  </li>
+                }
+              </ul>
+            }
+            @if (a.urls?.length) {
+              <ul class="urls">
+                @for (x of a.urls; track x.url) {
+                  <li>@if (webUrl(x.url)) { <a [href]="x.url" target="_blank" rel="noopener noreferrer" [attr.title]="x.service">{{ x.url }} <mv-icon name="external" /></a> } @else { <span class="mono">{{ x.url }}</span> }</li>
+                }
+              </ul>
+            }
+          </article>
+        }
+      </div>
+    }
+  </section>
+}

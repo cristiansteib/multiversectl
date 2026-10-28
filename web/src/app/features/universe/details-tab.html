@@ -68,4 +68,17 @@
       </ul>
     }
   </div>
+
+  @if (!events.readOnly()) {
+    <h2>Remove this universe</h2>
+    <div class="card danger-zone">
+      <p>Deletes its worktrees (uncommitted work in them is lost), its containers and volumes, and its state. The shared clones and their branches are not touched.</p>
+      <button type="button" class="btn danger" [disabled]="busy()" [attr.title]="busy() ? 'Another operation is running in ' + store.multiverse() : null" (click)="removing.set(true)">
+        <mv-icon name="trash" /> Remove universe {{ u.name }}…
+      </button>
+    </div>
+    @if (removing()) {
+      <mv-remove-universe-dialog [multiverse]="store.multiverse()" [universe]="u.name" (closed)="removing.set(false)" />
+    }
+  }
 }

@@ -8,3 +8,4 @@ dt { color: var(--muted); font-size: .88rem } dd { margin: 0; overflow-wrap: any
 .checks { list-style: none; margin: 0; padding: 0 }
 .checks li { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--line-soft) }
 .checks li:first-child { border-top: 0 }
+.danger-zone { border-color: var(--bad) } .danger-zone p { margin-top: 0 }

@@ -1,5 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Api } from '../../core/api.service';
+import { Events } from '../../core/events.service';
+import { Ops } from '../../core/ops.service';
+import { RemoveUniverseDialog } from '../../shared/dialogs/remove-universe-dialog';
 import { DoctorView } from '../../core/models';
 import { ago, plural } from '../../core/util';
 import { Badge, Tone } from '../../shared/ui/badge';
@@ -13,13 +16,17 @@ const CHECK_TONE: Record<string, Tone> = { ok: 'ok', warn: 'warn', fail: 'bad' }
 /** Where this universe lives and what it is made of, and a health check on demand. */
 @Component({
   selector: 'mv-details-tab',
-  imports: [Badge, CopyButton, ErrorBox, Icon],
+  imports: [Badge, CopyButton, ErrorBox, Icon, RemoveUniverseDialog],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './details-tab.html',
   styleUrl: './details-tab.css',
 })
 export class DetailsTab {
   private readonly api = inject(Api);
+  protected readonly events = inject(Events);
+  protected readonly ops = inject(Ops);
+  protected readonly removing = signal(false);
+  protected readonly busy = computed(() => this.ops.busy(this.store.multiverse()));
   protected readonly store = inject(UniverseStore);
 
   protected readonly u = this.store.universe;
