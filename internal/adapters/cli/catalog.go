@@ -52,7 +52,7 @@ func (r runner) catalogCmd() *cobra.Command {
 			"  add, new, rm             edit it (shared, versioned): list a multiverse, make one, remove an entry\n" +
 			"  ignore, unignore         leave a branch of it out on this machine, or bring it back\n" +
 			"  update                   bring what is installed up to date with the tree\n" +
-			"  manage                   a menu for all of this, one choice at a time (needs a terminal)\n\n" +
+			"  manage                   all of this on one screen, with the keyboard (needs a terminal)\n\n" +
 			"To install what the tree lists, use `start`, with the node's path as `list` shows it:\n\n" +
 			"  multiversectl start acme/backend/billing --install-only\n\n" +
 			"Without --install-only `start` also makes and starts a universe. The path of a\n" +
