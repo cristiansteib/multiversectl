@@ -41,7 +41,12 @@ type hub struct {
 
 type client struct {
 	send chan []byte
-	drop func()
+	// direct is for what only this page asked for (a log): it waits for room
+	// rather than being dropped, which slows what is writing instead of the
+	// page being let go, and it is a channel of its own so that a busy log never
+	// fills the one the broadcasts use.
+	direct chan []byte
+	drop   func()
 }
 
 func newHub() *hub { return &hub{clients: map[*client]struct{}{}, last: map[string][]byte{}} }
@@ -222,7 +227,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
-	c := &client{send: make(chan []byte, 64), drop: cancel}
+	c := &client{send: make(chan []byte, 64), direct: make(chan []byte, 64), drop: cancel}
 	snap, looked := s.hub.join(c)
 	defer s.hub.leave(c)
 
@@ -239,6 +244,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		s.refresh() // nobody has looked yet: this page is the reason to
 	}
 
+	logs := &logStreams{open: map[string]*logStream{}}
 	go func() {
 		defer cancel()
 		for {
@@ -246,11 +252,17 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return
 			}
-			var m struct {
-				Type string `json:"type"`
+			var m wsRequest
+			if json.Unmarshal(msg, &m) != nil {
+				continue
 			}
-			if json.Unmarshal(msg, &m) == nil && m.Type == "refresh" {
+			switch m.Type {
+			case "refresh":
 				s.refresh()
+			case "logs":
+				s.startLogs(ctx, c, logs, m)
+			case "logs.stop":
+				logs.stop(m.ID)
 			}
 		}
 	}()
@@ -263,6 +275,10 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 			conn.Close(websocket.StatusNormalClosure, "")
 			return
 		case d := <-c.send:
+			if err := writeRaw(ctx, conn, d); err != nil {
+				return
+			}
+		case d := <-c.direct:
 			if err := writeRaw(ctx, conn, d); err != nil {
 				return
 			}

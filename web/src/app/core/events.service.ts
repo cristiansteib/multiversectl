@@ -41,6 +41,9 @@ export class Events {
   readonly op$ = new Subject<Op>();
   readonly opLine$ = new Subject<{ id: string } & OpLine>();
   readonly catalogProgress$ = new Subject<CatalogProgress>();
+  /** A piece of a log this page asked for over the socket, and the end of one. */
+  readonly log$ = new Subject<{ id: string; text: string }>();
+  readonly logEnd$ = new Subject<{ id: string; error?: string }>();
 
   private socket: WebSocket | null = null;
   private retries = 0;
@@ -73,6 +76,13 @@ export class Events {
   async refresh(): Promise<void> {
     if (this.connected()) this.socket?.send(JSON.stringify({ type: 'refresh' }));
     await this.reload();
+  }
+
+  /** Say something to the server over the socket; false when it is not open (the caller then asks over HTTP). */
+  send(message: object): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.socket.send(JSON.stringify(message));
+    return true;
   }
 
   private connect(): void {
@@ -110,6 +120,8 @@ export class Events {
       case 'update': this.update.set((e.data as { notice?: UpdateNotice }).notice ?? null); break;
       case 'catalogProgress': this.catalogProgress$.next(e.data); break;
       case 'op': this.op$.next(e.data); break;
+      case 'log': this.log$.next(e.data); break;
+      case 'logEnd': { const end = e.data as { id: string; error?: string }; this.logEnd$.next({ id: end.id, error: end.error || undefined }); break; }
       case 'opline': this.opLine$.next(e.data); break;
     }
   }
