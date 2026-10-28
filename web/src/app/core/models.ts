@@ -71,11 +71,15 @@ export interface StatView { name: string; cpu: number; memory: number; memUsage:
 export interface FleetStatRow extends StatView { multiverse: string; universe: string; app: string; service: string }
 export interface FleetStatsView { at: string; rows: FleetStatRow[]; sources?: { multiverse: string; error: string }[] }
 
-export type OpAction = 'up' | 'down' | 'rm' | 'sync' | 'restart' | 'new' | 'checkout' | 'update' | 'selfupdate';
+export type OpAction = 'up' | 'down' | 'rm' | 'sync' | 'restart' | 'new' | 'checkout' | 'update' | 'selfupdate' | 'install';
 export interface OpRequest {
   action: OpAction; multiverse?: string; universe?: string; app?: string; service?: string; name?: string; note?: string;
   branch?: string; base?: string; onlyExisting?: boolean; confirm?: string; force?: boolean;
+  /** install: the catalog path to set up, where one multiverse should live, and the paths under it to leave out. */
+  path?: string; root?: string; exclude?: string[];
 }
+export interface PlanTarget { name: string; root: string; path?: string; skip?: string; renamed?: string }
+export interface PlanView { targets: PlanTarget[] }
 export interface OpLine { kind: 'info' | 'ok' | 'warn' | 'out' | 'err'; text: string }
 export interface Op {
   id: string; action: string; title: string; multiverse: string; universe?: string;

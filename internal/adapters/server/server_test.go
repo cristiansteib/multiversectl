@@ -90,6 +90,10 @@ func (f *fake) Multiverse(_ context.Context, name string) (multiverseView, error
 	f.ask("multiverse:" + name)
 	return f.ws, f.err
 }
+func (f *fake) Plan(_ context.Context, path string, exclude []string) (planView, error) {
+	f.ask("plan:" + path + ":" + strings.Join(exclude, ","))
+	return planView{Targets: []planTarget{{Name: "billing", Root: "/home/x/multiverse/billing", Path: path}}}, f.err
+}
 func (f *fake) Ignore(_ context.Context, path string, ignore bool) error {
 	f.ask("ignore:" + path + ":" + map[bool]string{true: "on", false: "off"}[ignore])
 	return f.err

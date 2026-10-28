@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Api } from '../../core/api.service';
 import { Events } from '../../core/events.service';
 import { CatalogView, NodeView } from '../../core/models';
+import { Ops } from '../../core/ops.service';
 import { Toasts } from '../../core/toast.service';
 import { AgoPipe } from '../../shared/ui/ago.pipe';
 import { Badge } from '../../shared/ui/badge';
@@ -12,13 +13,14 @@ import { ErrorBox } from '../../shared/ui/error-box';
 import { Icon } from '../../shared/ui/icon';
 import { Skeleton } from '../../shared/ui/skeleton';
 import { CatalogTree } from './catalog-tree';
+import { InstallDialog } from './install-dialog';
 import { FetchProgress } from './fetch-progress';
 import { Step, stepKey, tally } from './catalog.model';
 
 /** Your index of multiverses, as a tree, and the way to read it from the remotes. */
 @Component({
   selector: 'mv-catalog-page',
-  imports: [AgoPipe, Badge, CatalogTree, CopyButton, EmptyState, ErrorBox, FetchProgress, Icon, Skeleton],
+  imports: [AgoPipe, Badge, CatalogTree, InstallDialog, CopyButton, EmptyState, ErrorBox, FetchProgress, Icon, Skeleton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './catalog-page.html',
   styleUrl: './catalog-page.css',
@@ -27,6 +29,9 @@ export class CatalogPage {
   private readonly api = inject(Api);
   private readonly events = inject(Events);
   private readonly toasts = inject(Toasts);
+  private readonly ops = inject(Ops);
+  /** The node whose install is being asked about. */
+  protected readonly installing = signal<NodeView | null>(null);
 
   protected readonly data = signal<CatalogView | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -56,6 +61,8 @@ export class CatalogPage {
       next.set(stepKey(e.repo, e.ref), { repo: e.repo, phase: e.phase, detail: e.detail, ms: e.ms });
       this.steps.set(next);
     });
+    // What an install did is in the tree when it ends: the multiverse is marked installed.
+    this.ops.finished$.pipe(takeUntilDestroyed()).subscribe((op) => { if (op.action === 'install') void this.load(false); });
     void this.load(false);
   }
 

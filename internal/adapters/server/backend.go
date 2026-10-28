@@ -27,6 +27,8 @@ type Backend interface {
 	Catalog(ctx context.Context, fetch bool, observe func(app.CatalogEvent)) (catalogView, error)
 	// Ignore leaves a path of the catalog tree out on this machine, or brings it back.
 	Ignore(ctx context.Context, path string, ignore bool) error
+	// Plan is what installing a path of the catalog would set up, without doing it.
+	Plan(ctx context.Context, path string, exclude []string) (planView, error)
 	// Fleet lists the universes of one installed multiverse, or of all.
 	Fleet(ctx context.Context, multiverse string) (fleetView, error)
 	Multiverse(ctx context.Context, name string) (multiverseView, error)
@@ -556,10 +558,91 @@ func (s Services) selfUpdate(ctx context.Context, k Sink) error {
 	return ErrRestart
 }
 
+// installBase is the directory multiverses go under, as the command line has it.
+func installBase() string {
+	if b := os.Getenv("MULTIVERSECTL_ROOT"); b != "" {
+		return b
+	}
+	return "~/multiverse"
+}
+
+func (s Services) plan(ctx context.Context, path string, exclude []string) ([]app.InstallTarget, error) {
+	// The catalog is read under the same lock as everywhere else: it may clone.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Catalogs.PlanInstall(ctx, []string{path}, app.InstallOptions{Base: installBase(), Exclude: exclude})
+}
+
+func (s Services) Plan(ctx context.Context, path string, exclude []string) (planView, error) {
+	targets, err := s.plan(ctx, path, exclude)
+	if err != nil {
+		return planView{}, err
+	}
+	v := planView{Targets: []planTarget{}}
+	for _, t := range targets {
+		v.Targets = append(v.Targets, planTarget{Name: t.Name, Root: t.Root, Path: t.From, Skip: t.Skip, Renamed: t.Renamed})
+	}
+	return v, nil
+}
+
+// install sets up what a path of the catalog names, as `start <path> --install-only`
+// does: the manifest is recorded and the repositories it lists are cloned.
+func (s Services) install(ctx context.Context, r opRequest, k Sink) error {
+	plan, err := s.plan(ctx, r.Path, r.Exclude)
+	if err != nil {
+		return err
+	}
+	machine := *s.Machine
+	machine.Out, machine.Progress = k, nil
+	var todo []app.InstallTarget
+	for _, t := range plan {
+		if t.Skip != "" {
+			k.Info("%s: %s", t.Name, t.Skip)
+			continue
+		}
+		todo = append(todo, t)
+	}
+	if len(todo) == 0 {
+		return fmt.Errorf("nothing to install under %s", r.Path)
+	}
+	var failures []string
+	for _, t := range todo {
+		// Where it lives can be chosen for one multiverse; for several each takes the default.
+		if r.Root != "" && len(todo) == 1 {
+			t.Root = r.Root
+		}
+		if t.Renamed != "" {
+			k.Info("%s", t.Renamed)
+		}
+		k.Info("installing %s into %s", t.Name, t.Root)
+		entry, err := machine.Bootstrap(ctx, app.BootstrapInput{Name: t.Name, Root: t.Root, ManifestSource: t.ManifestSource, Ref: t.Ref,
+			ManifestPath: t.ManifestPath, From: t.From, Origin: t.Origin, Generated: t.Generated})
+		if err == nil {
+			var svc *app.Service
+			if svc, err = s.At(k, k.Stdout(), k.Stderr(), entry.Root, entry.Manifest); err == nil {
+				err = svc.CloneRepos(ctx)
+			}
+		}
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("%s: %v", t.Name, err))
+			k.Warn("%s: %v", t.Name, err)
+			continue
+		}
+		k.OK("installed %s", t.Name)
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("%s", strings.Join(failures, "; "))
+	}
+	return nil
+}
+
 // Do runs one action as the command line would, with the sink as its terminal.
 func (s Services) Do(ctx context.Context, r opRequest, k Sink) error {
-	if r.Action == "selfupdate" {
+	switch r.Action {
+	case "selfupdate":
 		return s.selfUpdate(ctx, k)
+	case "install":
+		return s.install(ctx, r, k)
 	}
 	w, err := s.Machine.MultiverseNamed(r.Multiverse)
 	if err != nil {

@@ -13,7 +13,7 @@ import { Place } from '../../shared/ui/place';
 import { RepoChip } from '../../shared/ui/repo-chip';
 import { plural } from '../../core/util';
 import { FetchProgress } from './fetch-progress';
-import { Step, countNodes, stepKey } from './catalog.model';
+import { Step, countNodes, leavesOf, stepKey } from './catalog.model';
 
 interface Row { node: NodeView; depth: number; expandable: boolean; open: boolean; root: boolean; parent: string | null; step?: Step }
 
@@ -40,6 +40,8 @@ export class CatalogTree {
   readonly reading = input(false);
   /** Leave a node out on this machine, or bring it back. */
   readonly ignoreChange = output<{ node: NodeView; ignore: boolean }>();
+  /** Set up a multiverse, or everything under a catalog, on this machine. */
+  readonly installRequest = output<NodeView>();
   protected readonly events = inject(Events);
   private readonly api = inject(Api);
   /** The repositories of the installed multiverses that have been opened, by the name they are installed as. */
@@ -155,6 +157,10 @@ export class CatalogTree {
   }
 
   protected kindLabel(r: Row): string { return r.root ? 'root catalog' : r.node.kind; }
+  /** A catalog offers to install what is under it that is not installed yet. */
+  protected canInstallBranch(r: Row): boolean {
+    return !r.root && r.node.kind === 'catalog' && !this.events.readOnly() && leavesOf(r.node).some((l) => !l.installedAs);
+  }
   protected canIgnore(r: Row): boolean { return !r.root && !this.events.readOnly(); }
   protected icon(r: Row): string { return r.node.kind === 'multiverse' ? 'multiverse' : 'catalog'; }
 

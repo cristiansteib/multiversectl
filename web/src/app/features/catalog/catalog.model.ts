@@ -27,3 +27,9 @@ export function tally(root: NodeView): Tally {
   walk(root, true);
   return t;
 }
+
+/** The multiverses under a node (or the node itself), the ones a catalog path installs. */
+export function leavesOf(n: NodeView): NodeView[] {
+  if (n.ignored || n.unavailable) return [];
+  return n.kind === 'multiverse' ? [n] : (n.children ?? []).flatMap(leavesOf);
+}

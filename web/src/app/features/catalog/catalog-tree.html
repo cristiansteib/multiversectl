@@ -35,8 +35,12 @@
               <a class="badge ok installed" [routerLink]="['/multiverse', inst]" [attr.title]="'Open ' + inst"><mv-icon name="check" /> Installed as {{ inst }}</a>
             } @else if (!r.node.ignored) {
               <mv-badge tone="mute">Not installed</mv-badge>
-              <mv-copy [text]="'multiversectl start ' + r.node.path" label="Install" />
+              @if (!events.readOnly()) { <button type="button" class="btn small primary" (click)="installRequest.emit(r.node)" [attr.aria-label]="'Install ' + r.node.name">Install</button> }
+              <mv-copy [text]="'multiversectl start ' + r.node.path + ' --install-only'" label="Copy command" />
             }
+          }
+          @if (canInstallBranch(r)) {
+            <button type="button" class="btn small" (click)="installRequest.emit(r.node)" [attr.aria-label]="'Install what is under ' + r.node.name">Install…</button>
           }
           @if (canIgnore(r)) {
             @if (r.node.ignored) {
@@ -75,7 +79,9 @@
             } @else if (r.node.ignored) {
               <span class="muted">Ignored: not offered for installing.</span>
             } @else {
-              <span class="muted">Not installed.</span> <mv-copy [text]="'multiversectl start ' + r.node.path" label="Install" />
+              <span class="muted">Not installed.</span>
+              @if (!events.readOnly()) { <button type="button" class="btn small primary" (click)="installRequest.emit(r.node)">Install</button> }
+              <mv-copy [text]="'multiversectl start ' + r.node.path + ' --install-only'" label="Copy command" />
             }
           </dd>
         </dl>
