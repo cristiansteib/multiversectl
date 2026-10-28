@@ -256,3 +256,51 @@ func TestADiffIsOfTheBaseThePageShowedAndAsksNoHost(t *testing.T) {
 		t.Error("a repository that is not in the universe was read")
 	}
 }
+
+// instanceHost is a service with a public instance and company ones, each signed
+// in separately: it answers for the instance it was pointed at.
+type instanceHost struct {
+	RepoHost
+	instance string
+	signedIn map[string]bool
+	asked    *[]string
+}
+
+func (h instanceHost) Name() string { return "GitLab" }
+func (h instanceHost) Owns(repoURL string) bool {
+	return domain.Locate(repoURL, "").Platform == domain.PlatformGitLab
+}
+func (h instanceHost) At(hostname string) RepoHost {
+	h.instance = hostname
+	return h
+}
+func (h instanceHost) Available(context.Context) error {
+	if !h.signedIn[h.instance] {
+		return &HostUnavailable{Reason: "not signed in"}
+	}
+	return nil
+}
+func (h instanceHost) FindReview(_ context.Context, repoURL, branch string) (*Review, error) {
+	*h.asked = append(*h.asked, h.instance+" "+repoURL+"#"+branch)
+	return &Review{Number: 7, URL: "https://" + h.instance + "/muse/ui/-/merge_requests/7", State: "open"}, nil
+}
+
+// A repository on a company's own GitLab is asked there, and signing in to the
+// public service neither helps nor hinders it: before, the question went to the
+// tool's default instance and the merge request was never found.
+func TestAReviewIsLookedForOnTheInstanceTheRepositoryIsOn(t *testing.T) {
+	var asked []string
+	host := instanceHost{signedIn: map[string]bool{"gitlab.example.test": true}, asked: &asked}
+	svc := New(Deps{Hosts: []RepoHost{host}, Out: discardOut{}}, "/ws", &domain.Manifest{}, "test")
+	ready := &readiness{}
+
+	review, errText := svc.reviewOf(context.Background(), ready, "git@gitlab.example.test:muse/ui.git", "chore/x")
+	if review == nil || errText != "" || len(asked) != 1 || asked[0] != "gitlab.example.test git@gitlab.example.test:muse/ui.git#chore/x" {
+		t.Fatalf("review %v, error %q, asked %v", review, errText, asked)
+	}
+	// The public instance is a different sign-in: not signed in there is said by
+	// no review, not by a failure of the company one.
+	if review, _ := svc.reviewOf(context.Background(), ready, "git@gitlab.com:muse/ui.git", "chore/x"); review != nil {
+		t.Errorf("a repository on gitlab.com was answered for by another instance: %v", review)
+	}
+}

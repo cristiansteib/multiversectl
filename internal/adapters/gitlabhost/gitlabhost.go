@@ -39,7 +39,14 @@ func (h Host) Available(ctx context.Context) error {
 	if _, err := exec.LookPath("glab"); err != nil {
 		return &app.HostUnavailable{Reason: "the GitLab CLI (glab) is not installed: https://gitlab.com/gitlab-org/cli"}
 	}
-	if _, err := h.run(ctx, "auth", "status"); err != nil {
+	// Only this instance: without it glab reports on every host it knows, and one
+	// that is signed out (gitlab.com, when the work is on a company's own) fails
+	// the check for the one that is not.
+	status := []string{"auth", "status"}
+	if h.Hostname != "" {
+		status = append(status, "--hostname", h.Hostname)
+	}
+	if _, err := h.run(ctx, status...); err != nil {
 		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true}
 	}
 	return nil

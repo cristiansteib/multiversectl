@@ -42,7 +42,13 @@ func (h Host) Available(ctx context.Context) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return &app.HostUnavailable{Reason: "the GitHub CLI (gh) is not installed: https://cli.github.com"}
 	}
-	if _, err := h.run(ctx, "auth", "status"); err != nil {
+	// Only this instance (see the GitLab one): another host that is signed out
+	// must not fail the check for this one.
+	status := []string{"auth", "status"}
+	if h.Hostname != "" {
+		status = append(status, "--hostname", h.Hostname)
+	}
+	if _, err := h.run(ctx, status...); err != nil {
 		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true}
 	}
 	return nil
