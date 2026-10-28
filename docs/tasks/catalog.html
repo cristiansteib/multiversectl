@@ -83,8 +83,8 @@
 <section id="hw-first">
   <h2 id="hw-first"><a href="#hw-first">Use a multiverse someone points you at</a></h2>
   <div class="code"><pre><span class="p">$ </span>multiversectl start acme/multiverse</pre></div>
-  <p>That is the whole of it on a machine with nothing set up: it installs the multiverse, makes universe 1 and starts it. The source can be <code>owner/repo</code> (GitHub), any git URL, or a path. A repository holding a <code>catalog.yaml</code> is read as a catalog; otherwise it is read for the multiverses it defines (<code>multiverse.yaml</code>, and every file under <code>multiverse/</code>), and <code>start</code> says which it took. When a repository defines several, <code>owner/repo:name</code> picks one; without it you are asked, and in a script the error lists the names.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl start acme/platform:billing</pre></div>
+  <p>That is the whole of it on a machine with nothing set up: it installs the multiverse, makes universe 1 and starts it. The source can be <code>owner/repo</code> (GitHub), any git URL, or a path. A repository holding a <code>catalog.yaml</code> is read as a catalog; otherwise it is read for the multiverses it defines (every <code>.yaml</code> or <code>.yml</code> file in it that says <code>kind: Multiverse</code>, whatever it is called and wherever it is), and <code>start</code> says which it took. When a repository defines several, name the one you want, <code>start billing acme/platform</code> or <code>acme/platform:billing</code>; without a name you are asked, and in a script the error lists the names.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl start billing acme/platform</pre></div>
 </section>
 
 <section id="hw-init">

@@ -305,7 +305,7 @@ func (c *Catalogs) chooseAmong(leaves []domain.Node, source string) ([]domain.No
 	}
 	i, err := c.Prompt.Select(fmt.Sprintf("%s defines %d multiverses. Which one?", source, len(leaves)), opts, 0)
 	if errors.Is(err, ErrNotInteractive) {
-		return nil, fmt.Errorf("%s defines %d multiverses (%s): name one, as %s:<name>", source, len(leaves), leafNames(leaves), source)
+		return nil, fmt.Errorf("%s defines %d multiverses (%s): name one: `multiversectl start <name> %s`, or %s:<name>", source, len(leaves), leafNames(leaves), source, source)
 	}
 	if err != nil {
 		return nil, err

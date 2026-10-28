@@ -10,26 +10,86 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// manifestsIn lists the multiverse definitions a directory holds, by
-// convention: multiverse.yaml at its root, and every .yaml or .yml under
-// multiverse/. A repository that serves several multiverses keeps one file
-// each, so nothing has to list them for them to be found.
+// A file is a multiverse when it says so: `kind: Multiverse` at the start of a
+// line. It is looked for before the file is parsed, so the many YAML files of a
+// repository (compose files, workflows, charts) cost a read and nothing more.
+var kindMultiverseRE = regexp.MustCompile(`(?m)^kind:[ \t]*["']?Multiverse["']?[ \t]*(?:#.*)?$`)
+
+// What a scan of a repository does not go into, and how far it goes: what is
+// installed or built there is not a definition, and a repository of a monorepo's
+// size must not make installing it slow.
+var skipScan = map[string]bool{"node_modules": true, "vendor": true, "dist": true, "build": true, "target": true, "__pycache__": true, "venv": true, "site-packages": true}
+
+const (
+	maxScanDepth     = 6
+	maxScanFiles     = 4000
+	maxManifestBytes = 256 << 10
+)
+
+func isYAML(name string) bool { ext := filepath.Ext(name); return ext == ".yaml" || ext == ".yml" }
+
+// manifestsIn lists the multiverse definitions a directory holds. A repository
+// may keep any number of them, in files of any name, anywhere in it: a file is
+// one when it says `kind: Multiverse`. multiverse.yaml at the root and the files
+// of a multiverse/ folder come first, and are taken as definitions whatever
+// they say, so that one that is wrong is reported and not skipped. Folders that
+// start with a dot, and the ones dependencies and builds fill, are not entered.
 func manifestsIn(files Files, dir string) []string {
 	var out []string
+	seen := map[string]bool{}
+	add := func(rel string) {
+		if !seen[rel] {
+			seen[rel] = true
+			out = append(out, rel)
+		}
+	}
 	for _, name := range []string{"multiverse.yaml", "multiverse.yml"} {
 		if files.Exists(filepath.Join(dir, name)) {
-			out = append(out, name)
+			add(name)
 		}
 	}
-	names, err := files.ListFiles(filepath.Join(dir, "multiverse"))
-	if err != nil {
-		return out
-	}
-	for _, n := range names {
-		if ext := filepath.Ext(n); ext == ".yaml" || ext == ".yml" {
-			out = append(out, path.Join("multiverse", n))
+	if names, err := files.ListFiles(filepath.Join(dir, "multiverse")); err == nil {
+		for _, n := range names {
+			if isYAML(n) {
+				add(path.Join("multiverse", n))
+			}
 		}
 	}
+
+	budget := maxScanFiles
+	var walk func(rel string, depth int)
+	walk = func(rel string, depth int) {
+		here := filepath.Join(dir, filepath.FromSlash(rel))
+		if names, err := files.ListFiles(here); err == nil {
+			for _, n := range names {
+				if !isYAML(n) || seen[path.Join(rel, n)] {
+					continue
+				}
+				if budget--; budget < 0 {
+					return
+				}
+				full := filepath.Join(here, n)
+				if size, err := files.Size(full); err != nil || size > maxManifestBytes {
+					continue
+				}
+				if data, err := files.ReadFile(full); err == nil && kindMultiverseRE.Match(data) {
+					add(path.Join(rel, n))
+				}
+			}
+		}
+		if depth >= maxScanDepth {
+			return
+		}
+		if dirs, err := files.ListDirs(here); err == nil {
+			for _, d := range dirs {
+				if strings.HasPrefix(d, ".") || skipScan[d] {
+					continue
+				}
+				walk(path.Join(rel, d), depth+1)
+			}
+		}
+	}
+	walk("", 0)
 	return out
 }
 
@@ -51,6 +111,11 @@ func (c *Catalogs) definedIn(dir, repo string) ([]domain.Node, error) {
 		src := domain.Source{Repo: repo, Path: rel}
 		if repo == "" {
 			src.Path = full
+		}
+		for _, other := range out {
+			if other.Name == name {
+				return nil, fmt.Errorf("%s and %s both define a multiverse named %q: names are what picks one, so each needs its own", other.Source.Path, rel, name)
+			}
 		}
 		out = append(out, domain.Node{Name: name, Path: name, Kind: domain.MultiverseNode, Source: src})
 	}
