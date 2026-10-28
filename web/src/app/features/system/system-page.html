@@ -11,19 +11,17 @@
 @if (error(); as message) {
   <mv-error [message]="message" />
 } @else if (data(); as v) {
-  @if (v.latest.newer) {
-    <div class="banner info update">
-      <strong>Update available</strong>
-      <span>multiversectl {{ v.latest.version }} is out.</span>
-      @if (updater.notice()) { <button type="button" class="btn small primary" (click)="updater.show()"><mv-icon name="arrowDown" /> Update…</button> }
-      <mv-copy text="multiversectl self-update" />
-    </div>
-  }
+  <p class="project row">
+    <a [href]="v.links.repo" target="_blank" rel="noopener noreferrer"><mv-icon name="github" /> GitHub repository</a>
+    <a [href]="v.links.releases" target="_blank" rel="noopener noreferrer"><mv-icon name="external" /> All releases</a>
+    <a [href]="v.links.issues" target="_blank" rel="noopener noreferrer"><mv-icon name="external" /> Report an issue</a>
+  </p>
 
   <div class="grid cards">
     <section class="card">
       <h3>This server</h3>
       <div class="big mono">{{ v.server.version || '—' }}</div>
+      @if (v.server.url) { <p class="muted"><a [href]="v.server.url" target="_blank" rel="noopener noreferrer">Release notes <mv-icon name="external" /></a></p> }
       <dl>
         @if (v.server.commit) { <div><dt>Commit</dt><dd class="mono">{{ v.server.commit }}</dd></div> }
         @if (v.server.date) { <div><dt>Built</dt><dd>{{ v.server.date }}</dd></div> }
@@ -46,11 +44,15 @@
     <section class="card">
       <h3>Latest release</h3>
       <div class="big mono">{{ v.latest.version || '—' }}</div>
+      @if (v.latest.url) { <p class="muted"><a [href]="v.latest.url" target="_blank" rel="noopener noreferrer">Release notes <mv-icon name="external" /></a></p> }
       <p class="muted">
         @if (v.latest.error) { Could not check: {{ v.latest.error }} }
         @else if (v.latest.newer) { Newer than the command line. }
         @else { The command line is current. }
       </p>
+      @if (v.latest.newer && !v.readOnly) {
+        <button type="button" class="btn small primary" (click)="updater.install()" [disabled]="updater.running()"><mv-icon name="arrowDown" /> Update now</button>
+      }
     </section>
 
     <section class="card">

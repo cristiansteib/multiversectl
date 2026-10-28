@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Events } from '../core/events.service';
+import { brings, rest } from '../core/update-notice';
 import { Updater } from '../core/updater.service';
 import { CopyButton } from '../shared/ui/copy-button';
 import { Icon } from '../shared/ui/icon';
@@ -48,16 +49,6 @@ import { Modal } from '../shared/ui/modal';
 export class UpdateDialog {
   protected readonly updater = inject(Updater);
   protected readonly events = inject(Events);
-  protected readonly brings = computed(() => {
-    const n = this.updater.notice();
-    if (!n) return '';
-    const count = (k: number, one: string, many: string) => `${k}${n.more ? '+' : ''} ${k === 1 && !n.more ? one : many}`;
-    return n.fixes ? count(n.fixes, 'fix', 'fixes') : n.changes ? count(n.changes, 'change', 'changes') : '';
-  });
-  protected readonly rest = computed(() => {
-    const n = this.updater.notice();
-    if (!n) return null;
-    const more = n.fixes - (n.highlights?.length ?? 0);
-    return more > 0 ? `and ${more}${n.more ? '+' : ''} more` : n.more ? 'and older ones' : null;
-  });
+  protected readonly brings = computed(() => { const n = this.updater.notice(); return n ? brings(n) : ''; });
+  protected readonly rest = computed(() => { const n = this.updater.notice(); return n ? rest(n) : null; });
 }

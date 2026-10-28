@@ -10,6 +10,7 @@ import { AgoPipe } from '../shared/ui/ago.pipe';
 import { Icon } from '../shared/ui/icon';
 import { OpsDock } from './ops-dock';
 import { ToastHost } from './toast-host';
+import { UpdateBanner } from './update-banner';
 import { UpdateDialog } from './update-dialog';
 
 interface Section { path: string; label: string; icon: string; exact?: boolean }
@@ -17,7 +18,7 @@ interface Section { path: string; label: string; icon: string; exact?: boolean }
 /** The frame: the top bar, the sections on the left, and what the section shows. */
 @Component({
   selector: 'mv-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, OpsDock, ToastHost, UpdateDialog, AgoPipe],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, OpsDock, ToastHost, UpdateBanner, UpdateDialog, AgoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './shell.html',
   styleUrl: './shell.css',

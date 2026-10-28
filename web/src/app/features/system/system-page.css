@@ -4,3 +4,4 @@ dl { margin: 0 0 12px; display: grid; gap: 4px }
 dl > div { display: flex; gap: 10px; justify-content: space-between } dt { color: var(--muted) } dd { margin: 0; text-align: right; overflow-wrap: anywhere }
 .update { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 14px }
 h2 { display: flex; align-items: center; gap: 10px }
+.project { gap: 6px 22px; margin: 0 0 18px } .project a { display: inline-flex; align-items: center; gap: 6px }
