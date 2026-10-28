@@ -17,19 +17,32 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
-type Host struct{}
+type Host struct {
+	// Hostname is a self-hosted instance; empty means the public service.
+	Hostname string
+}
 
 var _ app.RepoHost = Host{}
 
 func New() Host { return Host{} }
 
-func (Host) Name() string { return "GitHub" }
+func (h Host) Name() string { return "GitHub" }
 
-func (Host) Available(ctx context.Context) error {
+// At is the same service on a self-hosted instance.
+func (Host) At(hostname string) app.RepoHost { return Host{Hostname: hostname} }
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
+}
+
+func (h Host) Available(ctx context.Context) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return &app.HostUnavailable{Reason: "the GitHub CLI (gh) is not installed: https://cli.github.com"}
 	}
-	if err := exec.CommandContext(ctx, "gh", "auth", "status").Run(); err != nil {
+	if _, err := h.run(ctx, "auth", "status"); err != nil {
 		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true}
 	}
 	return nil
@@ -37,8 +50,8 @@ func (Host) Available(ctx context.Context) error {
 
 // Login hands the terminal to gh, which shows a one-time code and opens the
 // browser, then sets git up to push with the same credentials.
-func (Host) Login(ctx context.Context) error {
-	login := exec.CommandContext(ctx, "gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", "github.com")
+func (h Host) Login(ctx context.Context) error {
+	login := exec.CommandContext(ctx, "gh", "auth", "login", "--web", "--git-protocol", "https", "--hostname", firstNonEmpty(h.Hostname, "github.com"))
 	login.Stdin, login.Stdout, login.Stderr = os.Stdin, os.Stderr, os.Stderr
 	if err := login.Run(); err != nil {
 		return fmt.Errorf("gh auth login: %w", err)
@@ -51,12 +64,12 @@ func (Host) Login(ctx context.Context) error {
 
 // Create is private unless asked otherwise: a catalog lists where a person's
 // projects live, which is not for everyone.
-func (Host) Create(ctx context.Context, name string, private bool) (string, error) {
+func (h Host) Create(ctx context.Context, name string, private bool) (string, error) {
 	visibility := "--private"
 	if !private {
 		visibility = "--public"
 	}
-	out, err := gh(ctx, "repo", "create", name, visibility)
+	out, err := h.run(ctx, "repo", "create", name, visibility)
 	if err != nil {
 		return "", fmt.Errorf("gh repo create: %w", err)
 	}
@@ -69,13 +82,13 @@ func (Host) Create(ctx context.Context, name string, private bool) (string, erro
 }
 
 // Accounts is the signed-in user, then the organizations they belong to.
-func (Host) Accounts(ctx context.Context) ([]app.Account, error) {
-	login, err := gh(ctx, "api", "user", "--jq", ".login")
+func (h Host) Accounts(ctx context.Context) ([]app.Account, error) {
+	login, err := h.run(ctx, "api", "user", "--jq", ".login")
 	if err != nil {
 		return nil, err
 	}
 	accounts := []app.Account{{Name: strings.TrimSpace(login)}}
-	orgs, err := gh(ctx, "api", "user/orgs", "--paginate", "--jq", ".[].login")
+	orgs, err := h.run(ctx, "api", "user/orgs", "--paginate", "--jq", ".[].login")
 	if err != nil {
 		return accounts, nil // the user's own account is still a place to create
 	}
@@ -85,8 +98,8 @@ func (Host) Accounts(ctx context.Context) ([]app.Account, error) {
 	return accounts, nil
 }
 
-func (Host) Repos(ctx context.Context, account string) ([]app.RemoteRepo, error) {
-	out, err := gh(ctx, "repo", "list", account, "--limit", "300", "--json", "nameWithOwner,url,description,isPrivate")
+func (h Host) Repos(ctx context.Context, account string) ([]app.RemoteRepo, error) {
+	out, err := h.run(ctx, "repo", "list", account, "--limit", "300", "--json", "nameWithOwner,url,description,isPrivate")
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +119,7 @@ func (h Host) ReposWithTopic(ctx context.Context, topic string) ([]app.RemoteRep
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			out, err := gh(ctx, "repo", "list", a.Name, "--topic", topic, "--limit", "50", "--json", "nameWithOwner,url,description,isPrivate")
+			out, err := h.run(ctx, "repo", "list", a.Name, "--topic", topic, "--limit", "50", "--json", "nameWithOwner,url,description,isPrivate")
 			if err != nil {
 				return // an account that cannot be listed has nothing to offer
 			}
@@ -121,12 +134,12 @@ func (h Host) ReposWithTopic(ctx context.Context, topic string) ([]app.RemoteRep
 	return all, nil
 }
 
-func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
-	_, err := gh(ctx, "repo", "edit", repoURL, "--add-topic", topic)
+func (h Host) AddTopic(ctx context.Context, repoURL, topic string) error {
+	_, err := h.run(ctx, "repo", "edit", repoURL, "--add-topic", topic)
 	return err
 }
 
-func (Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "github.com") }
+func (h Host) Owns(repoURL string) bool { return strings.Contains(repoURL, "github.com") }
 
 // pullRequest is what `gh pr list --json` says of one.
 type pullRequest struct {
@@ -149,11 +162,11 @@ type pullRequest struct {
 // answer when there is one; otherwise the latest that was merged or closed,
 // because a branch whose request has landed is a different thing to look at
 // than one nobody has proposed.
-func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
+func (h Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
 	if branch == "" {
 		return nil, nil
 	}
-	out, err := gh(ctx, "pr", "list", "--repo", repoURL, "--head", branch, "--state", "all",
+	out, err := h.run(ctx, "pr", "list", "--repo", repoURL, "--head", branch, "--state", "all",
 		"--limit", "10", "--json", "number,title,url,isDraft,state,baseRefName,isCrossRepository,author,updatedAt")
 	if err != nil {
 		return nil, err
@@ -206,8 +219,11 @@ func parseRepos(out string) ([]app.RemoteRepo, error) {
 }
 
 // gh runs the CLI and returns its words, not a bare exit status, when it fails.
-func gh(ctx context.Context, args ...string) (string, error) {
+func (h Host) run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "gh", args...)
+	if h.Hostname != "" {
+		cmd.Env = append(os.Environ(), "GH_HOST="+h.Hostname)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {

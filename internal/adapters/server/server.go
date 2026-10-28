@@ -19,8 +19,11 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -344,7 +347,7 @@ func Serve(ctx context.Context, b Backend, o Options, ready func(url string)) er
 			return fmt.Errorf("--addr %s listens on every interface; use 127.0.0.1:<port>, or --expose if you mean it", o.Addr)
 		}
 	}
-	ln, err := net.Listen("tcp", o.Addr)
+	ln, err := listenNear(o.Addr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", o.Addr, err)
 	}
@@ -380,4 +383,31 @@ func Serve(ctx context.Context, b Backend, o Options, ready func(url string)) er
 		}
 		return nil
 	}
+}
+
+// listenNear listens on addr, and when its port is taken by another process
+// tries the next ones, then any free port: a person who just wants the page
+// should not have to hunt for a port. The address the server ends up on is the
+// listener's, and it is reported from there.
+func listenNear(addr string) (net.Listener, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err == nil || !errors.Is(err, syscall.EADDRINUSE) {
+		return ln, err
+	}
+	host, port, splitErr := net.SplitHostPort(addr)
+	n, convErr := strconv.Atoi(port)
+	if splitErr != nil || convErr != nil || n == 0 {
+		return nil, err
+	}
+	for next := n + 1; next <= n+20 && next <= 65535; next++ {
+		if ln, e := net.Listen("tcp", net.JoinHostPort(host, strconv.Itoa(next))); e == nil {
+			fmt.Fprintf(os.Stderr, "port %d is in use; listening on %d\n", n, next)
+			return ln, nil
+		}
+	}
+	if ln, e := net.Listen("tcp", net.JoinHostPort(host, "0")); e == nil {
+		fmt.Fprintf(os.Stderr, "port %d is in use; listening on %s\n", n, ln.Addr())
+		return ln, nil
+	}
+	return nil, err
 }

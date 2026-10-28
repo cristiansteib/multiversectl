@@ -27,6 +27,7 @@ type ProjectInput struct {
 	URL      string // an existing repository
 	Create   string // owner/name of a new one
 	Provider string // the service Create is on; the first available when empty
+	Host     string // a self-hosted instance of Provider, such as gitlab.example.test
 	Public   bool
 	Local    bool // keep it on this machine for now
 
@@ -46,6 +47,13 @@ type ProjectResult struct {
 	// Root is the directory the multiverse's checkouts already sit under, which is
 	// the multiverse root to install it with; "" when there were none.
 	Root string
+	// Repos are the repositories it lists, by the name each has in the manifest.
+	Repos []DraftRepo
+	// Files are what was written, relative to Dir; Pushed is where they went
+	// ("" when nothing was pushed) and Branch the branch.
+	Files  []string
+	Pushed string
+	Branch string
 }
 
 // FoundCheckout is a git working copy found next to the multiverse.
@@ -171,20 +179,37 @@ func (hc *hostChecks) ready(ctx context.Context, h RepoHost) error {
 type pick struct {
 	url string
 	co  *FoundCheckout
+	key string // the name given with name=url; derived when empty
 }
 
 type picks struct{ list []pick }
 
-func (p *picks) add(url string, co *FoundCheckout) {
+func (p *picks) add(url string, co *FoundCheckout) { p.addNamed("", url, co) }
+
+func (p *picks) addNamed(key, url string, co *FoundCheckout) {
 	for i, have := range p.list {
 		if sameRepo(have.url, url) {
 			if have.co == nil && co != nil {
 				p.list[i].co = co
 			}
+			if have.key == "" {
+				p.list[i].key = key
+			}
 			return
 		}
 	}
-	p.list = append(p.list, pick{url, co})
+	p.list = append(p.list, pick{url, co, key})
+}
+
+var namedRepo = regexp.MustCompile(`^([a-z][a-z0-9-]*)=(.+)$`)
+
+// splitNamed reads name=url: the name a repository has in the manifest, said
+// instead of derived. Anything else is a URL or owner/repo as it stands.
+func splitNamed(arg string) (key, repo string) {
+	if m := namedRepo.FindStringSubmatch(arg); m != nil {
+		return m[1], m[2]
+	}
+	return "", arg
 }
 
 // InitProject sets a multiverse up the way `firebase init` would: it gathers the
@@ -206,7 +231,8 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 	hosts := c.newHostChecks()
 	chosen := &picks{}
 	for _, r := range in.Repos {
-		chosen.add(c.expand(r), nil)
+		key, repo := splitNamed(r)
+		chosen.addNamed(key, c.expand(repo), nil)
 	}
 	if in.Scan {
 		for i := range found {
@@ -226,7 +252,10 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 	if err != nil {
 		return ProjectResult{}, err
 	}
-	draft, root := c.draft(name, base, chosen)
+	draft, root, err := c.draft(name, base, chosen)
+	if err != nil {
+		return ProjectResult{}, err
+	}
 	data, err := c.Writer.Multiverse(draft)
 	if err != nil {
 		return ProjectResult{}, err
@@ -253,8 +282,14 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 		return ProjectResult{}, ErrCancelled
 	}
 
-	res := ProjectResult{Name: name, Dir: dir, Root: root}
-	if res.URL, err = c.publishProject(ctx, dir, name, data, draft, target); err != nil {
+	res := ProjectResult{Name: name, Dir: dir, Root: root, Repos: draft.Repos}
+	var pub published
+	res.URL, pub, err = c.publishProject(ctx, dir, name, data, draft, target)
+	res.Files, res.Branch = pub.files, pub.branch
+	if pub.pushed {
+		res.Pushed = res.URL
+	}
+	if err != nil {
 		return res, err
 	}
 	if res.URL == "" || in.NoLink {
@@ -334,22 +369,35 @@ func repoKey(name string) string {
 
 var nonName = regexp.MustCompile(`[^a-zA-Z0-9-]+`)
 
-// draft names each repository. A key drops the multiverse's own name when that
-// leaves something (fichero-api in fichero is api), since it is typed often.
-func (c *Catalogs) draft(project, base string, p *picks) (ProjectDraft, string) {
+// draft names each repository. A key is the repository's name, lowercased, and
+// drops the multiverse's own name and a dash when that leaves something
+// (fichero-api in fichero is api), since it is typed often. A name given as
+// name=url is used as it is, and a clash with another is an error.
+func (c *Catalogs) draft(project, base string, p *picks) (ProjectDraft, string, error) {
 	d := ProjectDraft{Name: project}
 	taken := map[string]bool{}
+	for _, pk := range p.list {
+		if pk.key != "" {
+			if taken[pk.key] {
+				return d, "", fmt.Errorf("two repositories are named %q; give one another name with --repo name=url", pk.key)
+			}
+			taken[pk.key] = true
+		}
+	}
 	root := ""
 	for _, pk := range p.list {
 		repo := repoBase(pk.url)
-		key := repoKey(repo)
-		if rest := strings.TrimPrefix(key, project+"-"); rest != "" && rest != key {
-			key = rest
+		key := pk.key
+		if key == "" {
+			key = repoKey(repo)
+			if rest := strings.TrimPrefix(key, project+"-"); rest != "" && rest != key {
+				key = rest
+			}
+			for n, k := 2, key; taken[key]; n++ {
+				key = fmt.Sprintf("%s-%d", k, n)
+			}
+			taken[key] = true
 		}
-		for n, k := 2, key; taken[key]; n++ {
-			key = fmt.Sprintf("%s-%d", k, n)
-		}
-		taken[key] = true
 		r := DraftRepo{Key: key, URL: pk.url, Dir: repo}
 		if pk.co != nil {
 			rel, err := filepath.Rel(base, pk.co.Dir)
@@ -359,7 +407,7 @@ func (c *Catalogs) draft(project, base string, p *picks) (ProjectDraft, string) 
 		}
 		d.Repos = append(d.Repos, r)
 	}
-	return d, root
+	return d, root, nil
 }
 
 // repoBase is the repository's own name: the last part of its URL, without .git.
@@ -493,7 +541,8 @@ func (c *Catalogs) pasteRepos(chosen *picks) error {
 		return err
 	}
 	for _, f := range strings.FieldsFunc(text, func(r rune) bool { return r == ' ' || r == ',' || r == '\n' || r == '\t' }) {
-		chosen.add(c.expand(f), nil)
+		key, repo := splitNamed(f)
+		chosen.addNamed(key, c.expand(repo), nil)
 	}
 	return nil
 }
@@ -599,8 +648,9 @@ func (c *Catalogs) projectTarget(ctx context.Context, hosts *hostChecks, in Proj
 	case in.URL != "":
 		return projectHome{url: c.expand(in.URL)}, nil
 	case in.Create != "":
-		h, err := c.hostNamed(in.Provider)
-		return projectHome{create: in.Create, host: h, public: in.Public}, err
+		provider, hostname, create := c.createTarget(in)
+		h, err := c.hostNamed(provider, hostname)
+		return projectHome{create: create, host: h, public: in.Public}, err
 	}
 
 	origin := ""
@@ -652,68 +702,118 @@ func (c *Catalogs) projectTarget(ctx context.Context, hosts *hostChecks, in Proj
 	return homes[i]()
 }
 
-func (c *Catalogs) hostNamed(name string) (RepoHost, error) {
+// createTarget reads --create, --provider and --host together. A full URL
+// (https://gitlab.example.test/group/repo) says all three, so a self-hosted
+// instance needs no flag beyond it; owner/name leaves the provider and host to
+// their flags.
+func (c *Catalogs) createTarget(in ProjectInput) (provider, hostname, create string) {
+	provider, hostname, create = in.Provider, in.Host, in.Create
+	if !strings.Contains(create, "://") {
+		return
+	}
+	l := domain.Locate(create, "")
+	create = l.Path
+	if hostname == "" {
+		hostname = l.Host
+	}
+	if provider == "" {
+		switch l.Platform {
+		case domain.PlatformGitLab:
+			provider = "gitlab"
+		case domain.PlatformGitHub:
+			provider = "github"
+		}
+	}
+	return
+}
+
+// hostNamed picks the hosting service, and with hostname a self-hosted
+// instance of it. Only a service that knows how to talk to another host can be
+// given one; a host that is not named after its service needs --provider.
+func (c *Catalogs) hostNamed(name, hostname string) (RepoHost, error) {
 	if len(c.Hosts) == 0 {
 		return nil, errors.New("no hosting service is configured")
 	}
-	if name == "" {
-		return c.Hosts[0], nil
+	if name == "" && hostname != "" {
+		return nil, fmt.Errorf("%s: say which service it runs with --provider github|gitlab", hostname)
 	}
-	var names []string
-	for _, h := range c.Hosts {
-		if strings.EqualFold(h.Name(), name) {
-			return h, nil
+	found := c.Hosts[0]
+	if name != "" {
+		found = nil
+		var names []string
+		for _, h := range c.Hosts {
+			if strings.EqualFold(h.Name(), name) {
+				found = h
+			}
+			names = append(names, strings.ToLower(h.Name()))
 		}
-		names = append(names, strings.ToLower(h.Name()))
+		if found == nil {
+			return nil, fmt.Errorf("no hosting service %q; known: %s", name, strings.Join(names, ", "))
+		}
 	}
-	return nil, fmt.Errorf("no hosting service %q; known: %s", name, strings.Join(names, ", "))
+	if hostname == "" {
+		return found, nil
+	}
+	at, ok := found.(HostAt)
+	if !ok {
+		return nil, fmt.Errorf("%s cannot be used on another host", found.Name())
+	}
+	return at.At(hostname), nil
 }
 
 // publishProject makes the repository if asked, writes the two files, commits
 // them and pushes. It returns the repository's URL, "" for a local-only one.
-func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifest []byte, draft ProjectDraft, t projectHome) (string, error) {
+// published is what publishProject did, for the summary the caller prints.
+type published struct {
+	files  []string // written and committed, relative to the directory
+	branch string
+	pushed bool
+}
+
+func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifest []byte, draft ProjectDraft, t projectHome) (string, published, error) {
 	url := t.url
+	var pub published
 	if t.create != "" {
 		if err := t.host.Available(ctx); err != nil {
-			return "", fmt.Errorf("cannot create a repository on %s: %w; sign in with %s, or pass --url with one you made", t.host.Name(), err, signInCommand(t.host))
+			return "", pub, fmt.Errorf("cannot create a repository on %s: %w; sign in with %s, or pass --url with one you made", t.host.Name(), err, signInCommand(t.host))
 		}
 		err := c.Progress.Do("Creating "+t.create+" on "+t.host.Name(), func(ctx context.Context) (err error) {
 			url, err = t.host.Create(ctx, t.create, !t.public)
 			return err
 		})
 		if err != nil {
-			return "", err
+			return "", pub, err
 		}
 		c.Out.OK("created `%s`", url)
 	}
 
 	if err := c.Files.MkdirAll(dir); err != nil {
-		return "", err
+		return "", pub, err
 	}
 	if top, err := c.Git.Toplevel(ctx, dir); err != nil {
 		if err := c.Git.Init(ctx, dir); err != nil {
-			return "", err
+			return "", pub, err
 		}
 	} else if !samePath(top, dir) {
-		return "", fmt.Errorf("%s is inside the git repository %s; a multiverse's repository is its own directory", dir, top)
+		return "", pub, fmt.Errorf("%s is inside the git repository %s; a multiverse's repository is its own directory", dir, top)
 	}
 	if url != "" {
 		if have, err := c.Git.RemoteURL(ctx, dir); err == nil && have != "" {
 			if !sameRepo(have, url) {
-				return "", fmt.Errorf("%s already has origin %s, not %s", dir, have, url)
+				return "", pub, fmt.Errorf("%s already has origin %s, not %s", dir, have, url)
 			}
 		} else if err := c.Git.AddRemote(ctx, dir, "origin", url); err != nil {
-			return "", err
+			return "", pub, err
 		}
 	}
 
 	manifestFile := filepath.Join(dir, defaultManifestFile)
 	if err := c.Files.WriteFile(manifestFile, manifest, 0o644); err != nil {
-		return "", err
+		return "", pub, err
 	}
 	if _, err := c.Manifests.Load(manifestFile); err != nil {
 		_ = c.Files.RemoveAll(manifestFile)
-		return "", fmt.Errorf("the manifest written does not load, which is a bug: %w", err)
+		return "", pub, fmt.Errorf("the manifest written does not load, which is a bug: %w", err)
 	}
 	files := []string{manifestFile}
 	agentsFile := filepath.Join(dir, "AGENTS.md")
@@ -722,30 +822,35 @@ func (c *Catalogs) publishProject(ctx context.Context, dir, name string, manifes
 	} else {
 		agents, err := c.Writer.Agents(draft, firstOf(url, dir))
 		if err != nil {
-			return "", err
+			return "", pub, err
 		}
 		if err := c.Files.WriteFile(agentsFile, agents, 0o644); err != nil {
-			return "", err
+			return "", pub, err
 		}
 		files = append(files, agentsFile)
 	}
 	if err := c.Git.Commit(ctx, dir, "Start the "+name+" multiverse with multiversectl", files...); err != nil {
-		return "", fmt.Errorf("the files are written in %s but could not be committed; commit and push them yourself: %w", dir, err)
+		return "", pub, fmt.Errorf("the files are written in %s but could not be committed; commit and push them yourself: %w", dir, err)
 	}
-	c.Out.OK("wrote %s and AGENTS.md", defaultManifestFile)
+	for _, f := range files {
+		pub.files = append(pub.files, filepath.Base(f))
+	}
+	c.Out.OK("wrote %s", strings.Join(pub.files, " and "))
 	if url == "" {
 		c.Out.Info("only on this machine: `git -C %s remote add origin <url> && git -C %s push -u origin HEAD`", dir, dir)
-		return "", nil
+		return "", pub, nil
 	}
 	branch, err := c.Git.CurrentBranch(ctx, dir)
 	if err != nil {
-		return "", err
+		return "", pub, err
 	}
+	pub.branch = branch
 	if err := c.Progress.Do("Pushing to "+url, func(ctx context.Context) error { return c.Git.Push(ctx, dir, branch) }); err != nil {
-		return "", fmt.Errorf("push to %s: %w\n  the files are committed in %s; once access is sorted: `git -C %s push -u origin %s`", url, err, dir, dir, branch)
+		return "", pub, fmt.Errorf("push to %s: %w\n  the files are committed in %s; once access is sorted: `git -C %s push -u origin %s`", url, err, dir, dir, branch)
 	}
-	c.Out.OK("pushed to `%s`", url)
-	return url, nil
+	pub.pushed = true
+	c.Out.OK("pushed %s to `%s` (%s)", strings.Join(pub.files, ", "), url, branch)
+	return url, pub, nil
 }
 
 // signInCommand is what a person types to sign in to the service themselves.

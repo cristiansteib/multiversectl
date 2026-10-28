@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os/exec"
 	"runtime"
 	"time"
@@ -31,7 +33,7 @@ func (r runner) serverCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.serverStartCmd(), r.serverStopCmd(), r.serverRestartCmd(), r.serverStatusCmd(), r.serverPairCmd())
+	cmd.AddCommand(r.serverStartCmd(), r.serverStopCmd(), r.serverRestartCmd(), r.serverStatusCmd(), r.serverOpenCmd(), r.serverPairCmd())
 	return cmd
 }
 
@@ -44,7 +46,7 @@ func (r runner) serverStartCmd() *cobra.Command {
 		Example: "  multiversectl server start\n  multiversectl server start --open\n  multiversectl server start --addr 127.0.0.1:9000",
 		Args:    cobra.NoArgs,
 	}
-	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7777", "address to listen on (a port of 0 picks a free one)")
+	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7777", "address to listen on (a port of 0 picks a free one; a busy port is replaced by the next free)")
 	cmd.Flags().BoolVar(&expose, "expose", false, "allow a non-loopback address and any host name; there is no login")
 	cmd.Flags().BoolVar(&open, "open", false, "open the page in a browser")
 	cmd.Flags().BoolVar(&readOnly, "read-only", false, "offer no action: the page only shows")
@@ -74,6 +76,9 @@ func (r runner) serverStartCmd() *cobra.Command {
 			if readOnly {
 				mode = "read-only"
 			}
+			if want := portOf(addr); want != "" && want != "0" && want != portOf(info.URL) {
+				r.out.Info("port %s is in use by another process; using %s", want, portOf(info.URL))
+			}
 			r.out.OK("serving `%s` in the background (pid %d; %s); stop it with: `multiversectl server stop`", info.URL, info.PID, mode)
 			if expose {
 				// Where it can be reached from is the server's own business:
@@ -88,6 +93,39 @@ func (r runner) serverStartCmd() *cobra.Command {
 		return nil
 	}
 	return cmd
+}
+
+// serverOpenCmd opens the running page, starting the server first when it is
+// not running: the link carries the token, which nobody wants to copy by hand.
+func (r runner) serverOpenCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "open",
+		Short: "Open the web view in the browser, starting it if it is not running",
+		Long: "Opens the page with its link in the default browser. When the server is not\n" +
+			"running it is started first, with the defaults; if its port is taken by another\n" +
+			"process it listens on the next free one. The link is printed either way.",
+		Example: "  multiversectl server open",
+		Args:    cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			p, err := r.f.Server()
+			if err != nil {
+				return err
+			}
+			info, err := p.Status(cmd.Context())
+			if errors.Is(err, app.ErrServerNotRunning) {
+				err = r.spin(true, "Starting the server", func() (err error) {
+					info, err = p.Start(cmd.Context(), app.ServerStart{Addr: "127.0.0.1:7777"})
+					return err
+				})
+			}
+			if err != nil {
+				return err
+			}
+			r.out.OK("opening `%s`", info.URL)
+			openBrowser(cmd.Context(), info.URL)
+			return nil
+		},
+	}
 }
 
 func (r runner) serverStopCmd() *cobra.Command {
@@ -257,4 +295,13 @@ func openBrowser(ctx context.Context, url string) {
 	default:
 		_ = exec.CommandContext(ctx, "xdg-open", url).Start()
 	}
+}
+
+// portOf is the port of an address or URL, "" when it has none.
+func portOf(s string) string {
+	if u, err := url.Parse(s); err == nil && u.Host != "" {
+		return u.Port()
+	}
+	_, port, _ := net.SplitHostPort(s)
+	return port
 }

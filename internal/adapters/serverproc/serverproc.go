@@ -139,9 +139,12 @@ func (p *Process) Start(ctx context.Context, o app.ServerStart) (app.ServerInfo,
 			}
 			st := state{PID: cmd.Process.Pid, URL: string(m[1]), Started: time.Now(),
 				Addr: o.Addr, Expose: o.Expose, ReadOnly: o.ReadOnly, Binary: bin, BinaryMod: modTime(bin)}
-			// A port of 0 was the system's to choose; a restart keeps the one it chose.
-			if u, err := url.Parse(st.URL); err == nil && strings.HasSuffix(o.Addr, ":0") && u.Host != "" {
-				st.Addr = u.Host
+			// A port of 0 was the system's to choose, and a busy one is replaced by the
+			// next free: a restart keeps the port actually in use, on the host asked for.
+			if u, err := url.Parse(st.URL); err == nil && u.Port() != "" {
+				if host, _, err := net.SplitHostPort(o.Addr); err == nil {
+					st.Addr = net.JoinHostPort(host, u.Port())
+				}
 			}
 			if err := p.save(st); err != nil {
 				_ = cmd.Process.Kill()
