@@ -77,7 +77,7 @@ export class OverviewPage {
         detail: 'It is lost with this machine, and nobody else can use it.', command: 'multiversectl catalog push' });
     }
 
-    for (const w of st.multiverses) {
+    for (const w of st.multiverses ?? []) {
       if (w.stale || w.manifestDiverged || w.manifestEdited || w.advice) {
         out.push({ id: 'drift-' + w.name, tone: w.stale ? 'warn' : 'info', title: `${w.name} has drifted from where it came from`,
           detail: w.advice || w.notes?.join(', '),

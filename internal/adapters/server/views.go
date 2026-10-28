@@ -273,6 +273,11 @@ type overviewView struct {
 }
 
 func overviewOf(version string, readOnly bool, rep app.StatusReport) overviewView {
+	// A machine with nothing installed has no list, and an absent list is `null`
+	// on the wire: the page loops over it.
+	if rep.Multiverses == nil {
+		rep.Multiverses = []app.MultiverseStatus{}
+	}
 	v := overviewView{Version: version, ReadOnly: readOnly, Status: rep, RootLoc: locOf(domain.Locate(rep.Catalog.Source, "")), Sources: map[string]locView{}}
 	for _, w := range rep.Multiverses {
 		if l := locOf(domain.Locate(w.RepoURL, w.Ref)); l != nil {

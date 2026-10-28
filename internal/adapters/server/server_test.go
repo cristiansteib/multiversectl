@@ -1089,3 +1089,12 @@ func TestIgnoringACatalogBranchIsAPostThatReadOnlyRefuses(t *testing.T) {
 		t.Error("a read-only server must refuse it")
 	}
 }
+
+// With nothing installed the overview's list is empty, not null: the page loops over it.
+func TestOverviewOfAMachineWithNothingInstalledHasAnEmptyList(t *testing.T) {
+	_, h := serve(t, &fake{status: app.StatusReport{Next: "multiversectl init"}}, Options{})
+	rec := do(t, h, "GET", "/api/overview", "", nil)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"multiverses":[]`) {
+		t.Fatalf("overview: %d %s", rec.Code, rec.Body)
+	}
+}
