@@ -91,6 +91,7 @@ func (m Machine) Deps(out app.Output, root string, cfg app.ConfigStore) app.Deps
 		Router:    proxy,
 		Files:     fsx.New(),
 		System:    system.New(),
+		Commands:  system.New(),
 		Store:     statestore.New(root),
 		Config:    cfg,
 		Manifests: ManifestLoader{},

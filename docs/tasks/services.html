@@ -110,16 +110,36 @@
 </section>
 
 <section id="hw-hooks">
-  <h2 id="hw-hooks"><a href="#hw-hooks">Give a new universe what it needs to be used</a></h2>
-  <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with. An app can run a command in one of its services once they are up, the way Skaffold runs a lifecycle hook, with <code>once</code> so it runs on the first start of each universe and never again:</p>
+  <h2 id="hw-hooks"><a href="#hw-hooks">Run your own tools at the points of a universe's life</a></h2>
+  <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with, and an identity provider does not know the address the universe answers on. multiversectl does not know about either. It gives a project one thing, a command tied to a point in a universe's life, run in a container or on the machine, and tells it where the universe is. What the command does is the project's.</p>
   <div class="code"><pre><span class="c"># .multiverse.yaml, on the app</span>
 <span class="k">hooks</span>:
-  <span class="k">after</span>:
+  <span class="k">preUp</span>:
+    - <span class="k">name</span>: let the build read the netrc
+      <span class="k">host</span>: {<span class="k">command</span>: [./scripts/prepare.sh], <span class="k">dir</span>: api}
+  <span class="k">postUp</span>:
     - <span class="k">once</span>: true
       <span class="k">container</span>:
         <span class="k">service</span>: web
-        <span class="k">command</span>: [python, manage.py, createfixture]</pre></div>
-  <p class="muted">It is tried again for a few minutes if it fails, because the service may still be starting (a database migrating under it). If it never succeeds the universe stays up, and the output says how to run it by hand; it is tried again on the next start, and the hooks after it wait. Without <code>once</code> it runs after every start, so it should be safe to repeat. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>. There is no <code>before</code>, and no command on the host: only what a universe needs.</p>
+        <span class="k">command</span>: [python, manage.py, createfixture]
+    - <span class="k">host</span>:
+        <span class="k">command</span>: [sh, -c, 'curl -fsS -X POST "$AUTH_URL/clients/frontend/redirects" -d "uri=$WEB_URL/*"']
+      <span class="k">retryFor</span>: 2m</pre></div>
+  <h3 id="hw-hook-events">Events</h3>
+  <div class="tw"><table>
+    <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Runs</th></tr></thead><tbody>
+    <tr><td data-l="Event"><code>postCreate</code></td><td data-l="When">the universe's worktrees exist; nothing has started</td><td data-l="Runs">on the machine</td></tr>
+    <tr><td data-l="Event"><code>preUp</code></td><td data-l="When">before the app is built and started</td><td data-l="Runs">on the machine</td></tr>
+    <tr><td data-l="Event"><code>postUp</code></td><td data-l="When">the app's services are up</td><td data-l="Runs">in a service, or on the machine</td></tr>
+    <tr><td data-l="Event"><code>preDown</code></td><td data-l="When">before the app is stopped</td><td data-l="Runs">in a service, or on the machine</td></tr>
+    <tr><td data-l="Event"><code>postDown</code></td><td data-l="When">the app is stopped</td><td data-l="Runs">on the machine</td></tr>
+    <tr><td data-l="Event"><code>preRemove</code></td><td data-l="When">before the universe is destroyed</td><td data-l="Runs">on the machine</td></tr>
+  </tbody></table></div>
+  <p class="muted"><code>spec.hooks</code> takes the same events for the multiverse as a whole, on the machine: <code>postUp</code> there runs once every app is up, which is where an address that all of them share is registered. <code>after</code> is the earlier name of <code>postUp</code>.</p>
+  <h3 id="hw-hook-env">What a command is told</h3>
+  <p>The environment has what a compose file already gets (<code>UNIVERSE</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, and <code>&lt;HOST&gt;_URL</code> for every address), plus <code>&lt;HOST&gt;_FORWARD_URL</code> for one that is also reachable by IP and port, <code>MULTIVERSE_EVENT</code> and <code>MULTIVERSE_APP</code>. A command on the machine also gets <code>MULTIVERSE_CONTEXT_FILE</code>: a JSON file with the same and more (every address with its service and port, each repository's directory, the branches), for a script that wants to build an <code>.env</code> or a redirect URI from it. The file is removed afterwards. There is no shell: say <code>sh -c</code> when one is wanted.</p>
+  <h3 id="hw-hook-fail">When it does not succeed</h3>
+  <p>A command in a service after the app is up is tried again for a few minutes, because the service may still be starting (a database migrating under it); <code>retryFor</code> asks any command to be, and <code>timeout</code> ends a try that hangs. <code>onFailure</code> says what a failure means: <code>warn</code> says so, with how to run it by hand, and goes on, the hooks after it waiting since they may depend on it, and it is tried again next time; <code>fail</code> ends the command with an error; <code>ignore</code> goes on. A <code>preUp</code> fails by default, since what it prepares is what the start needs; the rest warn, so a hook that breaks cannot keep a universe from being stopped or removed. <code>once</code> runs a hook on the first start of each universe only; without it a hook runs every time, so it should be safe to repeat. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>.</p>
 </section>
 
 <section id="hw-optional">
@@ -165,7 +185,7 @@
       <li><a href="#hw-labels">Let a service declare its own hostname</a></li>
       <li><a href="#hw-publish">Keep a service&#39;s published port</a></li>
       <li><a href="#hw-default-service">Choose where exec and run go</a></li>
-      <li><a href="#hw-hooks">Give a new universe what it needs to be used</a></li>
+      <li><a href="#hw-hooks">Run your own tools at the points of a universe&#39;s life</a></li>
       <li><a href="#hw-optional">Run optional services on demand</a></li>
       <li><a href="#hw-dynamic">Configure what depends on the universe</a></li>
     </ul>

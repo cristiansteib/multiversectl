@@ -1,7 +1,6 @@
 package app
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"maps"
@@ -12,14 +11,6 @@ import (
 	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
-)
-
-// How long a hook is tried, and how often. The services are up, but a database
-// may still be migrating under them, and a command that needs its tables fails
-// until it is done.
-var (
-	hookEvery  = 3 * time.Second
-	hookGiveUp = 3 * time.Minute
 )
 
 // StartInput names the universe, the apps to start (all runnable ones when
@@ -97,6 +88,9 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		return err
 	}
 
+	if st, err = s.fire(ctx, domain.PreUp, st, multiverseHooks, nil, nil); err != nil {
+		return err
+	}
 	for _, appKey := range apps {
 		if s.NothingToRun(u, appKey) {
 			s.Out.Info("%s: no compose file in its repository, so there is nothing to start", appKey)
@@ -136,6 +130,9 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		if len(req.Services) == 0 {
 			req.Services = defined
 		}
+		if st, err = s.fire(ctx, domain.PreUp, st, appKey, &req, defined); err != nil {
+			return err
+		}
 		if s.Manifest.Apps[appKey].Build || buildsAnImage(cfg) {
 			s.say(1, "%s: building the images", appKey)
 			if err := s.Runtime.Build(ctx, req); err != nil {
@@ -148,9 +145,12 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 			return fmt.Errorf("%s: start: %w", appKey, err)
 		}
 		s.Out.OK("%s up", appKey)
-		st = s.runHooks(ctx, st, appKey, req, defined)
+		if st, err = s.fire(ctx, domain.PostUp, st, appKey, &req, defined); err != nil {
+			return err
+		}
 	}
-	return nil
+	_, err = s.fire(ctx, domain.PostUp, st, multiverseHooks, nil, nil)
+	return err
 }
 
 // unpublished is every service that must not bind a host port: all of them,
@@ -430,75 +430,6 @@ func (s *Service) universeRunning(ctx context.Context, st domain.UniverseState) 
 		}
 	}
 	return false
-}
-
-// runHooks runs the hooks an app asks for once its services are up, in order.
-// A hook marked Once runs on a universe's first start only, and is remembered:
-// it is what a repository needs before a universe is of any use (the data a
-// person logs in with), and running it on every start would load it over
-// whatever was changed since.
-//
-// A hook that never succeeds is said, with how to run it by hand, and is not an
-// error: the universe is up, and refusing it for a seed that did not load would
-// be the worse of the two. The hooks after it wait, since they may depend on it,
-// and it is tried again on the next start.
-func (s *Service) runHooks(ctx context.Context, st domain.UniverseState, appKey string, req RuntimeRequest, services []string) domain.UniverseState {
-	for _, hook := range s.Manifest.Apps[appKey].After {
-		key := hook.Key(appKey)
-		if hook.Once && slices.Contains(st.HooksDone, key) {
-			continue
-		}
-		service := cmp.Or(hook.Service, s.Manifest.Apps[appKey].DefaultService)
-		if service == "" && len(services) == 1 {
-			service = services[0]
-		}
-		line := strings.Join(hook.Command, " ")
-		if service == "" {
-			s.Out.Warn("%s: hook `%s` names no service, and the app has %d: set `container.service` on it", appKey, line, len(services))
-			return st
-		}
-		s.say(3, "%s: hook %s, once=%v, already done=%v", appKey, key, hook.Once, slices.Contains(st.HooksDone, key))
-		s.Out.Info("%s: running `%s` in %s", appKey, line, service)
-		if out, err := s.tryUntil(ctx, func() (string, error) { return s.Runtime.ExecQuiet(ctx, req, service, hook.Command) }); err != nil {
-			s.Out.Warn("%s: `%s` did not succeed (%v). The universe is up; run it yourself with `multiversectl universe exec %s %s --service %s -- %s`, and it is tried again on the next start",
-				appKey, line, err, st.Name, appKey, service, line)
-			if tail := lastLines(out, 6); tail != "" {
-				s.Out.Plain("%s", tail)
-			}
-			return st
-		}
-		s.Out.OK("%s: ran `%s`", appKey, line)
-		if !hook.Once {
-			continue
-		}
-		st.HooksDone = append(slices.Clone(st.HooksDone), key)
-		if err := s.Store.Save(st); err != nil {
-			s.Out.Warn("%s: `%s` ran, but that could not be kept, so it runs again on the next start: %v", appKey, line, err)
-			return st
-		}
-	}
-	return st
-}
-
-// tryUntil runs f until it succeeds, for up to hookGiveUp, and returns what the
-// last try printed with its error.
-func (s *Service) tryUntil(ctx context.Context, f func() (string, error)) (string, error) {
-	deadline := time.Now().Add(hookGiveUp)
-	for {
-		out, err := f()
-		if err == nil {
-			return out, nil
-		}
-		s.say(3, "not yet (%v); trying again in %s", err, hookEvery)
-		if ctx.Err() != nil || time.Now().Add(hookEvery).After(deadline) {
-			return out, err
-		}
-		select {
-		case <-ctx.Done():
-			return out, ctx.Err()
-		case <-time.After(hookEvery):
-		}
-	}
 }
 
 func lastLines(s string, n int) string {

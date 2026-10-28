@@ -150,6 +150,11 @@ func EnvVarName(hostKey string) string { return envPrefix(hostKey) + "_HOST" }
 // a hostname can then take it as it is.
 func EnvVarURL(hostKey string) string { return envPrefix(hostKey) + "_URL" }
 
+// EnvVarForwardURL holds the address a host can also be reached at by IP and
+// port, when it is forwarded: APP_FORWARD_URL. A client that cannot use the
+// hostname (a phone refusing plain http to a name) is given this one.
+func EnvVarForwardURL(hostKey string) string { return envPrefix(hostKey) + "_FORWARD_URL" }
+
 func envPrefix(hostKey string) string {
 	return strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(hostKey))
 }

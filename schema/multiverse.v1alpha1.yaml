@@ -266,25 +266,39 @@ spec:
                           secret stops the start and says where to put it.
                       hooks:
                         type: object
+                        description: >-
+                          Hooks tie commands to the points of a universe's
+                          life. Each event lists hooks, run in order; every
+                          command gets the universe's name, directory and
+                          addresses as environment variables (the ones a
+                          compose file can use, plus MULTIVERSE_EVENT,
+                          MULTIVERSE_APP and, on the machine,
+                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
+                          and more). Under spec, they run on the machine
+                          only.
                         properties:
-                          after:
+                          postCreate:
                             type: array
                             description: >-
-                              Run once the app's services are up. A hook is
-                              tried again for a few minutes when it fails,
-                              because the service may still be starting (a
-                              database migrating under it); one that never
-                              succeeds is said, with how to run it by hand,
-                              and does not stop the universe.
+                              Once the universe's worktrees exist, before
+                              anything starts. On the machine.
                             items:
                               type: object
-                              required: [container]
+                              description: >-
+                                Hook is one command: give it container, to
+                                run it in a service, or host, to run it on
+                                this machine.
                               properties:
+                                name:
+                                  type: string
+                                  description: >-
+                                    Name says which hook it is in the
+                                    output.
                                 container:
                                   type: object
                                   description: >-
                                     ContainerHook is a command run in a
-                                    running service, with no terminal.
+                                    running service.
                                   required: [command]
                                   properties:
                                     service:
@@ -302,6 +316,34 @@ spec:
                                         "loaddata"].
                                       items:
                                         type: string
+                                  description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
+                                host:
+                                  type: object
+                                  description: >-
+                                    HostHook is a command run on the machine
+                                    that runs multiversectl.
+                                  required: [command]
+                                  properties:
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, with
+                                        no shell: ["sh", "-c", "curl ... |
+                                        jq"] when one is wanted.
+                                      items:
+                                        type: string
+                                    dir:
+                                      type: string
+                                      description: >-
+                                        Where it runs, relative to the
+                                        universe's directory: "api" is that
+                                        repository's checkout. By default
+                                        the universe's directory.
+                                  description: >-
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it.
                                 once:
                                   type: boolean
                                   description: >-
@@ -311,11 +353,653 @@ spec:
                                     the user to log in with. Without it the
                                     hook runs after every start, so it
                                     should be safe to repeat.
+                                onFailure:
+                                  type: string
+                                  description: >-
+                                    What it means when the command does not
+                                    succeed: warn says so and goes on (the
+                                    default, so a hook that breaks cannot
+                                    keep a universe from being stopped or
+                                    removed), fail ends the command, ignore
+                                    goes on silently. A preUp hook fails by
+                                    default, since what it prepares is what
+                                    the start needs.
+                                  enum: ["warn", "fail", "ignore"]
+                                retryFor:
+                                  type: string
+                                  description: >-
+                                    Keep trying for this long, as a duration
+                                    such as 30s or 3m, because what the
+                                    command needs may still be starting. A
+                                    command in a container after the app is
+                                    up defaults to 3m; any other to a single
+                                    try.
+                                timeout:
+                                  type: string
+                                  description: >-
+                                    End one try that takes longer, as a
+                                    duration. By default none does.
+                          preUp:
+                            type: array
+                            description: >-
+                              Before the app is built and started, to
+                              prepare what it reads. A failure stops the
+                              start unless the hook says otherwise.
+                            items:
+                              type: object
+                              description: >-
+                                Hook is one command: give it container, to
+                                run it in a service, or host, to run it on
+                                this machine.
+                              properties:
+                                name:
+                                  type: string
+                                  description: >-
+                                    Name says which hook it is in the
+                                    output.
+                                container:
+                                  type: object
+                                  description: >-
+                                    ContainerHook is a command run in a
+                                    running service.
+                                  required: [command]
+                                  properties:
+                                    service:
+                                      type: string
+                                      description: >-
+                                        Compose service to run it in. Leave
+                                        it out when the app has one service,
+                                        or names a defaultService.
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, as
+                                        compose writes a command, with no
+                                        shell: ["python", "manage.py",
+                                        "loaddata"].
+                                      items:
+                                        type: string
+                                  description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
+                                host:
+                                  type: object
+                                  description: >-
+                                    HostHook is a command run on the machine
+                                    that runs multiversectl.
+                                  required: [command]
+                                  properties:
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, with
+                                        no shell: ["sh", "-c", "curl ... |
+                                        jq"] when one is wanted.
+                                      items:
+                                        type: string
+                                    dir:
+                                      type: string
+                                      description: >-
+                                        Where it runs, relative to the
+                                        universe's directory: "api" is that
+                                        repository's checkout. By default
+                                        the universe's directory.
+                                  description: >-
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it.
+                                once:
+                                  type: boolean
+                                  description: >-
+                                    Run on the first start of each universe
+                                    only, and never again: for what loads
+                                    data a person may then change, such as
+                                    the user to log in with. Without it the
+                                    hook runs after every start, so it
+                                    should be safe to repeat.
+                                onFailure:
+                                  type: string
+                                  description: >-
+                                    What it means when the command does not
+                                    succeed: warn says so and goes on (the
+                                    default, so a hook that breaks cannot
+                                    keep a universe from being stopped or
+                                    removed), fail ends the command, ignore
+                                    goes on silently. A preUp hook fails by
+                                    default, since what it prepares is what
+                                    the start needs.
+                                  enum: ["warn", "fail", "ignore"]
+                                retryFor:
+                                  type: string
+                                  description: >-
+                                    Keep trying for this long, as a duration
+                                    such as 30s or 3m, because what the
+                                    command needs may still be starting. A
+                                    command in a container after the app is
+                                    up defaults to 3m; any other to a single
+                                    try.
+                                timeout:
+                                  type: string
+                                  description: >-
+                                    End one try that takes longer, as a
+                                    duration. By default none does.
+                          postUp:
+                            type: array
+                            description: >-
+                              Once the app's services are up (for
+                              spec.hooks, once every app is). A hook in a
+                              container is tried again for a few minutes
+                              when it fails, because the service may still
+                              be starting (a database migrating under it).
+                            items:
+                              type: object
+                              description: >-
+                                Hook is one command: give it container, to
+                                run it in a service, or host, to run it on
+                                this machine.
+                              properties:
+                                name:
+                                  type: string
+                                  description: >-
+                                    Name says which hook it is in the
+                                    output.
+                                container:
+                                  type: object
+                                  description: >-
+                                    ContainerHook is a command run in a
+                                    running service.
+                                  required: [command]
+                                  properties:
+                                    service:
+                                      type: string
+                                      description: >-
+                                        Compose service to run it in. Leave
+                                        it out when the app has one service,
+                                        or names a defaultService.
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, as
+                                        compose writes a command, with no
+                                        shell: ["python", "manage.py",
+                                        "loaddata"].
+                                      items:
+                                        type: string
+                                  description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
+                                host:
+                                  type: object
+                                  description: >-
+                                    HostHook is a command run on the machine
+                                    that runs multiversectl.
+                                  required: [command]
+                                  properties:
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, with
+                                        no shell: ["sh", "-c", "curl ... |
+                                        jq"] when one is wanted.
+                                      items:
+                                        type: string
+                                    dir:
+                                      type: string
+                                      description: >-
+                                        Where it runs, relative to the
+                                        universe's directory: "api" is that
+                                        repository's checkout. By default
+                                        the universe's directory.
+                                  description: >-
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it.
+                                once:
+                                  type: boolean
+                                  description: >-
+                                    Run on the first start of each universe
+                                    only, and never again: for what loads
+                                    data a person may then change, such as
+                                    the user to log in with. Without it the
+                                    hook runs after every start, so it
+                                    should be safe to repeat.
+                                onFailure:
+                                  type: string
+                                  description: >-
+                                    What it means when the command does not
+                                    succeed: warn says so and goes on (the
+                                    default, so a hook that breaks cannot
+                                    keep a universe from being stopped or
+                                    removed), fail ends the command, ignore
+                                    goes on silently. A preUp hook fails by
+                                    default, since what it prepares is what
+                                    the start needs.
+                                  enum: ["warn", "fail", "ignore"]
+                                retryFor:
+                                  type: string
+                                  description: >-
+                                    Keep trying for this long, as a duration
+                                    such as 30s or 3m, because what the
+                                    command needs may still be starting. A
+                                    command in a container after the app is
+                                    up defaults to 3m; any other to a single
+                                    try.
+                                timeout:
+                                  type: string
+                                  description: >-
+                                    End one try that takes longer, as a
+                                    duration. By default none does.
+                          preDown:
+                            type: array
+                            description: >-
+                              Before the app's containers are stopped; a
+                              command in a service still finds it running.
+                            items:
+                              type: object
+                              description: >-
+                                Hook is one command: give it container, to
+                                run it in a service, or host, to run it on
+                                this machine.
+                              properties:
+                                name:
+                                  type: string
+                                  description: >-
+                                    Name says which hook it is in the
+                                    output.
+                                container:
+                                  type: object
+                                  description: >-
+                                    ContainerHook is a command run in a
+                                    running service.
+                                  required: [command]
+                                  properties:
+                                    service:
+                                      type: string
+                                      description: >-
+                                        Compose service to run it in. Leave
+                                        it out when the app has one service,
+                                        or names a defaultService.
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, as
+                                        compose writes a command, with no
+                                        shell: ["python", "manage.py",
+                                        "loaddata"].
+                                      items:
+                                        type: string
+                                  description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
+                                host:
+                                  type: object
+                                  description: >-
+                                    HostHook is a command run on the machine
+                                    that runs multiversectl.
+                                  required: [command]
+                                  properties:
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, with
+                                        no shell: ["sh", "-c", "curl ... |
+                                        jq"] when one is wanted.
+                                      items:
+                                        type: string
+                                    dir:
+                                      type: string
+                                      description: >-
+                                        Where it runs, relative to the
+                                        universe's directory: "api" is that
+                                        repository's checkout. By default
+                                        the universe's directory.
+                                  description: >-
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it.
+                                once:
+                                  type: boolean
+                                  description: >-
+                                    Run on the first start of each universe
+                                    only, and never again: for what loads
+                                    data a person may then change, such as
+                                    the user to log in with. Without it the
+                                    hook runs after every start, so it
+                                    should be safe to repeat.
+                                onFailure:
+                                  type: string
+                                  description: >-
+                                    What it means when the command does not
+                                    succeed: warn says so and goes on (the
+                                    default, so a hook that breaks cannot
+                                    keep a universe from being stopped or
+                                    removed), fail ends the command, ignore
+                                    goes on silently. A preUp hook fails by
+                                    default, since what it prepares is what
+                                    the start needs.
+                                  enum: ["warn", "fail", "ignore"]
+                                retryFor:
+                                  type: string
+                                  description: >-
+                                    Keep trying for this long, as a duration
+                                    such as 30s or 3m, because what the
+                                    command needs may still be starting. A
+                                    command in a container after the app is
+                                    up defaults to 3m; any other to a single
+                                    try.
+                                timeout:
+                                  type: string
+                                  description: >-
+                                    End one try that takes longer, as a
+                                    duration. By default none does.
+                          postDown:
+                            type: array
+                            description: >-
+                              Once they are stopped. On the machine.
+                            items:
+                              type: object
+                              description: >-
+                                Hook is one command: give it container, to
+                                run it in a service, or host, to run it on
+                                this machine.
+                              properties:
+                                name:
+                                  type: string
+                                  description: >-
+                                    Name says which hook it is in the
+                                    output.
+                                container:
+                                  type: object
+                                  description: >-
+                                    ContainerHook is a command run in a
+                                    running service.
+                                  required: [command]
+                                  properties:
+                                    service:
+                                      type: string
+                                      description: >-
+                                        Compose service to run it in. Leave
+                                        it out when the app has one service,
+                                        or names a defaultService.
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, as
+                                        compose writes a command, with no
+                                        shell: ["python", "manage.py",
+                                        "loaddata"].
+                                      items:
+                                        type: string
+                                  description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
+                                host:
+                                  type: object
+                                  description: >-
+                                    HostHook is a command run on the machine
+                                    that runs multiversectl.
+                                  required: [command]
+                                  properties:
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, with
+                                        no shell: ["sh", "-c", "curl ... |
+                                        jq"] when one is wanted.
+                                      items:
+                                        type: string
+                                    dir:
+                                      type: string
+                                      description: >-
+                                        Where it runs, relative to the
+                                        universe's directory: "api" is that
+                                        repository's checkout. By default
+                                        the universe's directory.
+                                  description: >-
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it.
+                                once:
+                                  type: boolean
+                                  description: >-
+                                    Run on the first start of each universe
+                                    only, and never again: for what loads
+                                    data a person may then change, such as
+                                    the user to log in with. Without it the
+                                    hook runs after every start, so it
+                                    should be safe to repeat.
+                                onFailure:
+                                  type: string
+                                  description: >-
+                                    What it means when the command does not
+                                    succeed: warn says so and goes on (the
+                                    default, so a hook that breaks cannot
+                                    keep a universe from being stopped or
+                                    removed), fail ends the command, ignore
+                                    goes on silently. A preUp hook fails by
+                                    default, since what it prepares is what
+                                    the start needs.
+                                  enum: ["warn", "fail", "ignore"]
+                                retryFor:
+                                  type: string
+                                  description: >-
+                                    Keep trying for this long, as a duration
+                                    such as 30s or 3m, because what the
+                                    command needs may still be starting. A
+                                    command in a container after the app is
+                                    up defaults to 3m; any other to a single
+                                    try.
+                                timeout:
+                                  type: string
+                                  description: >-
+                                    End one try that takes longer, as a
+                                    duration. By default none does.
+                          preRemove:
+                            type: array
+                            description: >-
+                              Before the universe is destroyed, to take back
+                              what a hook put somewhere else. On the
+                              machine.
+                            items:
+                              type: object
+                              description: >-
+                                Hook is one command: give it container, to
+                                run it in a service, or host, to run it on
+                                this machine.
+                              properties:
+                                name:
+                                  type: string
+                                  description: >-
+                                    Name says which hook it is in the
+                                    output.
+                                container:
+                                  type: object
+                                  description: >-
+                                    ContainerHook is a command run in a
+                                    running service.
+                                  required: [command]
+                                  properties:
+                                    service:
+                                      type: string
+                                      description: >-
+                                        Compose service to run it in. Leave
+                                        it out when the app has one service,
+                                        or names a defaultService.
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, as
+                                        compose writes a command, with no
+                                        shell: ["python", "manage.py",
+                                        "loaddata"].
+                                      items:
+                                        type: string
+                                  description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
+                                host:
+                                  type: object
+                                  description: >-
+                                    HostHook is a command run on the machine
+                                    that runs multiversectl.
+                                  required: [command]
+                                  properties:
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, with
+                                        no shell: ["sh", "-c", "curl ... |
+                                        jq"] when one is wanted.
+                                      items:
+                                        type: string
+                                    dir:
+                                      type: string
+                                      description: >-
+                                        Where it runs, relative to the
+                                        universe's directory: "api" is that
+                                        repository's checkout. By default
+                                        the universe's directory.
+                                  description: >-
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it.
+                                once:
+                                  type: boolean
+                                  description: >-
+                                    Run on the first start of each universe
+                                    only, and never again: for what loads
+                                    data a person may then change, such as
+                                    the user to log in with. Without it the
+                                    hook runs after every start, so it
+                                    should be safe to repeat.
+                                onFailure:
+                                  type: string
+                                  description: >-
+                                    What it means when the command does not
+                                    succeed: warn says so and goes on (the
+                                    default, so a hook that breaks cannot
+                                    keep a universe from being stopped or
+                                    removed), fail ends the command, ignore
+                                    goes on silently. A preUp hook fails by
+                                    default, since what it prepares is what
+                                    the start needs.
+                                  enum: ["warn", "fail", "ignore"]
+                                retryFor:
+                                  type: string
+                                  description: >-
+                                    Keep trying for this long, as a duration
+                                    such as 30s or 3m, because what the
+                                    command needs may still be starting. A
+                                    command in a container after the app is
+                                    up defaults to 3m; any other to a single
+                                    try.
+                                timeout:
+                                  type: string
+                                  description: >-
+                                    End one try that takes longer, as a
+                                    duration. By default none does.
+                          after:
+                            type: array
+                            description: >-
+                              The earlier name of postUp.
+                            items:
+                              type: object
+                              description: >-
+                                Hook is one command: give it container, to
+                                run it in a service, or host, to run it on
+                                this machine.
+                              properties:
+                                name:
+                                  type: string
+                                  description: >-
+                                    Name says which hook it is in the
+                                    output.
+                                container:
+                                  type: object
+                                  description: >-
+                                    ContainerHook is a command run in a
+                                    running service.
+                                  required: [command]
+                                  properties:
+                                    service:
+                                      type: string
+                                      description: >-
+                                        Compose service to run it in. Leave
+                                        it out when the app has one service,
+                                        or names a defaultService.
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, as
+                                        compose writes a command, with no
+                                        shell: ["python", "manage.py",
+                                        "loaddata"].
+                                      items:
+                                        type: string
+                                  description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
+                                host:
+                                  type: object
+                                  description: >-
+                                    HostHook is a command run on the machine
+                                    that runs multiversectl.
+                                  required: [command]
+                                  properties:
+                                    command:
+                                      type: array
+                                      description: >-
+                                        The command and its arguments, with
+                                        no shell: ["sh", "-c", "curl ... |
+                                        jq"] when one is wanted.
+                                      items:
+                                        type: string
+                                    dir:
+                                      type: string
+                                      description: >-
+                                        Where it runs, relative to the
+                                        universe's directory: "api" is that
+                                        repository's checkout. By default
+                                        the universe's directory.
+                                  description: >-
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it.
+                                once:
+                                  type: boolean
+                                  description: >-
+                                    Run on the first start of each universe
+                                    only, and never again: for what loads
+                                    data a person may then change, such as
+                                    the user to log in with. Without it the
+                                    hook runs after every start, so it
+                                    should be safe to repeat.
+                                onFailure:
+                                  type: string
+                                  description: >-
+                                    What it means when the command does not
+                                    succeed: warn says so and goes on (the
+                                    default, so a hook that breaks cannot
+                                    keep a universe from being stopped or
+                                    removed), fail ends the command, ignore
+                                    goes on silently. A preUp hook fails by
+                                    default, since what it prepares is what
+                                    the start needs.
+                                  enum: ["warn", "fail", "ignore"]
+                                retryFor:
+                                  type: string
+                                  description: >-
+                                    Keep trying for this long, as a duration
+                                    such as 30s or 3m, because what the
+                                    command needs may still be starting. A
+                                    command in a container after the app is
+                                    up defaults to 3m; any other to a single
+                                    try.
+                                timeout:
+                                  type: string
+                                  description: >-
+                                    End one try that takes longer, as a
+                                    duration. By default none does.
                         description: >-
                           Commands run at points of this app's life in a
-                          universe, the way Skaffold runs lifecycle hooks,
-                          with only what is needed here: after the app's
-                          services are up, in one of them.
+                          universe, the way Skaffold runs lifecycle hooks:
+                          in one of its services, or on this machine. The
+                          tool knows nothing of what they do; it gives them
+                          the universe's addresses.
                       publish:
                         type: array
                         description: >-
@@ -403,6 +1087,696 @@ spec:
                                 same with
                                 dev.multiversectl.host.<name>.portForward.
                               enum: ["auto"]
+                hooks:
+                  type: object
+                  description: >-
+                    Hooks tie commands to the points of a universe's life.
+                    Each event lists hooks, run in order; every command gets
+                    the universe's name, directory and addresses as
+                    environment variables (the ones a compose file can use,
+                    plus MULTIVERSE_EVENT, MULTIVERSE_APP and, on the
+                    machine, MULTIVERSE_CONTEXT_FILE: a JSON file with the
+                    same and more). Under spec, they run on the machine
+                    only.
+                  properties:
+                    postCreate:
+                      type: array
+                      description: >-
+                        Once the universe's worktrees exist, before anything
+                        starts. On the machine.
+                      items:
+                        type: object
+                        description: >-
+                          Hook is one command: give it container, to run it
+                          in a service, or host, to run it on this machine.
+                        properties:
+                          name:
+                            type: string
+                            description: >-
+                              Name says which hook it is in the output.
+                          container:
+                            type: object
+                            description: >-
+                              ContainerHook is a command run in a running
+                              service.
+                            required: [command]
+                            properties:
+                              service:
+                                type: string
+                                description: >-
+                                  Compose service to run it in. Leave it out
+                                  when the app has one service, or names a
+                                  defaultService.
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, as compose
+                                  writes a command, with no shell:
+                                  ["python", "manage.py", "loaddata"].
+                                items:
+                                  type: string
+                            description: >-
+                              Run in a running service, with no terminal.
+                              For postUp and preDown.
+                          host:
+                            type: object
+                            description: >-
+                              HostHook is a command run on the machine that
+                              runs multiversectl.
+                            required: [command]
+                            properties:
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, with no
+                                  shell: ["sh", "-c", "curl ... | jq"] when
+                                  one is wanted.
+                                items:
+                                  type: string
+                              dir:
+                                type: string
+                                description: >-
+                                  Where it runs, relative to the universe's
+                                  directory: "api" is that repository's
+                                  checkout. By default the universe's
+                                  directory.
+                            description: >-
+                              Run on this machine, in any event. No shell:
+                              to use one, say it.
+                          once:
+                            type: boolean
+                            description: >-
+                              Run on the first start of each universe only,
+                              and never again: for what loads data a person
+                              may then change, such as the user to log in
+                              with. Without it the hook runs after every
+                              start, so it should be safe to repeat.
+                          onFailure:
+                            type: string
+                            description: >-
+                              What it means when the command does not
+                              succeed: warn says so and goes on (the
+                              default, so a hook that breaks cannot keep a
+                              universe from being stopped or removed), fail
+                              ends the command, ignore goes on silently. A
+                              preUp hook fails by default, since what it
+                              prepares is what the start needs.
+                            enum: ["warn", "fail", "ignore"]
+                          retryFor:
+                            type: string
+                            description: >-
+                              Keep trying for this long, as a duration such
+                              as 30s or 3m, because what the command needs
+                              may still be starting. A command in a
+                              container after the app is up defaults to 3m;
+                              any other to a single try.
+                          timeout:
+                            type: string
+                            description: >-
+                              End one try that takes longer, as a duration.
+                              By default none does.
+                    preUp:
+                      type: array
+                      description: >-
+                        Before the app is built and started, to prepare what
+                        it reads. A failure stops the start unless the hook
+                        says otherwise.
+                      items:
+                        type: object
+                        description: >-
+                          Hook is one command: give it container, to run it
+                          in a service, or host, to run it on this machine.
+                        properties:
+                          name:
+                            type: string
+                            description: >-
+                              Name says which hook it is in the output.
+                          container:
+                            type: object
+                            description: >-
+                              ContainerHook is a command run in a running
+                              service.
+                            required: [command]
+                            properties:
+                              service:
+                                type: string
+                                description: >-
+                                  Compose service to run it in. Leave it out
+                                  when the app has one service, or names a
+                                  defaultService.
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, as compose
+                                  writes a command, with no shell:
+                                  ["python", "manage.py", "loaddata"].
+                                items:
+                                  type: string
+                            description: >-
+                              Run in a running service, with no terminal.
+                              For postUp and preDown.
+                          host:
+                            type: object
+                            description: >-
+                              HostHook is a command run on the machine that
+                              runs multiversectl.
+                            required: [command]
+                            properties:
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, with no
+                                  shell: ["sh", "-c", "curl ... | jq"] when
+                                  one is wanted.
+                                items:
+                                  type: string
+                              dir:
+                                type: string
+                                description: >-
+                                  Where it runs, relative to the universe's
+                                  directory: "api" is that repository's
+                                  checkout. By default the universe's
+                                  directory.
+                            description: >-
+                              Run on this machine, in any event. No shell:
+                              to use one, say it.
+                          once:
+                            type: boolean
+                            description: >-
+                              Run on the first start of each universe only,
+                              and never again: for what loads data a person
+                              may then change, such as the user to log in
+                              with. Without it the hook runs after every
+                              start, so it should be safe to repeat.
+                          onFailure:
+                            type: string
+                            description: >-
+                              What it means when the command does not
+                              succeed: warn says so and goes on (the
+                              default, so a hook that breaks cannot keep a
+                              universe from being stopped or removed), fail
+                              ends the command, ignore goes on silently. A
+                              preUp hook fails by default, since what it
+                              prepares is what the start needs.
+                            enum: ["warn", "fail", "ignore"]
+                          retryFor:
+                            type: string
+                            description: >-
+                              Keep trying for this long, as a duration such
+                              as 30s or 3m, because what the command needs
+                              may still be starting. A command in a
+                              container after the app is up defaults to 3m;
+                              any other to a single try.
+                          timeout:
+                            type: string
+                            description: >-
+                              End one try that takes longer, as a duration.
+                              By default none does.
+                    postUp:
+                      type: array
+                      description: >-
+                        Once the app's services are up (for spec.hooks, once
+                        every app is). A hook in a container is tried again
+                        for a few minutes when it fails, because the service
+                        may still be starting (a database migrating under
+                        it).
+                      items:
+                        type: object
+                        description: >-
+                          Hook is one command: give it container, to run it
+                          in a service, or host, to run it on this machine.
+                        properties:
+                          name:
+                            type: string
+                            description: >-
+                              Name says which hook it is in the output.
+                          container:
+                            type: object
+                            description: >-
+                              ContainerHook is a command run in a running
+                              service.
+                            required: [command]
+                            properties:
+                              service:
+                                type: string
+                                description: >-
+                                  Compose service to run it in. Leave it out
+                                  when the app has one service, or names a
+                                  defaultService.
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, as compose
+                                  writes a command, with no shell:
+                                  ["python", "manage.py", "loaddata"].
+                                items:
+                                  type: string
+                            description: >-
+                              Run in a running service, with no terminal.
+                              For postUp and preDown.
+                          host:
+                            type: object
+                            description: >-
+                              HostHook is a command run on the machine that
+                              runs multiversectl.
+                            required: [command]
+                            properties:
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, with no
+                                  shell: ["sh", "-c", "curl ... | jq"] when
+                                  one is wanted.
+                                items:
+                                  type: string
+                              dir:
+                                type: string
+                                description: >-
+                                  Where it runs, relative to the universe's
+                                  directory: "api" is that repository's
+                                  checkout. By default the universe's
+                                  directory.
+                            description: >-
+                              Run on this machine, in any event. No shell:
+                              to use one, say it.
+                          once:
+                            type: boolean
+                            description: >-
+                              Run on the first start of each universe only,
+                              and never again: for what loads data a person
+                              may then change, such as the user to log in
+                              with. Without it the hook runs after every
+                              start, so it should be safe to repeat.
+                          onFailure:
+                            type: string
+                            description: >-
+                              What it means when the command does not
+                              succeed: warn says so and goes on (the
+                              default, so a hook that breaks cannot keep a
+                              universe from being stopped or removed), fail
+                              ends the command, ignore goes on silently. A
+                              preUp hook fails by default, since what it
+                              prepares is what the start needs.
+                            enum: ["warn", "fail", "ignore"]
+                          retryFor:
+                            type: string
+                            description: >-
+                              Keep trying for this long, as a duration such
+                              as 30s or 3m, because what the command needs
+                              may still be starting. A command in a
+                              container after the app is up defaults to 3m;
+                              any other to a single try.
+                          timeout:
+                            type: string
+                            description: >-
+                              End one try that takes longer, as a duration.
+                              By default none does.
+                    preDown:
+                      type: array
+                      description: >-
+                        Before the app's containers are stopped; a command
+                        in a service still finds it running.
+                      items:
+                        type: object
+                        description: >-
+                          Hook is one command: give it container, to run it
+                          in a service, or host, to run it on this machine.
+                        properties:
+                          name:
+                            type: string
+                            description: >-
+                              Name says which hook it is in the output.
+                          container:
+                            type: object
+                            description: >-
+                              ContainerHook is a command run in a running
+                              service.
+                            required: [command]
+                            properties:
+                              service:
+                                type: string
+                                description: >-
+                                  Compose service to run it in. Leave it out
+                                  when the app has one service, or names a
+                                  defaultService.
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, as compose
+                                  writes a command, with no shell:
+                                  ["python", "manage.py", "loaddata"].
+                                items:
+                                  type: string
+                            description: >-
+                              Run in a running service, with no terminal.
+                              For postUp and preDown.
+                          host:
+                            type: object
+                            description: >-
+                              HostHook is a command run on the machine that
+                              runs multiversectl.
+                            required: [command]
+                            properties:
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, with no
+                                  shell: ["sh", "-c", "curl ... | jq"] when
+                                  one is wanted.
+                                items:
+                                  type: string
+                              dir:
+                                type: string
+                                description: >-
+                                  Where it runs, relative to the universe's
+                                  directory: "api" is that repository's
+                                  checkout. By default the universe's
+                                  directory.
+                            description: >-
+                              Run on this machine, in any event. No shell:
+                              to use one, say it.
+                          once:
+                            type: boolean
+                            description: >-
+                              Run on the first start of each universe only,
+                              and never again: for what loads data a person
+                              may then change, such as the user to log in
+                              with. Without it the hook runs after every
+                              start, so it should be safe to repeat.
+                          onFailure:
+                            type: string
+                            description: >-
+                              What it means when the command does not
+                              succeed: warn says so and goes on (the
+                              default, so a hook that breaks cannot keep a
+                              universe from being stopped or removed), fail
+                              ends the command, ignore goes on silently. A
+                              preUp hook fails by default, since what it
+                              prepares is what the start needs.
+                            enum: ["warn", "fail", "ignore"]
+                          retryFor:
+                            type: string
+                            description: >-
+                              Keep trying for this long, as a duration such
+                              as 30s or 3m, because what the command needs
+                              may still be starting. A command in a
+                              container after the app is up defaults to 3m;
+                              any other to a single try.
+                          timeout:
+                            type: string
+                            description: >-
+                              End one try that takes longer, as a duration.
+                              By default none does.
+                    postDown:
+                      type: array
+                      description: >-
+                        Once they are stopped. On the machine.
+                      items:
+                        type: object
+                        description: >-
+                          Hook is one command: give it container, to run it
+                          in a service, or host, to run it on this machine.
+                        properties:
+                          name:
+                            type: string
+                            description: >-
+                              Name says which hook it is in the output.
+                          container:
+                            type: object
+                            description: >-
+                              ContainerHook is a command run in a running
+                              service.
+                            required: [command]
+                            properties:
+                              service:
+                                type: string
+                                description: >-
+                                  Compose service to run it in. Leave it out
+                                  when the app has one service, or names a
+                                  defaultService.
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, as compose
+                                  writes a command, with no shell:
+                                  ["python", "manage.py", "loaddata"].
+                                items:
+                                  type: string
+                            description: >-
+                              Run in a running service, with no terminal.
+                              For postUp and preDown.
+                          host:
+                            type: object
+                            description: >-
+                              HostHook is a command run on the machine that
+                              runs multiversectl.
+                            required: [command]
+                            properties:
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, with no
+                                  shell: ["sh", "-c", "curl ... | jq"] when
+                                  one is wanted.
+                                items:
+                                  type: string
+                              dir:
+                                type: string
+                                description: >-
+                                  Where it runs, relative to the universe's
+                                  directory: "api" is that repository's
+                                  checkout. By default the universe's
+                                  directory.
+                            description: >-
+                              Run on this machine, in any event. No shell:
+                              to use one, say it.
+                          once:
+                            type: boolean
+                            description: >-
+                              Run on the first start of each universe only,
+                              and never again: for what loads data a person
+                              may then change, such as the user to log in
+                              with. Without it the hook runs after every
+                              start, so it should be safe to repeat.
+                          onFailure:
+                            type: string
+                            description: >-
+                              What it means when the command does not
+                              succeed: warn says so and goes on (the
+                              default, so a hook that breaks cannot keep a
+                              universe from being stopped or removed), fail
+                              ends the command, ignore goes on silently. A
+                              preUp hook fails by default, since what it
+                              prepares is what the start needs.
+                            enum: ["warn", "fail", "ignore"]
+                          retryFor:
+                            type: string
+                            description: >-
+                              Keep trying for this long, as a duration such
+                              as 30s or 3m, because what the command needs
+                              may still be starting. A command in a
+                              container after the app is up defaults to 3m;
+                              any other to a single try.
+                          timeout:
+                            type: string
+                            description: >-
+                              End one try that takes longer, as a duration.
+                              By default none does.
+                    preRemove:
+                      type: array
+                      description: >-
+                        Before the universe is destroyed, to take back what
+                        a hook put somewhere else. On the machine.
+                      items:
+                        type: object
+                        description: >-
+                          Hook is one command: give it container, to run it
+                          in a service, or host, to run it on this machine.
+                        properties:
+                          name:
+                            type: string
+                            description: >-
+                              Name says which hook it is in the output.
+                          container:
+                            type: object
+                            description: >-
+                              ContainerHook is a command run in a running
+                              service.
+                            required: [command]
+                            properties:
+                              service:
+                                type: string
+                                description: >-
+                                  Compose service to run it in. Leave it out
+                                  when the app has one service, or names a
+                                  defaultService.
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, as compose
+                                  writes a command, with no shell:
+                                  ["python", "manage.py", "loaddata"].
+                                items:
+                                  type: string
+                            description: >-
+                              Run in a running service, with no terminal.
+                              For postUp and preDown.
+                          host:
+                            type: object
+                            description: >-
+                              HostHook is a command run on the machine that
+                              runs multiversectl.
+                            required: [command]
+                            properties:
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, with no
+                                  shell: ["sh", "-c", "curl ... | jq"] when
+                                  one is wanted.
+                                items:
+                                  type: string
+                              dir:
+                                type: string
+                                description: >-
+                                  Where it runs, relative to the universe's
+                                  directory: "api" is that repository's
+                                  checkout. By default the universe's
+                                  directory.
+                            description: >-
+                              Run on this machine, in any event. No shell:
+                              to use one, say it.
+                          once:
+                            type: boolean
+                            description: >-
+                              Run on the first start of each universe only,
+                              and never again: for what loads data a person
+                              may then change, such as the user to log in
+                              with. Without it the hook runs after every
+                              start, so it should be safe to repeat.
+                          onFailure:
+                            type: string
+                            description: >-
+                              What it means when the command does not
+                              succeed: warn says so and goes on (the
+                              default, so a hook that breaks cannot keep a
+                              universe from being stopped or removed), fail
+                              ends the command, ignore goes on silently. A
+                              preUp hook fails by default, since what it
+                              prepares is what the start needs.
+                            enum: ["warn", "fail", "ignore"]
+                          retryFor:
+                            type: string
+                            description: >-
+                              Keep trying for this long, as a duration such
+                              as 30s or 3m, because what the command needs
+                              may still be starting. A command in a
+                              container after the app is up defaults to 3m;
+                              any other to a single try.
+                          timeout:
+                            type: string
+                            description: >-
+                              End one try that takes longer, as a duration.
+                              By default none does.
+                    after:
+                      type: array
+                      description: >-
+                        The earlier name of postUp.
+                      items:
+                        type: object
+                        description: >-
+                          Hook is one command: give it container, to run it
+                          in a service, or host, to run it on this machine.
+                        properties:
+                          name:
+                            type: string
+                            description: >-
+                              Name says which hook it is in the output.
+                          container:
+                            type: object
+                            description: >-
+                              ContainerHook is a command run in a running
+                              service.
+                            required: [command]
+                            properties:
+                              service:
+                                type: string
+                                description: >-
+                                  Compose service to run it in. Leave it out
+                                  when the app has one service, or names a
+                                  defaultService.
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, as compose
+                                  writes a command, with no shell:
+                                  ["python", "manage.py", "loaddata"].
+                                items:
+                                  type: string
+                            description: >-
+                              Run in a running service, with no terminal.
+                              For postUp and preDown.
+                          host:
+                            type: object
+                            description: >-
+                              HostHook is a command run on the machine that
+                              runs multiversectl.
+                            required: [command]
+                            properties:
+                              command:
+                                type: array
+                                description: >-
+                                  The command and its arguments, with no
+                                  shell: ["sh", "-c", "curl ... | jq"] when
+                                  one is wanted.
+                                items:
+                                  type: string
+                              dir:
+                                type: string
+                                description: >-
+                                  Where it runs, relative to the universe's
+                                  directory: "api" is that repository's
+                                  checkout. By default the universe's
+                                  directory.
+                            description: >-
+                              Run on this machine, in any event. No shell:
+                              to use one, say it.
+                          once:
+                            type: boolean
+                            description: >-
+                              Run on the first start of each universe only,
+                              and never again: for what loads data a person
+                              may then change, such as the user to log in
+                              with. Without it the hook runs after every
+                              start, so it should be safe to repeat.
+                          onFailure:
+                            type: string
+                            description: >-
+                              What it means when the command does not
+                              succeed: warn says so and goes on (the
+                              default, so a hook that breaks cannot keep a
+                              universe from being stopped or removed), fail
+                              ends the command, ignore goes on silently. A
+                              preUp hook fails by default, since what it
+                              prepares is what the start needs.
+                            enum: ["warn", "fail", "ignore"]
+                          retryFor:
+                            type: string
+                            description: >-
+                              Keep trying for this long, as a duration such
+                              as 30s or 3m, because what the command needs
+                              may still be starting. A command in a
+                              container after the app is up defaults to 3m;
+                              any other to a single try.
+                          timeout:
+                            type: string
+                            description: >-
+                              End one try that takes longer, as a duration.
+                              By default none does.
+                  description: >-
+                    Commands around what the whole multiverse does, on the
+                    machine: after every app is up, say, to register the
+                    universe's address in a service all of them share.
                 env:
                   type: array
                   description: >-

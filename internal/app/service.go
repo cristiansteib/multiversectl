@@ -16,8 +16,10 @@ import (
 
 // Deps are the ports a Service needs. Adapters are wired in main.
 type Deps struct {
-	Git       Git
-	Runtime   Runtime
+	Git     Git
+	Runtime Runtime
+	// Commands runs a hook's command on the machine; nil refuses them.
+	Commands  Commands
 	Proxy     Proxy
 	Files     Files
 	System    System
@@ -140,6 +142,9 @@ func (s *Service) runtimeEnv(u domain.Universe, st domain.UniverseState) map[str
 	for hostKey, hostname := range st.Hosts {
 		env[domain.EnvVarName(hostKey)] = hostname
 		env[domain.EnvVarURL(hostKey)] = s.originOf(st, hostKey, hostname)
+		if forward := st.Rules[hostKey].ForwardURL; forward != "" {
+			env[domain.EnvVarForwardURL(hostKey)] = forward
+		}
 	}
 	// The whole set, in the two shapes a framework asks for. An app that
 	// trusts origins or allows hosts can then name these instead of listing

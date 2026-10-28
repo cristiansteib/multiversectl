@@ -425,6 +425,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 	if err := s.Store.Save(st); err != nil {
 		return domain.UniverseState{}, s.rollback(ctx, made, u, dirExisted, err)
 	}
+	// The universe exists from here: a hook that stops this does not take it back.
+	for _, appKey := range append(s.Manifest.RunnableApps(), multiverseHooks) {
+		var err error
+		if st, err = s.fire(ctx, domain.PostCreate, st, appKey, nil, nil); err != nil {
+			return st, fmt.Errorf("universe %s was created, but %w", st.Name, err)
+		}
+	}
 	return st, nil
 }
 

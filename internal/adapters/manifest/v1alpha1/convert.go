@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -96,6 +97,11 @@ func Convert(w *Multiverse, dir string) (*domain.Manifest, error) {
 			return nil, err
 		}
 	}
+	hooks, err := convertHooks(s.Hooks)
+	if err != nil {
+		return nil, fmt.Errorf("spec.hooks: %w", err)
+	}
+	m.Hooks = hooks
 
 	if err := m.Validate(); err != nil {
 		return nil, err
@@ -117,9 +123,11 @@ func convertApp(a App) (domain.App, error) {
 		Optional:        map[string][]string{},
 		Hosts:           map[string]domain.HostRule{},
 	}
-	for _, h := range a.Hooks.After {
-		app.After = append(app.After, domain.Hook{Service: h.Container.Service, Command: h.Container.Command, Once: h.Once})
+	hooks, err := convertHooks(a.Hooks)
+	if err != nil {
+		return app, fmt.Errorf("hooks: %w", err)
 	}
+	app.Hooks = hooks
 	if !a.Overlay.IsZero() {
 		// Rendered here, in the format adapter, so neither the domain nor the
 		// use cases need to know what YAML is.
@@ -188,8 +196,8 @@ func ConvertPart(w *Multiverse, repoKey string) (*domain.Part, error) {
 	switch {
 	case len(s.Repos) > 0:
 		return nil, errors.New("spec.repos: a repository's own file describes only itself; list repositories in the multiverse that uses it")
-	case s.Root != "", s.Expose != "", s.Domain != "", s.Branch != "", len(s.Env) > 0, s.Proxy.Kind != "", s.Proxy.Network != "":
-		return nil, errors.New("only spec.apps and spec.proxy.entrypoints can be set here; root, expose, domain, branch, env and the proxy's kind and network belong to the multiverse")
+	case s.Root != "", s.Expose != "", s.Domain != "", s.Branch != "", len(s.Env) > 0, s.Proxy.Kind != "", s.Proxy.Network != "", !s.Hooks.empty():
+		return nil, errors.New("only spec.apps and spec.proxy.entrypoints can be set here; root, expose, domain, branch, env, hooks and the proxy's kind and network belong to the multiverse")
 	}
 	p := &domain.Part{Apps: map[string]domain.App{}, Entrypoints: map[string]int{}}
 	for i, e := range s.Proxy.Entrypoints {
@@ -214,4 +222,73 @@ func ConvertPart(w *Multiverse, repoKey string) (*domain.Part, error) {
 		}
 	}
 	return p, nil
+}
+
+// convertHooks reads every event's list, with after as the earlier name of
+// postUp. A hook is a command in a container or on the machine, not both.
+func convertHooks(h Hooks) (map[domain.HookEvent][]domain.Hook, error) {
+	out := map[domain.HookEvent][]domain.Hook{}
+	lists := []struct {
+		event domain.HookEvent
+		name  string
+		hooks []Hook
+	}{
+		{domain.PostCreate, "postCreate", h.PostCreate},
+		{domain.PreUp, "preUp", h.PreUp},
+		{domain.PostUp, "postUp", h.PostUp},
+		{domain.PostUp, "after", h.After},
+		{domain.PreDown, "preDown", h.PreDown},
+		{domain.PostDown, "postDown", h.PostDown},
+		{domain.PreRemove, "preRemove", h.PreRemove},
+	}
+	for _, l := range lists {
+		for i, w := range l.hooks {
+			hook, err := convertHook(w)
+			if err != nil {
+				return nil, fmt.Errorf("%s[%d]: %w", l.name, i, err)
+			}
+			out[l.event] = append(out[l.event], hook)
+		}
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
+}
+
+func convertHook(w Hook) (domain.Hook, error) {
+	hook := domain.Hook{Name: w.Name, Once: w.Once, OnFailure: domain.Failure(w.OnFailure)}
+	switch {
+	case w.Container != nil && w.Host != nil:
+		return hook, errors.New("container and host: give one, not both")
+	case w.Container != nil:
+		hook.Service, hook.Command = w.Container.Service, w.Container.Command
+	case w.Host != nil:
+		hook.Host, hook.Command, hook.Dir = true, w.Host.Command, w.Host.Dir
+	default:
+		return hook, errors.New("container or host: give one")
+	}
+	var err error
+	if hook.RetryFor, err = parseDuration("retryFor", w.RetryFor); err != nil {
+		return hook, err
+	}
+	if hook.Timeout, err = parseDuration("timeout", w.Timeout); err != nil {
+		return hook, err
+	}
+	return hook, nil
+}
+
+func parseDuration(field, value string) (time.Duration, error) {
+	if value == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %q is not a duration such as 30s or 3m", field, value)
+	}
+	return d, nil
+}
+
+func (h Hooks) empty() bool {
+	return len(h.PostCreate)+len(h.PreUp)+len(h.PostUp)+len(h.PreDown)+len(h.PostDown)+len(h.PreRemove)+len(h.After) == 0
 }

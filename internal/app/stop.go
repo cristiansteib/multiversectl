@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // StopInput names the universe and the apps to stop (all runnable ones when
@@ -32,11 +34,21 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 	}
 
 	u := s.Universe(st.Name)
+	if st, err = s.fire(ctx, domain.PreDown, st, multiverseHooks, nil, nil); err != nil {
+		return err
+	}
 	for _, appKey := range apps {
+		if st, err = s.fire(ctx, domain.PreDown, st, appKey, nil, nil); err != nil {
+			return err
+		}
 		if err := s.Runtime.Down(ctx, s.request(u, st, appKey, nil), false); err != nil {
 			return fmt.Errorf("universe %s: %s: stop: %w", st.Name, appKey, err)
 		}
 		s.Out.OK("%s stopped", appKey)
+		if st, err = s.fire(ctx, domain.PostDown, st, appKey, nil, nil); err != nil {
+			return err
+		}
 	}
-	return nil
+	_, err = s.fire(ctx, domain.PostDown, st, multiverseHooks, nil, nil)
+	return err
 }

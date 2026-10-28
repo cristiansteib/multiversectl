@@ -98,6 +98,11 @@ type Spec struct {
 	// repository here to change any of that, or to split it into several apps.
 	Apps []App `yaml:"apps"`
 
+	// Commands around what the whole multiverse does, on the machine: after every
+	// app is up, say, to register the universe's address in a service all of them
+	// share.
+	Hooks Hooks `yaml:"hooks"`
+
 	// Variables exported into every runtime invocation. {{uid}} and {{gid}}
 	// expand to the current user, ${VAR} to the environment. HOST_UID and
 	// HOST_GID are always provided; an entry here overrides them.
@@ -200,8 +205,8 @@ type App struct {
 	SecretTemplates map[string]string `yaml:"secretTemplates"`
 
 	// Commands run at points of this app's life in a universe, the way Skaffold
-	// runs lifecycle hooks, with only what is needed here: after the app's
-	// services are up, in one of them.
+	// runs lifecycle hooks: in one of its services, or on this machine. The tool
+	// knows nothing of what they do; it gives them the universe's addresses.
 	Hooks Hooks `yaml:"hooks"`
 
 	// Services allowed to keep their published host ports. Every other
@@ -232,25 +237,73 @@ type App struct {
 	Hosts []Host `yaml:"hosts"`
 }
 
+// Hooks tie commands to the points of a universe's life. Each event lists
+// hooks, run in order; every command gets the universe's name, directory and
+// addresses as environment variables (the ones a compose file can use, plus
+// MULTIVERSE_EVENT, MULTIVERSE_APP and, on the machine, MULTIVERSE_CONTEXT_FILE:
+// a JSON file with the same and more). Under spec, they run on the machine only.
 type Hooks struct {
-	// Run once the app's services are up. A hook is tried again for a few
-	// minutes when it fails, because the service may still be starting (a
-	// database migrating under it); one that never succeeds is said, with how to
-	// run it by hand, and does not stop the universe.
+	// Once the universe's worktrees exist, before anything starts. On the machine.
+	PostCreate []Hook `yaml:"postCreate"`
+
+	// Before the app is built and started, to prepare what it reads. A failure
+	// stops the start unless the hook says otherwise.
+	PreUp []Hook `yaml:"preUp"`
+
+	// Once the app's services are up (for spec.hooks, once every app is). A hook
+	// in a container is tried again for a few minutes when it fails, because the
+	// service may still be starting (a database migrating under it).
+	PostUp []Hook `yaml:"postUp"`
+
+	// Before the app's containers are stopped; a command in a service still
+	// finds it running.
+	PreDown []Hook `yaml:"preDown"`
+
+	// Once they are stopped. On the machine.
+	PostDown []Hook `yaml:"postDown"`
+
+	// Before the universe is destroyed, to take back what a hook put somewhere
+	// else. On the machine.
+	PreRemove []Hook `yaml:"preRemove"`
+
+	// The earlier name of postUp.
 	After []Hook `yaml:"after"`
 }
 
+// Hook is one command: give it container, to run it in a service, or host, to
+// run it on this machine.
 type Hook struct {
-	// +required
-	Container ContainerHook `yaml:"container"`
+	// Name says which hook it is in the output.
+	Name string `yaml:"name"`
+
+	// Run in a running service, with no terminal. For postUp and preDown.
+	Container *ContainerHook `yaml:"container"`
+
+	// Run on this machine, in any event. No shell: to use one, say it.
+	Host *HostHook `yaml:"host"`
 
 	// Run on the first start of each universe only, and never again: for what
 	// loads data a person may then change, such as the user to log in with.
 	// Without it the hook runs after every start, so it should be safe to repeat.
 	Once bool `yaml:"once"`
+
+	// What it means when the command does not succeed: warn says so and goes on
+	// (the default, so a hook that breaks cannot keep a universe from being
+	// stopped or removed), fail ends the command, ignore goes on silently. A
+	// preUp hook fails by default, since what it prepares is what the start needs.
+	// +enum=warn;fail;ignore
+	OnFailure string `yaml:"onFailure"`
+
+	// Keep trying for this long, as a duration such as 30s or 3m, because what
+	// the command needs may still be starting. A command in a container after the
+	// app is up defaults to 3m; any other to a single try.
+	RetryFor string `yaml:"retryFor"`
+
+	// End one try that takes longer, as a duration. By default none does.
+	Timeout string `yaml:"timeout"`
 }
 
-// ContainerHook is a command run in a running service, with no terminal.
+// ContainerHook is a command run in a running service.
 type ContainerHook struct {
 	// Compose service to run it in. Leave it out when the app has one service, or
 	// names a defaultService.
@@ -260,6 +313,18 @@ type ContainerHook struct {
 	// ["python", "manage.py", "loaddata"].
 	// +required
 	Command []string `yaml:"command"`
+}
+
+// HostHook is a command run on the machine that runs multiversectl.
+type HostHook struct {
+	// The command and its arguments, with no shell: ["sh", "-c", "curl ... | jq"]
+	// when one is wanted.
+	// +required
+	Command []string `yaml:"command"`
+
+	// Where it runs, relative to the universe's directory: "api" is that
+	// repository's checkout. By default the universe's directory.
+	Dir string `yaml:"dir"`
 }
 
 type Optional struct {

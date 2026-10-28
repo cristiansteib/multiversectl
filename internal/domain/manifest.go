@@ -2,12 +2,14 @@ package domain
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Manifest is the multiverse description: which repositories make up the
@@ -35,6 +37,10 @@ type Manifest struct {
 	Repos  map[string]Repo
 	Apps   map[string]App
 	Env    map[string]string // exported into every runtime invocation
+
+	// Hooks are run for the multiverse as a whole, around what its apps do, and
+	// only on the machine: there is no one container to name.
+	Hooks map[HookEvent][]Hook
 
 	// Root is where clones and universes live. A manifest that names it can
 	// be used from anywhere with -f, which is the point of keeping several
@@ -117,8 +123,8 @@ type App struct {
 	// DefaultService is where exec and run go when no service is named and the
 	// app has several.
 	DefaultService string
-	// After are the hooks run once the app's services are up.
-	After   []Hook
+	// Hooks are the commands run at points of the app's life in a universe.
+	Hooks   map[HookEvent][]Hook
 	Overlay []byte // inline compose fragment, rendered by the manifest adapter
 	Build   bool   // build images before starting
 	Hosts   map[string]HostRule
@@ -129,19 +135,110 @@ type App struct {
 	Derived bool
 }
 
-// Hook is a command run in a service of an app's universe once it is up.
+// HookEvent is a point in a universe's life a command can be tied to.
+type HookEvent string
+
+const (
+	// PostCreate runs once the universe's worktrees exist, before anything starts.
+	PostCreate HookEvent = "postCreate"
+	// PreUp runs before an app is built and started: the place to prepare what
+	// it reads, such as a file or an entitlement. A failure stops the start.
+	PreUp HookEvent = "preUp"
+	// PostUp runs once an app's services are up (for the multiverse's own hooks,
+	// once every app is): the place to load data or register the universe's
+	// address somewhere.
+	PostUp HookEvent = "postUp"
+	// PreDown runs before an app's containers are stopped.
+	PreDown HookEvent = "preDown"
+	// PostDown runs once they are.
+	PostDown HookEvent = "postDown"
+	// PreRemove runs before a universe is destroyed: the place to take back what
+	// a hook put somewhere else.
+	PreRemove HookEvent = "preRemove"
+)
+
+// HookEvents lists the events in the order they happen.
+var HookEvents = []HookEvent{PostCreate, PreUp, PostUp, PreDown, PostDown, PreRemove}
+
+// Valid says whether e is an event a hook can be tied to.
+func (e HookEvent) Valid() bool { return slices.Contains(HookEvents, e) }
+
+// InContainer says whether a command can be run in a service at this event: the
+// containers have to be there, which they are once up and until they go down.
+func (e HookEvent) InContainer() bool { return e == PostUp || e == PreDown }
+
+// Failure says what a hook that does not succeed means.
+type Failure string
+
+const (
+	// FailWarn says so and goes on: the universe is up, and refusing it for a
+	// seed that did not load would be the worse of the two. The hooks after it
+	// wait, since they may depend on it.
+	FailWarn Failure = "warn"
+	// FailStop ends the command with an error.
+	FailStop Failure = "fail"
+	// FailIgnore goes on as if it had worked, for a command that is only a nicety.
+	FailIgnore Failure = "ignore"
+)
+
+// Hook is a command tied to an event: run in a service of the app's universe,
+// or on the machine. The tool knows nothing of what it does; it gives it the
+// universe's addresses and says how to run it again.
 type Hook struct {
-	Service string // empty: the app's only service, or its defaultService
+	Name    string // optional; says which one in the output
+	Service string // container: empty is the app's only service, or its defaultService
 	Command []string
+	// Host runs the command on this machine instead of in a container.
+	Host bool
+	// Dir is where a host command runs, relative to the universe's directory:
+	// "api" is that repository's checkout. Empty is the universe's directory.
+	Dir string
 	// Once runs it on a universe's first start only.
 	Once bool
+	// OnFailure is what a failure means; empty is FailStop for a preUp and
+	// FailWarn for anything else, so a hook that breaks cannot keep a universe
+	// from being stopped or removed.
+	OnFailure Failure
+	// RetryFor keeps trying for this long, because what it needs may still be
+	// starting. Empty is a single try, except for a command in a container after
+	// the app is up, which is tried for a few minutes.
+	RetryFor time.Duration
+	// Timeout ends one try that takes longer; empty never does.
+	Timeout time.Duration
 }
 
 // Key names a hook within a universe, which is what remembers that a Once hook
-// has run: the app, the service and the command, so reordering the hooks does
-// not make one run again.
-func (h Hook) Key(app string) string {
-	return app + "|" + h.Service + "|" + strings.Join(h.Command, " ")
+// has run: the app, the event, where it runs, the service and the command, so
+// reordering the hooks does not make one run again. A command in a container
+// after the app is up, the one place hooks used to be, keeps the key it had.
+func (h Hook) Key(app string, ev HookEvent) string {
+	if ev == PostUp && !h.Host {
+		return app + "|" + h.Service + "|" + strings.Join(h.Command, " ")
+	}
+	where := h.Service
+	if h.Host {
+		where = "host:" + h.Dir
+	}
+	return app + "|" + string(ev) + "|" + where + "|" + strings.Join(h.Command, " ")
+}
+
+// Policy is what a failure of h means at ev.
+func (h Hook) Policy(ev HookEvent) Failure {
+	switch {
+	case h.OnFailure != "":
+		return h.OnFailure
+	case ev == PreUp:
+		return FailStop
+	}
+	return FailWarn
+}
+
+// Retry is how long h is tried for at ev.
+func (h Hook) Retry(ev HookEvent, fallback time.Duration) time.Duration {
+	if h.RetryFor == 0 && ev == PostUp && !h.Host {
+		return fallback
+	}
+	return h.RetryFor
 }
 
 // HostRule routes one hostname to one service port through the proxy.
@@ -185,6 +282,7 @@ func (m *Manifest) Validate() error {
 			errs = append(errs, fmt.Sprintf("repos.%s.url: required", key))
 		}
 	}
+	errs = append(errs, validateHooks("hooks", m.Hooks, nil, false)...)
 	seenHost := map[string]string{}
 	for key, app := range m.Apps {
 		if !nameRe.MatchString(key) {
@@ -207,14 +305,7 @@ func (m *Manifest) Validate() error {
 				errs = append(errs, fmt.Sprintf("apps.%s.secretTemplates.%s: a secret cannot be made from itself", key, name))
 			}
 		}
-		for i, hook := range app.After {
-			if len(hook.Command) == 0 {
-				errs = append(errs, fmt.Sprintf("apps.%s.hooks.after[%d].container.command: required", key, i))
-			}
-			if hook.Service != "" && len(app.Services) > 0 && !slices.Contains(app.Services, hook.Service) {
-				errs = append(errs, fmt.Sprintf("apps.%s.hooks.after[%d].container.service: %q is not one of its services (%s)", key, i, hook.Service, strings.Join(app.Services, ", ")))
-			}
-		}
+		errs = append(errs, validateHooks("apps."+key+".hooks", app.Hooks, app.Services, true)...)
 		for hostKey, rule := range app.Hosts {
 			if !nameRe.MatchString(hostKey) {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s: invalid key", key, hostKey))
@@ -377,4 +468,57 @@ func (m *Manifest) Merge(repoKey string, p Part) error {
 		return &ValidationError{Problems: errs}
 	}
 	return m.Validate()
+}
+
+// validateHooks reports what is wrong with the hooks under path. services are
+// the ones the app names, empty when it leaves them to its compose files;
+// inApp says whether a command may run in a container, which only an app has.
+func validateHooks(path string, hooks map[HookEvent][]Hook, services []string, inApp bool) []string {
+	var errs []string
+	for _, ev := range slices.Sorted(maps.Keys(hooks)) {
+		if !ev.Valid() {
+			errs = append(errs, fmt.Sprintf("%s.%s: not an event (%s)", path, ev, joinEvents()))
+			continue
+		}
+		for i, hook := range hooks[ev] {
+			at := fmt.Sprintf("%s.%s[%d]", path, ev, i)
+			if len(hook.Command) == 0 {
+				errs = append(errs, at+".command: required")
+			}
+			switch hook.OnFailure {
+			case "", FailWarn, FailStop, FailIgnore:
+			default:
+				errs = append(errs, fmt.Sprintf("%s.onFailure: want %q, %q or %q", at, FailWarn, FailStop, FailIgnore))
+			}
+			if hook.RetryFor < 0 || hook.Timeout < 0 {
+				errs = append(errs, at+": retryFor and timeout cannot be negative")
+			}
+			if hook.Host {
+				if hook.Service != "" {
+					errs = append(errs, at+": a host command runs in no service")
+				}
+				if hook.Dir != "" && !filepath.IsLocal(hook.Dir) {
+					errs = append(errs, fmt.Sprintf("%s.host.dir: %q must be a path inside the universe", at, hook.Dir))
+				}
+				continue
+			}
+			if !inApp {
+				errs = append(errs, at+": the multiverse's hooks run on the machine; give it `host`")
+			} else if !ev.InContainer() {
+				errs = append(errs, fmt.Sprintf("%s: no container is up at %s, so give it `host` (a command in a service is for postUp and preDown)", at, ev))
+			}
+			if hook.Service != "" && len(services) > 0 && !slices.Contains(services, hook.Service) {
+				errs = append(errs, fmt.Sprintf("%s.container.service: %q is not one of its services (%s)", at, hook.Service, strings.Join(services, ", ")))
+			}
+		}
+	}
+	return errs
+}
+
+func joinEvents() string {
+	names := make([]string, len(HookEvents))
+	for i, e := range HookEvents {
+		names[i] = string(e)
+	}
+	return strings.Join(names, ", ")
 }

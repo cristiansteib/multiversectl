@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,7 +79,13 @@ func (c *Compose) Exec(ctx context.Context, r app.RuntimeRequest, service string
 func (c *Compose) ExecQuiet(ctx context.Context, r app.RuntimeRequest, service string, args []string) (string, error) {
 	var out bytes.Buffer
 	quiet := &Compose{stdout: &out, stderr: &out, trace: c.trace}
-	err := quiet.stream(ctx, r, nil, append([]string{"exec", "-T", service}, args...)...)
+	// The variables go before the service name: after it they would be the
+	// command's own arguments.
+	exec := []string{"exec", "-T"}
+	for _, name := range slices.Sorted(maps.Keys(r.ExecEnv)) {
+		exec = append(exec, "-e", name+"="+r.ExecEnv[name])
+	}
+	err := quiet.stream(ctx, r, nil, append(append(exec, service), args...)...)
 	return out.String(), err
 }
 
