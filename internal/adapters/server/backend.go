@@ -18,7 +18,9 @@ import (
 // no method here that changes a catalog, a multiverse or a universe.
 type Backend interface {
 	Status(ctx context.Context, fetch bool) (app.StatusReport, error)
-	Catalog(ctx context.Context, fetch bool) (catalogView, error)
+	// Catalog is the tree; observe is told, while it is read, which repository
+	// is being fetched and how that went. It may be nil.
+	Catalog(ctx context.Context, fetch bool, observe func(app.CatalogEvent)) (catalogView, error)
 	// Fleet lists the universes of one installed multiverse, or of all.
 	Fleet(ctx context.Context, multiverse string) (fleetView, error)
 	Multiverse(ctx context.Context, name string) (multiverseView, error)
@@ -104,10 +106,10 @@ func (s Services) Status(ctx context.Context, fetch bool) (app.StatusReport, err
 	return s.Catalogs.Status(ctx, fetch)
 }
 
-func (s Services) Catalog(ctx context.Context, fetch bool) (catalogView, error) {
+func (s Services) Catalog(ctx context.Context, fetch bool, observe func(app.CatalogEvent)) (catalogView, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	tree, err := s.Catalogs.Tree(ctx, "", fetch)
+	tree, err := s.Catalogs.TreeObserved(ctx, "", fetch, observe)
 	if err != nil {
 		return catalogView{}, err
 	}
@@ -120,7 +122,7 @@ func (s Services) Catalog(ctx context.Context, fetch bool) (catalogView, error) 
 
 func toNode(n domain.Node, installed map[string]string) nodeView {
 	v := nodeView{Name: n.Name, Path: n.Path, Kind: string(n.Kind), Repo: n.Source.Repo, Ref: n.Source.Ref,
-		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable, Loc: locOf(n.Location()), Within: n.FileWithin()}
+		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable, Stale: n.Stale, Loc: locOf(n.Location()), Within: n.FileWithin()}
 	for _, c := range n.Children {
 		v.Children = append(v.Children, toNode(c, installed))
 	}

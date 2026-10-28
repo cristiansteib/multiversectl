@@ -25,6 +25,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
 //go:embed ui
@@ -220,7 +222,11 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 func (s *Server) catalog(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := s.ctx(r)
 	defer cancel()
-	v, err := s.b.Catalog(ctx, r.URL.Query().Get("fetch") == "1")
+	v, err := s.b.Catalog(ctx, r.URL.Query().Get("fetch") == "1", func(e app.CatalogEvent) {
+		// Not a topic: a step is news once, and a page that joins later is
+		// better served by the tree the request returns than by old steps.
+		s.hub.publish("", event{Type: "catalogProgress", Data: catalogProgress{Repo: e.Repo, Ref: e.Ref, Phase: e.Phase, Detail: e.Detail, Millis: e.Millis}})
+	})
 	if err != nil {
 		fail(w, http.StatusInternalServerError, err.Error())
 		return
