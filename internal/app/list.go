@@ -157,6 +157,9 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 // routeURL is where a route answers, with the entrypoint port when it is not
 // the default.
 func (s *Service) routeURL(route Route) string {
+	if route.ForwardURL != "" && s.Manifest.IPOnly() {
+		return route.ForwardURL
+	}
 	port := s.Manifest.Proxy.Entrypoints[route.Entrypoint]
 	if port != 0 && port != 80 {
 		return fmt.Sprintf("http://%s:%d", route.Hostname, port)

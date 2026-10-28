@@ -183,6 +183,10 @@ func (s *Service) checkMultiverses(add addCheck) {
 // checkDomain resolves one hostname of the universe, or a probe name when
 // there is none, and compares the answer with this machine's address.
 func (s *Service) checkDomain(ctx context.Context, add addCheck, st domain.UniverseState, loaded bool) {
+	if loaded && s.Manifest.IPOnly() {
+		add("domain", StatusOK, "none: universes are reached by this machine's address and a port of their own, so no name needs to resolve")
+		return
+	}
 	dom := st.Domain
 	if !loaded {
 		var err error

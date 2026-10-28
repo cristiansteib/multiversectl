@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -100,10 +101,15 @@ func (s *Service) Resolve(arg string) (domain.UniverseState, error) {
 		arg, domain.ErrNotFound, strings.Join(names, ", "))
 }
 
-// ResolveDomain turns a manifest domain of "auto" into one that suits how the
+// ResolveDomain turns a manifest domain of "auto" (or "none") into one that suits how the
 // multiverse is exposed: a public wildcard name resolving to this machine when
 // another device has to reach it, and .localhost when nothing should.
 func (s *Service) ResolveDomain(ctx context.Context) (string, error) {
+	if s.Manifest.IPOnly() {
+		// Only the proxy's routing rules carry it, and nothing resolves it:
+		// addresses are the machine's own, with a port per host.
+		return "localhost", nil
+	}
 	if s.Manifest.Domain != "auto" {
 		return s.Manifest.Domain, nil
 	}
@@ -140,7 +146,7 @@ func (s *Service) runtimeEnv(u domain.Universe, st domain.UniverseState) map[str
 		"MULTIVERSE_PROJECT": s.Manifest.Name,
 	}
 	for hostKey, hostname := range st.Hosts {
-		env[domain.EnvVarName(hostKey)] = hostname
+		env[domain.EnvVarName(hostKey)] = s.hostOf(st, hostKey, hostname)
 		env[domain.EnvVarURL(hostKey)] = s.originOf(st, hostKey, hostname)
 		if forward := st.Rules[hostKey].ForwardURL; forward != "" {
 			env[domain.EnvVarForwardURL(hostKey)] = forward
@@ -165,16 +171,33 @@ func (s *Service) runtimeEnv(u domain.Universe, st domain.UniverseState) map[str
 // origin, both in a stable order so a generated value does not churn.
 func (s *Service) universeAddresses(st domain.UniverseState) (hosts, origins []string) {
 	for _, hostKey := range mapKeys(st.Hosts) {
-		hosts = append(hosts, st.Hosts[hostKey])
+		if host := s.hostOf(st, hostKey, st.Hosts[hostKey]); !slices.Contains(hosts, host) {
+			hosts = append(hosts, host)
+		}
 		origins = append(origins, s.originOf(st, hostKey, st.Hosts[hostKey]))
 	}
 	return hosts, origins
+}
+
+// hostOf is the name a host answers to as far as anything outside the proxy is
+// concerned: its hostname, or with no domain the machine's address.
+func (s *Service) hostOf(st domain.UniverseState, hostKey, hostname string) string {
+	if s.Manifest.IPOnly() {
+		if u, err := url.Parse(st.Rules[hostKey].ForwardURL); err == nil && u.Hostname() != "" {
+			return u.Hostname()
+		}
+	}
+	return hostname
 }
 
 // originOf is a hostname as a browser would send it in an Origin header: with
 // the port of the entrypoint that answers it, which is not the default port
 // for anything on a second entrypoint.
 func (s *Service) originOf(st domain.UniverseState, hostKey, hostname string) string {
+	// With no domain the address is the forwarded one, once there is one.
+	if forward := st.Rules[hostKey].ForwardURL; s.Manifest.IPOnly() && forward != "" {
+		return forward
+	}
 	port := s.Manifest.Proxy.Entrypoints[st.Rules[hostKey].Entrypoint]
 	if port != 0 && port != 80 {
 		return fmt.Sprintf("http://%s:%d", hostname, port)
