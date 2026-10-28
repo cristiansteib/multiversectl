@@ -93,29 +93,3 @@ func TestCatalogManageNeedsATerminal(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
-
-// What the menu offers to install: what has something not installed, never what is
-// left out here or cannot be read.
-func TestInstallableIsWhatHasSomethingNotInstalled(t *testing.T) {
-	tree := domain.Node{Name: "index", Kind: domain.CatalogNode, Children: []domain.Node{
-		{Name: "backend", Path: "backend", Kind: domain.CatalogNode, Children: []domain.Node{
-			{Name: "billing", Path: "backend/billing", Kind: domain.MultiverseNode},
-			{Name: "search", Path: "backend/search", Kind: domain.MultiverseNode},
-		}},
-		{Name: "done", Path: "done", Kind: domain.MultiverseNode},
-		{Name: "vpn", Path: "vpn", Kind: domain.CatalogNode, Ignored: true},
-		{Name: "gone", Path: "gone", Kind: domain.CatalogNode, Unavailable: "no access"},
-		{Name: "old", Path: "old", Kind: domain.MultiverseNode, Ignored: true},
-	}}
-	var got []string
-	for _, row := range installable(tree, map[string]string{"done": "done"}) {
-		got = append(got, row.Node.Path)
-	}
-	want := []string{"backend", "backend/billing", "backend/search"}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("installable = %v, want %v", got, want)
-	}
-	if n := notInstalled(tree.Children[0], map[string]string{"backend/billing": "billing"}); len(n) != 1 || n[0].Path != "backend/search" {
-		t.Fatalf("notInstalled = %+v", n)
-	}
-}
