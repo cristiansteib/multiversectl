@@ -1,0 +1,54 @@
+<mv-modal #modal [title]="title()" (closed)="closed.emit()">
+  <form (submit)="submit($event)">
+    @if (!plan()) {
+      <div class="stack"><mv-skeleton height="2.4rem" /><mv-skeleton height="2.4rem" /></div>
+    } @else {
+      @if (choices().length) {
+        <p class="muted lead">
+          @if (node().kind === 'multiverse') { Its manifest is recorded and the repositories it lists are cloned. }
+          @else { {{ plural(choices().length, 'multiverse') }} {{ choices().length === 1 ? 'is' : 'are' }} under it. Untick what you do not want. }
+        </p>
+        <ul class="targets">
+          @for (t of choices(); track t.path ?? t.name) {
+            <li>
+              @if (choices().length > 1) {
+                <label class="check">
+                  <input type="checkbox" [checked]="!left().has(t.path ?? t.name)" (change)="toggle(t.path ?? t.name, $any($event.target).checked)" />
+                  <span><b>{{ t.name }}</b> <span class="muted mono where">{{ t.root }}</span></span>
+                </label>
+              } @else {
+                <span><b>{{ t.name }}</b> <span class="muted mono where">{{ t.root }}</span></span>
+              }
+              @if (t.renamed) { <small class="muted">{{ t.renamed }}</small> }
+            </li>
+          }
+        </ul>
+      }
+      @for (t of skipped(); track t.name) {
+        <p class="skip"><mv-badge tone="mute">skipped</mv-badge> <b>{{ t.name }}</b> <span class="muted">{{ t.skip }}</span></p>
+      }
+      @if (!choices().length && !error()) { <p class="muted">There is nothing to install here.</p> }
+
+      @if (single(); as one) {
+        <label class="field">
+          <span>Where it lives</span>
+          <input type="text" name="root" autocomplete="off" spellcheck="false" [value]="where()" (input)="root.set($any($event.target).value)" />
+          <small>Its repositories and universes go here.</small>
+        </label>
+      }
+      @if (choices().length) {
+        <div class="cli">
+          <span class="muted">Or in a terminal:</span>
+          <mv-copy [text]="command()" />
+        </div>
+      }
+    }
+    @if (error()) { <mv-error [message]="error()!" /> }
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" (click)="modal.close()">Cancel</button>
+      <button type="submit" class="btn primary" [disabled]="!todo().length || busy()" [attr.aria-busy]="busy()">
+        Install@if (todo().length > 1) { {{ todo().length }} multiverses }
+      </button>
+    </div>
+  </form>
+</mv-modal>

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -106,5 +107,31 @@ func TestAnOperationLearnsTheNumberTheServerPicked(t *testing.T) {
 	}
 	if last.State != "done" || last.Universe != "7" {
 		t.Fatalf("the operation: %+v", last)
+	}
+}
+
+// Installing from the catalog is an operation with a path and no multiverse yet;
+// what it would do can be read first.
+func TestInstallIsAnOperationOfACatalogPathAndItsPlanCanBeRead(t *testing.T) {
+	f := &fake{}
+	_, h := serve(t, f, Options{})
+	hdr := map[string]string{"X-Mvctl": "1"}
+	if rec := do(t, h, "POST", "/api/ops", `{"action":"install"}`, hdr); rec.Code != http.StatusBadRequest {
+		t.Fatalf("no path: %d %s", rec.Code, rec.Body)
+	}
+	rec := do(t, h, "POST", "/api/ops", `{"action":"install","path":"acme/billing","exclude":["acme/old"]}`, hdr)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("install: %d %s", rec.Code, rec.Body)
+	}
+	var v opView
+	if err := json.Unmarshal(rec.Body.Bytes(), &v); err != nil || v.Title != "Install acme/billing" {
+		t.Fatalf("the operation: %+v (%v)", v, err)
+	}
+	plan := do(t, h, "GET", "/api/catalog/plan?path=acme%2Fbilling&exclude=acme%2Fold", "", nil)
+	if plan.Code != 200 || !strings.Contains(plan.Body.String(), `"name":"billing"`) || !strings.Contains(f.asks(), "plan:acme/billing:acme/old") {
+		t.Fatalf("plan: %d %s (%s)", plan.Code, plan.Body, f.asks())
+	}
+	if rec := do(t, h, "GET", "/api/catalog/plan", "", nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("plan without a path: %d", rec.Code)
 	}
 }

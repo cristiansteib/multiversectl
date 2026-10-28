@@ -49,6 +49,10 @@
   @if (empty() && !filter()) {
     <mv-empty title="The catalog is empty">Add a multiverse or another catalog: <mv-copy text="multiversectl catalog add <owner/repo>" /></mv-empty>
   } @else {
-    <mv-catalog-tree [root]="data()!.root" [filter]="filter()" [steps]="steps()" [reading]="fetching()" (ignoreChange)="setIgnored($event)" />
+    <mv-catalog-tree [root]="data()!.root" [filter]="filter()" [steps]="steps()" [reading]="fetching()" (ignoreChange)="setIgnored($event)" (installRequest)="installing.set($event)" />
   }
+}
+
+@if (installing(); as node) {
+  <mv-install-dialog [node]="node" (closed)="installing.set(null)" />
 }

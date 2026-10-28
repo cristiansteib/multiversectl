@@ -114,6 +114,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/catalog", s.catalog)
 	mux.HandleFunc("/api/catalog/ignore", s.catalogIgnore)
 	mux.HandleFunc("/api/update", s.updateLook)
+	mux.HandleFunc("/api/catalog/plan", s.catalogPlan)
 	mux.HandleFunc("/api/fleet", s.fleet)
 	mux.HandleFunc("/api/multiverses/", s.multiverse)
 	mux.HandleFunc("/api/doctor", s.doctor)
@@ -290,6 +291,24 @@ func (s *Server) updateLook(w http.ResponseWriter, r *http.Request) {
 	v, _ := s.b.Update(ctx, mode) // a failed look still carries what the earlier ones found
 	if mode == lookNow {
 		s.hub.publish("update", event{Type: "update", Data: v})
+	}
+	reply(w, v)
+}
+
+// catalogPlan says what installing a path of the catalog would set up. It only
+// reads: the install itself is an operation.
+func (s *Server) catalogPlan(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimSpace(r.URL.Query().Get("path"))
+	if path == "" {
+		fail(w, http.StatusBadRequest, "the catalog path is required")
+		return
+	}
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	v, err := s.b.Plan(ctx, path, r.URL.Query()["exclude"])
+	if err != nil {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	reply(w, v)
 }

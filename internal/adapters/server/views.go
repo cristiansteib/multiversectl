@@ -65,6 +65,21 @@ type catalogProgress struct {
 	Millis int64  `json:"ms,omitempty"`
 }
 
+// planView is what installing a catalog path would set up, for the page to show
+// before it does: each multiverse, where it would live, and why one is skipped.
+type planView struct {
+	Targets []planTarget `json:"targets"`
+}
+
+type planTarget struct {
+	Name string `json:"name"`
+	Root string `json:"root"`
+	// Path is where it is in the catalog, which is how the page leaves one out.
+	Path    string `json:"path,omitempty"`
+	Skip    string `json:"skip,omitempty"`
+	Renamed string `json:"renamed,omitempty"`
+}
+
 type fleetView struct {
 	Multiverses []fleetMultiverse `json:"multiverses"`
 	Error       string            `json:"error,omitempty"`

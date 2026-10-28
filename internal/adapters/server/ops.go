@@ -46,6 +46,12 @@ type opRequest struct {
 	Confirm string `json:"confirm,omitempty"`
 	// Force removes a universe that has uncommitted work in a worktree.
 	Force bool `json:"force,omitempty"`
+	// Path, Root and Exclude are for install: the catalog path to set up, where a
+	// single multiverse should live (default: under the usual directory), and
+	// the catalog paths under it to leave out.
+	Path    string   `json:"path,omitempty"`
+	Root    string   `json:"root,omitempty"`
+	Exclude []string `json:"exclude,omitempty"`
 }
 
 type opLine struct {
@@ -184,6 +190,8 @@ func title(r opRequest) string {
 		return "Update " + r.Multiverse
 	case "selfupdate":
 		return "Update multiversectl"
+	case "install":
+		return "Install " + r.Path
 	}
 	return r.Action
 }
@@ -212,6 +220,9 @@ func scopeOf(r opRequest) string {
 		return r.Multiverse + "#create"
 	case "selfupdate":
 		return selfScope
+	case "install":
+		// It adds to the configuration of the machine: installs take turns.
+		return "#install"
 	}
 	return r.Multiverse
 }
@@ -250,11 +261,14 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 		return opView{}, bad(http.StatusServiceUnavailable, "the server is restarting to run the update; try again in a moment")
 	}
 	switch r.Action {
-	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update", "selfupdate":
+	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update", "selfupdate", "install":
 	default:
 		return opView{}, bad(http.StatusBadRequest, fmt.Sprintf("unknown action %q", r.Action))
 	}
-	if r.Multiverse == "" && r.Action != "selfupdate" {
+	if r.Action == "install" && strings.TrimSpace(r.Path) == "" {
+		return opView{}, bad(http.StatusBadRequest, "the catalog path to install is required")
+	}
+	if r.Multiverse == "" && r.Action != "selfupdate" && r.Action != "install" {
 		return opView{}, bad(http.StatusBadRequest, "multiverse is required")
 	}
 	if needsUniverse[r.Action] && r.Universe == "" {
