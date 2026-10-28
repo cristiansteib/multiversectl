@@ -96,6 +96,11 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 			s.Out.Info("%s: no compose file in its repository, so there is nothing to start", appKey)
 			continue
 		}
+		// Before the compose files are read and before anything starts: a file the
+		// app reads at boot, or an env_file, must be there by then.
+		if err := s.renderApp(ctx, u, st, appKey, false); err != nil {
+			return err
+		}
 		// The compose files already name the services; asking them means a
 		// manifest does not have to repeat the list, and cannot get it wrong.
 		if _, err := s.composeFiles(u, appKey); err != nil {

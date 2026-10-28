@@ -64,6 +64,7 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></div>
   <p>An unknown source fails the start and names the valid ones, rather than leaving a variable quietly empty to surface much later as a confusing runtime error.</p>
   <h3 id="env-precedence">It beats <code>env_file</code></h3>
   <p>These land in the generated fragment, merged last, so they override the service's own <code>environment:</code> and any <code>env_file:</code>. A static list of origins in a committed <code>.env</code> therefore stops being what the universe runs with — the usual reason CORS is wrong in a second copy of a stack.</p>
+  <p>A service that reads a file and not its environment cannot use a label. The app's <code>render</code> entries write that file from the same sources, as template functions of the same names: <a href="../tasks/services.html#hw-render">Write a config file from the universe's addresses</a>.</p>
   <p>Prefer <code>origins</code> and <code>hosts</code> to naming addresses one at a time: they follow the manifest, so adding a host key or an app leaves no settings list behind.</p>
 </section>
 

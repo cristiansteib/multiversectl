@@ -1004,6 +1004,62 @@ spec:
                           in one of its services, or on this machine. The
                           tool knows nothing of what they do; it gives them
                           the universe's addresses.
+                      render:
+                        type: array
+                        description: >-
+                          Files made from a template and this universe's
+                          values before the app starts, for an app that
+                          reads a config file and cannot take environment
+                          variables. Written on every `universe up` (and by
+                          `universe render`), only when the content changed,
+                          and kept out of git's sight.
+                        items:
+                          type: object
+                          description: >-
+                            Render is one file made from a Go text/template.
+                            The template can read the universe's name, slug,
+                            number and domain, the address of every host
+                            (host, url, forward, origins, hosts), the
+                            environment a hook receives (.Env) and has
+                            default, required, env and toJson; a value that
+                            is missing fails the start with the template and
+                            the key named, rather than rendering empty.
+                          required: [to]
+                          properties:
+                            to:
+                              type: string
+                              description: >-
+                                Where the file goes, relative to the app's
+                                repository in the universe. It cannot leave
+                                it. The path is added to the checkout's git
+                                exclude file, so it does not show as an
+                                untracked change.
+                            template:
+                              type: string
+                              description: >-
+                                The template, written inline. Give this or
+                                from.
+                            from:
+                              type: string
+                              description: >-
+                                A file holding the template: a plain path is
+                                relative to the repository checkout, a path
+                                starting with @ to the manifest's directory
+                                (as compose does). Give this or template.
+                            mode:
+                              type: string
+                              description: >-
+                                The file's permission, as an octal string.
+                                Default 0644. Use "0600" for a file that
+                                holds a credential.
+                              pattern: "^0?[0-7]{3,4}$"
+                            overwrite:
+                              type: boolean
+                              description: >-
+                                Allow the file to replace one that git
+                                tracks. Without it that is an error, so a
+                                template cannot clobber source; with it, the
+                                change shows in git status like any other.
                       publish:
                         type: array
                         description: >-

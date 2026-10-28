@@ -55,6 +55,13 @@ spec:
     - name: web
       repo: web
       profiles: [dev]
+      render:                    # a file the app reads at startup, made before it starts
+        - to: public/config.json # inside the web checkout; hidden from git status
+          template: |
+            {
+              "apiUrl": {{ url "api" | toJson }},
+              "universe": {{ .Universe | toJson }}
+            }
       hosts:
         - name: app
           service: app-dev

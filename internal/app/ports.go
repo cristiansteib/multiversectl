@@ -56,6 +56,13 @@ type Git interface {
 	// Unpushed counts the commits on local branches that are on no remote: work
 	// that exists only in this clone.
 	Unpushed(ctx context.Context, repoDir string) (int, error)
+	// IsTracked says whether git tracks path (relative to dir) in dir's work tree.
+	IsTracked(ctx context.Context, dir, path string) (bool, error)
+	// ExcludeFile is the absolute path of the exclude file that applies to dir's
+	// work tree (`git rev-parse --git-path info/exclude`). It is where a file
+	// the tool generates is hidden from git without touching a tracked .gitignore.
+	// For a linked worktree git keeps it with the main clone, so it is shared.
+	ExcludeFile(ctx context.Context, dir string) (string, error)
 	// Checkout detaches HEAD at ref, a branch (as of origin), tag or commit.
 	Checkout(ctx context.Context, repoDir, ref string) error
 
@@ -324,6 +331,11 @@ type Files interface {
 	Rename(oldPath, newPath string) error
 	Chmod(path string, perm fs.FileMode) error
 	TempFile(pattern string) (string, error)
+	// Mode is the type and permission of path without following a link, so a
+	// symlink is told from the file it points at. It fails when path is absent.
+	Mode(path string) (fs.FileMode, error)
+	// RealPath is path with every symlink resolved.
+	RealPath(path string) (string, error)
 	// Size is the bytes a file or directory takes, links not followed.
 	Size(path string) (int64, error)
 }

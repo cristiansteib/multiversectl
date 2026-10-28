@@ -88,3 +88,21 @@ func TestARepositorysOwnFileSpeaksOnlyForItself(t *testing.T) {
 		})
 	}
 }
+
+func TestARepositoryCanAskForRenderedFilesInItsOwnFile(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "api/.multiverse.yaml", part(`  apps:
+    - render:
+        - {to: config.json, template: '{}'}
+`))
+	m, err := Decode([]byte(multiverseOfThree), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := MergeParts(m, root); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Apps["api"].Render; len(got) != 1 || got[0].To != "config.json" {
+		t.Errorf("render = %+v", got)
+	}
+}

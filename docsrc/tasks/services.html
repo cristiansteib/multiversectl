@@ -56,10 +56,52 @@
   <p class="muted"><code>spec.hooks</code> takes the same events for the multiverse as a whole, on the machine: <code>postUp</code> there runs once every app is up, which is where an address that all of them share is registered. <code>after</code> is the earlier name of <code>postUp</code>.</p>
   <h3 id="hw-hook-env">What a command is told</h3>
   <p>The environment has what a compose file already gets (<code>UNIVERSE</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, and <code>&lt;HOST&gt;_URL</code> for every address), plus <code>&lt;HOST&gt;_FORWARD_URL</code> for one that is also reachable by IP and port, <code>MULTIVERSE_EVENT</code> and <code>MULTIVERSE_APP</code>. A command on the machine also gets <code>MULTIVERSE_CONTEXT_FILE</code>: a JSON file with the same and more (every address with its service and port, each repository's directory, the branches), for a script that wants to build an <code>.env</code> or a redirect URI from it. The file is removed afterwards. There is no shell: say <code>sh -c</code> when one is wanted.</p>
+  <p class="muted">A hook that only writes a file from these values, a config or an <code>.env</code>, is what <a href="#hw-render"><code>render</code></a> is for: no script, and it is written before the app starts, kept out of git's sight, and only rewritten when it changes.</p>
   <h3 id="hw-hook-fail">When it does not succeed</h3>
   <p>A command in a service after the app is up is tried again for a few minutes, because the service may still be starting (a database migrating under it); <code>retryFor</code> asks any command to be, and <code>timeout</code> ends a try that hangs. <code>onFailure</code> says what a failure means: <code>warn</code> says so, with how to run it by hand, and goes on, the hooks after it waiting since they may depend on it, and it is tried again next time; <code>fail</code> ends the command with an error; <code>ignore</code> goes on. A <code>preUp</code> fails by default, since what it prepares is what the start needs; the rest warn, so a hook that breaks cannot keep a universe from being stopped or removed. <code>once</code> runs a hook on the first start of each universe only; without it a hook runs every time, so it should be safe to repeat. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>.</p>
   <h3 id="hw-hook-run">See them, and run one now</h3>
   <p><code>multiversectl universe hooks 3</code> lists a universe's hooks with where each runs and whether a once-only one has run. <code>universe hooks run 3 postUp api</code> runs an event's hooks now, for one app or (with none named) the multiverse's and every app's: how a hook that was warned about is run again, and how one is tried before it is trusted to a start. A failure there is an error whatever <code>onFailure</code> says.</p>
+</section>
+
+<section id="hw-render">
+  <h2 id="hw-render"><a href="#hw-render">Write a config file from the universe's addresses</a></h2>
+  <p>Many apps read a file at startup, a JSON or YAML config, a <code>.env</code>, a framework's settings, and cannot take environment variables. A hook can write that file, but every project then carries its own inline script. <code>render</code> is the declarative form: a template, a path, and the universe's values.</p>
+  <div class="code"><pre><span class="c"># multiverse.yaml, or .multiverse.yaml on the app</span>
+<span class="k">render</span>:
+  - <span class="k">to</span>: public/config.json
+    <span class="k">mode</span>: <span class="s">"0600"</span>
+    <span class="k">template</span>: |
+      {
+        "apiUrl": {{ url "api" | toJson }},
+        "callback": {{ forward "api" | toJson }},
+        "allowedOrigins": {{ .Origins | toJson }},
+        "universe": {{ .Universe | toJson }}
+      }
+  - <span class="k">to</span>: .env.universe
+    <span class="k">from</span>: <span class="s">"@templates/env.tmpl"</span>   <span class="c"># next to the manifest; a plain path is in the repository</span></pre></div>
+  <p>Each entry has <code>to</code>, a path inside the app's repository checkout in the universe (it cannot leave it, and git's own directory is refused), and either <code>template</code> or <code>from</code>. A <code>from</code> without a prefix is relative to the checkout; one starting with <code>@</code> is relative to the manifest's directory, as <code>compose</code> is. <code>mode</code> is the permission, <code>0644</code> unless said.</p>
+  <h3 id="hw-render-when">When it runs</h3>
+  <p>On every <code>universe up</code>, for each app being started, before its compose files are read and before anything starts, so the file is there when the service boots. It is not run by <code>universe new</code>: a forwarded address is chosen at the first start, and a template that needs it would fail before it exists. A file is written only when its content (or permission) changed, through a temporary file and a rename, so a file watcher is not retriggered and a service never reads half a file. <code>up</code> prints a line per file, <code>rendered</code> or <code>up to date</code>.</p>
+  <h3 id="hw-render-git">What it does to git</h3>
+  <p>The file lives in the worktree. Its path is added once to the checkout's exclude file (<code>git rev-parse --git-path info/exclude</code>), so it does not show as an untracked change, and the repository's tracked <code>.gitignore</code> is not touched. For a universe, which is a linked worktree, git keeps that file with the clone, so the entry is shared by the clone and every universe of it; it is anchored, so it matches that one path. An entry whose file git <em>tracks</em> is an error, so a template cannot overwrite source; <code>overwrite: true</code> allows it, and the change then shows in <code>git status</code> like any other. A path that would, through a symbolic link, be written outside the checkout is refused too.</p>
+  <h3 id="hw-render-values">What a template can read</h3>
+  <p>Go <a href="https://pkg.go.dev/text/template"><code>text/template</code></a> syntax, with a missing key an error rather than an empty string.</p>
+  <div class="tw"><table>
+    <thead><tr><th scope="col">Name</th><th scope="col">Value</th></tr></thead><tbody>
+    <tr><td data-l="Name"><code>.Universe</code>, <code>.Slug</code>, <code>.Number</code>, <code>.Domain</code></td><td data-l="Value">The universe's name, the slug its hostnames carry, its number (<code>0</code> for a named one), and its domain.</td></tr>
+    <tr><td data-l="Name"><code>.App</code>, <code>.Dir</code>, <code>.RepoDir</code></td><td data-l="Value">The app, the universe's directory, and the app's checkout.</td></tr>
+    <tr><td data-l="Name"><code>.Hosts</code>, <code>.Origins</code></td><td data-l="Value">Every hostname and every address as an origin, as lists in a stable order.</td></tr>
+    <tr><td data-l="Name"><code>.Env</code></td><td data-l="Value">The environment a hook receives: <code>&lt;HOST&gt;_URL</code>, <code>&lt;HOST&gt;_FORWARD_URL</code>, <code>UNIVERSE</code>, the manifest's own <code>env</code>, and so on.</td></tr>
+    <tr><td data-l="Name"><code>host "k"</code>, <code>url "k"</code>, <code>forward "k"</code></td><td data-l="Value">What the labels <code>host:k</code>, <code>url:k</code> and <code>forward:k</code> give: the hostname, the address with its port, and the address by IP and port (an error for a host with no <code>portForward</code>, or before the first start).</td></tr>
+    <tr><td data-l="Name"><code>origins</code>, <code>hosts</code></td><td data-l="Value">The labels' <code>origins</code> and <code>hosts</code> joined; give <code>"comma"</code> (the default), <code>"space"</code>, <code>"semicolon"</code> or <code>"newline"</code>: <code>{{ origins "space" }}</code>.</td></tr>
+    <tr><td data-l="Name"><code>env "NAME"</code></td><td data-l="Value">A variable of <code>.Env</code>; an error when it is not set.</td></tr>
+    <tr><td data-l="Name"><code>default fallback value</code></td><td data-l="Value">The fallback when the value is empty: <code>{{ index .Env "TOKEN" | default "none" }}</code>.</td></tr>
+    <tr><td data-l="Name"><code>required "message" value</code></td><td data-l="Value">An error with that message when the value is empty.</td></tr>
+    <tr><td data-l="Name"><code>toJson value</code></td><td data-l="Value">The value as compact JSON, quoted and escaped, which is what a string in a JSON file needs.</td></tr>
+  </tbody></table></div>
+  <p>An error names the app, the file and the key, and stops the start: <code>api: render public/config.json: template: public/config.json:2:14: executing "public/config.json" at &lt;url "billing"&gt;: error calling url: no host "billing" in this multiverse (have: api, web)</code>.</p>
+  <h3 id="hw-render-run">See it, and run it now</h3>
+  <p><code>multiversectl universe render 3</code> renders a universe's files now, for the apps named or all of them, from the addresses it last started with. <code>--print</code> shows the result and writes nothing, which is how a template is tried.</p>
 </section>
 
 <section id="hw-select">
@@ -111,5 +153,6 @@
           <span class="k">environment</span>:
             <span class="k">DJANGO_CSRF_TRUSTED_ORIGINS</span>: <span class="s">"${MULTIVERSE_ORIGINS}"</span>
             <span class="k">DJANGO_ALLOWED_HOSTS</span>: <span class="s">"${MULTIVERSE_HOSTS}"</span></pre></div>
+  <p>When the app reads a file and not its environment, <a href="#hw-render"><code>render</code></a> writes that file from the same values.</p>
   <p class="muted"><code>multiversectl universe env &lt;universe&gt;</code> prints every variable a universe passes.</p>
 </section>
