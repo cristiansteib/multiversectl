@@ -208,10 +208,10 @@ func (s *Service) reviewOf(ctx context.Context, ready *readiness, repoURL, branc
 		if at, ok := h.(HostAt); ok && instance != "" {
 			h = at.At(instance)
 		}
-		// A service that is not installed or not signed in is not an error
-		// worth showing on every repository of every universe.
+		// A service that cannot be asked is said, not left looking like a branch
+		// that never had a review: nobody could otherwise tell why none shows.
 		if err := ready.check(ctx, h, instance); err != nil {
-			return nil, ""
+			return nil, unavailableText(h, instance, err)
 		}
 		r, err := h.FindReview(ctx, repoURL, branch)
 		if err != nil {

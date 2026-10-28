@@ -65,6 +65,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 
 	if s.Manifest != nil {
 		s.checkDomain(ctx, add, st, loaded)
+		s.checkHosting(ctx, add)
 	}
 	if _, found := s.System.Which("git"); found {
 		add("git", StatusOK, "found")
