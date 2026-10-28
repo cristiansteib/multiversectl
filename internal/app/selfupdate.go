@@ -62,24 +62,30 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 		return result, err
 	}
 
-	name := fmt.Sprintf("multiversectl_%s_%s", in.OS, in.Arch)
-	url, ok := latest.Assets[name]
-	if !ok {
-		return result, fmt.Errorf("release %s has no asset %s: %w", latest.Version, name, domain.ErrNotFound)
+	// A machine with only the server has no command line to replace.
+	if in.BinaryPath != "" {
+		name := fmt.Sprintf("multiversectl_%s_%s", in.OS, in.Arch)
+		url, ok := latest.Assets[name]
+		if !ok {
+			return result, fmt.Errorf("release %s has no asset %s: %w", latest.Version, name, domain.ErrNotFound)
+		}
+		if err := s.install(ctx, "Downloading multiversectl "+latest.Version, url, name, sums, in.BinaryPath); err != nil {
+			return result, err
+		}
+		result.Updated = true
 	}
-	if err := s.install(ctx, "Downloading multiversectl "+latest.Version, url, name, sums, in.BinaryPath); err != nil {
-		return result, err
-	}
-	result.Updated = true
 
 	// The web view is a separate program that `server start` looks for beside
 	// this one, so it has to move with it or the page runs an older release.
 	serverName := fmt.Sprintf("multiversectl-server_%s_%s", in.OS, in.Arch)
 	if server, ok := latest.Assets[serverName]; ok && in.ServerPath != "" {
 		if err := s.install(ctx, "Downloading the web view", server, serverName, sums, in.ServerPath); err != nil {
-			return result, fmt.Errorf("multiversectl is updated, but the web view is not: %w", err)
+			if result.Updated {
+				return result, fmt.Errorf("multiversectl is updated, but the web view is not: %w", err)
+			}
+			return result, err
 		}
-		result.Server = true
+		result.Server, result.Updated = true, true
 	}
 	return result, nil
 }

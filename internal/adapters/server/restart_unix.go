@@ -7,4 +7,4 @@ import (
 	"syscall"
 )
 
-func reexec(exe string) error { return syscall.Exec(exe, os.Args, os.Environ()) }
+func reexec(exe string, argv []string) error { return syscall.Exec(exe, argv, os.Environ()) }

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 )
 
@@ -34,12 +35,17 @@ func serveSignInCSS(w http.ResponseWriter, r *http.Request) {
 
 // toRoot sends a link to the app's old address to the same place at the root.
 func toRoot(w http.ResponseWriter, r *http.Request) {
-	to := "/" + strings.TrimPrefix(r.URL.Path, "/app/")
+	// Leading slashes (or backslashes, which browsers read as slashes) are dropped:
+	// "//host" is an address on another site, and /app/%2Fhost would make one.
+	to := "/" + strings.TrimLeft(strings.TrimPrefix(r.URL.Path, "/app/"), `/\`)
 	if r.URL.RawQuery != "" {
 		to += "?" + r.URL.RawQuery
 	}
 	http.Redirect(w, r, to, http.StatusPermanentRedirect)
 }
+
+// hashed is how the build names a file whose content is in its name: main-AOY6DTXC.js.
+var hashed = regexp.MustCompile(`-[A-Za-z0-9]{8}\.[a-z0-9]+$`)
 
 // nonceMarker stands where index.html names the nonce Angular puts on the
 // style elements it adds at run time.
@@ -63,7 +69,9 @@ func appHandler(fsys fs.FS) http.Handler {
 		if name == "" {
 			name = "index.html"
 		}
-		if !fs.ValidPath(name) {
+		// Only the build is served: not what sits beside it in the tree to keep the
+		// directory (dot files, the placeholder page).
+		if !fs.ValidPath(name) || strings.HasPrefix(path.Base(name), ".") || name == "placeholder.html" {
 			http.NotFound(w, r)
 			return
 		}
@@ -85,6 +93,10 @@ func appHandler(fsys fs.FS) http.Handler {
 		if name == "index.html" {
 			serveIndex(w, r, fsys)
 			return
+		}
+		if hashed.MatchString(name) {
+			// The name changes when the content does, so it can be kept for good.
+			w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
 		}
 		http.ServeFileFS(w, r, fsys, name)
 	})

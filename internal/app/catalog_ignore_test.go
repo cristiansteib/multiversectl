@@ -130,3 +130,21 @@ func TestInstalledIsMatchedByRepositoryNotByHowItIsSpelled(t *testing.T) {
 		t.Fatalf("installed = %v", got)
 	}
 }
+
+// The paths this machine leaves out are the root catalog's: another catalog that
+// has a node of the same name is read in full.
+func TestIgnoredPathsApplyOnlyToTheRootCatalog(t *testing.T) {
+	c, _, _, _ := ignoringCatalogs(t, "open")
+	other := t.TempDir()
+	write(t, other, "catalog.yaml", cat("elsewhere", `  multiverses:
+    - name: open
+      source: {repo: git@example.test:acme/elsewhere.git}
+`))
+	root, err := c.Tree(context.Background(), filepath.Join(other, "catalog.yaml"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, ok := root.Find("open"); !ok || n.Ignored {
+		t.Fatalf("a node of another catalog was ignored: %+v", n)
+	}
+}

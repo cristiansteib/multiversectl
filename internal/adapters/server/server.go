@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -71,6 +72,9 @@ type Server struct {
 	logSlots chan struct{}
 	// pair is the code that lets a second machine in without the link.
 	pair pairing
+	// restarting is set once an update has replaced the program: the server is
+	// about to start again, so it takes nothing new.
+	restarting atomic.Bool
 }
 
 // New builds a server and starts what watches the fleet for changes. Close it.
@@ -126,11 +130,11 @@ func (s *Server) Handler() http.Handler {
 
 	mux.HandleFunc("/style.css", serveSignInCSS)
 	mux.HandleFunc("/app/", toRoot)
-	app := s.o.App
-	if app == nil {
-		app, _ = fs.Sub(webappFiles, "webapp")
+	files := s.o.App
+	if files == nil {
+		files, _ = fs.Sub(webappFiles, "webapp")
 	}
-	mux.Handle("/", appHandler(app))
+	mux.Handle("/", appHandler(files))
 	return s.guard(mux)
 }
 

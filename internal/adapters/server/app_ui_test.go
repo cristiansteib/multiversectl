@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -85,5 +86,40 @@ func TestAppNotBuiltSaysSo(t *testing.T) {
 	h := appHandler(fstest.MapFS{"placeholder.html": {Data: []byte("not built")}})
 	if w := serveApp(h, "GET", "/"); w.Code != http.StatusServiceUnavailable || w.Body.String() != "not built" {
 		t.Fatalf("%d %q", w.Code, w.Body)
+	}
+}
+
+func TestAppServesOnlyTheBuildAndCachesWhatIsNamedByItsContent(t *testing.T) {
+	fsys := built()
+	fsys[".gitignore"] = &fstest.MapFile{Data: []byte("*")}
+	h := appHandler(fsys)
+	for _, p := range []string{"/.gitignore", "/placeholder.html"} {
+		if w := serveApp(h, "GET", p); w.Code != 404 {
+			t.Errorf("%s: %d, want 404", p, w.Code)
+		}
+	}
+	if cc := serveApp(h, "GET", "/main-ABCD1234.js").Header().Get("Cache-Control"); cc != "" {
+		t.Errorf("a file that does not exist got caching headers: %q", cc)
+	}
+	fsys["main-ABCD1234.js"] = &fstest.MapFile{Data: []byte("1")}
+	if cc := serveApp(h, "GET", "/main-ABCD1234.js").Header().Get("Cache-Control"); !strings.Contains(cc, "immutable") {
+		t.Errorf("a file named by its content should be kept: %q", cc)
+	}
+	if cc := serveApp(h, "GET", "/").Header().Get("Cache-Control"); strings.Contains(cc, "immutable") {
+		t.Errorf("the page itself must not be: %q", cc)
+	}
+}
+
+// The binary carries the build when there is one: this is the check that the
+// release is not shipping the placeholder page. It runs where `make ui` has.
+func TestTheEmbeddedBuildIsServedWhenThereIsOne(t *testing.T) {
+	if _, err := fs.Stat(webappFiles, "webapp/index.html"); err != nil {
+		t.Skip("the web app is not built here (make ui)")
+	}
+	srv := New(&fake{}, Options{Token: testToken})
+	t.Cleanup(srv.Close)
+	rec := get(t, srv.Handler(), "/", nil)
+	if rec.Code != 200 || strings.Contains(rec.Body.String(), nonceMarker) || !strings.Contains(rec.Header().Get("Content-Security-Policy"), "'nonce-") {
+		t.Fatalf("/: %d %q", rec.Code, rec.Body)
 	}
 }

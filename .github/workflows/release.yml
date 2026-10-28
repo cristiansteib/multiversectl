@@ -59,6 +59,8 @@ jobs:
         with:
           name: webapp
           path: internal/adapters/server/webapp
+      # A binary without the build serves a placeholder page: stop here instead.
+      - run: test -f internal/adapters/server/webapp/index.html
 
       - id: semantic
         uses: cycjimmy/semantic-release-action@v4
@@ -111,6 +113,8 @@ jobs:
         with:
           name: webapp
           path: internal/adapters/server/webapp
+      # A binary without the build serves a placeholder page: stop here instead.
+      - run: test -f internal/adapters/server/webapp/index.html
       - uses: actions/setup-go@v5
         with:
           go-version: "1.27"

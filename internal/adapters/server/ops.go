@@ -155,6 +155,10 @@ func bad(code int, msg string) *opError {
 	return &opError{code: code, body: map[string]any{"error": msg}}
 }
 
+// selfScope is what the update of the program holds. It is not a multiverse's
+// name, which cannot start with a '#'.
+const selfScope = "#self"
+
 var needsUniverse = map[string]bool{"up": true, "down": true, "rm": true, "sync": true, "restart": true}
 
 func title(r opRequest) string {
@@ -197,7 +201,7 @@ func scopeOf(r opRequest) string {
 	case "new", "checkout":
 		return r.Multiverse + "#create"
 	case "selfupdate":
-		return "self" // not in any multiverse: it only waits for itself
+		return selfScope
 	}
 	return r.Multiverse
 }
@@ -205,6 +209,17 @@ func scopeOf(r opRequest) string {
 // conflict says which running operation stops this one from starting. The
 // caller holds m.mu.
 func (m *ops) conflict(r opRequest, key string) (string, bool) {
+	// While the program is being replaced nothing else may start, and it does not
+	// start while anything else runs: it ends by starting the server again, which
+	// would cut that short.
+	if id, ok := m.busy[selfScope]; ok {
+		return id, true
+	}
+	if key == selfScope {
+		for _, id := range m.busy {
+			return id, true
+		}
+	}
 	if id, ok := m.busy[r.Multiverse]; ok {
 		return id, true // the multiverse itself is being changed
 	}
@@ -221,6 +236,9 @@ func (m *ops) conflict(r opRequest, key string) (string, bool) {
 
 // start checks a request and begins it.
 func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
+	if m.s.restarting.Load() {
+		return opView{}, bad(http.StatusServiceUnavailable, "the server is restarting to run the update; try again in a moment")
+	}
 	switch r.Action {
 	case "up", "down", "rm", "sync", "restart", "new", "checkout", "update", "selfupdate":
 	default:
@@ -266,7 +284,11 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	key := scopeOf(r)
 	if id, busy := m.conflict(r, key); busy {
 		m.mu.Unlock()
-		return opView{}, bad(http.StatusConflict, "another operation ("+id+") is running in "+r.Multiverse+"; wait for it to finish")
+		where := ""
+		if r.Multiverse != "" && key != selfScope {
+			where = " in " + r.Multiverse
+		}
+		return opView{}, bad(http.StatusConflict, "another operation ("+id+") is running"+where+"; wait for it to finish")
 	}
 	m.seq++
 	o := &op{key: key, view: opView{

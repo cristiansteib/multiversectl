@@ -458,6 +458,14 @@ func TestThePageAndItsAssetsAreServed(t *testing.T) {
 	if rec := get(t, h, "/missing.js", nil); rec.Code != 404 {
 		t.Errorf("a missing asset: %d", rec.Code)
 	}
+	// ...and never on another site, however the path is written.
+	for _, p := range []string{"/app/%2Fevil.example.test", "/app//evil.example.test", "/app/%5Cevil.example.test"} {
+		rec := get(t, h, p, nil)
+		loc := rec.Header().Get("Location")
+		if rec.Code/100 != 3 || !strings.HasPrefix(loc, "/") || strings.HasPrefix(loc, "//") {
+			t.Errorf("%s: %d redirects to %q, want a path on this server", p, rec.Code, loc)
+		}
+	}
 	// The old address of the app lands on the new one.
 	if rec := get(t, h, "/app/fleet?mv=acme", nil); rec.Code != http.StatusPermanentRedirect || rec.Header().Get("Location") != "/fleet?mv=acme" {
 		t.Errorf("/app/ redirect: %d %s", rec.Code, rec.Header().Get("Location"))

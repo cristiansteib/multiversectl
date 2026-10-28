@@ -56,7 +56,11 @@ type CatalogDeps struct {
 const DefaultFetchTimeout = 20 * time.Second
 
 // Catalogs resolves and browses the tree of catalogs.
-type Catalogs struct{ CatalogDeps }
+type Catalogs struct {
+	CatalogDeps
+	// cfgMu serialises changes of the configuration that read it first.
+	cfgMu sync.Mutex
+}
 
 func NewCatalogs(d CatalogDeps) *Catalogs {
 	if len(d.Hosts) == 0 && d.Host != nil {
@@ -68,7 +72,7 @@ func NewCatalogs(d CatalogDeps) *Catalogs {
 	if d.Timeout <= 0 {
 		d.Timeout = DefaultFetchTimeout
 	}
-	return &Catalogs{d}
+	return &Catalogs{CatalogDeps: d}
 }
 
 type noProgress struct{}
@@ -163,6 +167,7 @@ func (c *Catalogs) TreeObserved(ctx context.Context, source string, refresh bool
 }
 
 func (c *Catalogs) treeObserved(ctx context.Context, source string, refresh, offline bool, observe func(CatalogEvent)) (domain.Node, error) {
+	other := false // a catalog that is not this machine's root
 	if source == "" {
 		cfg, err := c.Config.Load()
 		if err != nil {
@@ -171,8 +176,17 @@ func (c *Catalogs) treeObserved(ctx context.Context, source string, refresh, off
 		if source = cfg.Catalog; source == "" {
 			return domain.Node{}, errors.New("no root catalog: `multiversectl init`  (installing a single multiverse does not need one)")
 		}
+	} else if c.Config != nil {
+		if cfg, err := c.Config.Load(); err == nil {
+			other = source != cfg.Catalog
+		}
 	}
 	r := c.newResolver(ctx, refresh, offline, observe)
+	if other {
+		// The paths this machine leaves out are paths of its root catalog: they
+		// mean nothing in another one that happens to have a node of that name.
+		r.ignored = map[string]bool{}
+	}
 	root := location{}
 	if isGitURL(source) {
 		root.repo = source

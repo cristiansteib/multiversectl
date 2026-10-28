@@ -126,9 +126,11 @@ func (s Services) Catalog(ctx context.Context, fetch bool, observe func(app.Cata
 	return catalogView{Root: toNode(tree, installed), Installs: len(installed)}, nil
 }
 
+// Ignore takes no part in s.mu, which a read of the catalog holds for as long as
+// its slowest fetch: ignoring a catalog that hangs is what it is for, and it must
+// not wait for the very read it is meant to stop. It reads the tree offline and
+// the configuration serialises its own change.
 func (s Services) Ignore(ctx context.Context, path string, ignore bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.Catalogs.Ignore(ctx, []string{path}, ignore)
 }
 
@@ -522,13 +524,20 @@ func (s Services) selfUpdate(ctx context.Context, k Sink) error {
 		return err
 	}
 	server = strings.TrimSuffix(server, " (deleted)")
+	// What replaces the running file is the file, not a link to it.
+	if resolved, err := filepath.EvalSymlinks(server); err == nil {
+		server = resolved
+	}
+	// The command line is beside the server, or on the PATH; a machine that has
+	// only the server has none, and none is made.
 	cli := filepath.Join(filepath.Dir(server), "multiversectl")
 	if _, err := os.Stat(cli); err != nil {
+		cli = ""
 		if p, err := exec.LookPath("multiversectl"); err == nil {
 			cli = p
 		}
 	}
-	if resolved, err := filepath.EvalSymlinks(cli); err == nil {
+	if resolved, err := filepath.EvalSymlinks(cli); cli != "" && err == nil {
 		cli = resolved
 	}
 	m := *s.Machine
