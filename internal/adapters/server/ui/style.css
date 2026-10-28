@@ -472,3 +472,10 @@ body.signin { display: grid; place-items: center; min-height: 100vh; padding: 20
 .signin p { margin: 6px 0; font-size: 1rem; }
 .signin code { background: var(--sunk); border: 1px solid var(--line); border-radius: 6px; padding: 3px 8px; }
 .signin .error { margin-bottom: 14px; }
+
+.live-fetch { margin: 0 0 14px; }
+.live-fetch h3 { margin: 0 0 8px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.steps li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.step { display: inline-flex; align-items: center; gap: 8px; }
+.live-fetch[hidden] { display: none; }

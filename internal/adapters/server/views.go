@@ -44,11 +44,23 @@ type nodeView struct {
 	File        string `json:"file,omitempty"`
 	InstalledAs string `json:"installedAs,omitempty"`
 	Unavailable string `json:"unavailable,omitempty"`
+	// Stale is why it could not be refreshed and is shown as last fetched.
+	Stale string `json:"stale,omitempty"`
 	// Loc is where the node lives and Within the file inside it, when that is
 	// not the default: two catalogs in one repository differ only by it.
 	Loc      *locView   `json:"loc,omitempty"`
 	Within   string     `json:"within,omitempty"`
 	Children []nodeView `json:"children,omitempty"`
+}
+
+// catalogProgress is one step of reading a catalog repository, pushed to the
+// page while a fetch runs so each one shows its own state.
+type catalogProgress struct {
+	Repo   string `json:"repo"`
+	Ref    string `json:"ref,omitempty"`
+	Phase  string `json:"phase"` // fetching, done, stale or unavailable
+	Detail string `json:"detail,omitempty"`
+	Millis int64  `json:"ms,omitempty"`
 }
 
 type fleetView struct {

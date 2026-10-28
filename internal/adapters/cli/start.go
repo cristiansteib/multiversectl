@@ -24,7 +24,8 @@ import (
 // end.
 func (r runner) startCmd() *cobra.Command {
 	var base, universe, as string
-	var open, yes bool
+	var open, yes, installOnly bool
+	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "start [source]",
 		Short: "Install a multiverse, make a universe and start it, in one command",
@@ -40,8 +41,13 @@ func (r runner) startCmd() *cobra.Command {
 			"-m names or the folder you are in; failing that, you pick from your catalog.\n\n" +
 			"Then it picks the universe: the one you name, the only one there is, or a new\n" +
 			"one when the multiverse has none. It creates it if it has to, starts it, and\n" +
-			"prints the addresses it answers on.",
+			"prints the addresses it answers on.\n\n" +
+			"A node that is a catalog installs every multiverse under it (the ones whose\n" +
+			"repositories cannot be reached are reported and left, the rest are done);\n" +
+			"--exclude leaves a multiverse or a whole branch out, and --install-only stops\n" +
+			"after installing, without making a universe.",
 		Example: "  multiversectl start acme/multiverse\n" +
+			"  multiversectl start acme --install-only --exclude acme/legacy   # all of acme but one branch\n" +
 			"  multiversectl start acme/multiverse --open\n" +
 			"  multiversectl start acme/platform:billing # one of several multiverses in a repository\n" +
 			"  multiversectl start acme/api             # a repository with only a compose file\n" +
@@ -56,8 +62,25 @@ func (r runner) startCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&universe, "universe", "u", "", "the universe to start (default: the only one, or a new one)")
 	cmd.Flags().BoolVar(&open, "open", false, "open the first address in a browser")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
+	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "a catalog path to leave out of what a catalog node installs (repeatable)")
+	cmd.Flags().BoolVar(&installOnly, "install-only", false, "install what the source names, and stop: make no universe, start nothing")
+	_ = cmd.RegisterFlagCompletionFunc("exclude", r.completeNodes(false))
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
+		if installOnly {
+			if len(args) == 0 {
+				return errors.New("--install-only needs a source: a catalog node, a path or a repository")
+			}
+			ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
+			_, err := r.install(cmd, args, app.InstallOptions{
+				Base: firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"),
+				Root: r.g.Root, Name: as, Exclude: exclude,
+			}, yes, ask)
+			return err
+		}
+		if len(exclude) > 0 {
+			return errors.New("--exclude picks among several multiverses to install; add --install-only (start runs one)")
+		}
 		s, err := r.startProject(cmd, args, base, as, yes)
 		if err != nil {
 			return err

@@ -107,6 +107,8 @@ function select(near, text) {
   setTimeout(() => hold.remove(), 8000);
 }
 
+// A repository as a short name: owner/repo from a URL.
+const shortRepoName = (u) => u.replace(/^[a-z+]+:\/\//, '').replace(/^[^@/]*@/, '').replace(/:/, '/').replace(/\.git$/, '');
 const badge = (kind, text, title) => h('span', { class: 'badge ' + kind, title }, text);
 const empty = (...kids) => h('div', { class: 'empty' }, kids);
 // The shape of what is coming, while it is read. A page that holds its layout
@@ -263,8 +265,12 @@ views.catalog = {
   title: 'Catalog',
   mount(host) {
     const open = new Set(['']);
-    let filter = '', data = null, first = true;
+    let filter = '', data = null, first = true, loading = false;
+    // How each repository is doing while the catalogs are read, by repository:
+    // they are read at the same time, so the page shows them as they answer.
+    const steps = new Map();
     const body = h('div');
+    const live = h('div', { class: 'card live-fetch', hidden: true });
     const search = h('input', {
       type: 'search', name: 'filter', placeholder: 'Filter by name, path or repository   ( / )', 'aria-label': 'Filter the catalog',
       oninput: (e) => { filter = e.target.value.trim().toLowerCase(); draw(); },
@@ -280,7 +286,30 @@ views.catalog = {
         h('button', { type: 'button', class: 'btn', onclick: all(false) }, 'Collapse all'),
         h('span', { class: 'grow' }),
         h('button', { type: 'button', class: 'btn', onclick: (e) => load(true, e.target) }, 'Fetch remotes')),
-      body);
+      live, body);
+
+    const STEP = { fetching: ['info', 'reading…'], done: ['ok', '✓ up to date'], stale: ['warn', '⚠ not refreshed'], unavailable: ['bad', '✗ unavailable'] };
+    const stepBadge = (st) => {
+      const [kind, text] = STEP[st.phase] || ['mute', st.phase];
+      const secs = st.ms ? ' · ' + (st.ms / 1000).toFixed(1) + 's' : '';
+      return h('span', { class: 'step' }, st.phase === 'fetching' ? h('span', { class: 'spin', role: 'status', 'aria-label': 'reading' }) : null,
+        badge(kind, text + secs, st.detail || null), st.detail && st.phase !== 'fetching' ? h('span', { class: 'muted' }, st.detail) : null);
+    };
+    function drawLive() {
+      live.hidden = !loading || steps.size === 0;
+      if (live.hidden) return;
+      const rows = [...steps.entries()].map(([repo, st]) => h('li', null, h('span', { class: 'mono' }, shortRepoName(repo)), stepBadge(st)));
+      const done = [...steps.values()].filter((st) => st.phase !== 'fetching').length;
+      live.replaceChildren(h('h3', null, 'Reading catalogs  ', h('span', { class: 'muted' }, done + ' of ' + steps.size)), h('ul', { class: 'steps' }, rows));
+    }
+    let scheduled = false;
+    function onProgress(e) {
+      if (!loading) return;
+      steps.set(e.repo + (e.ref ? '@' + e.ref : ''), { phase: e.phase, detail: e.detail, ms: e.ms });
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => { scheduled = false; drawLive(); draw(); });
+    }
 
     const matches = (n) => !filter || [n.name, n.path, n.repo || '', n.loc ? n.loc.short : '', n.within || ''].some((s) => s.toLowerCase().includes(filter));
     const keeps = (n) => matches(n) || (n.children || []).some(keeps);
@@ -296,6 +325,8 @@ views.catalog = {
         h('span', { class: 'kind ' + kind }, kind),
         place(n.loc, n.within),
         n.unavailable ? badge('bad', '✗ ' + n.unavailable) : null,
+        n.stale ? badge('warn', '⚠ not refreshed', n.stale + ' — shown as last fetched') : null,
+        loading && n.repo && n.kind === 'catalog' && steps.has(n.repo + (n.ref ? '@' + n.ref : '')) ? stepBadge(steps.get(n.repo + (n.ref ? '@' + n.ref : ''))) : null,
         n.kind === 'multiverse' && !n.unavailable ? (n.installedAs ? badge('ok', '✓ installed as ' + n.installedAs) : badge('mute', '○ not installed')) : null,
       ];
       if (n.kind === 'multiverse') {
@@ -320,6 +351,7 @@ views.catalog = {
     }
     async function load(fetch, btn) {
       if (btn) btn.disabled = true;
+      loading = true; steps.clear();
       try {
         data = await api('catalog' + (fetch ? '?fetch=1' : ''));
         // Open the tree the first time, so the multiverses are in view; a large
@@ -328,9 +360,9 @@ views.catalog = {
         draw(); if (fetch) toast('Fetched');
       }
       catch (e) { body.replaceChildren(errorBox(e)); if (/no root catalog/.test(e.message)) body.append(empty(cmd('multiversectl init'))); }
-      finally { if (btn) btn.disabled = false; }
+      finally { loading = false; if (btn) btn.disabled = false; drawLive(); draw(); }
     }
-    return { refresh: () => load(false), focus: () => search.focus() };
+    return { refresh: () => load(false), focus: () => search.focus(), onCatalogProgress: onProgress };
   },
 };
 
@@ -1262,6 +1294,7 @@ function onEvent(e) {
     case 'fleet': state.fleet = e.data; if (current && current.onFleet) current.onFleet(e.data); stamp(); break;
     case 'overview': state.overview = e.data; if (current && current.onOverview) current.onOverview(e.data); stamp(); break;
     case 'update': state.update = e.data.notice || null; showUpdate(); break;
+    case 'catalogProgress': if (current && current.onCatalogProgress) current.onCatalogProgress(e.data); break;
     case 'op': onOp(e.data); break;
     case 'opline': onOpLine(e.data); break;
     default: break;

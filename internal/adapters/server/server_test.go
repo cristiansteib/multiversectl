@@ -26,6 +26,7 @@ const testToken = "test-token"
 type fake struct {
 	status     app.StatusReport
 	catalog    catalogView
+	steps      []app.CatalogEvent // what reading the catalog reports as it goes
 	fleet      fleetView
 	ws         multiverseView
 	doctor     doctorView
@@ -74,7 +75,12 @@ func (f *fake) Status(_ context.Context, fetch bool) (app.StatusReport, error) {
 	}
 	return f.status, f.err
 }
-func (f *fake) Catalog(context.Context, bool) (catalogView, error) { return f.catalog, f.err }
+func (f *fake) Catalog(_ context.Context, _ bool, observe func(app.CatalogEvent)) (catalogView, error) {
+	for _, e := range f.steps {
+		observe(e)
+	}
+	return f.catalog, f.err
+}
 func (f *fake) Fleet(_ context.Context, ws string) (fleetView, error) {
 	f.ask("fleet:" + ws)
 	return f.fleet, f.err
@@ -990,5 +996,42 @@ func TestTheServerDoesNotLookWhereTheOptOutIsSetOrForADevBuild(t *testing.T) {
 				t.Error("it looked")
 			}
 		})
+	}
+}
+
+// Reading the catalogs is not silent: each repository's step reaches a page that
+// is connected, as it happens, and not only in the tree the request returns.
+func TestWhileTheCatalogIsReadEachRepositoryReportsItsStateToThePage(t *testing.T) {
+	f := &fake{steps: []app.CatalogEvent{
+		{Repo: "git@example.test:acme/index.git", Phase: "fetching", Detail: "fetching"},
+		{Repo: "git@example.test:acme/index.git", Phase: "stale", Detail: "timed out after 20s", Millis: 20000},
+	}}
+	s, _ := serve(t, f, Options{})
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+	c, _, err := dial(t, ts, signedIn())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.CloseNow()
+	for read(t, c).Type != "hello" {
+	}
+	if rec := do(t, ts.Config.Handler, "GET", "/api/catalog?fetch=1", "", nil); rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	var got []catalogProgress
+	for len(got) < 2 {
+		e := read(t, c)
+		if e.Type != "catalogProgress" {
+			continue
+		}
+		var p catalogProgress
+		if err := json.Unmarshal(e.Data.(json.RawMessage), &p); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, p)
+	}
+	if got[0].Phase != "fetching" || got[1].Phase != "stale" || got[1].Millis != 20000 || got[1].Repo == "" {
+		t.Errorf("steps = %+v", got)
 	}
 }

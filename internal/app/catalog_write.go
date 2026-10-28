@@ -25,7 +25,7 @@ const (
 )
 
 func (c *Catalogs) resolver(ctx context.Context, refresh bool) *resolver {
-	return &resolver{Catalogs: c, ctx: ctx, refresh: refresh, fetched: map[string]bool{}}
+	return c.newResolver(ctx, refresh, false, nil)
 }
 
 func (c *Catalogs) confirm(label string, def bool) (bool, error) {

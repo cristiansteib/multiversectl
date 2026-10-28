@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/catalog"
 	"github.com/cristiansteib/multiversectl/internal/adapters/compose"
@@ -156,6 +157,7 @@ func (m Machine) Catalogs(out app.Output) (*app.Catalogs, error) {
 		Manifests: ManifestLoader{},
 		Out:       out,
 		CacheDir:  filepath.Join(filepath.Dir(store.Path()), "catalogs"),
+		Timeout:   catalogTimeout(),
 	}), nil
 }
 
@@ -196,4 +198,14 @@ func First(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// catalogTimeout is MULTIVERSECTL_CATALOG_TIMEOUT (a duration such as 5s) for a
+// connection that is known to be slow or to be down; zero keeps the default.
+func catalogTimeout() time.Duration {
+	d, err := time.ParseDuration(os.Getenv("MULTIVERSECTL_CATALOG_TIMEOUT"))
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
 }

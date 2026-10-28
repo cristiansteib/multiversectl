@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
@@ -43,7 +45,15 @@ type CatalogDeps struct {
 
 	// Yes answers every confirmation with its default, for scripts.
 	Yes bool
+
+	// Timeout bounds each clone or fetch of a catalog repository, so one that
+	// cannot be reached (offline, behind a VPN that is down) costs a few
+	// seconds, not the minutes git would wait. Zero means DefaultFetchTimeout.
+	Timeout time.Duration
 }
+
+// DefaultFetchTimeout is how long one catalog repository gets to answer.
+const DefaultFetchTimeout = 20 * time.Second
 
 // Catalogs resolves and browses the tree of catalogs.
 type Catalogs struct{ CatalogDeps }
@@ -54,6 +64,9 @@ func NewCatalogs(d CatalogDeps) *Catalogs {
 	}
 	if d.Progress == nil {
 		d.Progress = noProgress{}
+	}
+	if d.Timeout <= 0 {
+		d.Timeout = DefaultFetchTimeout
 	}
 	return &Catalogs{d}
 }
@@ -139,6 +152,17 @@ func (c *Catalogs) TreeCached(ctx context.Context) (domain.Node, error) {
 }
 
 func (c *Catalogs) tree(ctx context.Context, source string, refresh, offline bool) (domain.Node, error) {
+	return c.treeObserved(ctx, source, refresh, offline, nil)
+}
+
+// TreeObserved is Tree that tells observe, as it happens, which repository is
+// being read and how that went, so a page can show the catalogs coming in. It
+// may be called from several goroutines at once.
+func (c *Catalogs) TreeObserved(ctx context.Context, source string, refresh bool, observe func(CatalogEvent)) (domain.Node, error) {
+	return c.treeObserved(ctx, source, refresh, false, observe)
+}
+
+func (c *Catalogs) treeObserved(ctx context.Context, source string, refresh, offline bool, observe func(CatalogEvent)) (domain.Node, error) {
 	if source == "" {
 		cfg, err := c.Config.Load()
 		if err != nil {
@@ -148,7 +172,7 @@ func (c *Catalogs) tree(ctx context.Context, source string, refresh, offline boo
 			return domain.Node{}, errors.New("no root catalog: `multiversectl init`  (installing a single multiverse does not need one)")
 		}
 	}
-	r := &resolver{Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, fetched: map[string]bool{}}
+	r := c.newResolver(ctx, refresh, offline, observe)
 	root := location{}
 	if isGitURL(source) {
 		root.repo = source
@@ -180,6 +204,20 @@ type location struct {
 
 func (l location) key() string { return l.repo + "@" + l.ref + ":" + filepath.Join(l.dir, l.file) }
 
+// CatalogEvent is one step of reading a catalog repository.
+type CatalogEvent struct {
+	Repo, Ref string
+	// Phase is fetching (a clone or fetch has started), done, stale (it could not
+	// be fetched and the copy fetched earlier is used) or unavailable.
+	Phase  string
+	Detail string
+	// Millis is how long it took, on the phases that end it.
+	Millis int64
+}
+
+// maxParallelFetches bounds the git processes a tree reads at once.
+const maxParallelFetches = 8
+
 type resolver struct {
 	*Catalogs
 	ctx     context.Context
@@ -187,7 +225,78 @@ type resolver struct {
 	// offline reads only what is already cached: completion must be instant
 	// and must never reach for the network.
 	offline bool
-	fetched map[string]bool
+	observe func(CatalogEvent)
+
+	// Sibling catalogs are read at the same time, so everything below is shared
+	// between goroutines. A repository is read once per run, by whoever gets
+	// there first; the others wait for that and take its result.
+	mu     sync.Mutex
+	flight map[string]*flight
+	// down is the hosts that timed out in this run, with why: the next
+	// repository on one fails at once instead of waiting out its own timeout.
+	down map[string]string
+	// stale is the checkouts (by directory) that could not be refreshed and are
+	// read as they were, with why.
+	stale map[string]string
+	slots chan struct{}
+}
+
+type flight struct {
+	done  chan struct{}
+	dir   string
+	fresh bool
+	err   error
+}
+
+func (c *Catalogs) newResolver(ctx context.Context, refresh, offline bool, observe func(CatalogEvent)) *resolver {
+	return &resolver{Catalogs: c, ctx: ctx, refresh: refresh, offline: offline, observe: observe,
+		flight: map[string]*flight{}, down: map[string]string{}, stale: map[string]string{},
+		slots: make(chan struct{}, maxParallelFetches)}
+}
+
+func (r *resolver) emit(e CatalogEvent) {
+	if r.observe != nil {
+		r.observe(e)
+	}
+}
+
+// network runs a git operation against repo's host within the timeout. A
+// timeout says what it probably means, and marks the host unreachable for the
+// rest of the run; any other failure (no access, not found) says nothing about
+// the host and the next repository on it is still tried.
+func (r *resolver) network(repo string, op func(ctx context.Context) error) error {
+	host, _, _ := strings.Cut(canonical(repo), "/")
+	r.mu.Lock()
+	why, bad := r.down[host]
+	r.mu.Unlock()
+	if bad {
+		return errors.New(why)
+	}
+	select {
+	case r.slots <- struct{}{}:
+		defer func() { <-r.slots }()
+	case <-r.ctx.Done():
+		return r.ctx.Err()
+	}
+	// Another repository on this host may have timed out while this one waited
+	// for a slot.
+	r.mu.Lock()
+	why, bad = r.down[host]
+	r.mu.Unlock()
+	if bad {
+		return errors.New(why)
+	}
+	ctx, cancel := context.WithTimeout(r.ctx, r.Timeout)
+	defer cancel()
+	err := op(ctx)
+	if err != nil && ctx.Err() == context.DeadlineExceeded && r.ctx.Err() == nil {
+		why := fmt.Sprintf("timed out after %s: is %s reachable? (offline, or behind a VPN that is down)", r.Timeout, host)
+		r.mu.Lock()
+		r.down[host] = why
+		r.mu.Unlock()
+		return errors.New(why)
+	}
+	return err
 }
 
 func (r *resolver) load(at location, name, nodePath string, stack []string) (domain.Node, error) {
@@ -216,23 +325,24 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 		Source: domain.Source{Repo: at.repo, Ref: at.ref, Path: filepath.ToSlash(at.file)},
 		File:   filepath.Join(at.dir, at.file), Dir: at.dir,
 	}
-	stack = append(stack, k)
+	stack = append(slices.Clone(stack), k)
+	r.mu.Lock()
+	node.Stale = r.stale[at.dir]
+	r.mu.Unlock()
 
-	for _, ref := range cat.Catalogs {
-		child := domain.Node{Name: ref.Name, Path: domain.ChildPath(nodePath, ref.Name), Kind: domain.CatalogNode}
-		loc, err := r.locate(at, ref.Source)
-		if err == nil {
-			var sub domain.Node
-			if sub, err = r.load(loc, ref.Name, child.Path, stack); err == nil {
-				child = sub
-			}
-		}
-		if err != nil {
-			child.Source = domain.Source{Repo: firstOf(ref.Source.Repo, at.repo), Ref: ref.Source.Ref, Path: ref.Source.Path}
-			child.Unavailable = reason(err, firstOf(ref.Source.Repo, at.repo))
-		}
-		node.Children = append(node.Children, child)
+	// The children are independent, and each may wait on the network: read them
+	// together, and keep them in the order the catalog lists them.
+	children := make([]domain.Node, len(cat.Catalogs))
+	var wg sync.WaitGroup
+	for i, ref := range cat.Catalogs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			children[i] = r.child(at, ref, nodePath, stack)
+		}()
 	}
+	wg.Wait()
+	node.Children = append(node.Children, children...)
 	for _, ref := range cat.Multiverses {
 		node.Children = append(node.Children, domain.Node{
 			Name: ref.Name, Path: domain.ChildPath(nodePath, ref.Name), Kind: domain.MultiverseNode,
@@ -240,6 +350,21 @@ func (r *resolver) load(at location, name, nodePath string, stack []string) (dom
 		})
 	}
 	return node, nil
+}
+
+// child reads one nested catalog; one that cannot be read is a node that says why.
+func (r *resolver) child(at location, ref domain.CatalogRef, nodePath string, stack []string) domain.Node {
+	child := domain.Node{Name: ref.Name, Path: domain.ChildPath(nodePath, ref.Name), Kind: domain.CatalogNode}
+	loc, err := r.locate(at, ref.Source)
+	if err == nil {
+		var sub domain.Node
+		if sub, err = r.load(loc, ref.Name, child.Path, stack); err == nil {
+			return sub
+		}
+	}
+	child.Source = domain.Source{Repo: firstOf(ref.Source.Repo, at.repo), Ref: ref.Source.Ref, Path: ref.Source.Path}
+	child.Unavailable = reason(err, firstOf(ref.Source.Repo, at.repo))
+	return child
 }
 
 // locate finds the checkout a CatalogRef's file is in: this one when the ref
@@ -283,10 +408,31 @@ func (r *resolver) checkout(repo, ref string) (string, error) {
 
 // ensure reports whether the clone was made just now. A new clone is already
 // at the default branch, and when the repository is empty there is no branch
-// to move to, so only an older clone is brought forward on refresh.
+// to move to, so only an older clone is brought forward on refresh. A
+// repository is read once per run: a second caller waits for the first.
 func (r *resolver) ensure(repo, ref string) (dir string, fresh bool, err error) {
 	sum := sha256.Sum256([]byte(repo))
 	dir = filepath.Join(r.CacheDir, hex.EncodeToString(sum[:])[:12], unsafeRE.ReplaceAllString(firstOf(ref, "HEAD"), "_"))
+	r.mu.Lock()
+	if f, ok := r.flight[dir]; ok {
+		r.mu.Unlock()
+		<-f.done
+		return f.dir, false, f.err
+	}
+	f := &flight{done: make(chan struct{})}
+	r.flight[dir] = f
+	r.mu.Unlock()
+	f.dir, f.fresh, f.err = r.read(repo, ref, dir)
+	close(f.done)
+	return f.dir, f.fresh, f.err
+}
+
+func (r *resolver) read(repo, ref, dir string) (string, bool, error) {
+	fresh := false
+	began := time.Now()
+	ended := func(phase, detail string) {
+		r.emit(CatalogEvent{Repo: repo, Ref: ref, Phase: phase, Detail: detail, Millis: time.Since(began).Milliseconds()})
+	}
 	switch {
 	case !r.Files.Exists(dir) && r.offline:
 		return "", false, fmt.Errorf("%s is not fetched yet", repo)
@@ -294,23 +440,35 @@ func (r *resolver) ensure(repo, ref string) (dir string, fresh bool, err error) 
 		if err := r.Files.MkdirAll(filepath.Dir(dir)); err != nil {
 			return "", false, err
 		}
-		if err := r.Git.Clone(r.ctx, repo, dir); err != nil {
+		r.emit(CatalogEvent{Repo: repo, Ref: ref, Phase: "fetching", Detail: "cloning"})
+		if err := r.network(repo, func(ctx context.Context) error { return r.Git.Clone(ctx, repo, dir) }); err != nil {
+			// A clone that did not finish must not be taken for a cached one next time.
+			_ = r.Files.RemoveAll(dir)
+			ended("unavailable", reason(err, repo))
 			return "", false, fmt.Errorf("clone %s: %w", repo, err)
 		}
 		fresh = true
-	case r.refresh && !r.fetched[dir]:
-		if err := r.Git.Fetch(r.ctx, dir); err != nil {
-			return "", false, fmt.Errorf("fetch %s: %w", repo, err)
+		ended("done", "")
+	case r.refresh:
+		r.emit(CatalogEvent{Repo: repo, Ref: ref, Phase: "fetching", Detail: "fetching"})
+		if err := r.network(repo, func(ctx context.Context) error { return r.Git.Fetch(ctx, dir) }); err != nil {
+			// What was fetched before is still a catalog: use it, and say it may be old.
+			why := reason(err, repo)
+			r.mu.Lock()
+			r.stale[dir] = why
+			r.mu.Unlock()
+			r.Out.Warn("%s could not be fetched (%s); using the copy fetched earlier", shortRepo(repo), why)
+			ended("stale", why)
+		} else {
+			ended("done", "")
 		}
 	}
-	first := !r.fetched[dir]
-	r.fetched[dir] = true
 	switch {
 	case ref != "":
 		if err := r.Git.Checkout(r.ctx, dir, ref); err != nil {
 			return "", false, fmt.Errorf("%s at %s: %w", repo, ref, err)
 		}
-	case r.refresh && !fresh && first:
+	case r.refresh && !fresh:
 		// A refresh must move to the new tip of the default branch, not stay
 		// on the commit the first clone happened to land on.
 		branch, err := r.Git.DefaultBranch(r.ctx, dir)

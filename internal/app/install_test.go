@@ -256,3 +256,27 @@ func TestAddTakesOneMultiverseOfARepositoryByItsAddress(t *testing.T) {
 		t.Fatalf("leaf = %+v", leaf)
 	}
 }
+
+func TestInstallFromACatalogNodeCanLeaveABranchOut(t *testing.T) {
+	r := newRig(t, &fakeRepos{})
+	e := catalog.Editor{}
+	data := e.Scaffold("me")
+	data, _ = e.AddCatalogRef(data, domain.CatalogRef{Name: "acme", Source: domain.Source{Path: "catalogs/acme.yaml"}})
+	write(t, r.root, "catalog.yaml", string(data))
+	acme := e.Scaffold("acme")
+	acme, _ = e.AddCatalogRef(acme, domain.CatalogRef{Name: "legacy", Source: domain.Source{Path: "catalogs/legacy.yaml"}})
+	acme = wsRef(t, e, acme, "api", "git@example.test:acme/api.git", "")
+	write(t, r.root, "catalogs/acme.yaml", string(acme))
+	write(t, r.root, "catalogs/legacy.yaml", string(wsRef(t, e, e.Scaffold("legacy"), "old", "git@example.test:acme/old.git", "")))
+
+	if got := plan(t, r, []string{"acme"}, app.InstallOptions{}); len(got) != 2 {
+		t.Fatalf("without --exclude: %+v", got)
+	}
+	got := plan(t, r, []string{"acme"}, app.InstallOptions{Exclude: []string{"acme/legacy"}})
+	if len(got) != 1 || got[0].Name != "api" {
+		t.Errorf("targets = %+v, want only api", got)
+	}
+	if _, err := r.PlanInstall(context.Background(), []string{"acme"}, app.InstallOptions{Base: "/ws", Exclude: []string{"acme/nope"}}); err == nil {
+		t.Error("an excluded path that is not in the catalog must be refused, it is a typo")
+	}
+}
