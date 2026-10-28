@@ -131,6 +131,9 @@ type RuntimeRequest struct {
 	Services []string
 	Env      map[string]string
 	WorkDir  string
+	// ExecEnv is set inside the process an exec starts, unlike Env, which only
+	// compose reads. What a hook running in a service is told about the universe.
+	ExecEnv map[string]string
 }
 
 // Container is a running unit as the runtime reports it.
@@ -335,6 +338,21 @@ type System interface {
 	// following redirects: any answer means something is listening.
 	Probe(ctx context.Context, url string) (int, error)
 	Which(name string) (string, bool)
+}
+
+// HostCommand is a command a hook runs on this machine.
+type HostCommand struct {
+	Args []string
+	Dir  string
+	// Env is added to this process's own environment.
+	Env map[string]string
+}
+
+// Commands runs what a hook asks to run on the machine, with no shell and no
+// terminal. What it printed comes back, with the error, so a try that fails and
+// is made again says nothing until the last one.
+type Commands interface {
+	RunHost(ctx context.Context, c HostCommand) (output string, err error)
 }
 
 // Release is one published build of this tool.

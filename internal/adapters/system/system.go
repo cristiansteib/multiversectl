@@ -1,6 +1,7 @@
 package system
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
 type System struct{}
@@ -99,4 +102,21 @@ func (System) Probe(ctx context.Context, url string) (int, error) {
 	}
 	_ = resp.Body.Close()
 	return resp.StatusCode, nil
+}
+
+// RunHost runs a command with no shell, in dir, adding env to this process's own.
+func (System) RunHost(ctx context.Context, c app.HostCommand) (string, error) {
+	if len(c.Args) == 0 {
+		return "", errors.New("no command")
+	}
+	cmd := exec.CommandContext(ctx, c.Args[0], c.Args[1:]...)
+	cmd.Dir = c.Dir
+	cmd.Env = os.Environ()
+	for name, value := range c.Env {
+		cmd.Env = append(cmd.Env, name+"="+value)
+	}
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	err := cmd.Run()
+	return out.String(), err
 }

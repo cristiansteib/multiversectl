@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -96,15 +97,21 @@ func TestAnAppSaysWhatToRunOnceItsServicesAreUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := m.Apps["api"].After
+	got := m.Apps["api"].Hooks[domain.PostUp]
 	if len(got) != 1 || got[0].Service != "web" || !got[0].Once || strings.Join(got[0].Command, " ") != "python manage.py createfixture" {
 		t.Errorf("hooks = %+v", got)
 	}
 	for name, bad := range map[string]string{
-		"no command":      "      hooks:\n        after:\n          - container:\n              service: web\n",
-		"unknown service": "      hooks:\n        after:\n          - container:\n              service: db\n              command: [psql]\n",
-		"a host command":  "      hooks:\n        after:\n          - host:\n              command: [make]\n",
-		"the old name":    "      setup:\n        - command: [make]\n",
+		"no command":                      "      hooks:\n        after:\n          - container:\n              service: web\n",
+		"unknown service":                 "      hooks:\n        after:\n          - container:\n              service: db\n              command: [psql]\n",
+		"both":                            "      hooks:\n        postUp:\n          - host: {command: [make]}\n            container: {command: [make]}\n",
+		"neither":                         "      hooks:\n        postUp:\n          - once: true\n",
+		"no event":                        "      hooks:\n        sometimes:\n          - host: {command: [make]}\n",
+		"a service before anything is up": "      hooks:\n        preUp:\n          - container:\n              command: [make]\n",
+		"a bad policy":                    "      hooks:\n        preUp:\n          - host: {command: [make]}\n            onFailure: shrug\n",
+		"a bad duration":                  "      hooks:\n        preUp:\n          - host: {command: [make]}\n            retryFor: soon\n",
+		"a dir outside":                   "      hooks:\n        preUp:\n          - host: {command: [make], dir: ../x}\n",
+		"the old name":                    "      setup:\n        - command: [make]\n",
 	} {
 		if _, err := Decode([]byte(with(bad)), "/ws"); err == nil {
 			t.Errorf("%s: a bad hook was accepted", name)
@@ -289,5 +296,42 @@ spec:
 	hosts := m.Apps["api"].Hosts
 	if hosts["api"].PortForward != "auto" || hosts["docs"].PortForward != "" {
 		t.Errorf("hosts = %+v", hosts)
+	}
+}
+
+func TestHooksCanBeTiedToAnyEventInAContainerOrOnTheMachine(t *testing.T) {
+	yml := strings.Replace(minimal, "      compose: [docker-compose.yml]\n", `      compose: [docker-compose.yml]
+      services: [web]
+      hooks:
+        preUp:
+          - name: let the build read the netrc
+            host: {command: [./prepare.sh], dir: api}
+            timeout: 30s
+        postUp:
+          - container: {service: web, command: [migrate]}
+          - host: {command: [curl, -fsS, "http://localhost:8080"]}
+            onFailure: ignore
+            retryFor: 2m
+            once: true
+        after:
+          - container: {command: [seed]}
+`, 1)
+	yml += "  hooks:\n    postUp:\n      - host: {command: [echo, done]}\n"
+	m, err := Decode([]byte(yml), "/ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hooks := m.Apps["api"].Hooks
+	pre := hooks[domain.PreUp]
+	if len(pre) != 1 || !pre[0].Host || pre[0].Dir != "api" || pre[0].Timeout != 30*time.Second || pre[0].Name == "" {
+		t.Errorf("preUp = %+v", pre)
+	}
+	// after is the earlier name of postUp, so it comes last among them.
+	up := hooks[domain.PostUp]
+	if len(up) != 3 || up[0].Host || up[1].OnFailure != domain.FailIgnore || up[1].RetryFor != 2*time.Minute || up[2].Command[0] != "seed" {
+		t.Errorf("postUp = %+v", up)
+	}
+	if got := m.Hooks[domain.PostUp]; len(got) != 1 || !got[0].Host {
+		t.Errorf("the multiverse's hooks = %+v", got)
 	}
 }
