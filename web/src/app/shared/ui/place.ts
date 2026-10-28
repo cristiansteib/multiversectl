@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { LocView } from '../../core/models';
+import { webUrlOf } from '../../core/util';
 import { Icon } from './icon';
 
 /**
@@ -44,12 +45,5 @@ export class Place {
   protected readonly platform = computed(() => this.loc()?.short.slice(0, this.cut()) ?? '');
   protected readonly path = computed(() => this.loc()?.short.slice(this.cut() + 1) ?? '');
 
-  /** The repository's page on the web, when it has one: a checkout on disk does not. */
-  protected readonly href = computed(() => {
-    const l = this.loc();
-    if (!l || l.platform === 'file' || !l.path) return null;
-    const host = l.platform === 'github' ? 'github.com' : l.platform === 'gitlab' ? (l.host ?? 'gitlab.com') : l.host;
-    if (!host) return null;
-    return `https://${host}/${l.path.replace(/^\/+/, '').replace(/\.git$/, '')}`;
-  });
+  protected readonly href = computed(() => webUrlOf(this.loc()));
 }

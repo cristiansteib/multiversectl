@@ -9,9 +9,10 @@ import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { ErrorBox } from '../../shared/ui/error-box';
 import { Icon } from '../../shared/ui/icon';
+import { PrChip } from '../../shared/ui/pr-chip';
+import { PrIcon } from '../../shared/ui/pr-icon';
 import { Skeleton } from '../../shared/ui/skeleton';
 import { DiffBrowser } from './diff-browser';
-import { ReviewChip } from './review-chip';
 import { UniverseStore } from './universe.store';
 
 // A universe in view is read again on its own, because a review is merged and a
@@ -35,7 +36,7 @@ const firstScope = (r: CodeRow): Scope => (r.change || !r.uncommitted ? 'branch'
  */
 @Component({
   selector: 'mv-code-tab',
-  imports: [Badge, CopyButton, ErrorBox, Icon, Skeleton, DiffBrowser, ReviewChip],
+  imports: [Badge, CopyButton, ErrorBox, Icon, Skeleton, DiffBrowser, PrChip, PrIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './code-tab.html',
   styleUrl: './code-tab.css',

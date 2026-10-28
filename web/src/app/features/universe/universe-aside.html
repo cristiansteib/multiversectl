@@ -1,0 +1,78 @@
+@if (u(); as u) {
+  <aside class="aside" aria-label="Summary of this universe">
+    @if (links().length) {
+      <section aria-labelledby="links-h">
+        <h3 id="links-h">Links</h3>
+        <ul class="links">
+          @for (l of links(); track l.url) {
+            <li>
+              <a [href]="l.url" target="_blank" rel="noopener noreferrer"><span class="u">{{ l.label }}</span><mv-icon name="external" /></a>
+              <span class="from muted">{{ l.from }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (reviews().length) {
+      <section aria-labelledby="prs-h">
+        <h3 id="prs-h">Pull requests</h3>
+        <ul class="plain">
+          @for (r of reviews(); track r.repo) {
+            <li>
+              <mv-pr-chip [review]="r.review" [error]="r.reviewError" />
+              <span class="from muted">{{ r.repo }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (repos().length) {
+      <section aria-labelledby="repos-h">
+        <h3 id="repos-h">Repositories</h3>
+        <ul class="plain repos">
+          @for (r of repos(); track r.c.path) {
+            <li>
+              <mv-repo-chip [loc]="r.loc" [name]="r.c.repo" />
+              <span class="state">
+                @if (r.c.branch) { <mv-repo-chip [loc]="r.loc" [name]="r.c.repo" [branch]="r.c.branch" /> }
+                @if (r.c.behind) { <mv-badge tone="warn" [hint]="'Behind ' + (r.c.follows || 'its branch')">{{ r.c.behind }} behind</mv-badge> }
+                @if (r.c.ahead) { <mv-badge tone="info" [hint]="'Ahead of ' + (r.c.follows || 'its branch')">{{ r.c.ahead }} ahead</mv-badge> }
+                @if (r.c.dirty) { <mv-badge tone="warn" hint="Uncommitted changes in its worktree">edited</mv-badge> }
+                @if (!r.c.behind && !r.c.ahead && !r.c.dirty) { <span class="muted clean">in step</span> }
+              </span>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <section aria-labelledby="act-h">
+      <h3 id="act-h">Activity</h3>
+      @if (activity().length) {
+        <ul class="plain act">
+          @for (o of activity(); track o.id) {
+            <li>
+              <span class="dot" [class]="tone(o.state)" [class.pulse]="o.state === 'running'"></span>
+              <button type="button" class="link" (click)="showOutput(o.id)" title="Show its output">{{ o.title }}</button>
+              <span class="muted when">{{ ago(o.started) }}</span>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted none">Nothing has been done to it from this page yet.</p>
+      }
+    </section>
+
+    <section aria-labelledby="det-h">
+      <h3 id="det-h">Details</h3>
+      <dl>
+        @if (u.created) { <dt>Created</dt><dd [attr.title]="u.created">{{ ago(u.created) }}</dd> }
+        @if (u.lastStarted) { <dt>Started</dt><dd [attr.title]="u.lastStarted">{{ ago(u.lastStarted) }}</dd> }
+        <dt>Address</dt><dd class="mono">{{ u.domain }}</dd>
+        <dt>Folder</dt><dd><mv-copy [text]="u.dir" /></dd>
+      </dl>
+    </section>
+  </aside>
+}

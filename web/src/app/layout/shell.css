@@ -17,7 +17,7 @@
 .rail a.current mv-icon { color: var(--accent) }
 .count { margin-left: auto; font: 600 .74rem var(--sans); background: var(--accent); color: var(--accent-ink); border-radius: 999px; padding: 2px 7px }
 .rail-note { margin: auto 12px 8px; font-size: .82rem; color: var(--faint) }
-main { padding: 26px clamp(16px, 3.2vw, 40px) 72px; max-width: 1240px; width: 100%; min-width: 0 }
+main { padding: 26px clamp(16px, 3.2vw, 40px) 72px; max-width: 1680px; width: 100%; min-width: 0 }
 main:focus, main:focus-visible { outline: none }
 
 @media (max-width: 860px) {
@@ -28,3 +28,6 @@ main:focus, main:focus-visible { outline: none }
     transform: translateX(-100%); visibility: hidden; transition: transform .18s ease, visibility 0s .18s }
   .rail.open { transform: none; visibility: visible; transition: transform .18s ease }
 }
+.update-pill { display: inline-flex; align-items: center; gap: 6px; font: 600 .84rem var(--sans); color: var(--accent-ink); background: var(--accent); border: 0; border-radius: 999px; padding: 5px 12px; cursor: pointer }
+.update-pill:hover { filter: brightness(1.08) }
+@media (max-width: 560px) { .update-pill { font-size: 0; gap: 0; padding: 6px } .update-pill mv-icon { font-size: 1rem } }

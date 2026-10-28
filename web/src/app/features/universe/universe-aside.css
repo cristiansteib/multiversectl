@@ -1,0 +1,20 @@
+:host { display: block; min-width: 0 }
+.aside { display: flex; flex-direction: column; gap: 22px; padding: 2px 0 }
+h3 { margin: 0 0 8px; font-size: .86rem; font-weight: 600; color: var(--muted) }
+ul { list-style: none; margin: 0; padding: 0 }
+.links li, .plain li { display: flex; flex-direction: column; gap: 3px; padding: 7px 0; border-top: 1px solid var(--line-soft) }
+.links li:first-child, .plain li:first-child { border-top: 0; padding-top: 0 }
+.links a { font: .86rem/1.4 var(--mono); overflow-wrap: anywhere; text-decoration: none }
+.links a .u { text-decoration: underline; text-underline-offset: 3px }
+.links a mv-icon { margin-left: 6px }
+.from { font-size: .8rem }
+.state { display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
+.clean { font-size: .82rem }
+.act li { flex-direction: row; align-items: baseline; gap: 8px; flex-wrap: wrap }
+.act .dot { flex: none; align-self: center }
+.link { font: 500 .88rem var(--sans); color: var(--text); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px }
+.link:hover { text-decoration-color: var(--accent) }
+.when { font-size: .8rem; margin-left: auto }
+.none { margin: 0; font-size: .88rem }
+dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px 14px; margin: 0; align-items: center; font-size: .9rem }
+dt { color: var(--muted) } dd { margin: 0; overflow-wrap: anywhere }

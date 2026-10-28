@@ -3,6 +3,8 @@ import { Badge } from '../../shared/ui/badge';
 import { EmptyState } from '../../shared/ui/empty-state';
 import { AppView, UrlView } from '../../core/models';
 import { Icon } from '../../shared/ui/icon';
+import { PrChip } from '../../shared/ui/pr-chip';
+import { RepoChip } from '../../shared/ui/repo-chip';
 import { reasonsFor } from '../fleet/universe-state';
 import { isWebUrl } from './patch';
 import { UniverseStore } from './universe.store';
@@ -26,7 +28,7 @@ export function rowsOf(a: AppView): ServiceRow[] {
 /** The first thing about a universe: what needs a look, and what runs in it and where to reach it. */
 @Component({
   selector: 'mv-overview-tab',
-  imports: [Badge, EmptyState, Icon],
+  imports: [Badge, EmptyState, Icon, PrChip, RepoChip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './overview-tab.html',
   styleUrl: './overview-tab.css',
@@ -35,8 +37,12 @@ export class OverviewTab {
   protected readonly store = inject(UniverseStore);
   protected readonly u = this.store.universe;
   protected readonly reasons = computed(() => { const u = this.u(); return u ? reasonsFor(u) : []; });
-  protected readonly apps = computed(() => (this.u()?.apps ?? []).map((a) => ({ app: a, rows: rowsOf(a) })));
+  protected readonly apps = computed(() => (this.u()?.apps ?? []).map((a) => {
+    const row = this.store.code().get(a.repo);
+    return { app: a, rows: rowsOf(a), code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo) };
+  }));
   protected readonly webUrl = isWebUrl;
+
   protected dot = (s: string): string => SERVICE_DOT[s] ?? '';
   protected svcTitle(s: { state?: string; detail?: string; published?: string }): string {
     return [s.state, s.detail, s.published && `publishes ${s.published}`].filter(Boolean).join(' · ');

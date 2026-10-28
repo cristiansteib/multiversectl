@@ -16,7 +16,12 @@
           <article class="app" [attr.aria-label]="x.app.key">
             <h3>
               {{ x.app.key }}
-              @if (x.app.repo && x.app.repo !== x.app.key) { <span class="muted repo">{{ x.app.repo }}</span> }
+              <span class="chips">
+                @if (x.app.repo) { <mv-repo-chip [loc]="x.loc" [name]="x.app.repo" /> }
+                @if (x.branch) { <mv-repo-chip [loc]="x.loc" [name]="x.app.repo" [branch]="x.branch" /> }
+                @if (x.code) { <mv-pr-chip [review]="x.code.review" [error]="x.code.reviewError" /> }
+              </span>
+              <span class="grow"></span>
               @if (x.app.expected) { <mv-badge [tone]="x.app.running === x.app.expected ? 'ok' : x.app.running ? 'warn' : 'mute'">{{ x.app.running }}/{{ x.app.expected }} up</mv-badge> }
             </h3>
             @if (x.rows.length) {

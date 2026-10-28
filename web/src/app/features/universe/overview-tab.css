@@ -1,8 +1,8 @@
 :host { display: block }
 .banner { margin-bottom: 6px } .banner ul { margin: 6px 0 0; padding-left: 20px }
 .apps { display: flex; flex-direction: column; gap: 22px }
-.app h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 1rem }
-.repo { font-weight: 400; font-size: .85rem }
+.app h3 { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin: 0 0 8px; font-size: 1rem }
+.chips { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; font-weight: 400 }
 .none { margin: 0; font-size: .9rem }
 th:first-child { width: 36% }
 .svc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }

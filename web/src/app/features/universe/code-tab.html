@@ -3,7 +3,7 @@
     <div class="tabs repos" role="tablist" aria-label="Repositories" (keydown)="arrows($event, list.length, pickRepo.bind(this), repoIndex())">
       @for (r of list; track r.repo) {
         <button type="button" role="tab" class="tab" [class.on]="r.repo === row()?.repo" [attr.aria-selected]="r.repo === row()?.repo" [attr.tabindex]="r.repo === row()?.repo ? 0 : -1" (click)="select(r.repo)">
-          @if (r.review) { <mv-icon [name]="r.review.state === 'merged' ? 'prMerged' : r.review.state === 'closed' ? 'prClosed' : r.review.state === 'draft' ? 'prDraft' : 'prOpen'" /> }
+          @if (r.review) { <mv-pr-icon [state]="r.review.state" /> }
           {{ r.repo }}
           @if (r.change) { <b class="add">+{{ r.change.added }}</b><b class="del">−{{ r.change.removed }}</b> }
         </button>
@@ -28,7 +28,7 @@
   <section class="repo" role="tabpanel" [attr.aria-label]="r.repo">
     <div class="head row">
       @if (r.branch) { <span class="chip" title="The branch checked out in this repository"><mv-icon name="branch" /> {{ r.branch }}</span> }
-      <mv-review-chip [row]="r" />
+      <mv-pr-chip [review]="r.review" [error]="r.reviewError" />
       @for (f of facts(); track f.text) { <span class="fact" [class]="f.kind" [attr.title]="f.title">{{ f.text }}</span> }
     </div>
 

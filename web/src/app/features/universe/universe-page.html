@@ -51,6 +51,7 @@
       <a [routerLink]="[...base(), 'settings']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="system" /> Settings</a>
     </nav>
     <div class="content"><router-outlet /></div>
+    <mv-universe-aside class="summary" />
   </div>
 
 } @else if (!store.loaded()) {
