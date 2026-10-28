@@ -21,6 +21,7 @@ import (
 //	  dev.multiversectl.host.api.entrypoint: devapi   # default: web
 //	  dev.multiversectl.host.api.aliases: app,adm     # same service, other hostnames
 //	  dev.multiversectl.host.api.portForward: auto    # also reachable at <ip>:<free port>
+//	  dev.multiversectl.host.rpc.scheme: h2c          # a gRPC service: the proxy speaks HTTP/2 to it
 //	  dev.multiversectl.publish: "true"               # keep my published ports
 //
 // With no labels at all, a service that exposes exactly one port is reached at
@@ -145,6 +146,9 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			return fmt.Errorf("host %q is claimed twice: by %s/%s and by %s/%s",
 				hostKey, existing.App, existing.Service, rule.App, rule.Service)
 		}
+		if rule.Scheme != "" && !slices.Contains(domain.Schemes, rule.Scheme) {
+			return fmt.Errorf("host %q: scheme %q: want %s", hostKey, rule.Scheme, strings.Join(domain.Schemes, ", "))
+		}
 		rule.Entrypoint = orWeb(rule.Entrypoint)
 		rule.Hostname = u.Hostname(hostKey, dom)
 		rules[hostKey] = rule
@@ -160,7 +164,7 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			for hostKey, rule := range app.Hosts {
 				if err := add(hostKey, domain.RouteRule{
 					App: appKey, Service: rule.Service, Port: rule.Port,
-					Entrypoint: rule.Entrypoint, Aliases: rule.AlsoMatch, PortForward: rule.PortForward,
+					Entrypoint: rule.Entrypoint, Aliases: rule.AlsoMatch, PortForward: rule.PortForward, Scheme: rule.Scheme,
 				}); err != nil {
 					return nil, err
 				}
@@ -247,6 +251,8 @@ func rulesFromLabels(labels map[string]string) map[string]domain.RouteRule {
 			rule.Entrypoint = labels[key]
 		case field == "portForward":
 			rule.PortForward = labels[key]
+		case field == "scheme":
+			rule.Scheme = labels[key]
 		case field == "aliases":
 			for _, alias := range strings.Split(labels[key], ",") {
 				if alias = strings.TrimSpace(alias); alias != "" {

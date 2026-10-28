@@ -17,3 +17,14 @@ func TestPortForwardLabel(t *testing.T) {
 		t.Fatalf("label not read per host: %+v", rules)
 	}
 }
+
+func TestSchemeLabelIsReadPerHostAndCheckedWhenResolved(t *testing.T) {
+	rules := rulesFromLabels(map[string]string{
+		"dev.multiversectl.host.rpc":        "4317",
+		"dev.multiversectl.host.rpc.scheme": "h2c",
+		"dev.multiversectl.host.web":        "8000",
+	})
+	if rules["rpc"].Scheme != "h2c" || rules["web"].Scheme != "" {
+		t.Fatalf("scheme not read per host: %+v", rules)
+	}
+}

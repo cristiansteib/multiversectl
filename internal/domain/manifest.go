@@ -251,7 +251,15 @@ type HostRule struct {
 	// port: a client that cannot use a hostname, such as a phone refusing
 	// plain http to a name, needs an address it may call.
 	PortForward string
+	// Scheme is how the proxy talks to the service: "" or "http" (the default),
+	// "https", or "h2c" for a service that speaks HTTP/2 without TLS, such as a
+	// gRPC one. Without it the proxy forwards HTTP/1.1 and a gRPC server answers
+	// with an error nothing in the universe explains.
+	Scheme string
 }
+
+// Schemes are the ones the proxy can speak to a service.
+var Schemes = []string{"http", "https", "h2c"}
 
 // PortForwardAuto marks a resolved host as also published on a host port that
 // the tool chooses: free when first chosen, then kept.
@@ -316,6 +324,9 @@ func (m *Manifest) Validate() error {
 			seenHost[hostKey] = key
 			if rule.Service == "" {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.service: required", key, hostKey))
+			}
+			if rule.Scheme != "" && !slices.Contains(Schemes, rule.Scheme) {
+				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.scheme: want %s", key, hostKey, strings.Join(Schemes, ", ")))
 			}
 			if rule.Port <= 0 || rule.Port > 65535 {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.port: %d is out of range", key, hostKey, rule.Port))

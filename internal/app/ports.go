@@ -271,6 +271,8 @@ type Route struct {
 	// (bound to OverrideRequest.Bind). ForwardURL is the address that gives.
 	HostPort   int
 	ForwardURL string
+	// Scheme is how the proxy talks to the service; empty is plain http.
+	Scheme string
 }
 
 // Router materialises routing for a universe's apps. Returning extra runtime

@@ -316,6 +316,7 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 			Network:    network,
 			HostPort:   rule.HostPort,
 			ForwardURL: rule.ForwardURL,
+			Scheme:     rule.Scheme,
 		})
 	}
 	return routes

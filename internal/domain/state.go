@@ -21,6 +21,10 @@ type RouteRule struct {
 	PortForward string `yaml:"portForward,omitempty"`
 	HostPort    int    `yaml:"hostPort,omitempty"`
 	ForwardURL  string `yaml:"forwardURL,omitempty"`
+
+	// Scheme is how the proxy talks to the service when it is not plain http
+	// (see HostRule.Scheme).
+	Scheme string `yaml:"scheme,omitempty"`
 }
 
 // UniverseState is what survives between commands: enough to act on a

@@ -139,3 +139,24 @@ func TestOverridePublishesForwardedPort(t *testing.T) {
 		t.Fatalf("the reset must not follow the override:\n%s", out)
 	}
 }
+
+// A service that speaks HTTP/2 without TLS (gRPC) is told to the proxy; one that
+// does not say gets nothing, so a plain service's labels do not change.
+func TestOverrideSaysWhenAServiceSpeaksH2c(t *testing.T) {
+	route := func(name, scheme string) app.Route {
+		return app.Route{Name: name, Hostname: name + ".example.test", Service: "web", Port: 4317, Entrypoint: "web", Network: "multiversenet", Scheme: scheme}
+	}
+	for scheme, want := range map[string]bool{"h2c": true, "https": true, "http": false, "": false} {
+		content, err := render("routes.yml.tmpl", buildOverride(app.OverrideRequest{Routes: []app.Route{route("rpc-u1", scheme)}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		label := "traefik.http.services.rpc-u1.loadbalancer.server.scheme"
+		if got := strings.Contains(string(content), label); got != want {
+			t.Errorf("scheme %q: label present = %v, want %v\n%s", scheme, got, want, content)
+		}
+		if want && !strings.Contains(string(content), scheme) {
+			t.Errorf("scheme %q is not in the labels:\n%s", scheme, content)
+		}
+	}
+}

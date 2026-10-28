@@ -268,6 +268,9 @@ func buildOverride(r app.OverrideRequest) override {
 			rules[i] = "Host(`" + h + "`)"
 		}
 		prefix := "traefik.http.routers." + r.Name
+		if r.Scheme != "" && r.Scheme != "http" {
+			s.Labels = append(s.Labels, label{"traefik.http.services." + r.Name + ".loadbalancer.server.scheme", r.Scheme})
+		}
 		s.Labels = append(s.Labels,
 			label{"traefik.http.services." + r.Name + ".loadbalancer.server.port", strconv.Itoa(r.Port)},
 			label{prefix + ".rule", strings.Join(rules, " || ")},
