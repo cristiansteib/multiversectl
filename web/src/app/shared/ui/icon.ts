@@ -22,6 +22,7 @@ const STROKED: Record<string, string> = {
   check: 'M3 8.5l3.2 3L13 4.5',
   x: 'M3.5 3.5l9 9M12.5 3.5l-9 9',
   chevron: 'M6 3.5L10.5 8 6 12.5',
+  chevronLeft: 'M10 3.5L5.5 8 10 12.5',
   chevronDown: 'M3.5 6L8 10.5 12.5 6',
   refresh: 'M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3',
   search: 'M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zM10.5 10.5l3.5 3.5',

@@ -1,5 +1,5 @@
 <a class="skip" href="#main" (click)="skipToMain($event)">Skip to content</a>
-<div class="shell" [class.has-dock]="dockOpen()">
+<div class="shell" [class.has-dock]="dockOpen()" [class.rail-collapsed]="collapsed()">
   <header class="top">
     <button type="button" class="btn icon ghost menu" (click)="menu.set(!menu())" [attr.aria-expanded]="menu()" aria-controls="rail" aria-label="Sections">
       <mv-icon name="menu" />
@@ -31,11 +31,15 @@
 
   <nav id="rail" class="rail" [class.open]="menu()" aria-label="Sections">
     @for (s of sections; track s.path) {
-      <a [routerLink]="s.path" routerLinkActive="current" [routerLinkActiveOptions]="{ exact: !!s.exact }" ariaCurrentWhenActive="page">
-        <mv-icon [name]="s.icon" /> {{ s.label }}
+      <a [routerLink]="s.path" routerLinkActive="current" [routerLinkActiveOptions]="{ exact: !!s.exact }" ariaCurrentWhenActive="page" [attr.title]="collapsed() ? s.label : null">
+        <mv-icon [name]="s.icon" /> <span class="label">{{ s.label }}</span>
         @if (s.path === '/fleet' && ops.running() > 0) { <span class="count" [attr.title]="ops.running() + ' running'">{{ ops.running() }}</span> }
       </a>
     }
+    <button type="button" class="rail-toggle" (click)="toggleRail()" [attr.aria-expanded]="!collapsed()"
+            [attr.aria-label]="collapsed() ? 'Expand the sections' : 'Collapse the sections'" [attr.title]="collapsed() ? 'Expand the sections' : 'Collapse the sections'">
+      <mv-icon [name]="collapsed() ? 'chevron' : 'chevronLeft'" />
+    </button>
     <p class="rail-note">
       @if (events.readOnly()) { Read-only: the server was started with <code>--read-only</code>. }
       @else { Whatever you do here the command line does too. }

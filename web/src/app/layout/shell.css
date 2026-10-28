@@ -20,7 +20,18 @@
 main { padding: 26px clamp(16px, 3.2vw, 40px) 72px; max-width: 1680px; width: 100%; min-width: 0 }
 main:focus, main:focus-visible { outline: none }
 
+/* Collapsed, the sections are icons; their names stay for a screen reader and are tooltips. */
+.rail-toggle { align-self: flex-end; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin: 4px 4px 0; border: 0; border-radius: var(--r-md); background: none; color: var(--muted); cursor: pointer }
+.rail-toggle:hover { background: var(--sunk); color: var(--text) }
+@media (min-width: 861px) {
+  .shell.rail-collapsed { grid-template-columns: 64px minmax(0, 1fr) }
+  .rail-collapsed .rail a { justify-content: center; padding-inline: 0; position: relative }
+  .rail-collapsed .label, .rail-collapsed .rail-note { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap }
+  .rail-collapsed .count { position: absolute; top: 2px; right: 6px; margin: 0; padding: 1px 5px }
+  .rail-collapsed .rail-toggle { align-self: center }
+}
 @media (max-width: 860px) {
+  .rail-toggle { display: none }
   .shell { grid-template-columns: minmax(0, 1fr) }
   .menu { display: inline-flex }
   .stamp { display: none }
