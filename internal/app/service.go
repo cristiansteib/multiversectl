@@ -182,21 +182,27 @@ func (s *Service) universeAddresses(st domain.UniverseState) (hosts, origins []s
 // hostOf is the name a host answers to as far as anything outside the proxy is
 // concerned: its hostname, or with no domain the machine's address.
 func (s *Service) hostOf(st domain.UniverseState, hostKey, hostname string) string {
-	if s.Manifest.IPOnly() {
-		if u, err := url.Parse(st.Rules[hostKey].ForwardURL); err == nil && u.Hostname() != "" {
+	if rule := st.Rules[hostKey]; byIP(rule) {
+		if u, err := url.Parse(rule.ForwardURL); err == nil && u.Hostname() != "" {
 			return u.Hostname()
 		}
 	}
 	return hostname
 }
 
+// byIP says whether a host is given by its forwarded address and no name: it
+// asked for that (portForward: only), or the multiverse has no domain. Until
+// the first start there is no forwarded address, and the name stands in.
+func byIP(rule domain.RouteRule) bool {
+	return rule.PortForward == domain.PortForwardOnly && rule.ForwardURL != ""
+}
+
 // originOf is a hostname as a browser would send it in an Origin header: with
 // the port of the entrypoint that answers it, which is not the default port
 // for anything on a second entrypoint.
 func (s *Service) originOf(st domain.UniverseState, hostKey, hostname string) string {
-	// With no domain the address is the forwarded one, once there is one.
-	if forward := st.Rules[hostKey].ForwardURL; s.Manifest.IPOnly() && forward != "" {
-		return forward
+	if rule := st.Rules[hostKey]; byIP(rule) {
+		return rule.ForwardURL
 	}
 	port := s.Manifest.Proxy.Entrypoints[st.Rules[hostKey].Entrypoint]
 	if port != 0 && port != 80 {
@@ -339,6 +345,7 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 			Network:    network,
 			HostPort:   rule.HostPort,
 			ForwardURL: rule.ForwardURL,
+			ByIP:       byIP(rule),
 			Scheme:     rule.Scheme,
 		})
 	}

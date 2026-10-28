@@ -358,7 +358,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 func (s *Service) forwardPorts(ctx context.Context, st domain.UniverseState, rules map[string]domain.RouteRule) error {
 	keys := make([]string, 0, len(rules))
 	for hostKey, rule := range rules {
-		if rule.PortForward == domain.PortForwardAuto {
+		if domain.Forwarded(rule.PortForward) {
 			keys = append(keys, hostKey)
 		}
 	}
@@ -394,7 +394,7 @@ func (s *Service) forwardPorts(ctx context.Context, st domain.UniverseState, rul
 	for _, hostKey := range keys {
 		rule := rules[hostKey]
 		port := st.Rules[hostKey].HostPort
-		if port != 0 && st.Rules[hostKey].PortForward == domain.PortForwardAuto && !taken[port] {
+		if port != 0 && domain.Forwarded(st.Rules[hostKey].PortForward) && !taken[port] {
 			// Our own containers hold the port while the universe runs, which
 			// reads as "in use"; only a stopped universe proves a clash.
 			if free, err := s.System.PortFree(ctx, port); err != nil || free || running {

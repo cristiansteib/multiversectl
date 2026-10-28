@@ -271,6 +271,8 @@ type Route struct {
 	// (bound to OverrideRequest.Bind). ForwardURL is the address that gives.
 	HostPort   int
 	ForwardURL string
+	// ByIP says ForwardURL is the host's only address: no name is shown for it.
+	ByIP bool
 	// Scheme is how the proxy talks to the service; empty is plain http.
 	Scheme string
 }

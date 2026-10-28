@@ -150,10 +150,13 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			return fmt.Errorf("host %q: scheme %q: want %s", hostKey, rule.Scheme, strings.Join(domain.Schemes, ", "))
 		}
 		rule.Entrypoint = orWeb(rule.Entrypoint)
+		if rule.PortForward != "" && !domain.Forwarded(rule.PortForward) {
+			return fmt.Errorf("host %q: portForward %q: want %s or %s", hostKey, rule.PortForward, domain.PortForwardAuto, domain.PortForwardOnly)
+		}
 		if s.Manifest.IPOnly() {
 			// The address is the forwarded port: without a hostname that is the
 			// only way to tell one universe's copy of a host from another's.
-			rule.PortForward = domain.PortForwardAuto
+			rule.PortForward = domain.PortForwardOnly
 		}
 		rule.Hostname = u.Hostname(hostKey, dom)
 		rules[hostKey] = rule
