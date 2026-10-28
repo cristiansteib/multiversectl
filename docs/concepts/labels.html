@@ -124,17 +124,19 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></div>
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.env.DJANGO_ALLOWED_HOSTS</span>: hosts
       <span class="k">dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
-      <span class="k">dev.multiversectl.env.DJANGO_CORS_ALLOWED_ORIGINS</span>: origins
+      <span class="k">dev.multiversectl.env.DJANGO_CORS_ALLOWED_ORIGINS</span>: origins:space
       <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></div>
   <div class="tw"><table>
   <thead><tr><th scope="col">Source</th><th scope="col">Value</th></tr></thead><tbody>
   <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port.</td></tr>
   <tr><td data-l="Source"><code>hosts</code></td><td data-l="Value">Every hostname, comma separated.</td></tr>
+  <tr><td data-l="Source"><code>origins:space</code>, <code>hosts:space</code></td><td data-l="Value">The same list joined as the setting wants it: <code>comma</code> (the default), <code>space</code>, <code>semicolon</code> or <code>newline</code>. A framework decides the shape of its own setting, so it is named rather than guessed.</td></tr>
   <tr><td data-l="Source"><code>domain</code></td><td data-l="Value">The wildcard domain in use.</td></tr>
   <tr><td data-l="Source"><code>universe</code></td><td data-l="Value">The universe's name, as typed.</td></tr>
   <tr><td data-l="Source"><code>slug</code></td><td data-l="Value">The part its hostnames carry.</td></tr>
   <tr><td data-l="Source"><code>host:&lt;key&gt;</code></td><td data-l="Value">One host key's hostname.</td></tr>
   <tr><td data-l="Source"><code>url:&lt;key&gt;</code></td><td data-l="Value">One host key's whole address, port included.</td></tr>
+  <tr><td data-l="Source"><code>forward:&lt;key&gt;</code></td><td data-l="Value">The address of a host that is also forwarded by IP and port (<code>portForward: auto</code>), for a client that cannot use the hostname. Fails when the host is not forwarded.</td></tr>
   </tbody></table></div>
   <p>An unknown source fails the start and names the valid ones, rather than leaving a variable quietly empty to surface much later as a confusing runtime error.</p>
   <h3 id="env-precedence">It beats <code>env_file</code></h3>
