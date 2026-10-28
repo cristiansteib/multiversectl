@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterRenderEffect, computed, effect, inject, input, model, signal, untracked, viewChild } from '@angular/core';
 import { Toasts } from '../../core/toast.service';
+import { Events } from '../../core/events.service';
 import { copyText, plural } from '../../core/util';
 import { EmptyState } from '../../shared/ui/empty-state';
 import { Icon } from '../../shared/ui/icon';
@@ -81,7 +82,11 @@ export class LogViewer {
   });
   protected readonly count = computed(() => (this.filter().trim() ? `${this.rows().length} of ${this.lines().length} lines` : plural(this.rows().length, 'line')));
 
+  private readonly events = inject(Events);
   private abort: AbortController | null = null;
+  /** The part of a line that has not ended yet, between two pieces of a log. */
+  private carry = '';
+  private streamSeq = 0;
   private buffer: LogLine[] = [];
   private flushing: ReturnType<typeof setTimeout> | undefined;
   private nextId = 0;
@@ -98,6 +103,7 @@ export class LogViewer {
         untracked(() => { this.abort?.abort(); this.abort = null; if (this.state() === 'following') this.state.set('loaded'); });
         return;
       }
+      this.events.connected(); // the log is read again over whichever way is open
       const key = this.selected();
       const tail = this.tail();
       const follow = this.follow();
@@ -174,7 +180,11 @@ export class LogViewer {
     this.state.set('loading');
     this.detail.set('');
     const slash = key.indexOf('/');
-    const q = new URLSearchParams({ multiverse, universe, app: key.slice(0, slash), service: key.slice(slash + 1), tail: String(tail), follow: follow ? '1' : '0' });
+    const app = key.slice(0, slash), service = key.slice(slash + 1);
+    // Over the live connection when there is one: the lines arrive as they are
+    // written. Over HTTP otherwise (a network that drops websockets).
+    if (this.startSocket(abort, { multiverse, universe, app, service, tail, follow })) return;
+    const q = new URLSearchParams({ multiverse, universe, app, service, tail: String(tail), follow: follow ? '1' : '0' });
     try {
       const res = await fetch(`/api/universe/logs?${q}`, { signal: abort.signal });
       if (!res.ok) {
@@ -200,6 +210,36 @@ export class LogViewer {
       this.state.set('failed');
       this.detail.set((e as Error).message);
     }
+  }
+
+  /** Ask for the log over the websocket. False when it is not open. */
+  private startSocket(abort: AbortController, req: { multiverse: string; universe: string; app: string; service: string; tail: number; follow: boolean }): boolean {
+    const id = `log${++this.streamSeq}`;
+    this.carry = '';
+    const subs = [
+      this.events.log$.subscribe((l) => {
+        if (l.id !== id) return;
+        const parts = (this.carry + l.text).split('\n');
+        this.carry = parts.pop() ?? '';
+        if (parts.length) this.queue(parts);
+      }),
+      this.events.logEnd$.subscribe((end) => {
+        if (end.id !== id || this.abort !== abort) return;
+        if (this.carry) { this.queue([this.carry]); this.carry = ''; }
+        if (end.error) { this.state.set('failed'); this.detail.set(end.error); } else this.state.set('ended');
+        subs.forEach((x) => x.unsubscribe());
+      }),
+    ];
+    abort.signal.addEventListener('abort', () => {
+      subs.forEach((x) => x.unsubscribe());
+      this.events.send({ type: 'logs.stop', id });
+    });
+    if (!this.events.send({ type: 'logs', id, ...req })) {
+      subs.forEach((x) => x.unsubscribe());
+      return false;
+    }
+    this.state.set(req.follow ? 'following' : 'loaded');
+    return true;
   }
 
   /** Lines arrive in bursts; they are added once a frame, so a busy log does not rebuild the view per chunk. */
