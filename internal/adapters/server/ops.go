@@ -188,6 +188,16 @@ func title(r opRequest) string {
 	return r.Action
 }
 
+// universeOf is the universe an operation is about, so the page can list it with
+// that universe's others: a new universe is named by the request, not yet known
+// to the server as anything else.
+func universeOf(r opRequest) string {
+	if r.Universe == "" && (r.Action == "new" || r.Action == "checkout") {
+		return strings.TrimSpace(r.Name)
+	}
+	return r.Universe
+}
+
 // What an operation holds while it runs. Universes are meant to run side by
 // side, so starting, stopping or removing one does not wait for another's: each
 // holds only its own universe. Creating a universe takes the next number and
@@ -292,7 +302,7 @@ func (m *ops) start(ctx context.Context, r opRequest) (opView, *opError) {
 	}
 	m.seq++
 	o := &op{key: key, view: opView{
-		ID: "op" + strconv.Itoa(m.seq), Action: r.Action, Title: title(r), Multiverse: r.Multiverse, Universe: r.Universe,
+		ID: "op" + strconv.Itoa(m.seq), Action: r.Action, Title: title(r), Multiverse: r.Multiverse, Universe: universeOf(r),
 		State: "running", Started: time.Now().UTC().Format(time.RFC3339),
 	}}
 	m.busy[key] = o.view.ID
