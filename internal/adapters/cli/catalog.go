@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 
@@ -95,12 +96,25 @@ func (r runner) showTree(cmd *cobra.Command, args []string, fetch bool, format, 
 		return err
 	}
 	var tree domain.Node
+	// Catalogs are read at the same time; each one's outcome is kept to be told
+	// in the order they finished, which is also what shows the slow one.
+	var mu sync.Mutex
+	var finished []app.CatalogEvent
 	err = r.spin(fetch, "Fetching the catalogs", func() (err error) {
-		tree, err = c.Tree(cmd.Context(), localOrURL(from), fetch)
+		tree, err = c.TreeObserved(cmd.Context(), localOrURL(from), fetch, func(e app.CatalogEvent) {
+			if e.Phase != "fetching" {
+				mu.Lock()
+				finished = append(finished, e)
+				mu.Unlock()
+			}
+		})
 		return err
 	})
 	if err != nil {
 		return err
+	}
+	if fetch && format != "json" {
+		r.reportFetched(finished)
 	}
 	node, path := tree, ""
 	if len(args) == 1 {
@@ -126,6 +140,34 @@ func (r runner) showTree(cmd *cobra.Command, args []string, fetch bool, format, 
 		r.out.Info("empty: `multiversectl catalog add <owner/repo>`")
 	}
 	return nil
+}
+
+// reportFetched says how each catalog repository went, one line each, so a
+// fetch that was slow or partial says which one was.
+func (r runner) reportFetched(done []app.CatalogEvent) {
+	for _, e := range done {
+		secs := fmt.Sprintf("%.1fs", float64(e.Millis)/1000)
+		switch e.Phase {
+		case "done":
+			r.out.Info("✓ %s  %s", shortURL(e.Repo), secs)
+		case "stale":
+			r.out.Warn("%s not refreshed after %s, shown as last fetched: %s", shortURL(e.Repo), secs, e.Detail)
+		default:
+			r.out.Warn("%s unavailable after %s: %s", shortURL(e.Repo), secs, e.Detail)
+		}
+	}
+}
+
+// shortURL is a repository without its scheme and .git, as a person says it.
+func shortURL(u string) string {
+	u = strings.TrimSuffix(u, ".git")
+	if i := strings.Index(u, "://"); i >= 0 {
+		u = u[i+3:]
+	}
+	if at := strings.Index(u, "@"); at >= 0 {
+		u = u[at+1:]
+	}
+	return strings.Replace(u, ":", "/", 1)
 }
 
 type jsonNode struct {
