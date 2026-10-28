@@ -43,17 +43,36 @@
     }
   </header>
 
-  <div class="layout">
+  <div class="layout" [class.collapsed]="navCollapsed()">
     <nav class="side" aria-label="This universe">
-      <a [routerLink]="base()" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page"><mv-icon name="overview" /> Overview</a>
-      <a [routerLink]="[...base(), 'containers']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="terminal" /> Containers and logs</a>
-      <a [routerLink]="[...base(), 'code']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="branch" /> Code</a>
-      <a [routerLink]="[...base(), 'settings']" routerLinkActive="active" ariaCurrentWhenActive="page"><mv-icon name="system" /> Settings</a>
+      <button type="button" class="collapse" (click)="toggleNav()" [attr.aria-expanded]="!navCollapsed()"
+              [attr.aria-label]="navCollapsed() ? 'Expand the navigation' : 'Collapse the navigation'" [attr.title]="navCollapsed() ? 'Expand the navigation' : 'Collapse the navigation'">
+        <mv-icon [name]="navCollapsed() ? 'chevron' : 'chevronLeft'" />
+      </button>
+      <a [routerLink]="base()" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" title="Overview"><mv-icon name="overview" /> <span class="label">Overview</span></a>
+      <a [routerLink]="[...base(), 'containers']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Containers and logs"><mv-icon name="terminal" /> <span class="label">Containers and logs</span></a>
+      <a [routerLink]="[...base(), 'code']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Code"><mv-icon name="branch" /> <span class="label">Code</span></a>
+      <a [routerLink]="[...base(), 'settings']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Settings"><mv-icon name="system" /> <span class="label">Settings</span></a>
     </nav>
-    <div class="content"><router-outlet /></div>
+    <div class="content">
+      <!-- Where the summary has no column of its own: a card with the least that is wanted, and the panel behind it. -->
+      <div class="peek-row">
+        <button type="button" class="peek" (click)="summaryOpen.set(true)" aria-haspopup="dialog" title="Open the summary of this universe">
+          <span class="k">Summary</span>
+          @if (store.links().length) { <span class="v" title="Links"><mv-icon name="external" /> {{ store.links().length }}</span> }
+          @if (store.reviews().length) { <span class="v" title="Pull requests"><mv-pr-icon [state]="store.reviews()[0].review?.state" /> {{ store.reviews().length }}</span> }
+          @if (repos()) { <span class="v" title="Repositories"><mv-icon name="file" /> {{ repos() }}</span> }
+          <mv-icon name="chevronLeft" />
+        </button>
+      </div>
+      <router-outlet />
+    </div>
     <mv-universe-aside class="summary" />
   </div>
 
+  @if (summaryOpen()) {
+    <mv-drawer title="Summary" (closed)="summaryOpen.set(false)"><mv-universe-aside /></mv-drawer>
+  }
 } @else if (!store.loaded()) {
   <header class="head"><div class="who"><mv-skeleton width="9rem" height="2.6rem" /><mv-skeleton width="16rem" height="1rem" /></div></header>
   <mv-skeleton height="8rem" />

@@ -37,6 +37,18 @@ export class Shell {
     { path: '/system', label: 'System', icon: 'system' },
   ];
   protected readonly menu = signal(false);
+  /** The sections as icons only; kept for the next visit. */
+  protected readonly collapsed = signal(this.savedCollapse());
+
+  protected toggleRail(): void {
+    const next = !this.collapsed();
+    this.collapsed.set(next);
+    try { localStorage.setItem('rail-collapsed', next ? '1' : '0'); } catch { /* private mode */ }
+  }
+
+  private savedCollapse(): boolean {
+    try { return localStorage.getItem('rail-collapsed') === '1'; } catch { return false; }
+  }
   protected readonly refreshing = signal(false);
   protected readonly version = computed(() => this.events.hello()?.version ?? this.events.overview()?.version ?? '');
   protected readonly dockOpen = computed(() => this.ops.list().length > 0);

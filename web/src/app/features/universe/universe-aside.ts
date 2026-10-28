@@ -27,21 +27,8 @@ export class UniverseAside {
   protected readonly u = this.store.universe;
   protected readonly ago = ago;
 
-  /** Every web address of its apps, once each, with the service that answers on it. */
-  protected readonly links = computed(() => {
-    const seen = new Set<string>();
-    const out: { url: string; label: string; from: string }[] = [];
-    for (const a of this.u()?.apps ?? []) {
-      for (const x of a.urls ?? []) {
-        if (!isHttpUrl(x.url) || seen.has(x.url)) continue;
-        seen.add(x.url);
-        out.push({ url: x.url, label: x.url.replace(/^https?:\/\//, ''), from: a.key === x.service ? a.key : `${a.key}/${x.service}` });
-      }
-    }
-    return out;
-  });
-
-  protected readonly reviews = computed(() => [...this.store.code().values()].filter((r) => r.review || r.reviewError));
+  protected readonly links = this.store.links;
+  protected readonly reviews = this.store.reviews;
 
   protected readonly repos = computed(() => (this.u()?.checkouts ?? []).map((c) => ({ c, loc: this.store.places().get(c.repo) })));
 

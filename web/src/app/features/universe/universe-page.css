@@ -10,21 +10,37 @@
 .actions { display: flex; gap: 8px; flex-wrap: wrap }
 .chip { display: inline-flex; align-items: center; gap: 5px; font: 500 .8rem var(--mono); padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text) }
 .layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 32px; align-items: start }
-.side { grid-column: 1; grid-row: 1 / span 2; position: sticky; top: calc(var(--top) + 20px); display: flex; flex-direction: column; gap: 2px }
+.layout.collapsed { grid-template-columns: 48px minmax(0, 1fr) }
+.side { grid-column: 1; position: sticky; top: calc(var(--top) + 20px); display: flex; flex-direction: column; gap: 2px }
 .side a { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--r-md); color: var(--muted); text-decoration: none; font-weight: 500 }
 .side a:hover { background: var(--sunk); color: var(--text) }
 .side a.active { background: var(--accent-soft); color: var(--text) } .side a.active mv-icon { color: var(--accent) }
+.collapse { align-self: flex-end; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-bottom: 6px; border: 0; border-radius: var(--r-md);
+  background: none; color: var(--muted); cursor: pointer }
+.collapse:hover { background: var(--sunk); color: var(--text) }
+/* Collapsed, the names stay for a screen reader and are shown as tooltips. */
+.collapsed .side a { justify-content: center; padding-inline: 0 }
+.collapsed .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap }
+.collapsed .collapse { align-self: center }
 .content { grid-column: 2; min-width: 0 } .content > :first-child { margin-top: 0 }
-.summary { grid-column: 2; padding-top: 6px; border-top: 1px solid var(--line-soft) }
+.summary { display: none }
+/* Without room for a column the summary is a card at the top right of the section, and a panel behind it. */
+.peek-row { display: flex; justify-content: flex-end; margin: 0 0 14px }
+.peek { display: inline-flex; align-items: center; gap: 12px; padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--panel); color: var(--text); font: 500 .86rem var(--sans); cursor: pointer }
+.peek:hover { border-color: var(--accent) }
+.peek .k { color: var(--muted) } .peek .v { display: inline-flex; align-items: center; gap: 5px }
 /* With room for it the summary is a column of its own, in view while the section changes. */
 @media (min-width: 1560px) {
   .layout { grid-template-columns: 200px minmax(0, 1fr) 300px }
-  .side { grid-row: auto }
-  .summary { grid-column: 3; grid-row: 1; position: sticky; top: calc(var(--top) + 20px); padding-top: 0; border-top: 0 }
+  .layout.collapsed { grid-template-columns: 48px minmax(0, 1fr) 300px }
+  .summary { display: block; grid-column: 3; grid-row: 1; position: sticky; top: calc(var(--top) + 20px) }
+  .peek-row { display: none }
 }
 @media (max-width: 860px) {
-  .layout { grid-template-columns: minmax(0, 1fr); gap: 16px }
-  .side, .content, .summary { grid-column: 1; grid-row: auto }
+  .layout, .layout.collapsed { grid-template-columns: minmax(0, 1fr); gap: 16px }
+  .side, .content { grid-column: 1; grid-row: auto }
   .side { position: static; flex-direction: row; overflow-x: auto; border-bottom: 1px solid var(--line); padding-bottom: 6px }
-  .side a { white-space: nowrap }
+  .collapse { display: none }
+  .side a, .collapsed .side a { white-space: nowrap; justify-content: flex-start; padding-inline: 12px }
+  .collapsed .label { position: static; width: auto; height: auto; clip-path: none }
 }
