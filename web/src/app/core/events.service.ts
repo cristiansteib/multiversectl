@@ -11,6 +11,9 @@ const POLL_MS = 10_000;
  * latter, which is the entry it is listed under. Said once, here, so nothing
  * downstream has to remember it.
  */
+/** An overview whose lists are lists: a machine with nothing installed may send none (`null`). */
+const whole = (o: OverviewView): OverviewView => ({ ...o, status: { ...o.status, multiverses: o.status?.multiverses ?? [] } });
+
 const named = (f: FleetView): FleetView => ({
   ...f,
   multiverses: (f.multiverses ?? []).map((m) => ({ ...m, universes: (m.universes ?? []).map((u) => ({ ...u, multiverse: m.name })) })),
@@ -55,7 +58,7 @@ export class Events {
         this.api.get<OverviewView>('overview', { fetch }),
         this.api.get<FleetView>('fleet'),
       ]);
-      this.overview.set(overview);
+      this.overview.set(whole(overview));
       this.fleet.set(named(fleet));
       this.updatedAt.set(new Date());
       this.error.set(null);
@@ -103,7 +106,7 @@ export class Events {
         break;
       }
       case 'fleet': this.fleet.set(named(e.data)); this.updatedAt.set(new Date()); break;
-      case 'overview': this.overview.set(e.data); this.updatedAt.set(new Date()); break;
+      case 'overview': this.overview.set(whole(e.data)); this.updatedAt.set(new Date()); break;
       case 'update': this.update.set((e.data as { notice?: UpdateNotice }).notice ?? null); break;
       case 'catalogProgress': this.catalogProgress$.next(e.data); break;
       case 'op': this.op$.next(e.data); break;
