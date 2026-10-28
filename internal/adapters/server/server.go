@@ -75,6 +75,8 @@ type Server struct {
 	// restarting is set once an update has replaced the program: the server is
 	// about to start again, so it takes nothing new.
 	restarting atomic.Bool
+	// lookedAt is when a page last made the server look for a release.
+	lookedAt atomic.Int64
 }
 
 // New builds a server and starts what watches the fleet for changes. Close it.
@@ -111,6 +113,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/overview", s.overview)
 	mux.HandleFunc("/api/catalog", s.catalog)
 	mux.HandleFunc("/api/catalog/ignore", s.catalogIgnore)
+	mux.HandleFunc("/api/update", s.updateLook)
 	mux.HandleFunc("/api/fleet", s.fleet)
 	mux.HandleFunc("/api/multiverses/", s.multiverse)
 	mux.HandleFunc("/api/doctor", s.doctor)
@@ -272,6 +275,25 @@ func (s *Server) catalogIgnore(w http.ResponseWriter, r *http.Request) {
 	reply(w, map[string]any{"path": strings.Trim(req.Path, "/"), "ignored": req.Ignore})
 }
 
+// updateLook is how a page asks whether a newer release is out, rather than waiting
+// for the server's own look every half hour. A look made for a page is at most one
+// a minute: what it finds is told to every open page, and a page left open asks
+// again on its own.
+func (s *Server) updateLook(w http.ResponseWriter, r *http.Request) {
+	mode := readCached
+	if now := time.Now().UnixNano(); now-s.lookedAt.Load() > int64(time.Minute) {
+		s.lookedAt.Store(now)
+		mode = lookNow
+	}
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	v, _ := s.b.Update(ctx, mode) // a failed look still carries what the earlier ones found
+	if mode == lookNow {
+		s.hub.publish("update", event{Type: "update", Data: v})
+	}
+	reply(w, v)
+}
+
 func (s *Server) fleet(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := s.ctx(r)
 	defer cancel()
@@ -315,6 +337,13 @@ func (s *Server) doctor(w http.ResponseWriter, r *http.Request) {
 	reply(w, v)
 }
 
+// projectRepo is where the project is; a release is a page of it.
+const projectRepo = "https://github.com/cristiansteib/multiversectl"
+
+func releaseURL(version string) string {
+	return projectRepo + "/releases/tag/v" + strings.TrimPrefix(version, "v")
+}
+
 func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := s.ctx(r)
 	defer cancel()
@@ -324,6 +353,13 @@ func (s *Server) system(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v.Server = versionInfo{Version: s.o.Version, Commit: s.o.Commit, Date: s.o.Date}
+	v.Links = systemLinks{Repo: projectRepo, Releases: projectRepo + "/releases", Issues: projectRepo + "/issues"}
+	if app.Released(s.o.Version) {
+		v.Server.URL = releaseURL(s.o.Version)
+	}
+	if v.Latest.Version != "" {
+		v.Latest.URL = releaseURL(v.Latest.Version)
+	}
 	v.Listen, v.Started, v.ReadOnly = s.listenAddr(r), s.started.UTC().Format(time.RFC3339), s.o.ReadOnly
 	reply(w, v)
 }

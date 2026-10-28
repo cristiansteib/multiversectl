@@ -5,7 +5,6 @@ import { Updater } from '../../core/updater.service';
 import { SystemView } from '../../core/models';
 import { ago } from '../../core/util';
 import { Badge } from '../../shared/ui/badge';
-import { CopyButton } from '../../shared/ui/copy-button';
 import { ErrorBox } from '../../shared/ui/error-box';
 import { Icon } from '../../shared/ui/icon';
 import { Skeleton } from '../../shared/ui/skeleton';
@@ -15,7 +14,7 @@ import { ToolsTable } from './tools-table';
 /** What this machine runs on: this server, the command line beside it, the tools they drive, and whether the setup is healthy. */
 @Component({
   selector: 'mv-system-page',
-  imports: [Badge, CopyButton, DoctorPanel, ErrorBox, Icon, Skeleton, ToolsTable],
+  imports: [Badge, DoctorPanel, ErrorBox, Icon, Skeleton, ToolsTable],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './system-page.html',
   styleUrl: './system-page.css',

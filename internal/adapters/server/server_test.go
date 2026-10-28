@@ -503,6 +503,10 @@ func TestTheSystemViewHasTheVersions(t *testing.T) {
 	if got.Server.Version != "v1.1.0" || got.Server.Commit != "abc1234" || len(got.Tools) != 2 || !got.Latest.Newer || got.Format == "" || got.Started == "" {
 		t.Errorf("system = %+v", got)
 	}
+	// Where the project lives, and the release pages of this build and the latest.
+	if got.Links.Repo != projectRepo || got.Links.Releases != projectRepo+"/releases" || got.Server.URL != projectRepo+"/releases/tag/v1.1.0" || got.Latest.URL != projectRepo+"/releases/tag/v1.2.0" {
+		t.Errorf("links = %+v server %q latest %q", got.Links, got.Server.URL, got.Latest.URL)
+	}
 }
 
 // operations

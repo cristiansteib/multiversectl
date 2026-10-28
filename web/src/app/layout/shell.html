@@ -1,4 +1,5 @@
 <a class="skip" href="#main" (click)="skipToMain($event)">Skip to content</a>
+<mv-update-banner />
 <div class="shell" [class.has-dock]="dockOpen()" [class.rail-collapsed]="collapsed()">
   <header class="top">
     <button type="button" class="btn icon ghost menu" (click)="menu.set(!menu())" [attr.aria-expanded]="menu()" aria-controls="rail" aria-label="Sections">
@@ -10,7 +11,7 @@
       @if (version()) { <small>{{ version() }}</small> }
     </a>
     <span class="grow"></span>
-    @if (updater.notice(); as n) {
+    @if (updater.snoozed() && updater.notice(); as n) {
       <button type="button" class="update-pill" (click)="updater.show()" [attr.title]="'multiversectl ' + n.latest + ' is out; you are on ' + n.current" [attr.aria-label]="'Update available: ' + n.latest">
         <mv-icon name="arrowUp" /> Update to {{ n.latest }}
       </button>

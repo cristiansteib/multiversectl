@@ -306,18 +306,28 @@ type versionInfo struct {
 	Version string `json:"version"`
 	Commit  string `json:"commit,omitempty"`
 	Date    string `json:"date,omitempty"`
+	// URL is the release this build is, when it is one: a build from source has none.
+	URL string `json:"url,omitempty"`
 }
 
 // systemView is what this machine runs on: this server, the command line beside
 // it, the tools they drive, and whether a newer release exists.
 type systemView struct {
-	Server   versionInfo   `json:"server"`
-	Tools    []toolVersion `json:"tools"`
-	Latest   latestView    `json:"latest"`
-	Format   string        `json:"format"`
-	Listen   string        `json:"listen,omitempty"`
-	Started  string        `json:"started,omitempty"`
-	ReadOnly bool          `json:"readOnly,omitempty"`
+	Server versionInfo   `json:"server"`
+	Tools  []toolVersion `json:"tools"`
+	Latest latestView    `json:"latest"`
+	Format string        `json:"format"`
+	// Links are where the project lives: its repository, its releases and its issues.
+	Links    systemLinks `json:"links"`
+	Listen   string      `json:"listen,omitempty"`
+	Started  string      `json:"started,omitempty"`
+	ReadOnly bool        `json:"readOnly,omitempty"`
+}
+
+type systemLinks struct {
+	Repo     string `json:"repo"`
+	Releases string `json:"releases"`
+	Issues   string `json:"issues"`
 }
 
 type toolVersion struct {
@@ -330,8 +340,10 @@ type toolVersion struct {
 
 type latestView struct {
 	Version string `json:"version,omitempty"`
-	Newer   bool   `json:"newer,omitempty"`
-	Error   string `json:"error,omitempty"`
+	// URL is the release's page, with what it brings.
+	URL   string `json:"url,omitempty"`
+	Newer bool   `json:"newer,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 // nextView is the number a new universe would take, and why it passed others.
