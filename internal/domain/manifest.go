@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"io/fs"
 	"maps"
 	"path/filepath"
 	"regexp"
@@ -133,7 +134,9 @@ type App struct {
 	// app has several.
 	DefaultService string
 	// Hooks are the commands run at points of the app's life in a universe.
-	Hooks   map[HookEvent][]Hook
+	Hooks map[HookEvent][]Hook
+	// Render lists the files made from the universe's values before the app starts.
+	Render  []Render
 	Overlay []byte // inline compose fragment, rendered by the manifest adapter
 	Build   bool   // build images before starting
 	Hosts   map[string]HostRule
@@ -143,6 +146,25 @@ type App struct {
 	// which is a repository with nothing to run rather than a mistake.
 	Derived bool
 }
+
+// Render is a file made from a template and the universe's values: for an app
+// that reads a config file at startup and cannot take environment variables.
+type Render struct {
+	// To is the file written, relative to the app's checkout in the universe.
+	To string
+	// Template is the text of the template; From names a file holding it instead,
+	// relative to the checkout or, with a leading "@", to the manifest's directory.
+	Template string
+	From     string
+	// Mode is the file's permission bits; 0 is DefaultRenderMode.
+	Mode fs.FileMode
+	// Overwrite lets the file replace one that git tracks. Without it that is an
+	// error, so a template cannot silently clobber source.
+	Overwrite bool
+}
+
+// DefaultRenderMode is the permission of a rendered file that names none.
+const DefaultRenderMode fs.FileMode = 0o644
 
 // HookEvent is a point in a universe's life a command can be tied to.
 type HookEvent string
@@ -332,6 +354,7 @@ func (m *Manifest) Validate() error {
 			}
 		}
 		errs = append(errs, validateHooks("apps."+key+".hooks", app.Hooks, app.Services, true)...)
+		errs = append(errs, validateRender("apps."+key+".render", app.Render)...)
 		for hostKey, rule := range app.Hosts {
 			if !nameRe.MatchString(hostKey) {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s: invalid key", key, hostKey))
@@ -553,4 +576,42 @@ func JoinHookEvents() string {
 		names[i] = string(e)
 	}
 	return strings.Join(names, ", ")
+}
+
+// validateRender reports what is wrong with an app's render entries. Everything
+// that decides where a file is written is checked here, before any universe
+// exists, so a bad path never gets as far as a disk.
+func validateRender(path string, entries []Render) []string {
+	var errs []string
+	seen := map[string]int{}
+	for i, r := range entries {
+		at := fmt.Sprintf("%s[%d]", path, i)
+		switch {
+		case r.To == "":
+			errs = append(errs, at+".to: required")
+		case !filepath.IsLocal(r.To):
+			errs = append(errs, fmt.Sprintf("%s.to: %q must be a path inside the repository", at, r.To))
+		default:
+			clean := filepath.Clean(r.To)
+			if clean == ".git" || strings.HasPrefix(clean, ".git"+string(filepath.Separator)) {
+				errs = append(errs, fmt.Sprintf("%s.to: %q is git's own directory", at, r.To))
+			}
+			if prev, dup := seen[clean]; dup {
+				errs = append(errs, fmt.Sprintf("%s.to: %q is already written by render[%d]", at, r.To, prev))
+			}
+			seen[clean] = i
+		}
+		switch {
+		case r.Template != "" && r.From != "":
+			errs = append(errs, at+": give template or from, not both")
+		case r.Template == "" && r.From == "":
+			errs = append(errs, at+": template or from: give one")
+		case r.From != "" && !filepath.IsLocal(strings.TrimPrefix(r.From, "@")):
+			errs = append(errs, fmt.Sprintf("%s.from: %q must be a path inside the repository, or @ and a path inside the manifest's directory", at, r.From))
+		}
+		if r.Mode&^fs.ModePerm != 0 {
+			errs = append(errs, at+".mode: want permission bits such as 0644")
+		}
+	}
+	return errs
 }

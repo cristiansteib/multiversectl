@@ -761,7 +761,7 @@ func (r runner) universeCmd() *cobra.Command {
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
 	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.downCmd(), r.syncCmd(), r.noteCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
-		r.envCmd(), r.runCmd(), r.execCmd(), r.universeConfigCmd(), r.hooksCmd())
+		r.envCmd(), r.runCmd(), r.execCmd(), r.universeConfigCmd(), r.hooksCmd(), r.renderCmd())
 	return cmd
 }
 
@@ -1100,5 +1100,27 @@ func (r runner) hooksCmd() *cobra.Command {
 		})(cmd, args)
 	}
 	cmd.AddCommand(run)
+	return cmd
+}
+
+// renderCmd renders the files the manifest makes from templates, now.
+func (r runner) renderCmd() *cobra.Command {
+	var printOnly bool
+	cmd := &cobra.Command{
+		Use:   "render <universe> [app...]",
+		Short: "Render the files the manifest makes from the universe's values",
+		Long: "Renders the files an app's `render` entries describe, as `universe up` does before it\n" +
+			"starts the app: from the addresses the universe last started with, and only writing a\n" +
+			"file whose content changed. With --print nothing is written; the result is shown, which\n" +
+			"is how a template is tried. A forwarded address exists once the universe has been started.",
+		Example: "  multiversectl universe render 3\n  multiversectl universe render 3 api --print",
+		Args:    cobra.MinimumNArgs(1),
+	}
+	cmd.Flags().BoolVar(&printOnly, "print", false, "show the rendered files instead of writing them")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			return s.Render(ctx, app.RenderInput{Universe: args[0], Apps: args[1:], Print: printOnly})
+		})(cmd, args)
+	}
 	return cmd
 }

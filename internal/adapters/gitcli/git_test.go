@@ -326,3 +326,27 @@ func TestAnUntrackedLinkIsNotReadThroughTo(t *testing.T) {
 		t.Errorf("a link has no lines of its own: %+v", files)
 	}
 }
+
+func TestIsTrackedTakesAPathLiterally(t *testing.T) {
+	clone, _ := repo(t)
+	commit(t, clone, "[ab].json")
+	g := Git{}
+	for path, want := range map[string]bool{"a": true, "[ab].json": true, "a.json": false, "b.json": false, "missing": false} {
+		got, err := g.IsTracked(context.Background(), clone, path)
+		if err != nil || got != want {
+			t.Errorf("IsTracked(%q) = %v, %v; want %v", path, got, err, want)
+		}
+	}
+}
+
+func TestAWorktreeSharesTheExcludeFileOfItsClone(t *testing.T) {
+	clone, _ := repo(t)
+	wt := filepath.Join(t.TempDir(), "wt")
+	git(t, clone, "worktree", "add", "-q", "-b", "u1", wt)
+	for _, dir := range []string{clone, wt} {
+		got, err := Git{}.ExcludeFile(context.Background(), dir)
+		if err != nil || !filepath.IsAbs(got) || !strings.HasSuffix(got, filepath.Join(".git", "info", "exclude")) {
+			t.Errorf("ExcludeFile(%s) = %q, %v", dir, got, err)
+		}
+	}
+}

@@ -335,3 +335,34 @@ func TestHooksCanBeTiedToAnyEventInAContainerOrOnTheMachine(t *testing.T) {
 		t.Errorf("the multiverse's hooks = %+v", got)
 	}
 }
+
+func TestAnAppListsTheFilesToRenderForIt(t *testing.T) {
+	with := func(extra string) string {
+		return strings.Replace(minimal, "      compose: [docker-compose.yml]\n", "      compose: [docker-compose.yml]\n"+extra, 1)
+	}
+	// An unquoted 0600 is what people write; it must not become the number 384.
+	m, err := Decode([]byte(with("      render:\n        - to: config/app.json\n          mode: 0600\n          template: '{\"url\": {{ url \"api\" | toJson }}}'\n        - to: .env\n          from: '@templates/env.tmpl'\n          overwrite: true\n")), "/ws")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := m.Apps["api"].Render
+	if len(got) != 2 || got[0].Mode != 0o600 || got[0].To != "config/app.json" || got[1].From != "@templates/env.tmpl" || !got[1].Overwrite {
+		t.Errorf("render = %+v", got)
+	}
+	for name, bad := range map[string]string{
+		"no path":           "      render:\n        - template: x\n",
+		"an escape":         "      render:\n        - {to: ../x, template: x}\n",
+		"an absolute path":  "      render:\n        - {to: /etc/x, template: x}\n",
+		"git's directory":   "      render:\n        - {to: .git/hooks/pre-commit, template: x}\n",
+		"no source":         "      render:\n        - {to: x}\n",
+		"two sources":       "      render:\n        - {to: x, template: y, from: z}\n",
+		"a source escaping": "      render:\n        - {to: x, from: ../z}\n",
+		"a manifest escape": "      render:\n        - {to: x, from: '@../z'}\n",
+		"a bad mode":        "      render:\n        - {to: x, template: y, mode: rw}\n",
+		"a repeated path":   "      render:\n        - {to: x, template: y}\n        - {to: ./x, template: z}\n",
+	} {
+		if _, err := Decode([]byte(with(bad)), "/ws"); err == nil {
+			t.Errorf("%s: a bad render entry was accepted", name)
+		}
+	}
+}

@@ -91,6 +91,16 @@ func (Files) ListFiles(path string) ([]string, error) {
 	return names, nil
 }
 
+func (Files) Mode(path string) (fs.FileMode, error) {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return 0, err
+	}
+	return info.Mode(), nil
+}
+
+func (Files) RealPath(path string) (string, error) { return filepath.EvalSymlinks(path) }
+
 func (Files) Rename(oldPath, newPath string) error { return os.Rename(oldPath, newPath) }
 
 func (Files) Chmod(path string, perm fs.FileMode) error { return os.Chmod(path, perm) }

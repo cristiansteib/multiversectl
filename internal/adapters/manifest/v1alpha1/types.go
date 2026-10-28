@@ -212,6 +212,12 @@ type App struct {
 	// knows nothing of what they do; it gives them the universe's addresses.
 	Hooks Hooks `yaml:"hooks"`
 
+	// Files made from a template and this universe's values before the app
+	// starts, for an app that reads a config file and cannot take environment
+	// variables. Written on every `universe up` (and by `universe render`), only
+	// when the content changed, and kept out of git's sight.
+	Render []Render `yaml:"render"`
+
 	// Services allowed to keep their published host ports. Every other
 	// service's ports are dropped, because a universe is reached through the
 	// proxy and published ports are what make two copies collide. A service can
@@ -238,6 +244,37 @@ type App struct {
 	// port is reached at the app's own name with no configuration at all.
 	// Declaring hosts here wins over both.
 	Hosts []Host `yaml:"hosts"`
+}
+
+// Render is one file made from a Go text/template. The template can read the
+// universe's name, slug, number and domain, the address of every host (host,
+// url, forward, origins, hosts), the environment a hook receives (.Env) and has
+// default, required, env and toJson; a value that is missing fails the start
+// with the template and the key named, rather than rendering empty.
+type Render struct {
+	// Where the file goes, relative to the app's repository in the universe. It
+	// cannot leave it. The path is added to the checkout's git exclude file, so it
+	// does not show as an untracked change.
+	// +required
+	To string `yaml:"to"`
+
+	// The template, written inline. Give this or from.
+	Template string `yaml:"template"`
+
+	// A file holding the template: a plain path is relative to the repository
+	// checkout, a path starting with @ to the manifest's directory (as compose
+	// does). Give this or template.
+	From string `yaml:"from"`
+
+	// The file's permission, as an octal string. Default 0644. Use "0600" for a
+	// file that holds a credential.
+	// +pattern=^0?[0-7]{3,4}$
+	Mode string `yaml:"mode"`
+
+	// Allow the file to replace one that git tracks. Without it that is an
+	// error, so a template cannot clobber source; with it, the change shows in
+	// git status like any other.
+	Overwrite bool `yaml:"overwrite"`
 }
 
 // Hooks tie commands to the points of a universe's life. Each event lists

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -128,6 +130,13 @@ func convertApp(a App) (domain.App, error) {
 		return app, fmt.Errorf("hooks: %w", err)
 	}
 	app.Hooks = hooks
+	for i, r := range a.Render {
+		mode, err := parseMode(r.Mode)
+		if err != nil {
+			return app, fmt.Errorf("render[%d].mode: %w", i, err)
+		}
+		app.Render = append(app.Render, domain.Render{To: r.To, Template: r.Template, From: r.From, Mode: mode, Overwrite: r.Overwrite})
+	}
 	if !a.Overlay.IsZero() {
 		// Rendered here, in the format adapter, so neither the domain nor the
 		// use cases need to know what YAML is.
@@ -292,4 +301,16 @@ func parseDuration(field, value string) (time.Duration, error) {
 
 func (h Hooks) empty() bool {
 	return len(h.PostCreate)+len(h.PreUp)+len(h.PostUp)+len(h.PreDown)+len(h.PostDown)+len(h.PreRemove)+len(h.After) == 0
+}
+
+// parseMode reads a permission written the way chmod does. "" is the default.
+func parseMode(value string) (fs.FileMode, error) {
+	if value == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseUint(value, 8, 32)
+	if err != nil || n > 0o777 || n == 0 {
+		return 0, fmt.Errorf("%q is not a permission such as 0644", value)
+	}
+	return fs.FileMode(n), nil
 }

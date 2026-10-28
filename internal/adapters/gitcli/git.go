@@ -289,6 +289,23 @@ func (g Git) Checkout(ctx context.Context, repoDir, ref string) error {
 	return err
 }
 
+func (g Git) IsTracked(ctx context.Context, dir, path string) (bool, error) {
+	// Literal, so a file name with a glob character is that file and no other.
+	out, err := g.run(ctx, "--literal-pathspecs", "-C", dir, "ls-files", "-z", "--", path)
+	return out != "", err
+}
+
+func (g Git) ExcludeFile(ctx context.Context, dir string) (string, error) {
+	out, err := g.run(ctx, "-C", dir, "rev-parse", "--git-path", "info/exclude")
+	if err != nil {
+		return "", err
+	}
+	if !filepath.IsAbs(out) {
+		out = filepath.Join(dir, out)
+	}
+	return out, nil
+}
+
 func (g Git) Init(ctx context.Context, dir string) error {
 	_, err := g.run(ctx, "init", "--quiet", "--initial-branch=main", dir)
 	return err
