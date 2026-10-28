@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
@@ -20,6 +21,7 @@ func TestRenderTree(t *testing.T) {
 				Source: domain.Source{Repo: "git@gitlab.com:acme/pay.git", Ref: "v1", Path: "multiverse.yaml"}},
 		}},
 		{Name: "private", Path: "private", Kind: domain.CatalogNode, Unavailable: "no access or not found: github:acme/private"},
+		{Name: "old", Path: "old", Kind: domain.CatalogNode, Stale: "timed out after 20s", Source: domain.Source{Repo: "git@gitlab.com:acme/old.git"}},
 	}}
 	var buf bytes.Buffer
 	r := runner{out: NewOutput(&buf, false)}
@@ -30,6 +32,7 @@ func TestRenderTree(t *testing.T) {
 		"file:~/notes/multiverse.yaml",
 		"gitlab:acme/index", "gitlab:acme/pay@v1", "multiverse", "✓ installed as payments",
 		"✗ no access or not found: github:acme/private",
+		"⚠ not refreshed: timed out after 20s",
 		"○ not installed", // notes is a project that is listed and not on this machine
 		"1/1 installed",   // acme: payments is installed
 		"0/1 installed",   // personal: notes is not
@@ -57,6 +60,22 @@ func TestEveryCommandIsInAGroup(t *testing.T) {
 		}
 		if !known[c.GroupID] {
 			t.Errorf("%s has group %q; add it to commandGroups", c.Name(), c.GroupID)
+		}
+	}
+}
+
+func TestReportFetchedSaysHowEachRepositoryWent(t *testing.T) {
+	var buf bytes.Buffer
+	r := runner{out: NewOutput(&buf, false)}
+	r.reportFetched([]app.CatalogEvent{
+		{Repo: "git@gitlab.com:acme/index.git", Phase: "done", Millis: 400},
+		{Repo: "https://vpn.example.test/acme/old.git", Phase: "stale", Detail: "timed out after 20s", Millis: 20000},
+		{Repo: "git@example.test:acme/gone.git", Phase: "unavailable", Detail: "no access or not found", Millis: 100},
+	})
+	got := buf.String()
+	for _, want := range []string{"gitlab.com/acme/index  0.4s", "vpn.example.test/acme/old not refreshed after 20.0s", "example.test/acme/gone unavailable"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
 		}
 	}
 }
