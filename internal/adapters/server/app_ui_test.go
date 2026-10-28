@@ -26,23 +26,23 @@ func serveApp(h http.Handler, method, target string) *httptest.ResponseRecorder 
 
 func TestAppServesAssetsAndRoutesButNotMissingFiles(t *testing.T) {
 	h := appHandler(built())
-	if w := serveApp(h, "GET", "/app/main-ABC.js"); w.Code != 200 || w.Body.String() != "console.log(1)" {
+	if w := serveApp(h, "GET", "/main-ABC.js"); w.Code != 200 || w.Body.String() != "console.log(1)" {
 		t.Fatalf("asset: %d %q", w.Code, w.Body)
 	}
-	if w := serveApp(h, "GET", "/app/universes/3"); w.Code != 200 || !strings.Contains(w.Body.String(), "app-root") {
+	if w := serveApp(h, "GET", "/universes/3"); w.Code != 200 || !strings.Contains(w.Body.String(), "app-root") {
 		t.Fatalf("a route of the app should be index.html: %d %q", w.Code, w.Body)
 	}
-	if w := serveApp(h, "GET", "/app/missing.js"); w.Code != 404 {
+	if w := serveApp(h, "GET", "/missing.js"); w.Code != 404 {
 		t.Fatalf("a missing asset must be a 404, not the page: %d", w.Code)
 	}
 }
 
 func TestAppNeverListsADirectoryOrLeavesTheTree(t *testing.T) {
 	h := appHandler(built())
-	if w := serveApp(h, "GET", "/app/secret/"); strings.Contains(w.Body.String(), "inner.json") {
+	if w := serveApp(h, "GET", "/secret/"); strings.Contains(w.Body.String(), "inner.json") {
 		t.Fatalf("a directory was listed: %q", w.Body)
 	}
-	for _, p := range []string{"/app/../server.go", "/app/%2e%2e/server.go", "/app/..%2f..%2fgo.mod", "/app/a\\..\\b.js"} {
+	for _, p := range []string{"/../server.go", "/%2e%2e/server.go", "/..%2f..%2fgo.mod", "/a\\..\\b.js"} {
 		if w := serveApp(h, "GET", p); w.Code == 200 && !strings.Contains(w.Body.String(), "app-root") {
 			t.Fatalf("%s served %q", p, w.Body)
 		}
@@ -52,7 +52,7 @@ func TestAppNeverListsADirectoryOrLeavesTheTree(t *testing.T) {
 func TestAppIsReadOnly(t *testing.T) {
 	h := appHandler(built())
 	for _, m := range []string{"POST", "PUT", "DELETE", "PATCH"} {
-		if w := serveApp(h, m, "/app/"); w.Code != http.StatusMethodNotAllowed {
+		if w := serveApp(h, m, "/"); w.Code != http.StatusMethodNotAllowed {
 			t.Fatalf("%s: %d", m, w.Code)
 		}
 	}
@@ -60,7 +60,7 @@ func TestAppIsReadOnly(t *testing.T) {
 
 func TestIndexGetsItsOwnNonceInThePageAndThePolicy(t *testing.T) {
 	h := appHandler(built())
-	a, b := serveApp(h, "GET", "/app/"), serveApp(h, "GET", "/app/")
+	a, b := serveApp(h, "GET", "/"), serveApp(h, "GET", "/")
 	nonce := func(w *httptest.ResponseRecorder) string {
 		csp := w.Header().Get("Content-Security-Policy")
 		i := strings.Index(csp, "'nonce-")
@@ -83,7 +83,7 @@ func TestIndexGetsItsOwnNonceInThePageAndThePolicy(t *testing.T) {
 
 func TestAppNotBuiltSaysSo(t *testing.T) {
 	h := appHandler(fstest.MapFS{"placeholder.html": {Data: []byte("not built")}})
-	if w := serveApp(h, "GET", "/app/"); w.Code != http.StatusServiceUnavailable || w.Body.String() != "not built" {
+	if w := serveApp(h, "GET", "/"); w.Code != http.StatusServiceUnavailable || w.Body.String() != "not built" {
 		t.Fatalf("%d %q", w.Code, w.Body)
 	}
 }

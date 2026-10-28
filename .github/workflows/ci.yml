@@ -33,16 +33,6 @@ jobs:
             echo "$unformatted"
             exit 1
           fi
-      # The web view is one embedded script; if it does not parse the page stays
-      # blank on "connecting…" and no Go test notices.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: web view scripts parse
-        run: |
-          for f in internal/adapters/server/ui/*.js; do
-            node --check "$f"
-          done
       - run: go vet ./...
       - run: go build ./...
       - run: go test ./...

@@ -12,7 +12,6 @@ package server
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,9 +27,6 @@ import (
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
-
-//go:embed ui
-var uiFiles embed.FS
 
 // requestTimeout bounds one API call. The slow ones ask the container runtime
 // or the network, and a stuck one should not hold a connection open for ever.
@@ -49,6 +45,8 @@ type Options struct {
 	ReadOnly bool
 	// Token is the credential; made at random when empty.
 	Token string
+	// App is the web app's files; the build embedded in the binary when nil.
+	App fs.FS
 	// UpdateEvery is how often to look for a newer release; zero is
 	// app.UpdateEvery.
 	UpdateEvery time.Duration
@@ -122,10 +120,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "no such endpoint") })
 	mux.HandleFunc("/ws", s.ws)
 
-	ui, _ := fs.Sub(uiFiles, "ui")
-	mux.Handle("/", http.FileServerFS(ui))
-	app, _ := fs.Sub(webappFiles, "webapp")
-	mux.Handle(appPrefix, appHandler(app))
+	mux.HandleFunc("/style.css", serveSignInCSS)
+	mux.HandleFunc("/app/", toRoot)
+	app := s.o.App
+	if app == nil {
+		app, _ = fs.Sub(webappFiles, "webapp")
+	}
+	mux.Handle("/", appHandler(app))
 	return s.guard(mux)
 }
 

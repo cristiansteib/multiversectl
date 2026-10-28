@@ -17,15 +17,35 @@ import (
 //go:embed all:webapp
 var webappFiles embed.FS
 
-// appPrefix is where the Angular app is served while the original page is
-// still at the root.
-const appPrefix = "/app/"
+// signInCSS is the stylesheet of the page shown before anyone is signed in: the
+// one file served without the credential.
+//
+//go:embed signin.css
+var signInCSS []byte
+
+// serveSignInCSS answers the one request a signed-out browser may make.
+func serveSignInCSS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	if r.Method == http.MethodHead {
+		return
+	}
+	_, _ = w.Write(signInCSS)
+}
+
+// toRoot sends a link to the app's old address to the same place at the root.
+func toRoot(w http.ResponseWriter, r *http.Request) {
+	to := "/" + strings.TrimPrefix(r.URL.Path, "/app/")
+	if r.URL.RawQuery != "" {
+		to += "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, to, http.StatusPermanentRedirect)
+}
 
 // nonceMarker stands where index.html names the nonce Angular puts on the
 // style elements it adds at run time.
 const nonceMarker = "CSP_NONCE"
 
-// appHandler serves the Angular app out of fsys and nothing else: a name is
+// appHandler serves the web app out of fsys and nothing else: a name is
 // looked up in that tree and only there, so there is no path to the disk, no
 // directory listing and no symlink to follow.
 //
@@ -39,7 +59,7 @@ func appHandler(fsys fs.FS) http.Handler {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		name := strings.TrimPrefix(path.Clean("/"+strings.TrimPrefix(r.URL.Path, appPrefix)), "/")
+		name := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 		if name == "" {
 			name = "index.html"
 		}

@@ -47,7 +47,7 @@
             "styles": [
               "src/styles.css"
             ],
-            "baseHref": "/app/",
+            "baseHref": "/",
             "optimization": {
               "scripts": true,
               "styles": {

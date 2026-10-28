@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/coder/websocket"
@@ -170,9 +171,21 @@ func (f *fake) Do(ctx context.Context, r opRequest, k Sink) error {
 }
 
 // serve starts a server and returns it with its handler.
+// testApp stands for the Angular build, which `go test` does not have.
+func testApp() fstest.MapFS {
+	return fstest.MapFS{
+		"index.html":       {Data: []byte(`<!doctype html><title>multiversectl</title><app-root ngcspnonce="CSP_NONCE"></app-root>`)},
+		"main-TEST.js":     {Data: []byte("console.log('app')")},
+		"placeholder.html": {Data: []byte("not built")},
+	}
+}
+
 func serve(t *testing.T, f *fake, o Options) (*Server, http.Handler) {
 	t.Helper()
 	o.Token = testToken
+	if o.App == nil {
+		o.App = testApp()
+	}
 	s := New(f, o)
 	t.Cleanup(s.Close)
 	return s, s.Handler()
@@ -246,7 +259,7 @@ func TestEndpointsReturnTheBackendsViews(t *testing.T) {
 
 func TestNothingIsServedWithoutTheToken(t *testing.T) {
 	_, h := serve(t, &fake{}, Options{})
-	for _, path := range []string{"/", "/app.js", "/api/overview", "/api/fleet", "/ws", "/api/ops"} {
+	for _, path := range []string{"/", "/main-TEST.js", "/api/overview", "/api/fleet", "/ws", "/api/ops"} {
 		if rec := get(t, h, path, map[string]string{"Cookie": ""}); rec.Code != http.StatusUnauthorized {
 			t.Errorf("%s without a cookie: %d", path, rec.Code)
 		}
@@ -403,11 +416,10 @@ func TestOnlyThisMachineMayAskUnlessExposed(t *testing.T) {
 
 func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
 	_, h := serve(t, &fake{}, Options{})
-	for _, path := range []string{"/", "/api/overview", "/app.js", "/nope"} {
+	for _, path := range []string{"/", "/api/overview", "/main-TEST.js", "/nope.js"} {
 		rec := get(t, h, path, nil)
 		hd := rec.Header()
-		// http.FileServer removes Cache-Control from its own 404s; nothing is cached there.
-		noStore := hd.Get("Cache-Control") == "no-store" || path == "/nope"
+		noStore := hd.Get("Cache-Control") == "no-store"
 		csp := hd.Get("Content-Security-Policy")
 		if !noStore || hd.Get("X-Content-Type-Options") != "nosniff" || hd.Get("X-Frame-Options") != "DENY" ||
 			!strings.Contains(csp, "default-src 'self'") || !strings.Contains(csp, "connect-src 'self'") {
@@ -424,22 +436,24 @@ func TestThePageAndItsAssetsAreServed(t *testing.T) {
 	if rec := get(t, h, "/", nil); rec.Code != 200 || !strings.Contains(rec.Body.String(), "multiversectl") || !strings.Contains(rec.Header().Get("Content-Type"), "text/html") {
 		t.Errorf("/: %d %s", rec.Code, rec.Header().Get("Content-Type"))
 	}
-	for _, p := range []string{"/app.js", "/style.css"} {
+	for _, p := range []string{"/main-TEST.js", "/style.css"} {
 		if rec := get(t, h, p, nil); rec.Code != 200 || rec.Body.Len() == 0 {
 			t.Errorf("%s: %d", p, rec.Code)
 		}
 	}
-	if rec := get(t, h, "/etc/passwd", nil); rec.Code != 404 {
-		t.Errorf("unknown file: %d", rec.Code)
+	// A route of the app is the app; a file that is not there is not.
+	if rec := get(t, h, "/universe/acme/1", nil); rec.Code != 200 || !strings.Contains(rec.Body.String(), "app-root") {
+		t.Errorf("an app route: %d", rec.Code)
 	}
-	// Nothing in the page loads from outside, which is what the CSP enforces, and
-	// nothing is built from strings the data could turn into markup.
-	page := get(t, h, "/", nil).Body.String() + get(t, h, "/app.js", nil).Body.String()
-	// The CSP forbids inline styles, so a style set from script is silently dropped.
-	for _, banned := range []string{"https://", "http://cdn", "style: '", "innerHTML", "outerHTML", "insertAdjacentHTML", "eval(", "document.write"} {
-		if strings.Contains(strings.ReplaceAll(page, "http://www.w3.org/2000/svg", ""), banned) {
-			t.Errorf("the page contains %q", banned)
-		}
+	if rec := get(t, h, "/etc/passwd", nil); strings.Contains(rec.Body.String(), "root:") {
+		t.Errorf("a file outside the app was served: %s", rec.Body)
+	}
+	if rec := get(t, h, "/missing.js", nil); rec.Code != 404 {
+		t.Errorf("a missing asset: %d", rec.Code)
+	}
+	// The old address of the app lands on the new one.
+	if rec := get(t, h, "/app/fleet?mv=acme", nil); rec.Code != http.StatusPermanentRedirect || rec.Header().Get("Location") != "/fleet?mv=acme" {
+		t.Errorf("/app/ redirect: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 }
 

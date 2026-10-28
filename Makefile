@@ -20,7 +20,7 @@ ui: ## Build the Angular app into the server's embed directory (needs Node; not 
 	cp -R web/dist/web/browser/. internal/adapters/server/webapp/
 
 ui-dev: ## Serve the Angular app with hot reload on :4200, proxied to a running multiversectl-server
-	cd web && npm ci && npx ng serve --open=/app/
+	cd web && npm ci && npx ng serve --open
 
 build: ## Build both binaries into dist/ (run `make ui` first for the Angular app)
 	$(GO) build -o $(BIN) ./cmd/multiversectl
