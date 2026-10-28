@@ -57,6 +57,10 @@ type Node struct {
 	// neither.
 	File, Dir string
 
+	// Stale says why a catalog repository could not be refreshed and is read as
+	// it was last fetched; empty when it is current.
+	Stale string
+
 	// Implied marks a multiverse nobody wrote: a repository with compose files
 	// and no multiverse definition, which is one repository run by convention.
 	// Source.Repo is that repository and Source.Path is empty.

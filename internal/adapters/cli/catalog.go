@@ -137,12 +137,13 @@ type jsonNode struct {
 	File        string     `json:"file,omitempty"`
 	InstalledAs string     `json:"installedAs,omitempty"`
 	Unavailable string     `json:"unavailable,omitempty"`
+	Stale       string     `json:"stale,omitempty"`
 	Children    []jsonNode `json:"children,omitempty"`
 }
 
 func toJSON(n domain.Node, installed map[string]string) jsonNode {
 	j := jsonNode{Name: n.Name, Path: n.Path, Kind: string(n.Kind), Repo: n.Source.Repo, Ref: n.Source.Ref,
-		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable}
+		File: n.Source.Path, InstalledAs: installed[n.Path], Unavailable: n.Unavailable, Stale: n.Stale}
 	for _, c := range n.Children {
 		j.Children = append(j.Children, toJSON(c, installed))
 	}
@@ -183,6 +184,9 @@ func (r runner) renderTree(root domain.Node, installed map[string]string) []stri
 		}
 		if n.Unavailable != "" {
 			parts = append(parts, r.out.Red("✗ "+n.Unavailable))
+		}
+		if n.Stale != "" {
+			parts = append(parts, r.out.Dim("⚠ not refreshed: "+n.Stale))
 		}
 		switch {
 		case n.Kind == domain.MultiverseNode && n.Unavailable == "":

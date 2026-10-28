@@ -33,7 +33,7 @@ A **catalog** is an index file (`catalog.yaml`) in a git repository. The **root 
 
 ### Offline catalogs, and installing part of the tree
 
-Each catalog repository gets 20 seconds (`MULTIVERSECTL_CATALOG_TIMEOUT=5s` changes it). One that does not answer, say behind a VPN that is down, shows as `unavailable` in `catalog list --json` (`unavailable` field), the rest of its host is skipped for that run, and everything else stays usable. A repository fetched before is used from its last copy, with a warning. So an `unavailable` node is not an error to fix: tell the user which one and carry on with the others.
+Each catalog repository gets 20 seconds (`MULTIVERSECTL_CATALOG_TIMEOUT=5s` changes it). One that does not answer, say behind a VPN that is down, shows as `unavailable` in `catalog list --json` (`unavailable` field), the rest of its host is skipped for that run, and everything else stays usable. Catalogs are read at the same time (8 at once), so a slow one does not hold the others. A repository fetched before is used from its last copy, with a warning, and its node carries `stale` (the reason) in `catalog list --json`; the web view shows each one's state live while it fetches. So an `unavailable` node is not an error to fix: tell the user which one and carry on with the others.
 
 `multiversectl start <catalog-path> --install-only` installs every multiverse under that node and makes no universe; `--exclude <catalog-path>` (repeatable) leaves a multiverse or a whole branch out. Without `--install-only`, `start` runs one.
 
