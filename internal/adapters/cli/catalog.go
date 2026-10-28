@@ -51,7 +51,8 @@ func (r runner) catalogCmd() *cobra.Command {
 			"  list                     look at the tree, with what is installed on this machine marked\n" +
 			"  add, new, rm             edit it (shared, versioned): list a multiverse, make one, remove an entry\n" +
 			"  ignore, unignore         leave a branch of it out on this machine, or bring it back\n" +
-			"  update                   bring what is installed up to date with the tree\n\n" +
+			"  update                   bring what is installed up to date with the tree\n" +
+			"  manage                   a menu for all of this, one choice at a time (needs a terminal)\n\n" +
 			"To install what the tree lists, use `start`, with the node's path as `list` shows it:\n\n" +
 			"  multiversectl start acme/backend/billing --install-only\n\n" +
 			"Without --install-only `start` also makes and starts a universe. The path of a\n" +
@@ -62,7 +63,7 @@ func (r runner) catalogCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.catalogListCmd(), r.catalogAddCmd(), r.catalogRmCmd(), r.catalogNewCmd(),
+	cmd.AddCommand(r.catalogListCmd(), r.catalogAddCmd(), r.catalogRmCmd(), r.catalogNewCmd(), r.catalogManageCmd(),
 		r.catalogIgnoreCmd(true), r.catalogIgnoreCmd(false), r.updateCmd())
 	return cmd
 }
@@ -146,22 +147,7 @@ func (r runner) showTree(cmd *cobra.Command, args []string, fetch bool, format, 
 	if len(node.Children) == 0 && node.Kind == domain.CatalogNode {
 		r.out.Info("empty: `multiversectl catalog add <owner/repo>`")
 	}
-	r.sayHowToInstall(node, installed)
 	return nil
-}
-
-// sayHowToInstall tells how to install what the tree lists and is not installed:
-// the listing marks it "not installed" and nothing else says what to type. The
-// example is a path from the tree itself, so it can be copied.
-func (r runner) sayHowToInstall(node domain.Node, installed map[string]string) {
-	for _, leaf := range node.Leaves() {
-		if _, ok := installed[leaf.Path]; ok || leaf.Ignored || leaf.Unavailable != "" {
-			continue
-		}
-		r.out.Info("install one with `multiversectl start %s --install-only`", leaf.Path)
-		r.out.Info("without --install-only it also makes a universe; the path of a catalog installs everything under it (`--exclude <path>` leaves some out)")
-		return
-	}
 }
 
 // reportFetched says how each catalog repository went, one line each, so a

@@ -82,23 +82,40 @@ func TestReportFetchedSaysHowEachRepositoryWent(t *testing.T) {
 	}
 }
 
-// A listing that shows something "not installed" says how to install it, with a path
-// from the tree itself.
-func TestCatalogListSaysHowToInstallWhatIsNot(t *testing.T) {
-	root := domain.Node{Name: "index", Kind: domain.CatalogNode, Children: []domain.Node{
-		{Name: "billing", Path: "billing", Kind: domain.MultiverseNode},
-		{Name: "search", Path: "search", Kind: domain.MultiverseNode},
-	}}
-	var buf bytes.Buffer
-	r := runner{out: NewOutput(&buf, false)}
-	r.sayHowToInstall(root, map[string]string{"billing": "billing"})
-	got := buf.String()
-	if !strings.Contains(got, "multiversectl start search --install-only") || strings.Contains(got, "start billing") {
-		t.Errorf("the example should be the first multiverse that is not installed:\n%s", got)
+// The menu is for a terminal: without one it says so and names the commands it stands for.
+func TestCatalogManageNeedsATerminal(t *testing.T) {
+	root, _ := New(Factory{Prompter: func() app.Prompter { return noTerminal{} }})
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(&bytes.Buffer{})
+	root.SetArgs([]string{"catalog", "manage"})
+	err := root.Execute()
+	if err == nil || !strings.Contains(err.Error(), "needs a terminal") || !strings.Contains(err.Error(), "start <path> --install-only") {
+		t.Fatalf("error = %v", err)
 	}
-	buf.Reset()
-	r.sayHowToInstall(root, map[string]string{"billing": "billing", "search": "search"})
-	if buf.Len() != 0 {
-		t.Errorf("nothing to install, nothing to say:\n%s", buf.String())
+}
+
+// What the menu offers to install: what has something not installed, never what is
+// left out here or cannot be read.
+func TestInstallableIsWhatHasSomethingNotInstalled(t *testing.T) {
+	tree := domain.Node{Name: "index", Kind: domain.CatalogNode, Children: []domain.Node{
+		{Name: "backend", Path: "backend", Kind: domain.CatalogNode, Children: []domain.Node{
+			{Name: "billing", Path: "backend/billing", Kind: domain.MultiverseNode},
+			{Name: "search", Path: "backend/search", Kind: domain.MultiverseNode},
+		}},
+		{Name: "done", Path: "done", Kind: domain.MultiverseNode},
+		{Name: "vpn", Path: "vpn", Kind: domain.CatalogNode, Ignored: true},
+		{Name: "gone", Path: "gone", Kind: domain.CatalogNode, Unavailable: "no access"},
+		{Name: "old", Path: "old", Kind: domain.MultiverseNode, Ignored: true},
+	}}
+	var got []string
+	for _, row := range installable(tree, map[string]string{"done": "done"}) {
+		got = append(got, row.Node.Path)
+	}
+	want := []string{"backend", "backend/billing", "backend/search"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("installable = %v, want %v", got, want)
+	}
+	if n := notInstalled(tree.Children[0], map[string]string{"backend/billing": "billing"}); len(n) != 1 || n[0].Path != "backend/search" {
+		t.Fatalf("notInstalled = %+v", n)
 	}
 }
