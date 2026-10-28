@@ -53,6 +53,18 @@
           <dt>Repository</dt><dd><mv-place [loc]="r.node.loc" /></dd>
           <dt>Branch</dt><dd>{{ r.node.ref || 'the default branch' }}</dd>
           <dt>Manifest</dt><dd class="mono">{{ r.node.file || 'multiverse.yaml' }}</dd>
+          <dt>Repositories</dt>
+          <dd>
+            @if (r.node.installedAs; as inst) {
+              @if (reposOf(inst); as list) {
+                @if (list.length) {
+                  <span class="chips">@for (x of list; track x.key) { <mv-repo-chip [loc]="x.loc" [name]="x.key" /> }</span>
+                } @else { <span class="muted">None listed.</span> }
+              } @else { <span class="muted">Reading…</span> }
+            } @else {
+              <span class="muted">Listed in its manifest, which is read when it is installed.</span>
+            }
+          </dd>
           <dt>In the catalog</dt><dd><mv-copy [text]="r.node.path" /></dd>
           <dt>On this machine</dt>
           <dd>

@@ -30,3 +30,4 @@ a.installed { text-decoration: none; cursor: pointer } a.installed:hover { filte
   border-left: 2px solid var(--line); font-size: .9rem }
 .detail dt { color: var(--muted) } .detail dd { margin: 0; min-width: 0; overflow-wrap: anywhere }
 @media (max-width: 560px) { .detail { --step: 16px; margin-left: calc(var(--depth) * var(--step) + 30px); grid-template-columns: minmax(0, 1fr); gap: 0 } .detail dd { margin-bottom: 8px } }
+.detail .chips { display: flex; flex-wrap: wrap; gap: 6px }

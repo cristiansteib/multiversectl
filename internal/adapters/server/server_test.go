@@ -785,7 +785,7 @@ func TestServeListensWithATokenAndStopsWithItsContext(t *testing.T) {
 	urls := make(chan string, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- Serve(ctx, &fake{status: app.StatusReport{Next: "x"}}, Options{Addr: "127.0.0.1:0", Version: "v"}, func(u string) { urls <- u })
+		done <- Serve(ctx, &fake{status: app.StatusReport{Next: "x"}}, Options{Addr: "127.0.0.1:0", Version: "v", App: testApp()}, func(u string) { urls <- u })
 	}()
 	var link string
 	select {

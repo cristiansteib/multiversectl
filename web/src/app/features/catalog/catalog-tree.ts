@@ -1,12 +1,14 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { Api } from '../../core/api.service';
 import { Events } from '../../core/events.service';
-import { NodeView } from '../../core/models';
+import { MultiverseView, NodeView, RepoView } from '../../core/models';
 import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { EmptyState } from '../../shared/ui/empty-state';
 import { Icon } from '../../shared/ui/icon';
 import { Place } from '../../shared/ui/place';
+import { RepoChip } from '../../shared/ui/repo-chip';
 import { plural } from '../../core/util';
 import { FetchProgress } from './fetch-progress';
 import { Step, countNodes, stepKey } from './catalog.model';
@@ -24,7 +26,7 @@ const OPEN_BELOW = 150;
  */
 @Component({
   selector: 'mv-catalog-tree',
-  imports: [RouterLink, Badge, CopyButton, EmptyState, Icon, Place],
+  imports: [RouterLink, Badge, CopyButton, EmptyState, Icon, Place, RepoChip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './catalog-tree.html',
   styleUrl: './catalog-tree.css',
@@ -37,6 +39,9 @@ export class CatalogTree {
   /** Leave a node out on this machine, or bring it back. */
   readonly ignoreChange = output<{ node: NodeView; ignore: boolean }>();
   protected readonly events = inject(Events);
+  private readonly api = inject(Api);
+  /** The repositories of the installed multiverses that have been opened, by the name they are installed as. */
+  private readonly repos = signal<ReadonlyMap<string, RepoView[]>>(new Map());
 
   private readonly el = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly open = signal<ReadonlySet<string>>(new Set(['']));
@@ -107,6 +112,20 @@ export class CatalogTree {
     const next = new Set(this.open());
     if (next.has(r.node.path)) next.delete(r.node.path); else next.add(r.node.path);
     this.open.set(next);
+    if (r.node.kind === 'multiverse' && r.node.installedAs && next.has(r.node.path)) void this.loadRepos(r.node.installedAs);
+  }
+
+  protected reposOf(installedAs: string): RepoView[] | undefined { return this.repos().get(installedAs); }
+
+  /** What its manifest lists is only known once it is installed: it is read from the multiverse itself. */
+  private async loadRepos(name: string): Promise<void> {
+    if (this.repos().has(name)) return;
+    try {
+      const view = await this.api.get<MultiverseView>(`multiverses/${encodeURIComponent(name)}`);
+      this.repos.set(new Map(this.repos()).set(name, view.repos));
+    } catch {
+      this.repos.set(new Map(this.repos()).set(name, []));
+    }
   }
 
   /** A press on a row opens it; a press on a link or button inside it does what that says. */
