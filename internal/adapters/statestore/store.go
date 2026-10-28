@@ -15,7 +15,10 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-const stateFile = "universe.yaml"
+const (
+	stateFile  = "universe.yaml"
+	configFile = "started-with.multiverse.yaml"
+)
 
 type Store struct{ root string }
 
@@ -115,7 +118,29 @@ func (s *Store) List() ([]domain.UniverseState, error) {
 }
 
 // Delete removes only the state file; the caller owns the directory.
+// configPath is where the manifest a universe was started with is kept: beside
+// its state, in a file of its own so that universe.yaml stays short to read.
+func (s *Store) configPath(id string) string {
+	return filepath.Join(s.universes(), id, configFile)
+}
+
+func (s *Store) SaveConfig(id string, data []byte) error {
+	if err := writeAtomic(s.configPath(id), data); err != nil {
+		return fmt.Errorf("keep the manifest of universe %s: %w", id, err)
+	}
+	return nil
+}
+
+func (s *Store) LoadConfig(id string) ([]byte, error) {
+	data, err := os.ReadFile(s.configPath(id))
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("universe %s has no kept manifest: %w", id, domain.ErrNotFound)
+	}
+	return data, err
+}
+
 func (s *Store) Delete(id string) error {
+	_ = os.Remove(s.configPath(id))
 	err := os.Remove(s.path(id))
 	if errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("universe %s: %w", id, domain.ErrNotFound)

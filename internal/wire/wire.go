@@ -187,6 +187,10 @@ type ManifestLoader struct{}
 
 func (ManifestLoader) Load(path string) (*domain.Manifest, error) { return manifest.Load(path) }
 
+func (ManifestLoader) Decode(data []byte, dir string) (*domain.Manifest, error) {
+	return manifest.Decode(data, dir)
+}
+
 // Locate finds the manifest at or above dir.
 func Locate(dir string) (string, error) { return manifest.Locate(dir) }
 

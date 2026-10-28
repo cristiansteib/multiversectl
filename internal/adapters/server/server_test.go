@@ -43,7 +43,8 @@ type fake struct {
 	asked []string
 	did   []opRequest
 	// hold, when set, makes Do wait on it, so an operation can be in progress.
-	hold chan struct{}
+	hold   chan struct{}
+	config configView
 	// doErr is what Do returns.
 	doErr error
 	// containers, stats and logText answer the side panel; logHold keeps a log
@@ -93,6 +94,10 @@ func (f *fake) Multiverse(_ context.Context, name string) (multiverseView, error
 func (f *fake) Plan(_ context.Context, path string, exclude []string) (planView, error) {
 	f.ask("plan:" + path + ":" + strings.Join(exclude, ","))
 	return planView{Targets: []planTarget{{Name: "billing", Root: "/home/x/multiverse/billing", Path: path}}}, f.err
+}
+func (f *fake) Config(_ context.Context, ws, u string) (configView, error) {
+	f.ask("config:" + ws + ":" + u)
+	return f.config, f.err
 }
 func (f *fake) Ignore(_ context.Context, path string, ignore bool) error {
 	f.ask("ignore:" + path + ":" + map[bool]string{true: "on", false: "off"}[ignore])
@@ -1104,5 +1109,24 @@ func TestOverviewOfAMachineWithNothingInstalledHasAnEmptyList(t *testing.T) {
 	rec := do(t, h, "GET", "/api/overview", "", nil)
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"multiverses":[]`) {
 		t.Fatalf("overview: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestAUniversesConfigIsReadWithWhatItWasStartedWith(t *testing.T) {
+	f := &fake{config: configView{
+		Path: "/m/multiverse.yaml", SHA256: "abc", YAML: "name: acme\n", Problems: []string{}, Changed: true,
+		StartedWith: &configRecordView{SHA256: "def", At: "2026-10-28T10:00:00Z", Version: "0.0.60"}, Snapshot: "name: old\n",
+	}}
+	_, h := serve(t, f, Options{})
+	rec := do(t, h, "GET", "/api/universe/config?multiverse=acme&universe=1", "", nil)
+	var got configView
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 || !got.Changed || got.Snapshot != "name: old\n" || got.StartedWith == nil || got.StartedWith.Version != "0.0.60" {
+		t.Fatalf("config: %d %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(f.asks(), "config:acme:1") {
+		t.Errorf("asked %s", f.asks())
+	}
+	if rec := do(t, h, "GET", "/api/universe/config?multiverse=acme", "", nil); rec.Code != http.StatusBadRequest {
+		t.Errorf("without a universe: %d", rec.Code)
 	}
 }

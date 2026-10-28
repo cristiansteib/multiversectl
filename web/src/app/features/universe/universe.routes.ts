@@ -11,6 +11,7 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', title: 'Universe', loadComponent: () => import('./overview-tab').then((m) => m.OverviewTab) },
       { path: 'containers', title: 'Universe containers', loadComponent: () => import('./services-tab').then((m) => m.ServicesTab) },
       { path: 'code', title: 'Universe code', loadComponent: () => import('./code-tab').then((m) => m.CodeTab) },
+      { path: 'config', title: 'Universe configuration', loadComponent: () => import('./config-tab').then((m) => m.ConfigTab) },
       { path: 'settings', title: 'Universe settings', loadComponent: () => import('./details-tab').then((m) => m.DetailsTab) },
       { path: 'details', redirectTo: 'settings' },
       { path: 'services', redirectTo: 'containers' },

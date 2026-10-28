@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -758,7 +759,86 @@ func (r runner) universeCmd() *cobra.Command {
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
 	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.downCmd(), r.syncCmd(), r.noteCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
-		r.envCmd(), r.runCmd(), r.execCmd())
+		r.envCmd(), r.runCmd(), r.execCmd(), r.universeConfigCmd())
+	return cmd
+}
+
+// universeConfigCmd shows the manifest a universe uses, and whether it is the one
+// it was started with: the file can be edited after a universe starts, and the
+// universe goes on running on what it started with.
+func (r runner) universeConfigCmd() *cobra.Command {
+	var show, diff bool
+	cmd := &cobra.Command{
+		Use:   "config <universe>",
+		Short: "The manifest a universe uses, checked, and whether it is the one it was started with",
+		Long: "Says which manifest file the universe uses, its fingerprint, whether loading it would\n" +
+			"complain (every problem is listed), and the manifest the universe was last started with:\n" +
+			"when, by which build, and whether the file has been edited since. A universe started\n" +
+			"before this was kept has no record, and says so. --diff shows what changed, --yaml\n" +
+			"prints the manifest as it is now.",
+		Example: "  multiversectl universe config 3\n  multiversectl universe config 3 --diff\n  multiversectl universe config 3 --yaml",
+		Args:    cobra.ExactArgs(1),
+	}
+	cmd.Flags().BoolVar(&diff, "diff", false, "show what changed since the universe was started")
+	cmd.Flags().BoolVar(&show, "yaml", false, "print the manifest as it is now")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return r.withService(func(_ context.Context, s *app.Service) error {
+			rep, err := s.UniverseConfig(args[0])
+			if err != nil {
+				return err
+			}
+			if show {
+				r.out.Plain("%s", strings.TrimRight(string(rep.Current), "\n"))
+				return nil
+			}
+			if diff {
+				switch {
+				case rep.StartedWith == nil:
+					return errors.New("this universe has no record of the manifest it was started with (it was started before that was kept); start it again to record one")
+				case rep.Snapshot == nil:
+					return errors.New("the manifest it was started with was not kept, only its fingerprint")
+				case !rep.Changed:
+					r.out.OK("the manifest is the one it was started with")
+					return nil
+				}
+				for _, l := range app.DiffLines(string(rep.Snapshot), string(rep.Current)) {
+					line := string(l.Op) + " " + l.Text
+					switch l.Op {
+					case '+':
+						line = r.out.Green(line)
+					case '-':
+						line = r.out.Red(line)
+					default:
+						line = r.out.Dim(line)
+					}
+					r.out.Plain("%s", line)
+				}
+				return nil
+			}
+			r.out.Plain("manifest   %s", rep.Path)
+			r.out.Plain("sha256     %s", rep.SHA256[:16])
+			if len(rep.Problems) == 0 {
+				r.out.OK("it loads without complaint")
+			} else {
+				r.out.Warn("loading it would fail:")
+				for _, p := range rep.Problems {
+					r.out.Plain("  - %s", p)
+				}
+			}
+			switch rec := rep.StartedWith; {
+			case rec == nil:
+				r.out.Info("no record of what it was started with (it was started before that was kept, or not at all)")
+			case rep.Changed:
+				r.out.Warn("started %s with %s (build %s); the manifest has been edited since: `--diff` shows what changed", rec.At.Local().Format("2006-01-02 15:04"), rec.SHA256[:16], firstNonEmpty(rec.Version, "unknown"))
+				if len(rep.SnapshotProblems) > 0 {
+					r.out.Info("what it was started with would not load either: %s", strings.Join(rep.SnapshotProblems, "; "))
+				}
+			default:
+				r.out.OK("started %s with this manifest, unchanged since", rec.At.Local().Format("2006-01-02 15:04"))
+			}
+			return nil
+		})(cmd, args)
+	}
 	return cmd
 }
 

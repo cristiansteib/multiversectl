@@ -29,6 +29,8 @@ type Backend interface {
 	Ignore(ctx context.Context, path string, ignore bool) error
 	// Plan is what installing a path of the catalog would set up, without doing it.
 	Plan(ctx context.Context, path string, exclude []string) (planView, error)
+	// Config is the manifest a universe uses, against the one it was started with.
+	Config(ctx context.Context, multiverse, universe string) (configView, error)
 	// Fleet lists the universes of one installed multiverse, or of all.
 	Fleet(ctx context.Context, multiverse string) (fleetView, error)
 	Multiverse(ctx context.Context, name string) (multiverseView, error)
@@ -853,6 +855,29 @@ func (s Services) service(multiverse string) (*app.Service, error) {
 		return nil, err
 	}
 	return s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+}
+
+func (s Services) Config(_ context.Context, multiverse, universe string) (configView, error) {
+	svc, err := s.service(multiverse)
+	if err != nil {
+		return configView{}, err
+	}
+	rep, err := svc.UniverseConfig(universe)
+	if err != nil {
+		return configView{}, err
+	}
+	info := svc.Context()
+	v := configView{
+		Path: rep.Path, From: info.From, Source: info.Source, SHA256: rep.SHA256, Bytes: len(rep.Current), YAML: string(rep.Current),
+		Problems: rep.Problems, Snapshot: string(rep.Snapshot), SnapshotProblems: rep.SnapshotProblems, Changed: rep.Changed,
+	}
+	if v.Problems == nil {
+		v.Problems = []string{}
+	}
+	if rec := rep.StartedWith; rec != nil {
+		v.StartedWith = &configRecordView{SHA256: rec.SHA256, At: rec.At.UTC().Format(time.RFC3339), Version: rec.Version}
+	}
+	return v, nil
 }
 
 func (s Services) NextFree(ctx context.Context, multiverse string) (nextView, error) {

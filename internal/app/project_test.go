@@ -18,6 +18,10 @@ type realLoader struct{}
 
 func (realLoader) Load(p string) (*domain.Manifest, error) { return manifest.Load(p) }
 
+func (realLoader) Decode(data []byte, dir string) (*domain.Manifest, error) {
+	return manifest.Decode(data, dir)
+}
+
 // projectRig is the catalog rig with the real manifest writer and loader, so
 // what a project init writes is checked by the code that will read it.
 func projectRig(t *testing.T, git *fakeRepos) *rig {

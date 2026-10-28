@@ -37,6 +37,7 @@ const STROKED: Record<string, string> = {
   warn: 'M8 2l6.5 11.5h-13zM8 6.5v3.3M8 11.6v.3',
   branch: 'M5 3v10M5 7.5c0-2 6-1 6-4.5M5 3a1 1 0 1 0 0-.01M5 13a1 1 0 1 0 0-.01M11 3a1 1 0 1 0 0-.01',
   terminal: 'M2.5 3.5h11v9h-11zM5 7l2 1.5L5 10M8.5 10h2.5',
+  doc: 'M4 2h5l3 3v9H4zM9 2v3h3M6.5 8.5h3M6.5 11h3',
   trash: 'M3 4.5h10M6.5 4.5v-2h3v2M4.5 4.5l.6 9h5.8l.6-9M7 7v4M9 7v4',
   clock: 'M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zM8 4.8V8l2.2 1.4',
   arrowDown: 'M8 3v9M4 8.5l4 4 4-4',

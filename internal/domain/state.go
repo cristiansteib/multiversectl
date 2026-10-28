@@ -62,6 +62,17 @@ type UniverseState struct {
 	// changed since.
 	HooksDone []string `yaml:"hooksDone,omitempty"`
 	Version   string   `yaml:"version,omitempty"`
+	// StartedWith says which configuration the universe was last started with, so
+	// a manifest edited afterwards is known to differ from the one it runs on.
+	StartedWith ConfigRecord `yaml:"startedWith,omitempty"`
+}
+
+// ConfigRecord is a fingerprint of the manifest a universe was started with,
+// when, and by which build of the tool. The text itself is kept beside the state.
+type ConfigRecord struct {
+	SHA256  string    `yaml:"sha256"`
+	At      time.Time `yaml:"at"`
+	Version string    `yaml:"version,omitempty"`
 }
 
 // Universe rebuilds the identity this state belongs to.

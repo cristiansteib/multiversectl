@@ -543,6 +543,9 @@ type CatalogEditor interface {
 // at multiverses other than the one it was built for.
 type ManifestLoader interface {
 	Load(path string) (*domain.Manifest, error)
+	// Decode reads manifest text that is not (or no longer) in a file, with dir
+	// the folder its relative paths are against: what a universe was started with.
+	Decode(data []byte, dir string) (*domain.Manifest, error)
 }
 
 // CatalogDecoder turns a catalog file into the domain model; the app stays
@@ -557,6 +560,11 @@ type Store interface {
 	Load(id string) (domain.UniverseState, error)
 	List() ([]domain.UniverseState, error)
 	Delete(id string) error
+	// SaveConfig keeps the text of the manifest a universe was started with, beside
+	// its state; LoadConfig reads it back, and says domain.ErrNotFound when none
+	// was kept (a universe started before it was).
+	SaveConfig(id string, data []byte) error
+	LoadConfig(id string) ([]byte, error)
 }
 
 // Output is the presentation port; use cases never write to stdout directly.

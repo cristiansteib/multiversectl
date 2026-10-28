@@ -20,6 +20,8 @@ Each **universe** is a numbered (or named) copy of the whole multiverse: one git
 2. `universe new --note "<what you are doing>"` takes the next free number (or `universe new <name>`; `universe checkout <branch>` for an existing branch).
 3. `universe up <universe>` starts it; it can take minutes. Then `universe ls <universe> -o json`: edit and commit inside `checkout.<repo>` (`<dir>/<repo>`, on branch `u<N>`), browse at `urls`; `universe doctor` asks each address and says which one does not answer.
 4. Leave a trace for whoever looks next: keep the note current (`universe note <universe> "<short text>"`) and, once the work has a pull request, `universe note <universe> --pr <url>`.
+
+`multiversectl universe config <universe>` says which manifest a universe uses, whether it loads, and whether it was edited since the universe was started (`--diff` shows what); a universe goes on running on the manifest it was started with until it is started again.
 5. Code in a universe does not follow `main`. If `behind` is set, or `up` says the code is out of date: `universe sync <universe>` (`--merge` or a rebase only if you know the branch is yours).
 6. Run things in it with `universe exec <universe> <app> -- <command>` or `universe run`. Each app is its own compose project, `<multiverse>-u<N>-<app>`, so a plain `docker compose ps` in a worktree shows nothing; use `-p` with that name, or `exec`. For `docker logs` or `docker cp` take the container name from `containers`. An app with several services needs `--service` unless the manifest gives it a `defaultService`; if it does not, tell the user to add one.
 

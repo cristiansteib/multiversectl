@@ -198,6 +198,31 @@ type reviewView struct {
 }
 
 // diffFilesView is the files of one change; patchView is one file's diff.
+// configView is the manifest a universe uses, with the one it was last started with
+// beside it, and what is wrong with either: for the page to show and compare.
+type configView struct {
+	// Path is the manifest file; From and Source say where it came from.
+	Path   string `json:"path"`
+	From   string `json:"from,omitempty"`
+	Source string `json:"source,omitempty"`
+	SHA256 string `json:"sha256"`
+	Bytes  int    `json:"bytes"`
+	YAML   string `json:"yaml"`
+	// Problems are what loading it would complain of, all of them.
+	Problems []string `json:"problems"`
+	// StartedWith is absent for a universe not started since this was kept.
+	StartedWith      *configRecordView `json:"startedWith,omitempty"`
+	Snapshot         string            `json:"snapshot,omitempty"`
+	SnapshotProblems []string          `json:"snapshotProblems,omitempty"`
+	Changed          bool              `json:"changed"`
+}
+
+type configRecordView struct {
+	SHA256  string `json:"sha256"`
+	At      string `json:"at"`
+	Version string `json:"version,omitempty"`
+}
+
 type diffFilesView struct {
 	Base  string     `json:"base,omitempty"`
 	Files []fileView `json:"files"`

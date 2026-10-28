@@ -1,0 +1,16 @@
+:host { display: block }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; margin-bottom: 18px }
+dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 18px; margin: 0; align-items: center }
+dt { color: var(--muted); font-size: .88rem } dd { margin: 0; overflow-wrap: anywhere }
+.problems { margin: 12px 0 0; padding-left: 18px; color: var(--bad); font-size: .86rem } .problems li { margin-bottom: 3px }
+.note { margin: 12px 0 0; font-size: .9rem }
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px }
+.dim { opacity: .7; font-weight: 400 }
+/* The manifest as text: numbered lines, the way an editor shows a file. */
+.code { margin: 0; padding: 10px 0; background: var(--sunk); border: 1px solid var(--line); border-radius: var(--r-md); overflow: auto; font: .84rem/1.55 var(--mono); max-height: 70vh; tab-size: 2 }
+.ln { display: block; white-space: pre; padding: 0 14px 0 0 }
+.no { display: inline-block; min-width: 3.2ch; margin-right: 12px; padding-left: 10px; text-align: right; color: var(--faint); font-style: normal; user-select: none }
+.diff .no { min-width: 3ch; margin-right: 4px } .diff .no + .no { margin-right: 10px }
+.op { display: inline-block; width: 2ch; font-weight: 500; user-select: none }
+.add { background: var(--ok-bg) } .add .op { color: var(--ok) }
+.del { background: var(--bad-bg) } .del .op { color: var(--bad) }
