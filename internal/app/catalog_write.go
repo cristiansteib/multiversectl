@@ -363,6 +363,7 @@ func (c *Catalogs) editPlanned(ctx context.Context, parent domain.Node, summary 
 			return fmt.Errorf("written, but not committed: %w", err)
 		}
 		c.Out.OK("%s", summary)
+		c.Out.Info("committed %s in %s; nothing was pushed", changedList(parent.Dir, paths), parent.Dir)
 		if c.Git.HasRemote(ctx, parent.Dir) {
 			c.Out.Info("committed locally; push %s when you are ready", parent.Dir)
 		}
@@ -380,7 +381,20 @@ func (c *Catalogs) editPlanned(ctx context.Context, parent domain.Node, summary 
 		return fmt.Errorf("push to %s (%s) was rejected: %w\n  if someone pushed first, run the command again; if the branch is protected, ask its owner", shortRepo(parent.Source.Repo), branch, err)
 	}
 	c.Out.OK("%s", summary)
+	c.Out.Info("pushed %s to %s (%s)", changedList(parent.Dir, paths), parent.Source.Repo, branch)
 	return nil
+}
+
+// changedList names the files an edit wrote, relative to the repository.
+func changedList(dir string, paths []string) string {
+	names := make([]string, len(paths))
+	for i, p := range paths {
+		names[i] = p
+		if rel, err := filepath.Rel(dir, p); err == nil {
+			names[i] = rel
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 // consequence is what writing there means for anybody else, in one sentence.

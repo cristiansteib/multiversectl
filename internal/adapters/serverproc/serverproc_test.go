@@ -89,7 +89,7 @@ const serving = "trap 'exit 0' TERM\necho 'serving http://127.0.0.1:4242/?t=abc 
 
 func TestRestartStartsItAgainWithTheOptionsItHad(t *testing.T) {
 	// The fake echoes its arguments into the log, which is how the test sees them.
-	p := fakeServer(t, "trap 'exit 0' TERM\necho \"args: $*\"\necho 'serving http://127.0.0.1:4242/?t=abc'\nwhile :; do sleep 0.1; done\n")
+	p := fakeServer(t, "trap 'exit 0' TERM\necho \"args: $*\"\necho 'serving http://127.0.0.1:9000/?t=abc'\nwhile :; do sleep 0.1; done\n")
 	ctx := context.Background()
 	if _, err := p.Restart(ctx); !errors.Is(err, app.ErrServerNotRunning) {
 		t.Fatalf("restarting what is not running: %v", err)
@@ -157,5 +157,21 @@ func TestAServerOlderThanTheInstalledProgramIsSaidSo(t *testing.T) {
 	restarted, err := p.Restart(ctx)
 	if err != nil || restarted.Outdated {
 		t.Errorf("a restart takes the new build: %+v, %v", restarted, err)
+	}
+}
+
+func TestABusyPortTheServerMovedFromIsNotAskedForAgain(t *testing.T) {
+	p := fakeServer(t, "trap 'exit 0' TERM\necho \"args: $*\"\necho 'serving http://127.0.0.1:9001/?t=abc'\nwhile :; do sleep 0.1; done\n")
+	ctx := context.Background()
+	if _, err := p.Start(ctx, app.ServerStart{Addr: "127.0.0.1:9000"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = p.Stop(ctx) })
+	if _, err := p.Restart(ctx); err != nil {
+		t.Fatal(err)
+	}
+	log, _ := os.ReadFile(p.logPath())
+	if !strings.Contains(string(log), "args: --addr 127.0.0.1:9001") {
+		t.Errorf("the restart asked for the busy port again: %q", log)
 	}
 }

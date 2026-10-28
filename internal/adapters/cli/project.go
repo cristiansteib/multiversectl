@@ -41,20 +41,26 @@ func (r runner) catalogNewCmd() *cobra.Command {
 			"For a catalog the argument is its name; it can be a file in its parent's\n" +
 			"repository (--same-repo), or live in an existing (--url) or new (--create)\n" +
 			"repository.\n\n" +
-			"Every answer has a flag, so with all of them it asks nothing and runs in a script.",
+			"Every answer has a flag, so with all of them it asks nothing and runs in a script.\n\n" +
+			"A repository is named in the manifest after its own name, lowercased, without the\n" +
+			"multiverse's name and a dash in front (acme-api in acme is api); --repo name=url\n" +
+			"says the name instead. A self-hosted GitLab or GitHub: --create group/name\n" +
+			"--provider gitlab --host gitlab.example.test, or --create with the full URL.",
 		Example: "  multiversectl catalog new\n" +
 			"  multiversectl catalog new ~/acme/multiverse --scan --create acme-org/multiverse\n" +
-			"  multiversectl catalog new --name acme --repo acme-org/api --repo https://gitlab.com/acme/web.git --local\n" +
+			"  multiversectl catalog new --name acme --repo acme-org/api --repo web=https://gitlab.com/acme/web.git --local\n" +
+			"  multiversectl catalog new . --repo git@gitlab.example.test:acme/api.git --create https://gitlab.example.test/acme/multiverse --yes\n" +
 			"  multiversectl catalog new backend --type catalog --same-repo --at /",
 		Args: cobra.MaximumNArgs(1),
 	}
 	f := cmd.Flags()
 	f.StringVar(&kind, "type", "", "what to make: multiverse or catalog (asked when omitted)")
 	f.StringVar(&in.Name, "name", "", "the multiverse's name (default: from the directory)")
-	f.StringArrayVar(&repos, "repo", nil, "a repository to include: a git URL or owner/repo (repeatable)")
+	f.StringArrayVar(&repos, "repo", nil, "a repository to include: a git URL or owner/repo, or name=url to set the name it has in the manifest (repeatable)")
 	f.BoolVar(&in.Scan, "scan", false, "include the git checkouts found beside it, without asking")
 	f.StringVar(&in.Create, "create", "", "create the repository for it, as owner/name (private)")
 	f.StringVar(&in.Provider, "provider", "", "the service --create is on: github or gitlab (default: github)")
+	f.StringVar(&in.Host, "host", "", "a self-hosted instance of --provider, such as gitlab.example.test (also inferred from a full --create URL)")
 	f.BoolVar(&in.Public, "public", false, "make a --create repository public (private by default)")
 	f.StringVar(&in.URL, "url", "", "use an existing repository for it")
 	f.BoolVar(&in.Local, "local", false, "keep it on this machine for now: commit, but do not push")
@@ -113,12 +119,35 @@ func (r runner) catalogNewCmd() *cobra.Command {
 			return r.declined(err)
 		}
 		r.out.OK("multiverse `%s` is ready in `%s`", res.Name, res.Dir)
+		r.summarize(res)
 		if noInstall {
 			return nil
 		}
 		return r.offerInstall(cmd, c, res, yes)
 	}
 	return cmd
+}
+
+// summarize says what a new multiverse is, for whoever has to check it without
+// reading the files: the names its repositories have, what was written and
+// where it went.
+func (r runner) summarize(res app.ProjectResult) {
+	for _, repo := range res.Repos {
+		r.out.Info("repo %s = %s", repo.Key, repo.URL)
+	}
+	if len(res.Files) > 0 {
+		r.out.Info("files: %s", strings.Join(res.Files, ", "))
+	}
+	switch {
+	case res.Pushed != "":
+		r.out.Info("pushed to %s (%s)", res.Pushed, res.Branch)
+	case res.URL == "":
+		r.out.Info("not pushed: only on this machine")
+	}
+	if res.Node != "" {
+		r.out.Info("listed in the root catalog as `%s`; check with `multiversectl catalog list --json`", res.Node)
+	}
+	r.out.Info("next: multiverse.yaml only lists the repositories. A repository with a compose file runs as an app of its own name; to give an app its hosts (addresses), secrets or services, add `spec.apps` to it, commit, push and run `multiversectl catalog update` (reference: https://multiversectl.dev/reference/manifest.html)")
 }
 
 // offerInstall is the guide's last step: put the multiverse on this machine, so

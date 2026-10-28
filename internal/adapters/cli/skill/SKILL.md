@@ -23,6 +23,40 @@ Each **universe** is a numbered (or named) copy of the whole multiverse: one git
 5. Code in a universe does not follow `main`. If `behind` is set, or `up` says the code is out of date: `universe sync <universe>` (`--merge` or a rebase only if you know the branch is yours).
 6. Run things in it with `universe exec <universe> <app> -- <command>` or `universe run`. Each app is its own compose project, `<multiverse>-u<N>-<app>`, so a plain `docker compose ps` in a worktree shows nothing; use `-p` with that name, or `exec`. For `docker logs` or `docker cp` take the container name from `containers`. An app with several services needs `--service` unless the manifest gives it a `defaultService`; if it does not, tell the user to add one.
 
+## Catalogs
+
+A **catalog** is an index file (`catalog.yaml`) in a git repository. The **root catalog** is the one this machine starts from; it lists **nested catalogs** and **multiverses** (the leaves, each a `multiverse.yaml`). `multiversectl catalog list --json` prints the whole tree (`name`, `path`, `kind`, `repo`, `installedAs`, `children`); `catalog list <path> --json` is one node. Run it after any change to confirm the result instead of guessing. A node's `path` is what `--at` takes (`/` is the root).
+
+- **`catalog new`** makes a new multiverse (`--type multiverse`, the default when `--repo` is given) or a new catalog (`--type catalog <name>`), and lists it in the tree.
+- **`catalog add <owner/repo | url | path>`** lists something that already exists (a repository that has a `catalog.yaml` or `multiverse.yaml`). Use `add` for what exists and `new` for what does not yet.
+- Flags: `--at <path>` where in the tree (default: asked; with `--yes` the root); `--url <repo>` use an existing repository for the new multiverse; `--repo <url>` a repository to include, repeatable, `--repo name=<url>` to set its name; `--name` the multiverse's name; `--create owner/name` make its repository; `--provider github|gitlab` and `--host <host>` for where; `--same-repo` (a catalog kept as a file in its parent's repository); `--local` commit but do not push; `--no-install` do not start it on this machine afterwards; `--yes` accept every question (nothing asks, so pass every answer you need).
+
+### A multiverse in its own repository
+
+1. Create the empty repository (below), and clone it.
+2. Inside the clone: `multiversectl catalog new . --name <name> --repo <url> --repo <url> ... --url <its clone URL> --at <catalog path> --no-install --yes`. `.` is the directory that becomes the multiverse's repository.
+3. Confirm: `multiversectl catalog list --json`.
+
+It writes `multiverse.yaml` and `AGENTS.md`, commits them and **pushes to the multiverse's repository** (its current branch). It then adds the multiverse to the catalog `--at` names, which is **a commit pushed straight to the default branch of that catalog's repository**. It prints each push and the files it changed. With `--local` it commits and pushes nothing, and does not list it (there is no URL to list).
+
+Names: a repository's name in the manifest is its repository name, lowercased, minus the multiverse's name and a dash (`nnnn-cli` in `nnnn` is `cli`). `--repo cli=<url>` says it instead. The names are printed and are what `universe` commands use.
+
+### Self-hosted GitLab (or GitHub)
+
+`--create group/name --provider gitlab --host gitlab.example.test` creates the repository through `glab` on that host, or pass the whole URL: `--create https://gitlab.example.test/group/name`. The same without `--create`: make the repository yourself, `GITLAB_HOST=gitlab.example.test glab repo create group/name --private` (`glab repo create` has no `-H`; the host comes from `GITLAB_HOST`), then `--url git@gitlab.example.test:group/name.git`. `glab auth login --hostname <host>` signs in.
+
+### Before you create anything
+
+Creating a repository or pushing to a catalog is visible to other people. Ask the user first unless they asked you to create it, and say which repositories and which catalog you will write to.
+
+### What the manifest has, and what it lacks
+
+The new `multiverse.yaml` only lists the repositories. `universe up` starts every repository that has a `docker-compose.yml` as an app of its own name, with the hosts its compose labels give; one without a compose file is only checked out. To say more (hosts and ports, secrets, optional services, compose files, profiles) add `spec.apps` to the manifest, in the multiverse's own repository: edit, commit, push, then `multiversectl catalog update`. Each app takes `repo`, `hosts` (`name`, `service`, `port`), `secrets`, `compose`, `profiles`; the full reference is https://multiversectl.dev/reference/manifest.html. The manifest is the user's to change: propose the edit unless asked to make it.
+
+## Web view
+
+`multiversectl server open` opens the web view in the browser, starting it when it is not running; a port taken by another process moves it to the next free one (the URL printed is the real one). `server status` says where it is.
+
 ## When something is wrong
 
 Fixing it is part of the job. Run `universe doctor <universe>`, read the error (it says what to run), find the cause, fix it in your universe's repositories, and run it again to check. That includes the multiverse's own files: a compose label, a missing example env, a bad script. Make it a normal commit on your branch, and say in your answer what you changed and why. The `multiverse.yaml` and the shared clones are not yours to edit: tell the user what should change there.

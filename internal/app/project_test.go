@@ -246,3 +246,39 @@ func TestProjectInitKeepsAnAGENTSFileThatIsAlreadyThere(t *testing.T) {
 		t.Errorf("a file that was not written must not be swept into the commit: %v", git.commits)
 	}
 }
+
+// A name given as name=url is the manifest key as it stands, instead of the
+// repository's name with the multiverse's prefix taken off.
+func TestProjectInitRepoNameCanBeSetWithNameEqualsURL(t *testing.T) {
+	git := &fakeRepos{inRepo: true}
+	r := projectRig(t, git)
+	r.Yes = true
+	dir := filepath.Join(t.TempDir(), "multiverse")
+	res, err := r.InitProject(context.Background(), app.ProjectInput{Dir: dir, Local: true, Name: "nnnn", Repos: []string{
+		"git@gitlab.example.test:acme/nnnn-cli.git", "backend=git@gitlab.example.test:acme/nnnn-api.git",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := manifest.Load(filepath.Join(dir, "multiverse.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Repos["cli"].URL == "" || m.Repos["backend"].URL == "" || m.Repos["api"].URL != "" {
+		t.Errorf("repos %+v: want cli (derived) and backend (given)", m.Repos)
+	}
+	if len(res.Files) != 2 || len(res.Repos) != 2 {
+		t.Errorf("result %+v: want the files and repositories reported", res)
+	}
+}
+
+func TestProjectInitRefusesTwoRepositoriesWithTheSameGivenName(t *testing.T) {
+	r := projectRig(t, &fakeRepos{inRepo: true})
+	r.Yes = true
+	_, err := r.InitProject(context.Background(), app.ProjectInput{Dir: filepath.Join(t.TempDir(), "m"), Local: true, Repos: []string{
+		"x=https://github.com/acme/a", "x=https://github.com/acme/b",
+	}})
+	if err == nil || !strings.Contains(err.Error(), "name=url") {
+		t.Errorf("err = %v, want a clash that points at name=url", err)
+	}
+}

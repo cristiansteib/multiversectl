@@ -20,27 +20,38 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-type Host struct{}
+type Host struct {
+	// Hostname is a self-hosted instance; empty means the public service.
+	Hostname string
+}
 
 var _ app.RepoHost = Host{}
 
 func New() Host { return Host{} }
 
-func (Host) Name() string { return "GitLab" }
+func (h Host) Name() string { return "GitLab" }
 
-func (Host) Available(ctx context.Context) error {
+// At is the same service on a self-hosted instance: glab is pointed at it
+// with GITLAB_HOST, as it would be by hand (it has no --hostname on `api`).
+func (Host) At(hostname string) app.RepoHost { return Host{Hostname: hostname} }
+
+func (h Host) Available(ctx context.Context) error {
 	if _, err := exec.LookPath("glab"); err != nil {
 		return &app.HostUnavailable{Reason: "the GitLab CLI (glab) is not installed: https://gitlab.com/gitlab-org/cli"}
 	}
-	if _, err := glab(ctx, "auth", "status"); err != nil {
+	if _, err := h.run(ctx, "auth", "status"); err != nil {
 		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true}
 	}
 	return nil
 }
 
 // Login hands the terminal to glab, which offers a browser sign-in.
-func (Host) Login(ctx context.Context) error {
-	login := exec.CommandContext(ctx, "glab", "auth", "login")
+func (h Host) Login(ctx context.Context) error {
+	args := []string{"auth", "login"}
+	if h.Hostname != "" {
+		args = append(args, "--hostname", h.Hostname)
+	}
+	login := exec.CommandContext(ctx, "glab", args...)
 	login.Stdin, login.Stdout, login.Stderr = os.Stdin, os.Stderr, os.Stderr
 	if err := login.Run(); err != nil {
 		return fmt.Errorf("glab auth login: %w", err)
@@ -50,7 +61,7 @@ func (Host) Login(ctx context.Context) error {
 
 // Create makes a project in the namespace the name starts with, or in the
 // signed-in user's own. Visibility is private unless asked otherwise.
-func (Host) Create(ctx context.Context, name string, private bool) (string, error) {
+func (h Host) Create(ctx context.Context, name string, private bool) (string, error) {
 	ns, repo := path.Split(name)
 	ns = strings.TrimSuffix(ns, "/")
 	visibility := "private"
@@ -59,13 +70,13 @@ func (Host) Create(ctx context.Context, name string, private bool) (string, erro
 	}
 	args := []string{"api", "projects", "-X", "POST", "-f", "name=" + repo, "-f", "path=" + repo, "-f", "visibility=" + visibility}
 	if ns != "" {
-		id, err := namespaceID(ctx, ns)
+		id, err := h.namespaceID(ctx, ns)
 		if err != nil {
 			return "", err
 		}
 		args = append(args, "-f", "namespace_id="+id)
 	}
-	out, err := glab(ctx, args...)
+	out, err := h.run(ctx, args...)
 	if err != nil {
 		return "", fmt.Errorf("glab: create %s: %w", name, err)
 	}
@@ -78,8 +89,8 @@ func (Host) Create(ctx context.Context, name string, private bool) (string, erro
 	return created.HTTP, nil
 }
 
-func namespaceID(ctx context.Context, ns string) (string, error) {
-	out, err := glab(ctx, "api", "namespaces/"+url.PathEscape(ns))
+func (h Host) namespaceID(ctx context.Context, ns string) (string, error) {
+	out, err := h.run(ctx, "api", "namespaces/"+url.PathEscape(ns))
 	if err != nil {
 		return "", fmt.Errorf("glab: find the namespace %s: %w", ns, err)
 	}
@@ -94,8 +105,8 @@ func namespaceID(ctx context.Context, ns string) (string, error) {
 
 // Accounts is the signed-in user, then the groups they can create projects in
 // (Developer access or more).
-func (Host) Accounts(ctx context.Context) ([]app.Account, error) {
-	out, err := glab(ctx, "api", "user")
+func (h Host) Accounts(ctx context.Context) ([]app.Account, error) {
+	out, err := h.run(ctx, "api", "user")
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +117,7 @@ func (Host) Accounts(ctx context.Context) ([]app.Account, error) {
 		return nil, fmt.Errorf("glab: cannot tell who is signed in")
 	}
 	accounts := []app.Account{{Name: user.Username}}
-	out, err = glab(ctx, "api", "groups?min_access_level=30&per_page=100")
+	out, err = h.run(ctx, "api", "groups?min_access_level=30&per_page=100")
 	if err != nil {
 		return accounts, nil
 	}
@@ -123,8 +134,8 @@ func (Host) Accounts(ctx context.Context) ([]app.Account, error) {
 
 // Repos lists the projects the signed-in user is a member of in the account's
 // namespace; one request covers every account, so the filter is on our side.
-func (Host) Repos(ctx context.Context, account string) ([]app.RemoteRepo, error) {
-	out, err := glab(ctx, "api", "projects?membership=true&simple=true&per_page=100", "--paginate")
+func (h Host) Repos(ctx context.Context, account string) ([]app.RemoteRepo, error) {
+	out, err := h.run(ctx, "api", "projects?membership=true&simple=true&per_page=100", "--paginate")
 	if err != nil {
 		return nil, err
 	}
@@ -156,8 +167,8 @@ func parseProjects(out, account string) ([]app.RemoteRepo, error) {
 
 // ReposWithTopic is one request: the projects the user is a member of that
 // carry the topic.
-func (Host) ReposWithTopic(ctx context.Context, topic string) ([]app.RemoteRepo, error) {
-	out, err := glab(ctx, "api", "projects?membership=true&simple=true&per_page=100&topic="+url.QueryEscape(topic), "--paginate")
+func (h Host) ReposWithTopic(ctx context.Context, topic string) ([]app.RemoteRepo, error) {
+	out, err := h.run(ctx, "api", "projects?membership=true&simple=true&per_page=100&topic="+url.QueryEscape(topic), "--paginate")
 	if err != nil {
 		return nil, err
 	}
@@ -178,12 +189,12 @@ func projectID(repoURL string) (string, error) {
 }
 
 // AddTopic keeps the topics the project has: setting them replaces the list.
-func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
+func (h Host) AddTopic(ctx context.Context, repoURL, topic string) error {
 	id, err := projectID(repoURL)
 	if err != nil {
 		return err
 	}
-	out, err := glab(ctx, "api", "projects/"+id)
+	out, err := h.run(ctx, "api", "projects/"+id)
 	if err != nil {
 		return err
 	}
@@ -202,14 +213,14 @@ func (Host) AddTopic(ctx context.Context, repoURL, topic string) error {
 	for _, t := range append(project.Topics, topic) {
 		args = append(args, "-f", "topics[]="+t)
 	}
-	_, err = glab(ctx, args...)
+	_, err = h.run(ctx, args...)
 	return err
 }
 
 // Owns asks which platform the URL names, rather than looking for "gitlab"
 // anywhere in it: a repository called gitlab-runner-config on a third-party
 // host is not a GitLab project.
-func (Host) Owns(repoURL string) bool {
+func (h Host) Owns(repoURL string) bool {
 	return domain.Locate(repoURL, "").Platform == domain.PlatformGitLab
 }
 
@@ -235,7 +246,7 @@ type mergeRequest struct {
 // one when there is one, otherwise the latest that was merged or closed. It
 // goes through the API rather than `glab mr list`, which prints a table meant
 // for a terminal and would have to be parsed back.
-func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
+func (h Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review, error) {
 	if branch == "" {
 		return nil, nil
 	}
@@ -243,7 +254,7 @@ func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review
 	if err != nil {
 		return nil, err
 	}
-	out, err := glab(ctx, "api", "projects/"+id+"/merge_requests?state=all&order_by=created_at&sort=desc&per_page=10&source_branch="+url.QueryEscape(branch))
+	out, err := h.run(ctx, "api", "projects/"+id+"/merge_requests?state=all&order_by=created_at&sort=desc&per_page=10&source_branch="+url.QueryEscape(branch))
 	if err != nil {
 		return nil, err
 	}
@@ -280,8 +291,11 @@ func (Host) FindReview(ctx context.Context, repoURL, branch string) (*app.Review
 		Base: pick.TargetBranch, Author: pick.Author.Username, Updated: updated}, nil
 }
 
-func glab(ctx context.Context, args ...string) (string, error) {
+func (h Host) run(ctx context.Context, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "glab", args...)
+	if h.Hostname != "" {
+		cmd.Env = append(os.Environ(), "GITLAB_HOST="+h.Hostname)
+	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {

@@ -432,6 +432,11 @@ type Option struct {
 	Checked bool
 }
 
+// HostAt is a RepoHost that can also be a self-hosted instance of its service.
+type HostAt interface {
+	At(hostname string) RepoHost
+}
+
 // RepoHost creates repositories on a hosting service.
 type RepoHost interface {
 	// Name is the service's own name, such as GitHub.
