@@ -50,6 +50,7 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 		if st, err = s.fire(ctx, domain.PreDown, st, appKey, nil, nil); err != nil {
 			return err
 		}
+		s.leaveProxy(ctx, s.UniverseOf(st), appKey)
 		if err := s.Runtime.Down(ctx, req, false); err != nil {
 			return fmt.Errorf("universe %s: %s: stop: %w", st.Name, appKey, err)
 		}

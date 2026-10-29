@@ -289,6 +289,11 @@ type ProxyStatus struct {
 // Proxy is the ingress port.
 type Proxy interface {
 	EnsureNetwork(ctx context.Context, name string) error
+	// ConnectNetwork joins the running proxy to a network an app's routed services
+	// are on, and DisconnectNetwork leaves it again (before the app is taken down,
+	// since a network the proxy is on cannot be removed). Neither restarts the proxy.
+	ConnectNetwork(ctx context.Context, name string) error
+	DisconnectNetwork(ctx context.Context, name string) error
 	EnsureUp(ctx context.Context, r ProxyRequest) error
 	Down(ctx context.Context) error
 	Status(ctx context.Context) (ProxyStatus, error)

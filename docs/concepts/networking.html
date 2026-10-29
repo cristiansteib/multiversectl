@@ -92,18 +92,19 @@
 
 <section id="proxy">
   <h2 id="proxy"><a href="#proxy">The shared proxy</a></h2>
-  <p>One Traefik container for the machine, in its own compose project <code>multiverse-proxy</code>, on one external network — <code>multiversenet</code> by default. The first <code>up</code> starts it. It discovers routes from the container runtime, so starting a universe is all the configuration it needs; multiversectl writes the labels into a generated fragment, one per app, which is why your own compose files say nothing about Traefik:</p>
+  <p>One Traefik container for the machine, in its own compose project <code>multiverse-proxy</code>. The first <code>up</code> starts it. It discovers routes from the container runtime, so starting a universe is all the configuration it needs; multiversectl writes the labels into a generated fragment, one per app, which is why your own compose files say nothing about Traefik:</p>
   <div class="code"><pre><span class="c"># universes/3/.multiverse-routes-api.yml, rewritten on every up</span>
 <span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">ports</span>: !reset []
     <span class="k">labels</span>:
       <span class="k">traefik.enable</span>: <span class="s">"true"</span>
-      <span class="k">traefik.docker.network</span>: <span class="s">"multiversenet"</span>
+      <span class="k">traefik.docker.network</span>: <span class="s">"acme-u3-api_default"</span>
       <span class="k">traefik.http.services.api-u3.loadbalancer.server.port</span>: <span class="s">"8001"</span>
       <span class="k">traefik.http.routers.api-u3.rule</span>: <span class="s">"Host(`api-u3.example.test`)"</span>
-      <span class="k">traefik.http.routers.api-u3.entrypoints</span>: <span class="s">"web"</span>
-    <span class="k">networks</span>: [default, multiversenet]</pre></div>
+      <span class="k">traefik.http.routers.api-u3.entrypoints</span>: <span class="s">"web"</span></pre></div>
+  <p>The proxy reaches a service on <strong>the app's own network</strong>, the <code>default</code> network compose makes for its project (<code>acme-u3-api_default</code>), and joins it once the app is up: a connection made to the running proxy, which is neither restarted nor recreated when a universe comes or goes. It leaves the network before the app is taken down. Services are not attached to any network shared with other universes, on purpose: on a network every service answers to its plain name, so <code>auth</code> there would be the <code>auth</code> of every universe at once, and a service calling <code>http://auth:8080</code> would reach a random universe's. A host reached by IP alone (<code>portForward: only</code>, <code>domain: none</code>) has no route in the proxy and is on no proxy network at all.</p>
+  <p>The proxy's own compose file still names one network, <code>multiversenet</code> by default, so older universes keep answering until they are brought up again; <code>doctor</code> lists the containers still on it. A proxy that is created again joins the networks of the containers that name it in their <code>io.multiversectl.served-by</code> label.</p>
   <p class="muted">Edit the manifest or your compose files, never the generated one: it is replaced on every start.</p>
 </section>
 

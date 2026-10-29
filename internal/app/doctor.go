@@ -48,6 +48,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 		add("manifest", StatusWarn, "no manifest loaded; multiversectl start <owner/repo>")
 	} else {
 		s.checkProxy(ctx, add)
+		s.checkSharedNetwork(ctx, add)
 		s.checkMultiverses(add)
 		s.checkClones(ctx, add)
 	}
@@ -89,6 +90,7 @@ func (s *Service) checkRuntime(ctx context.Context, add addCheck) {
 		return
 	}
 	add("runtime", StatusOK, "%s", version)
+	s.checkNetworkPool(ctx, add)
 }
 
 func (s *Service) checkProxy(ctx context.Context, add addCheck) {

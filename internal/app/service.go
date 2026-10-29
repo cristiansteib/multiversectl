@@ -417,10 +417,7 @@ func (s *Service) withoutIdleOnDemand(ctx context.Context, st domain.UniverseSta
 // Routes are the resolved addresses of one app of one universe, as stored when
 // it was last created or started.
 func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
-	network := s.Manifest.Proxy.Network
-	if network == "" {
-		network = "multiversenet"
-	}
+	network := s.UniverseOf(st).ProxyNetwork(appKey)
 	keys := make([]string, 0, len(st.Rules))
 	for hostKey := range st.Rules {
 		keys = append(keys, hostKey)
@@ -439,6 +436,12 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 				aliases = append(aliases, alias.Hostname)
 			}
 		}
+		// A host reached by IP alone has no route in the proxy, so it needs no
+		// network shared with it either.
+		routeNetwork := network
+		if byIP(rule) {
+			routeNetwork = ""
+		}
 		routes = append(routes, Route{
 			Name:       hostKey + "-" + st.Slug,
 			Hostname:   rule.Hostname,
@@ -447,7 +450,7 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 			Port:       rule.Port,
 			Entrypoint: rule.Entrypoint,
 			Project:    st.Project,
-			Network:    network,
+			Network:    routeNetwork,
 			HostPort:   rule.HostPort,
 			ForwardURL: rule.ForwardURL,
 			ByIP:       byIP(rule),

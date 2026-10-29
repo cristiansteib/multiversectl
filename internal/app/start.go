@@ -245,6 +245,10 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 		return st, fmt.Errorf("%s: start: %w", appKey, err)
 	}
 	s.Out.OK("%s up", appKey)
+	// The proxy reaches the app on the app's own network, which exists now.
+	if err := s.joinProxy(ctx, appKey, routes); err != nil {
+		return st, err
+	}
 	// Before the hooks, which may rely on the app answering.
 	if err := s.waitReady(ctx, appKey, routes, req, in.Wait); err != nil {
 		return st, err
@@ -648,4 +652,31 @@ func (s *Service) otherMultiversesServed(ctx context.Context) []string {
 		}
 	}
 	return out
+}
+
+// joinProxy connects the proxy to the network each routed service of the app is on.
+// The proxy is on no network of a universe until now: a name on a network shared
+// by universes would be an alias of the service of every one of them.
+func (s *Service) joinProxy(ctx context.Context, appKey string, routes []Route) error {
+	seen := map[string]bool{}
+	for _, r := range routes {
+		if r.Network == "" || seen[r.Network] {
+			continue
+		}
+		seen[r.Network] = true
+		if err := s.Proxy.ConnectNetwork(ctx, r.Network); err != nil {
+			return fmt.Errorf("%s: connecting the proxy to %s: %w", appKey, r.Network, err)
+		}
+	}
+	return nil
+}
+
+// leaveProxy disconnects the proxy from an app's network before the app is taken
+// down: compose cannot remove a network that something is still connected to.
+// There is nothing to undo when the proxy is not there, so a failure is not one.
+func (s *Service) leaveProxy(ctx context.Context, u domain.Universe, appKey string) {
+	if s.Proxy == nil {
+		return
+	}
+	_ = s.Proxy.DisconnectNetwork(ctx, u.ProxyNetwork(appKey))
 }

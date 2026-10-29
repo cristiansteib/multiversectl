@@ -127,6 +127,13 @@ func (u Universe) Project() string {
 	return fmt.Sprintf("%s-%s", name, u.Slug())
 }
 
+// ProxyNetwork is the network the proxy reaches an app's routed services on: the
+// app's own default network, which compose makes for its project. It is private to
+// that app of that universe, so a service name on it means one service. A network
+// shared by several universes would not: every service answers to its plain name
+// there, and "auth" would be the auth service of each universe at once.
+func (u Universe) ProxyNetwork(appKey string) string { return u.ProjectFor(appKey) + "_default" }
+
 // ProjectFor is the compose project of one app. Apps of a universe get a
 // multiverse each: two repositories may both call a service "app", and inside one
 // multiverse that is the same container.

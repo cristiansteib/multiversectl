@@ -92,6 +92,7 @@ func (s *Service) preflightDocker(ctx context.Context, add addCheck) {
 	} else {
 		add("buildx", StatusOK, "%s", strings.TrimSpace(firstLine(out)))
 	}
+	s.checkNetworkPool(ctx, add)
 }
 
 func (s *Service) preflightDisk(ctx context.Context, add addCheck, path string) {

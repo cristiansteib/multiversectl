@@ -114,6 +114,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 			s.Out.Warn("%s: not taking the containers and volumes down: %v", appKey, err)
 			continue
 		}
+		s.leaveProxy(ctx, u, appKey)
 		if err := s.Runtime.Down(ctx, req, true); err != nil {
 			s.Out.Warn("%s: down: %v", appKey, err)
 			continue
