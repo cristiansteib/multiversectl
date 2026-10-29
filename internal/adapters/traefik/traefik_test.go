@@ -104,6 +104,9 @@ func TestProxyTemplateRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if !strings.Contains(string(got), "--serverstransport.insecureskipverify=true") {
+			t.Error("a service behind scheme: https is reached with a self-signed certificate; the proxy must not refuse it")
+		}
 		eps := parseEntrypoints(string(got))
 		if eps["web"] != 80 || eps["devapi"] != 8001 || len(eps) != 2 {
 			t.Fatalf("entrypoints = %v", eps)

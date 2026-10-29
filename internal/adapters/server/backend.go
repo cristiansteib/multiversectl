@@ -251,6 +251,7 @@ func (s Services) Multiverse(ctx context.Context, name string) (multiverseView, 
 		v.Repos = append(v.Repos, repoView{Follows: f.Follows, Behind: f.Behind, Ahead: f.Ahead, Dirty: f.Dirty, Key: key, Clone: m.CloneDir(w.Root, key), Loc: locOf(domain.Locate(r.URL, "")), URL: r.URL, Dir: r.Dir,
 			Cloned: svc.Files.Exists(m.CloneDir(w.Root, key))})
 	}
+	discovered := discoveredHosts(svc)
 	for _, key := range sortedKeys(m.Apps) {
 		a := m.Apps[key]
 		av := appDefView{Key: key, Repo: a.Repo, Services: a.Services}
@@ -259,15 +260,62 @@ func (s Services) Multiverse(ctx context.Context, name string) (multiverseView, 
 		}
 		for _, hk := range sortedKeys(a.Hosts) {
 			h := a.Hosts[hk]
-			ep := h.Entrypoint
-			if ep == "" {
-				ep = "web"
+			forward := h.PortForward
+			if m.IPOnly() {
+				forward = domain.PortForwardOnly // what every host is, with no domain
 			}
-			av.Hosts = append(av.Hosts, hostDefView{Name: hk, Service: h.Service, Port: h.Port, Entrypoint: ep})
+			av.Hosts = append(av.Hosts, hostDefView{Name: hk, Service: h.Service, Port: h.Port, Entrypoint: orWeb(h.Entrypoint),
+				AlsoMatch: h.AlsoMatch, PortForward: forward, Scheme: h.Scheme})
+		}
+		if len(a.Hosts) == 0 {
+			av.Hosts = discovered[key]
 		}
 		v.Apps = append(v.Apps, av)
 	}
 	return v, nil
+}
+
+// discoveredHosts are the addresses of the apps that leave them to their compose
+// files: labels, or a single exposed port. Only a universe that has been made
+// knows them, and they are taken again on every start and sync, so the universe
+// that last did either speaks for the multiverse. A universe on a branch that
+// adds a label can make that one speak for it too; that is what the page's
+// "discovered" says.
+func discoveredHosts(svc *app.Service) map[string][]hostDefView {
+	all, err := svc.Store.List()
+	if err != nil {
+		return nil
+	}
+	sort.SliceStable(all, func(i, j int) bool { return lastResolved(all[i]).After(lastResolved(all[j])) })
+	out := map[string][]hostDefView{}
+	for _, st := range all {
+		byApp := map[string][]hostDefView{}
+		for _, hk := range sortedKeys(st.Rules) {
+			r := st.Rules[hk]
+			byApp[r.App] = append(byApp[r.App], hostDefView{Name: hk, Service: r.Service, Port: r.Port, Entrypoint: orWeb(r.Entrypoint),
+				AlsoMatch: r.Aliases, PortForward: r.PortForward, Scheme: r.Scheme, Discovered: true})
+		}
+		for appKey, hosts := range byApp {
+			if _, seen := out[appKey]; !seen {
+				out[appKey] = hosts
+			}
+		}
+	}
+	return out
+}
+
+func lastResolved(st domain.UniverseState) time.Time {
+	if st.LastStarted.After(st.Created) {
+		return st.LastStarted
+	}
+	return st.Created
+}
+
+func orWeb(entrypoint string) string {
+	if entrypoint == "" {
+		return "web"
+	}
+	return entrypoint
 }
 
 func (s Services) Doctor(ctx context.Context, multiverse, universe string) (doctorView, error) {

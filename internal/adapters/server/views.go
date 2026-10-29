@@ -286,10 +286,16 @@ type appDefView struct {
 }
 
 type hostDefView struct {
-	Name       string `json:"name"`
-	Service    string `json:"service"`
-	Port       int    `json:"port"`
-	Entrypoint string `json:"entrypoint"`
+	Name        string   `json:"name"`
+	Service     string   `json:"service"`
+	Port        int      `json:"port"`
+	Entrypoint  string   `json:"entrypoint"`
+	AlsoMatch   []string `json:"alsoMatch,omitempty"`
+	PortForward string   `json:"portForward,omitempty"`
+	Scheme      string   `json:"scheme,omitempty"`
+	// Discovered says the host comes from the app's compose files, as a universe
+	// last resolved them, and not from the manifest.
+	Discovered bool `json:"discovered,omitempty"`
 }
 
 type doctorView struct {

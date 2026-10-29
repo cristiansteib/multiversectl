@@ -8,6 +8,9 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --providers.docker.network={{.Network}}
+      # A service behind scheme: https in development nearly always has a
+      # self-signed certificate; verifying it would answer every request with 500.
+      - --serverstransport.insecureskipverify=true
 {{- range .Entrypoints}}
       - --entrypoints.{{.Name}}.address=:{{.Port}}
 {{- end}}
