@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -140,8 +142,10 @@ func TestOnlyTheServiceThatOwnsTheRepositoryIsAsked(t *testing.T) {
 	}
 }
 
-func TestAServiceNobodyIsSignedInToIsNotAFailure(t *testing.T) {
-	host := &codeHost{owns: "https://example.test/acme/api.git", available: errors.New("not signed in")}
+// Not being signed in is not a failure of the universe, but a row with no review
+// and no word of why looks the same as a branch that never had one.
+func TestAServiceNobodyIsSignedInToIsSaid(t *testing.T) {
+	host := &codeHost{owns: "https://example.test/acme/api.git", available: &HostUnavailable{Reason: "not signed in", CanSignIn: true, Fix: "tool auth login"}}
 	rows, err := codeService(&codeGit{}, host).UniverseCode(context.Background(), "3", false)
 	if err != nil {
 		t.Fatalf("UniverseCode: %v", err)
@@ -149,8 +153,10 @@ func TestAServiceNobodyIsSignedInToIsNotAFailure(t *testing.T) {
 	if len(host.asked) != 0 {
 		t.Errorf("a service that cannot be used should not be asked, got %v", host.asked)
 	}
-	if rows[0].ReviewError != "" {
-		t.Errorf("want no error to show, got %q", rows[0].ReviewError)
+	for _, want := range []string{"not signed in", "tool auth login"} {
+		if !strings.Contains(rows[0].ReviewError, want) {
+			t.Errorf("the row does not say %q: %q", want, rows[0].ReviewError)
+		}
 	}
 }
 
@@ -298,9 +304,40 @@ func TestAReviewIsLookedForOnTheInstanceTheRepositoryIsOn(t *testing.T) {
 	if review == nil || errText != "" || len(asked) != 1 || asked[0] != "gitlab.example.test git@gitlab.example.test:muse/ui.git#chore/x" {
 		t.Fatalf("review %v, error %q, asked %v", review, errText, asked)
 	}
-	// The public instance is a different sign-in: not signed in there is said by
-	// no review, not by a failure of the company one.
-	if review, _ := svc.reviewOf(context.Background(), ready, "git@gitlab.com:muse/ui.git", "chore/x"); review != nil {
-		t.Errorf("a repository on gitlab.com was answered for by another instance: %v", review)
+	// The public instance is a different sign-in: not being on it is said for that
+	// repository, not hidden behind the company one being fine.
+	review, errText = svc.reviewOf(context.Background(), ready, "git@gitlab.com:muse/ui.git", "chore/x")
+	if review != nil || !strings.Contains(errText, "not signed in") {
+		t.Errorf("a repository on gitlab.com: review %v, error %q", review, errText)
+	}
+}
+
+// doctor says which services the repositories are on cannot be asked, and what
+// to run, instead of leaving every branch looking as if it never had a review.
+func TestDoctorSaysWhichHostingServicesCannotBeAsked(t *testing.T) {
+	var asked []string
+	host := instanceHost{signedIn: map[string]bool{"gitlab.example.test": true}, asked: &asked}
+	m := &domain.Manifest{Repos: map[string]domain.Repo{
+		"ui":  {URL: "git@gitlab.example.test:muse/ui.git"},
+		"api": {URL: "git@gitlab.example.test:muse/api.git"},
+		"lib": {URL: "git@gitlab.com:muse/lib.git"},
+		"fs":  {URL: "/srv/repos/fs"},
+	}}
+	svc := New(Deps{Hosts: []RepoHost{host}, Out: discardOut{}}, "/ws", m, "test")
+	got := map[string]Check{}
+	svc.checkHosting(context.Background(), func(name string, status Status, format string, a ...any) {
+		got[name] = Check{Name: name, Status: status, Detail: fmt.Sprintf(format, a...)}
+	})
+	if len(got) != 2 {
+		t.Fatalf("want one check per instance a repository is on, got %v", got)
+	}
+	company := got["hosting gitlab gitlab.example.test"]
+	if company.Status != StatusOK || !strings.Contains(company.Detail, "api, ui") {
+		t.Errorf("the signed-in instance: %+v", company)
+	}
+	public := got["hosting gitlab"]
+	if public.Status != StatusOK || !strings.Contains(public.Detail, "lib") {
+		// instanceHost's error carries no sign-in fix, so it is only said.
+		t.Errorf("the public instance: %+v", public)
 	}
 }

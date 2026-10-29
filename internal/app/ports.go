@@ -677,6 +677,8 @@ var (
 type HostUnavailable struct {
 	Reason    string
 	CanSignIn bool
+	// Fix is the command that signs in, when that is what is missing.
+	Fix string
 }
 
 func (e *HostUnavailable) Error() string { return e.Reason }

@@ -47,7 +47,11 @@ func (h Host) Available(ctx context.Context) error {
 		status = append(status, "--hostname", h.Hostname)
 	}
 	if _, err := h.run(ctx, status...); err != nil {
-		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true}
+		fix := "glab auth login"
+		if h.Hostname != "" {
+			fix += " --hostname " + h.Hostname
+		}
+		return &app.HostUnavailable{Reason: "not signed in", CanSignIn: true, Fix: fix}
 	}
 	return nil
 }
