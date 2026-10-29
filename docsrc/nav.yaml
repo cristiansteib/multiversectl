@@ -26,6 +26,12 @@ groups:
         summary: >-
           The five words this documentation uses — multiverse, universe, app,
           host and entrypoint — and how they fit together.
+      - path: start/compare
+        title: Compared with other tools
+        nav: Compared with others
+        summary: >-
+          A feature table of multiversectl next to Docktree, container-use,
+          Tilt, Skaffold, Garden and Preevy, and when to pick another.
   - title: Concepts
     pages:
       - path: concepts/universes

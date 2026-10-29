@@ -15,7 +15,7 @@ func TestCommittedSiteIsCurrent(t *testing.T) {
 	committed := filepath.Join("..", "..", "..", "docs")
 
 	fresh := t.TempDir()
-	if err := render(src, fresh); err != nil {
+	if err := render(src, fresh, filepath.Join(committed, "assets")); err != nil {
 		t.Fatal(err)
 	}
 
