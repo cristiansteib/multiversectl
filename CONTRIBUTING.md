@@ -10,10 +10,10 @@ Pull requests are welcome.
   only on the ports in `internal/app/ports.go`, and anything that talks to git,
   docker or the filesystem lives in `internal/adapters`.
 - `gofmt`, `go vet ./...` and `go test ./...` must pass; CI runs exactly that.
-- Two things are generated and committed, and a test fails when either is
-  stale: `schema/multiverse.v1alpha1.yaml` from the Go types (`make schema`) and
-  `docs/` from [`docsrc/`](docsrc/) (`make docs`). Edit the source, not the
-  output.
+- Two things are generated and committed, and CI fails when either is stale:
+  `schema/multiverse.v1alpha1.yaml` from the Go types (`make schema`) and
+  `docs/`, which GitHub Pages serves, from the Astro site in [`site/`](site/)
+  (`make docs`, needs Node). Edit the source, not the output.
 - Tests for logic worth testing, not for coverage's sake.
 - Conventional commit subjects (`feat:`, `fix:`, `docs:`) — the changelog is
   generated from them.
