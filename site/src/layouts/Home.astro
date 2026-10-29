@@ -1,0 +1,60 @@
+---
+// The home: the landing header instead of a title and a contents column, and
+// no menu beside it. Everything else — top bar, footer, scripts — is the same
+// chrome every other page gets.
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Scripts from '../components/Scripts.astro';
+import Hero from '../components/Hero.astro';
+import TopBar from '../components/TopBar.astro';
+import { page } from '../data/nav';
+
+interface Props {
+  /** The page's path in src/data/nav.ts. Only "index" is a hero today. */
+  path: string;
+  title?: string;
+  summary?: string;
+}
+
+const { path, ...overrides } = Astro.props;
+const entry = page(path);
+const description = overrides.summary ?? entry.description ?? entry.summary;
+const title = overrides.title ?? 'multiversectl — run your stack several times at once';
+const site = (Astro.site ?? new URL('https://multiversectl.dev')).origin;
+const software = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'multiversectl',
+  url: `${site}/`,
+  description,
+  applicationCategory: 'DeveloperApplication',
+  applicationSubCategory: 'Local development environments',
+  operatingSystem: 'Linux, macOS',
+  license: 'https://www.apache.org/licenses/LICENSE-2.0',
+  downloadUrl: `${site}/start/install.html`,
+  installUrl: `${site}/start/install.html`,
+  image: `${site}/og-image.png`,
+  sameAs: ['https://github.com/cristiansteib/multiversectl'],
+  author: { '@type': 'Person', name: 'Cristian Steib' },
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={title} description={description} path={path} jsonLd={[software]} />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <TopBar path={path} />
+    <Hero />
+    <div class="wrap layout bare">
+      <main id="main">
+        <slot />
+      </main>
+    </div>
+    <Footer />
+    <Scripts />
+  </body>
+</html>

@@ -1,0 +1,80 @@
+---
+// The chrome of an ordinary documentation page: top bar, menu, breadcrumb,
+// title and lede, the page's own content, previous/next, the contents column
+// and the footer — written once, as the Go layout.html was.
+//
+// A page gives its `path` from src/data/nav.ts and nothing else: the title,
+// the lede, the breadcrumb, the menu's current entry and the pager all come
+// from that one entry. The other props are overrides, for a page that needs to
+// differ from the menu.
+import BaseHead from '../components/BaseHead.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Footer from '../components/Footer.astro';
+import Scripts from '../components/Scripts.astro';
+import Pager from '../components/Pager.astro';
+import SideNav from '../components/SideNav.astro';
+import Toc from '../components/Toc.astro';
+import TopBar from '../components/TopBar.astro';
+import { page, pager, section as sectionOf } from '../data/nav';
+import { headings as scan, type Heading } from '../lib/headings';
+
+interface Props {
+  /** The page's path in src/data/nav.ts, e.g. "start/install". */
+  path: string;
+  title?: string;
+  summary?: string;
+  section?: string;
+  notoc?: boolean;
+  /** Overrides the headings scanned from the content. Rarely needed. */
+  headings?: Heading[];
+}
+
+const { path, headings: given, ...overrides } = Astro.props;
+const entry = page(path);
+const title = overrides.title ?? entry.title;
+const summary = overrides.summary ?? entry.summary;
+const section = overrides.section ?? sectionOf(path);
+const description = overrides.summary ?? entry.description ?? entry.summary;
+// Mirrors the visible breadcrumb: Documentation / <group>. The group is not a
+// page, so it carries a name and no address (the last item may omit it).
+const site = (Astro.site ?? new URL('https://multiversectl.dev')).origin;
+const breadcrumbs = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Documentation', item: `${site}/` },
+    { '@type': 'ListItem', position: 2, name: section },
+  ],
+};
+const notoc = overrides.notoc ?? entry.notoc ?? false;
+const { prev, next } = pager(path);
+
+// The content is rendered first so its <h2 id>s can be read for the contents
+// column; see src/lib/headings.ts.
+const content = await Astro.slots.render('default');
+const headings = notoc ? [] : (given ?? scan(content));
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={`${title} · multiversectl`} description={description} path={path} jsonLd={[breadcrumbs]} />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <TopBar path={path} />
+    <div class:list={['wrap', 'layout', { wide: notoc }]}>
+      <SideNav path={path} />
+      <main id="main">
+        <Breadcrumbs section={section} />
+        <h1>{title}</h1>
+        {summary && <p class="lede">{summary}</p>}
+        <Fragment set:html={content} />
+        <Pager prev={prev} next={next} />
+      </main>
+      <Toc headings={headings} />
+    </div>
+    <Footer />
+    <Scripts />
+  </body>
+</html>

@@ -1,0 +1,4 @@
+# install.sh is committed at the repository root and copied in at build time by
+# scripts/sync-public.mjs, so there is one of it. The screenshots under
+# public/assets/img/ are committed here: this is their home.
+public/install.sh

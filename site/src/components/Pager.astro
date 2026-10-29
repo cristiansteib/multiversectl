@@ -1,0 +1,16 @@
+---
+// Previous and next in reading order, which is the order of src/data/nav.ts.
+import type { PagerLink } from '../data/nav';
+
+interface Props {
+  prev?: PagerLink | undefined;
+  next?: PagerLink | undefined;
+}
+
+const { prev, next } = Astro.props;
+---
+
+<nav class="pager" aria-label="Pages">
+  {prev && <a class="prev" href={prev.href}><span>Previous</span>{prev.label}</a>}
+  {next && <a class="next" href={next.href}><span>Next</span>{next.label}</a>}
+</nav>

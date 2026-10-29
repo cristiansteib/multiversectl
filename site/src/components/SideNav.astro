@@ -1,0 +1,34 @@
+---
+// The documentation menu: every page, grouped, with the one you are on marked
+// at render time so no script is needed to find it.
+import { groups, href, navLabel } from '../data/nav';
+
+interface Props {
+  path: string;
+}
+
+const { path } = Astro.props;
+---
+
+<aside class="side" id="side">
+  <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">
+    Documentation menu
+  </button>
+  <nav id="sidenav" aria-label="Documentation">
+    {
+      groups.map((g) => (
+        <>
+          <p class="nav-h">{g.title}</p>
+          <ul>
+            {g.pages.map((p) => <li><a href={href(p.path)} aria-current={p.path === path ? 'page' : undefined}>{navLabel(p)}</a></li>)}
+          </ul>
+        </>
+      ))
+    }
+    <p class="nav-foot">
+      <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+      <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a>
+      <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+    </p>
+  </nav>
+</aside>
