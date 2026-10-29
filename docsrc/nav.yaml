@@ -26,6 +26,12 @@ groups:
         summary: >-
           The five words this documentation uses — multiverse, universe, app,
           host and entrypoint — and how they fit together.
+      - path: start/compare
+        title: Compared with other tools
+        nav: Compared with others
+        summary: >-
+          Compose stacks per worktree, agent sandboxes, Tilt, Skaffold, Garden,
+          preview environments: what each is for, and when to pick it instead.
   - title: Concepts
     pages:
       - path: concepts/universes

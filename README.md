@@ -3,38 +3,59 @@
 [![CI](https://github.com/cristiansteib/multiversectl/actions/workflows/ci.yml/badge.svg)](https://github.com/cristiansteib/multiversectl/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Run several complete copies — **universes** — of a system spread over several repositories on
-one machine, so you can work on branches in parallel without port collisions or
-stepping on your own checkouts.
+**A full, working copy of a system that spans several repositories — per branch,
+per review, per agent — on one machine, from the compose files you already
+have.** Each copy, a *universe*, gets a worktree of every repository, its own
+containers and data, and hostnames that open from any device on your network, a
+phone included.
 
 **[Documentation](https://multiversectl.dev/)** ·
 [Quick start](https://multiversectl.dev/start/quickstart.html) ·
+[Compared with other tools](https://multiversectl.dev/start/compare.html) ·
 [Manifest reference](https://multiversectl.dev/reference/manifest.html) ·
 [Commands](https://multiversectl.dev/reference/cli.html)
 
+```sh
+multiversectl universe new fix/login   # every repository on branch fix/login
+multiversectl universe up fix/login    # every app, its own containers and data
+multiversectl universe urls fix/login  # http://api-fix-login.192-168-1-20.traefik.me ...
+```
+
 ## What it solves
 
-A system spread over several repositories usually has one development stack, and it can only be
-in one state at a time. The moment you want a second — a branch to review while
-yours keeps running, a migration to try on a throwaway database, an agent that
-needs a whole environment — the ports are taken, the containers and volumes have
-the same names, and the database holds the other branch's schema.
+A system spread over several repositories usually has one development stack, and
+it can only be in one state at a time. The moment you want a second — a branch to
+review while yours keeps running, a migration to try on a throwaway database, an
+agent that needs a whole environment — the ports are taken, the containers and
+volumes have the same names, and the database holds the other branch's schema.
 
-multiversectl makes the second copy cheap by **namespacing instead of
-virtualizing**: nothing is nested, duplicated or emulated.
+- **The whole system, as one.** A universe is a worktree of every repository on a
+  coordinated branch, with every app running. It is created, started, listed and
+  removed as one thing, not as stacks you keep in step by hand.
+- **Addresses that work.** One shared proxy routes by hostname, so no copy
+  publishes a port. Each universe hands its own URLs and origins to the services
+  that check them (`API_URL`, `MULTIVERSE_ORIGINS`, or a label), so logins, OAuth
+  callbacks and CORS work in every copy. HTTPS when you want it.
+- **Nothing to rewrite.** It reads your compose files and describes no
+  containers. A repository with one exposed port needs no configuration; labels
+  say the rest and are inert when multiversectl is not driving.
+- **Cheap copies.** Namespacing, not virtualizing: a worktree sharing the clone's
+  objects and a `compose up` on the daemon and image cache you already use. Seconds.
+- **A life, not only a start.** Hooks seed data and register addresses, then take
+  them back on removal; config files are rendered from the universe's values;
+  `doctor` asks every address whether it answers.
+- **For agents and people alike.** `--json` on every command and a skill tell an
+  agent how to work in a universe of its own; a web view shows every universe,
+  what its branches add and their pull requests.
 
-- One compose project per app per universe, so the runtime itself
-  namespaces containers, networks and volumes — including a database per
-  universe.
-- One git worktree per repository, sharing the clone's object store: no second
-  download, and every checkout is a real directory you edit with your own tools.
-- Hostname routing through one shared reverse proxy, so no universe publishes a
-  host port and there is no port arithmetic to keep in sync. Hostnames can
-  resolve from any device on your network, a phone included, or stay on the
-  machine.
+## What it is not
 
-Bootstrapping another universe is a worktree and a `compose up`: seconds, on the
-same daemon and the same image cache you already use.
+Not a sandbox (universes share your kernel and daemon), not a replacement for
+compose, not a rebuild-on-save loop, not a deployment tool, and not a preview
+service on the internet. Each universe runs its own services, so the machine's
+memory is the limit on how many. The
+[comparison](https://multiversectl.dev/start/compare.html) says when Docktree,
+container-use, Tilt, Skaffold, Garden or a preview environment fits better.
 
 ## Why not a VM, LXC or nested containers
 

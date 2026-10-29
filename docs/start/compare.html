@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compared with other tools &middot; multiversectl</title>
+<meta name="description" content="Compose stacks per worktree, agent sandboxes, Tilt, Skaffold, Garden, preview environments: what each is for, and when to pick it instead.">
+<meta name="theme-color" content="#11141b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f5f7fa" media="(prefers-color-scheme: light)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="topbar">
+  <div class="wrap">
+    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="../index.html" aria-current="true">Start</a>
+      <a href="../concepts/universes.html">Concepts</a>
+      <a href="../tasks/branches.html">Tasks</a>
+      <a href="../reference/cli.html">Reference</a>
+      <a href="../reference/troubleshooting.html">Troubleshooting</a>
+    </nav>
+    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <aside class="side" id="side">
+    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
+    <nav id="sidenav" aria-label="Documentation">
+      <p class="nav-h">Start</p>
+      <ul>
+        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../start/install.html">Install</a></li>
+        <li><a href="../start/quickstart.html">Quick start</a></li>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+        <li><a href="../start/compare.html" aria-current="page">Compared with others</a></li>
+      </ul>
+      <p class="nav-h">Concepts</p>
+      <ul>
+        <li><a href="../concepts/universes.html">Universes</a></li>
+        <li><a href="../concepts/networking.html">Networking</a></li>
+        <li><a href="../concepts/storage.html">Storage and data</a></li>
+        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
+        <li><a href="../concepts/labels.html">Labels</a></li>
+        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
+      </ul>
+      <p class="nav-h">Tasks</p>
+      <ul>
+        <li><a href="../tasks/branches.html">Work across branches</a></li>
+        <li><a href="../tasks/reach.html">Reach a universe</a></li>
+        <li><a href="../tasks/services.html">Control which services run</a></li>
+        <li><a href="../tasks/catalog.html">Manage many multiverses from one index</a></li>
+        <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
+      </ul>
+      <p class="nav-h">Reference</p>
+      <ul>
+        <li><a href="../reference/cli.html">Commands</a></li>
+        <li><a href="../reference/manifest.html">Manifest</a></li>
+        <li><a href="../reference/variables.html">Variables and labels</a></li>
+        <li><a href="../reference/paths.html">Paths and state</a></li>
+      </ul>
+      <p class="nav-h">Troubleshooting</p>
+      <ul>
+        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
+      </ul>
+      <p class="nav-foot">
+        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a>
+        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
+      </p>
+    </nav>
+  </aside>
+
+<main id="main">
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Start</span>
+  </nav>
+  <h1>Compared with other tools</h1>
+  <p class="lede">Compose stacks per worktree, agent sandboxes, Tilt, Skaffold, Garden, preview environments: what each is for, and when to pick it instead.</p>
+<section id="short">
+  <h2 id="short"><a href="#short">The short version</a></h2>
+  <p>multiversectl is for one thing: <strong>a whole, working copy of a system that spans several repositories, as many times as you need, on one machine, from the compose files you already have.</strong> A copy has every repository checked out on its branch, every app running, its own data, and addresses that behave like a real environment's: hostnames another device can open, and the origins and URLs a framework checks, handed to the services that need them.</p>
+  <p>Plenty of good tools sit next to it. Most of them solve a neighbouring problem better, and the honest way to choose is by what you are optimising for. This page says when to pick each one instead. It describes them as their own documentation does in October 2026; they move quickly, so check theirs before deciding.</p>
+</section>
+
+<section id="glance">
+  <h2 id="glance"><a href="#glance">At a glance</a></h2>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Kind of tool</th><th scope="col">Examples</th><th scope="col">The copy is</th><th scope="col">Runs on</th><th scope="col">Pick it instead when</th></tr></thead><tbody>
+  <tr><td data-l="Kind"><strong>multiversectl</strong></td><td data-l="Examples">&mdash;</td><td data-l="The copy is">every repository of the system, on a coordinated branch, with its apps and hostnames</td><td data-l="Runs on">one machine, docker compose</td><td data-l="Pick it instead when">&mdash;</td></tr>
+  <tr><td data-l="Kind">A compose stack per worktree</td><td data-l="Examples">Docktree, BranchBox, treehouse, treerig</td><td data-l="The copy is">one repository's worktree, made runnable</td><td data-l="Runs on">one machine, docker compose</td><td data-l="Pick it instead when">the system is one repository, and a port per copy is enough</td></tr>
+  <tr><td data-l="Kind">Agent sandboxes and worktree managers</td><td data-l="Examples">container-use, claude-squad, Conductor</td><td data-l="The copy is">an agent's workspace: a branch, a terminal, sometimes a container</td><td data-l="Runs on">one machine</td><td data-l="Pick it instead when">you need to run agents, not the system they work on (the two combine)</td></tr>
+  <tr><td data-l="Kind">Kubernetes dev loops</td><td data-l="Examples">Tilt, Skaffold</td><td data-l="The copy is">one environment, rebuilt as you edit</td><td data-l="Runs on">a cluster (Tilt also compose)</td><td data-l="Pick it instead when">you deploy to Kubernetes and want fast rebuilds of one copy</td></tr>
+  <tr><td data-l="Kind">Kubernetes environments per branch</td><td data-l="Examples">Garden, Signadot</td><td data-l="The copy is">a namespace per branch, or only the changed services over a shared baseline</td><td data-l="Runs on">a cluster</td><td data-l="Pick it instead when">the system is too big for one machine, or already lives on a cluster</td></tr>
+  <tr><td data-l="Kind">Preview environments</td><td data-l="Examples">Preevy, PullPreview, Uffizzi</td><td data-l="The copy is">a deployment per pull request</td><td data-l="Runs on">a cloud machine or cluster</td><td data-l="Pick it instead when">people outside your network review the branch, or CI should make the copy</td></tr>
+  <tr><td data-l="Kind">Remote workspaces</td><td data-l="Examples">Dev Containers, DevPod, Coder, Gitpod</td><td data-l="The copy is">a development machine per person or branch</td><td data-l="Runs on">a container or a remote VM</td><td data-l="Pick it instead when">the problem is setting up the toolchain, not running many copies of the stack</td></tr>
+  </tbody></table></div>
+</section>
+
+<section id="worktree">
+  <h2 id="worktree"><a href="#worktree">A compose stack per worktree</a></h2>
+  <p>The closest neighbours. Docktree, BranchBox, treehouse and treerig each take a git worktree of one repository and give it its own compose project, so several branches run at once without colliding. They are simple to adopt when your system is a single repository, and they start from a worktree, so one that an agent manager made is a natural fit. Some, Docktree among them, also share heavy services: one database server with a database per worktree, which multiversectl does not do yet.</p>
+  <p>Where multiversectl differs:</p>
+  <ul>
+    <li><strong>The copy is the whole system.</strong> A universe is a worktree of <em>every</em> repository, on a branch that is the same everywhere unless you say otherwise, created, started, listed and removed as one. An API in one repository and the front end that calls it in another are one universe, not two stacks you keep in step.</li>
+    <li><strong>Hostnames, not ports.</strong> Each address is a name such as <code>api-u3.192-168-1-20.traefik.me</code> that any device on the network resolves, a phone included, behind one proxy. A port per copy avoids collisions, but cookies, OAuth callbacks and CORS rules are written for names.</li>
+    <li><strong>The universe tells the services where they are.</strong> <code>&lt;NAME&gt;_URL</code>, <code>MULTIVERSE_ORIGINS</code> and <a href="../concepts/labels.html">labels</a> such as <code>dev.multiversectl.env.CSRF_TRUSTED_ORIGINS: origins</code> hand each copy its own addresses, so a framework that checks the origin works in every copy without editing anything.</li>
+    <li><strong>A life, not only a start.</strong> <a href="../tasks/services.html#hw-hooks">Hooks</a> seed data and register addresses and take them back on removal, <a href="../tasks/services.html#hw-render">rendered files</a> give a config file the universe's values, and <code>doctor</code> asks every address whether it answers.</li>
+  </ul>
+</section>
+
+<section id="agents">
+  <h2 id="agents"><a href="#agents">Agent sandboxes and worktree managers</a></h2>
+  <p>container-use gives each agent a container on a branch of its own; claude-squad, Conductor and similar tools run several agents, each in a worktree. They isolate the agent and its files. What they do not do is run the system the agent changes: two agents in two worktrees still fight over the same ports, containers and database.</p>
+  <p>That is the part multiversectl does, so the two combine: give each agent a universe and point it at that universe's checkouts. <code>--json</code> on every command and the skill from <code>multiversectl agents skill install</code> tell an agent how. To run code you do not trust, use a sandbox or a VM: a universe is <a href="concepts.html#not-vm">not a security boundary</a>.</p>
+</section>
+
+<section id="kubernetes">
+  <h2 id="kubernetes"><a href="#kubernetes">Tilt, Skaffold, Garden and Signadot</a></h2>
+  <p>Tilt and Skaffold make the edit, rebuild and look loop fast for one environment, usually on Kubernetes. Running several copies with them is possible, a namespace or a set of ports each, but it is yours to arrange. Garden makes a namespace per branch or developer with a copy of every service; Signadot keeps one shared baseline and forks only the services a branch changes, which scales to systems far larger than a laptop.</p>
+  <p>If you deploy to Kubernetes and the cluster is where development already happens, those are the better fit. multiversectl is for the many systems whose development stack is docker compose, where nobody wants a cluster to get a second copy. It does not rebuild on save itself: what reloads is whatever your compose files already do, a bind mount and a dev server.</p>
+</section>
+
+<section id="previews">
+  <h2 id="previews"><a href="#previews">Preview environments and remote workspaces</a></h2>
+  <p>Preevy, PullPreview and Uffizzi make a copy per pull request on a cloud machine or a cluster, reachable from anywhere, made by CI. Dev Containers, DevPod, Coder and Gitpod give each person or branch a development machine with the toolchain installed.</p>
+  <p>multiversectl makes its copies on your machine, in seconds, on the image cache and daemon you already have, and they cost nothing to keep. A universe can be opened from another device on your network, not from the internet. When a reviewer outside it needs the branch, or the copy should exist before anyone checks it out, a preview environment is the tool.</p>
+</section>
+
+<section id="hand">
+  <h2 id="hand"><a href="#hand">Doing it by hand</a></h2>
+  <p><code>git worktree add</code> and <code>docker compose -p</code> get you most of one copy of one repository. What multiversectl adds is everything after that, for every repository at once:</p>
+  <ul>
+    <li>a branch and a worktree in each repository, created and removed together, and a branch deleted only once its work is elsewhere;</li>
+    <li>published ports dropped and routing labels generated, so your compose files stay the ones you run without it;</li>
+    <li>hostnames, origins and URLs worked out and handed to services, secrets copied in, config files rendered;</li>
+    <li>one view of every copy, in the terminal and in a <a href="../tasks/server.html">browser</a>, with what each branch adds and its pull request.</li>
+  </ul>
+</section>
+
+<section id="weaker">
+  <h2 id="weaker"><a href="#weaker">Where multiversectl is weaker</a></h2>
+  <ul>
+    <li><strong>Every universe runs everything.</strong> Each copy has its own database, broker and caches. That is what keeps one branch's schema out of another's, and it is also what limits you to as many copies as the machine's memory holds. Sharing one server among universes is not there yet.</li>
+    <li><strong>docker compose only, one machine.</strong> No cluster, no remote host.</li>
+    <li><strong>One proxy per machine.</strong> Two multiverses that disagree about its entrypoints take it from each other, and say so when they do.</li>
+    <li><strong>Not isolation.</strong> Universes share the kernel, the daemon and your user; see <a href="concepts.html#not-vm">It is not a virtual machine</a>.</li>
+    <li><strong>Before 1.0.</strong> The manifest's fields can still change between releases.</li>
+  </ul>
+</section>
+
+  <nav class="pager" aria-label="Pages">
+    <a class="prev" href="../start/concepts.html"><span>Previous</span>Concepts at a glance</a>
+    <a class="next" href="../concepts/universes.html"><span>Next</span>Universes</a>
+  </nav>
+</main>
+  <aside class="toc" aria-labelledby="toch">
+    <p class="toc-h" id="toch">On this page</p>
+    <ul>
+      <li><a href="#short">The short version</a></li>
+      <li><a href="#glance">At a glance</a></li>
+      <li><a href="#worktree">A compose stack per worktree</a></li>
+      <li><a href="#agents">Agent sandboxes and worktree managers</a></li>
+      <li><a href="#kubernetes">Tilt, Skaffold, Garden and Signadot</a></li>
+      <li><a href="#previews">Preview environments and remote workspaces</a></li>
+      <li><a href="#hand">Doing it by hand</a></li>
+      <li><a href="#weaker">Where multiversectl is weaker</a></li>
+    </ul>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
+    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
+  </div>
+</footer>
+<span class="sr" id="status" role="status" aria-live="polite"></span>
+<script src="../assets/site.js"></script>
+</body>
+</html>
