@@ -49,16 +49,6 @@ archives:
     formats: [binary]
     name_template: "multiversectl-server_{{ .Os }}_{{ .Arch }}"
 
-# The release is created by semantic-release as a draft, which nobody can see
-# or download from, and GoReleaser fills that very draft and publishes it as its
-# last step. The release is therefore "latest" only once every binary is
-# attached; before this it was visible, and empty, for the minutes the build
-# took. A tag pushed by hand has no draft to find, and GoReleaser makes the
-# release itself.
-release:
-  use_existing_draft: true
-  mode: keep-existing
-
 checksum:
   name_template: checksums.txt
 
@@ -131,8 +121,15 @@ brews:
     test: |
       assert_match "multiversectl", shell_output("#{bin}/multiversectl version")
 
+# The release is created by semantic-release as a draft, which nobody can see or download
+# from, and GoReleaser fills that very draft and publishes it as its last step. The release
+# is therefore "latest" only once every binary is attached; before this it was visible, and
+# empty, for the minutes the build took. A tag pushed by hand has no draft to find, and
+# GoReleaser makes the release itself.
 release:
-  mode: append
+  use_existing_draft: true
+  # Keep the notes semantic-release wrote on the draft.
+  mode: keep-existing
   # A tag can be pushed again at the same version — after a history rewrite,
   # or when a release is re-run. Replacing the artifacts makes that idempotent
   # instead of failing on "asset already exists".
