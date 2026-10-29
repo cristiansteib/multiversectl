@@ -232,6 +232,24 @@ pre .c{color:var(--muted)}pre .k{color:var(--addr)}pre .p{color:var(--num);user-
   overflow:visible;clip:auto;padding:8px 12px;background:var(--ground);border:1px solid var(--line);border-radius:6px;
   color:var(--text);font-size:.8125rem;line-height:1.5;box-shadow:0 6px 20px rgb(0 0 0/.25)}
 .matrix.hush .d{visibility:hidden}
+/* Marks in the CLI's colours: green is there, amber is partly, and an absent
+   feature recedes, so a column reads at a glance. multiversectl's own column
+   is tinted, the tools are links that look like headings, and the features
+   are grouped under a quiet label. */
+.m{font-weight:600}
+.m.y{color:var(--ok)}
+.m.p{color:var(--warn)}
+.m.n{color:var(--muted)}
+.matrix thead th{vertical-align:bottom}
+.matrix th a{color:inherit;text-decoration:none}
+.matrix th a:hover{color:var(--head)}
+.matrix th.us{color:var(--num)}
+.matrix th.us,.matrix td[data-l=multiversectl]{background:color-mix(in srgb,var(--num) 8%,transparent)}
+.matrix tr.g th{padding:22px 8px 8px;text-align:left;font:600 .6875rem/1 var(--mono);letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted)}
+.matrix tbody:first-of-type tr.g th{padding-top:14px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:.875rem;color:var(--muted)}
+.legend .m{display:inline-block;width:1em;text-align:center}
 table{width:100%;border-collapse:collapse;font-size:.9rem}
 th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
 th{font:600 .8125rem var(--mono);color:var(--muted)}
@@ -259,6 +277,18 @@ td code{white-space:normal;overflow-wrap:break-word}
   tr{display:block;border-bottom:1px solid var(--line);padding:10px 0}
   td{display:block;border:0;padding:2px 0}
   td[data-l]::before{content:attr(data-l) ": ";font:600 .75rem var(--mono);color:var(--muted)}
+  /* A table whose rows need no column names: a title, a line and a link. */
+  .plain td[data-l]::before{content:none}
+  .plain td:first-child{padding-top:2px;color:var(--head)}
+  .matrix tr.g{border-bottom:0;padding:18px 0 0}
+  .tw.matrix tr.g th{display:block;padding:0}
+  .matrix td[data-l=multiversectl]{background:none}
+  /* Seven tools would be seven lines a feature: two columns of them, under
+     the feature's name and note. */
+  .matrix tbody tr:not(.g){display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}
+  .tw.matrix td:first-child{grid-column:1/-1;padding:0 0 6px}
+  .matrix td:first-child::before{content:none}
+  .matrix .f{text-decoration:none;font-weight:600;color:var(--head)}
   /* No hover on a phone: the feature's note is a line under its name. */
   .tw.matrix td{text-align:left;padding:2px 0}
   .matrix .d,.matrix tr:hover .d,.matrix .f:focus-visible+.d{position:static;display:block;width:auto;height:auto;overflow:visible;clip:auto;
