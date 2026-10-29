@@ -68,10 +68,20 @@ func (g Git) Fetch(ctx context.Context, repoDir string) error {
 
 // FetchQuietly is Fetch for when nobody is there to answer: a remote that wants
 // a password fails instead of asking on a terminal, and ssh does not stop to ask
-// either. A page reading again on its own is the case.
+// either. A page reading again on its own, and every `up`, are the case, so it
+// also gives up on a remote that does not answer: a network that drops packets
+// would otherwise hold each start for the minutes TCP takes to time out. A
+// GIT_SSH_COMMAND of the user's own (the key to use) is kept.
 func (g Git) FetchQuietly(ctx context.Context, repoDir string) error {
-	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "fetch", "--quiet", "origin")
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+	ctx, cancel := context.WithTimeout(ctx, quietFetchTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "-C", repoDir,
+		"-c", "http.lowSpeedLimit=1000", "-c", "http.lowSpeedTime=20",
+		"fetch", "--quiet", "origin")
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	if os.Getenv("GIT_SSH_COMMAND") == "" {
+		cmd.Env = append(cmd.Env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
+	}
 	done := g.trace.Begin(cmd)
 	out, err := cmd.CombinedOutput()
 	done(err)
@@ -80,6 +90,10 @@ func (g Git) FetchQuietly(ctx context.Context, repoDir string) error {
 	}
 	return nil
 }
+
+// quietFetchTimeout bounds a fetch nobody asked for, which is never worth a
+// long wait: the clone is brought forward the next time instead.
+const quietFetchTimeout = 90 * time.Second
 
 func (g Git) AddWorktree(ctx context.Context, repoDir, dest, branch, base string) error {
 	args := []string{"-C", repoDir, "worktree", "add"}
@@ -645,4 +659,27 @@ func parseNumstat(out string) app.DiffStat {
 		}
 	}
 	return d
+}
+
+// LsRemote asks the remote for its refs, never prompting: a remote that wants a
+// password or an unknown ssh host fails with git's own words, which is what a
+// preflight classifies.
+func (g Git) LsRemote(ctx context.Context, url string) error {
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--quiet", "--", url, "HEAD")
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	if os.Getenv("GIT_SSH_COMMAND") == "" {
+		cmd.Env = append(cmd.Env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	done := g.trace.Begin(cmd)
+	err := cmd.Run()
+	done(err)
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("git ls-remote: %w", ctx.Err())
+		}
+		return fmt.Errorf("git ls-remote: %s", strings.TrimSpace(stderr.String()))
+	}
+	return nil
 }

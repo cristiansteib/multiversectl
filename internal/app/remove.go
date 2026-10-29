@@ -43,7 +43,7 @@ func (s *Service) Unsaved(ctx context.Context, name string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	var dirty []string
 	for _, repoKey := range sortedRepoKeys(s.Manifest.Repos) {
 		dest := u.RepoDir(repoKey)
@@ -83,7 +83,8 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		return err
 	}
 	defer unlockUniverse()
-	u := s.Universe(st.Name)
+	s = s.forUniverseOrSelf(st.Name)
+	u := s.UniverseOf(st)
 
 	// Asked before anything is destroyed, not repository by repository: half a
 	// universe removed and then a refusal is worse than either answer.
@@ -106,8 +107,25 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 	}
 
 	for _, appKey := range s.Manifest.RunnableApps() {
-		if err := s.Runtime.Down(ctx, s.request(u, st, appKey, nil), true); err != nil {
+		req := s.request(u, st, appKey, nil)
+		// Removing is not allowed to take another root's volumes with it: that
+		// project is skipped and said, and the rest of the universe still goes.
+		if err := s.guardProject(ctx, u, req.Project); err != nil {
+			s.Out.Warn("%s: not taking the containers and volumes down: %v", appKey, err)
+			continue
+		}
+		if err := s.Runtime.Down(ctx, req, true); err != nil {
 			s.Out.Warn("%s: down: %v", appKey, err)
+			continue
+		}
+		// Its volumes are gone, and what a once hook loaded went with them. If
+		// the removal stops short of deleting the universe, a later start must
+		// load it again.
+		if forgotten := forgetOnce(st, appKey); len(forgotten.HooksDone) != len(st.HooksDone) {
+			st = forgotten
+			if err := s.Store.Save(st); err != nil {
+				s.Out.Warn("%s: could not forget which once-hooks ran: %v", appKey, err)
+			}
 		}
 	}
 

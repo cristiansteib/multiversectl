@@ -109,7 +109,7 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 	if len(hooks) == 0 {
 		return st, nil
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	env := s.hookEnv(u, st, ev, appKey)
 	owner := cmp.Or(appKey, "multiverse")
 
@@ -125,14 +125,15 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 		key := hook.Key(appKey, ev)
 		done := slices.Contains(st.HooksDone, key)
 		s.say(3, "%s: %s hook %s, once=%v, already done=%v", owner, ev, key, hook.Once, done)
-		if hook.Once && done && !manual {
+		if hook.Once && done && !manual && len(hook.SkipIf) == 0 {
 			continue
 		}
 		line := shellLine(hook.Command)
 		what := cmp.Or(hook.Name, "`"+line+"`")
 
-		var try func(context.Context) (string, error)
-		var byHand string
+		// runCmd runs a command where this hook runs, and what it printed comes back.
+		var runCmd func(context.Context, []string) (string, error)
+		var where, byHand string
 		if hook.Host {
 			dir := filepath.Join(u.Dir(), hook.Dir)
 			if contextFile == "" {
@@ -145,11 +146,11 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 			if s.Commands == nil {
 				return st, fmt.Errorf("%s: %s: this build cannot run a command on the machine", owner, what)
 			}
-			try = func(ctx context.Context) (string, error) {
-				return s.Commands.RunHost(ctx, HostCommand{Args: hook.Command, Dir: dir, Env: hostEnv})
+			runCmd = func(ctx context.Context, cmd []string) (string, error) {
+				return s.Commands.RunHost(ctx, HostCommand{Args: cmd, Dir: dir, Env: hostEnv})
 			}
 			byHand = fmt.Sprintf("cd %s && %s", dir, line)
-			s.Out.Info("%s: running %s on this machine", owner, what)
+			where = "on this machine"
 		} else {
 			service := cmp.Or(hook.Service, s.Manifest.Apps[appKey].DefaultService)
 			if service == "" && len(services) == 1 {
@@ -161,9 +162,40 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 			}
 			r := s.hookRequest(u, st, appKey, req)
 			r.ExecEnv = env
-			try = func(ctx context.Context) (string, error) { return s.Runtime.ExecQuiet(ctx, r, service, hook.Command) }
+			runCmd = func(ctx context.Context, cmd []string) (string, error) {
+				return s.Runtime.ExecQuiet(ctx, r, service, cmd)
+			}
 			byHand = fmt.Sprintf("multiversectl universe exec %s %s --service %s -- %s", st.Name, appKey, service, line)
-			s.Out.Info("%s: running %s in %s", owner, what, service)
+			where = "in " + service
+		}
+		// A failing skipIf says the work is not known to be done, which is also
+		// what it says when it could not ask yet (the service is still
+		// starting). So it is asked again before every retry: the retry that
+		// finds the service answering then sees the work done, instead of
+		// doing it a second time.
+		askSkip := len(hook.SkipIf) > 0 && !manual
+		isDone := func(ctx context.Context) bool {
+			if !askSkip {
+				return false
+			}
+			_, err := runCmd(ctx, hook.SkipIf)
+			return err == nil
+		}
+		skipped := func() {
+			s.Out.Info("%s: %s is already done (`%s` succeeded), skipped", owner, what, shellLine(hook.SkipIf))
+		}
+		if isDone(ctx) {
+			skipped()
+			continue
+		}
+		s.Out.Info("%s: running %s %s", owner, what, where)
+		tries, wasDone := 0, false
+		try := func(ctx context.Context) (string, error) {
+			if tries++; tries > 1 && isDone(ctx) {
+				wasDone = true
+				return "", nil
+			}
+			return runCmd(ctx, hook.Command)
 		}
 
 		attempt := func() (string, error) {
@@ -193,11 +225,15 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 			}
 			return st, nil
 		}
+		if wasDone {
+			skipped()
+			continue
+		}
 		s.Out.OK("%s: ran %s", owner, what)
 		if tail := lastLines(out, 20); tail != "" {
 			s.say(2, "%s", strings.ReplaceAll(tail, "\n", "\n    "))
 		}
-		if !hook.Once || manual {
+		if !hook.Once || manual || len(hook.SkipIf) > 0 {
 			continue
 		}
 		st.HooksDone = append(slices.Clone(st.HooksDone), key)
@@ -207,6 +243,16 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 		}
 	}
 	return st, nil
+}
+
+// forgetOnce drops the record of the once hooks of an app that have run, for
+// when what they produced has been removed with the app's volumes.
+func forgetOnce(st domain.UniverseState, appKey string) domain.UniverseState {
+	prefix := appKey + "|"
+	st.HooksDone = slices.DeleteFunc(slices.Clone(st.HooksDone), func(key string) bool {
+		return strings.HasPrefix(key, prefix)
+	})
+	return st
 }
 
 // hookRequest is the request a command in a service goes through: the one the
@@ -309,6 +355,7 @@ func (s *Service) Hooks(universe string) ([]HookInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	var out []HookInfo
 	list := func(app string, hooks map[domain.HookEvent][]domain.Hook) {
 		for _, ev := range domain.HookEvents {
@@ -357,6 +404,7 @@ func (s *Service) RunHooks(ctx context.Context, universe string, ev domain.HookE
 	if st, err = s.Resolve(universe); err != nil {
 		return err
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	targets := apps
 	if len(targets) == 0 {
 		targets = append([]string{multiverseHooks}, s.withoutIdleOnDemand(ctx, st, s.Manifest.RunnableApps())...)
@@ -378,7 +426,7 @@ func (s *Service) RunHooks(ctx context.Context, universe string, ev domain.HookE
 		// Asked of the compose files only when a command in a service does not name
 		// one, since it is what lets an app with a single service leave it out.
 		if appKey != multiverseHooks && needsService(hooks, s.Manifest.Apps[appKey]) {
-			if cfg, err := s.inspect(ctx, s.Universe(st.Name), appKey); err == nil {
+			if cfg, err := s.inspect(ctx, s.UniverseOf(st), appKey); err == nil {
 				services = cfg.Names()
 			}
 		}

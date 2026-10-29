@@ -50,7 +50,7 @@ func TestEnsureProxyChecksPortsOnlyWhenDown(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			px := &portProxy{running: tc.running}
 			svc := New(Deps{System: portSystem{taken: map[int]bool{8001: true}}, Proxy: px, Out: quietOut{}}, "/ws", manifest, "test")
-			err := svc.EnsureProxy(context.Background(), "example.test")
+			err := svc.EnsureProxy(context.Background(), "example.test", false)
 			if tc.wantErr == "" {
 				if err != nil || !px.started {
 					t.Fatalf("err = %v, started = %v", err, px.started)

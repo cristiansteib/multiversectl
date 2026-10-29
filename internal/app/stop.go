@@ -28,6 +28,7 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 	if st, err = s.Resolve(in.Universe); err != nil {
 		return err
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	apps, err := s.appsToAct(in.Apps)
 	if err != nil {
 		return err
@@ -36,15 +37,20 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 		apps = s.withoutIdleOnDemand(ctx, st, apps)
 	}
 
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	if st, err = s.fire(ctx, domain.PreDown, st, multiverseHooks, nil, nil); err != nil {
 		return err
 	}
 	for _, appKey := range apps {
+		req := s.request(u, st, appKey, nil)
+		// Before its hooks, which would act on another root's containers.
+		if err := s.guardProject(ctx, u, req.Project); err != nil {
+			return fmt.Errorf("universe %s: %s: %w", st.Name, appKey, err)
+		}
 		if st, err = s.fire(ctx, domain.PreDown, st, appKey, nil, nil); err != nil {
 			return err
 		}
-		if err := s.Runtime.Down(ctx, s.request(u, st, appKey, nil), false); err != nil {
+		if err := s.Runtime.Down(ctx, req, false); err != nil {
 			return fmt.Errorf("universe %s: %s: stop: %w", st.Name, appKey, err)
 		}
 		s.Out.OK("%s stopped", appKey)

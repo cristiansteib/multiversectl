@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"io"
 	"os"
 	"os/exec"
@@ -610,10 +611,10 @@ func (s Services) selfUpdate(ctx context.Context, k Sink) error {
 
 // installBase is the directory multiverses go under, as the command line has it.
 func installBase() string {
-	if b := os.Getenv("MULTIVERSECTL_ROOT"); b != "" {
+	if b := userdirs.RootEnv(); b != "" {
 		return b
 	}
-	return "~/multiverse"
+	return userdirs.DefaultRoot()
 }
 
 func (s Services) plan(ctx context.Context, path string, exclude []string) ([]app.InstallTarget, error) {

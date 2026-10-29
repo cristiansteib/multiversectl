@@ -25,6 +25,10 @@ type RouteRule struct {
 	// Scheme is how the proxy talks to the service when it is not plain http
 	// (see HostRule.Scheme).
 	Scheme string `yaml:"scheme,omitempty"`
+
+	// Ready and Probe are the host's ready and probe settings (see HostRule).
+	Ready string `yaml:"ready,omitempty"`
+	Probe string `yaml:"probe,omitempty"`
 }
 
 // UniverseState is what survives between commands: enough to act on a

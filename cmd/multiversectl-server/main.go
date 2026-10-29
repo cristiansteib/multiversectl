@@ -16,6 +16,7 @@ import (
 	"syscall"
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/server"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/wire"
 )
@@ -100,7 +101,7 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	machine, err := m.Bare(quiet, os.Getenv("MULTIVERSECTL_ROOT"))
+	machine, err := m.Bare(quiet, userdirs.RootEnv())
 	if err != nil {
 		return err
 	}

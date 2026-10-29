@@ -96,6 +96,8 @@ func (r removeRuntime) RemoveAsRoot(_ context.Context, dir string) error {
 
 func (removeRuntime) Down(context.Context, RuntimeRequest, bool) error { return nil }
 
+func (removeRuntime) Containers(context.Context, string) ([]Container, error) { return nil, nil }
+
 func removeService(git *removeGit) (*Service, *pruneStore) {
 	store := &pruneStore{states: []domain.UniverseState{
 		{ID: "3", Name: "3", Slug: "u3", Project: "acme-u3", Branches: map[string]string{"api": "u3", "ui": "u3"}},

@@ -175,3 +175,40 @@ func TestUpdatingClonesFetchesThemAllUnderOneProgress(t *testing.T) {
 		t.Errorf("labels %v jobs %v", p.labels, p.jobs)
 	}
 }
+
+// A command that did not ask for it keeps the shared clones current when that
+// loses nothing, and says nothing about the ones it leaves alone.
+func TestKeepClonesCurrentMovesACleanCloneAndNeverAnEditedOne(t *testing.T) {
+	b := newBench(t)
+	b.pushToOrigin("api", "one")
+	b.pushToOrigin("web", "one")
+	writeFile(t, filepath.Join(b.clone("web"), "wip"), "x")
+	sh(t, b.clone("web"), "add", "wip")
+
+	b.svc.KeepClonesCurrent(context.Background())
+	if _, err := exec.Command("test", "-f", filepath.Join(b.clone("api"), "one")).CombinedOutput(); err != nil {
+		t.Error("the clean clone should have moved forward")
+	}
+	if _, err := exec.Command("test", "-f", filepath.Join(b.clone("web"), "one")).CombinedOutput(); err == nil {
+		t.Error("a clone with changes must be left as it is")
+	}
+}
+
+func TestDoctorSaysWhichCloneIsBehindAndWhatToRun(t *testing.T) {
+	b := newBench(t)
+	b.pushToOrigin("api", "one")
+	if _, err := b.svc.UpdateClones(context.Background()); err != nil { // fetches, moves
+		t.Fatal(err)
+	}
+	b.pushToOrigin("api", "two")
+	sh(t, b.clone("api"), "fetch", "-q") // fetched, not moved
+	for _, c := range b.svc.CloneChecks(context.Background()) {
+		if c.Name == "clone api" {
+			if c.Status != app.StatusWarn || !strings.Contains(c.Detail, "1 commits behind origin/main") || !strings.Contains(c.Detail, "multiversectl catalog update") {
+				t.Errorf("check = %+v", c)
+			}
+			return
+		}
+	}
+	t.Error("no finding about the api clone")
+}

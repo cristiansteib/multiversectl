@@ -87,6 +87,9 @@ func (s *Service) serviceEnv(st domain.UniverseState, cfg ProjectConfig) ([]Serv
 }
 
 func (s *Service) resolveEnvSource(source string, st domain.UniverseState, hosts, origins []string) (string, error) {
+	if strings.Contains(source, "+") {
+		return s.combineSources(source, st, hosts, origins)
+	}
 	if list, sep, ok := strings.Cut(source, ":"); ok && (list == srcOrigins || list == srcHosts) {
 		joiner, known := separators[sep]
 		if !known {
@@ -132,7 +135,7 @@ func (s *Service) resolveEnvSource(source string, st domain.UniverseState, hosts
 		}
 		return rule.ForwardURL, nil
 	}
-	return "", fmt.Errorf("unknown source %q: want %s, %s (each also as origins:space), %s, %s, %s, host:<key>, url:<key> or forward:<key>",
+	return "", fmt.Errorf("unknown source %q: want %s, %s (each also as origins:space), %s, %s, %s, host:<key>, url:<key> or forward:<key>, or several joined with +",
 		source, srcOrigins, srcHosts, srcDomain, srcUniverse, srcSlug)
 }
 
@@ -190,6 +193,7 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 				if err := add(hostKey, domain.RouteRule{
 					App: appKey, Service: rule.Service, Port: rule.Port,
 					Entrypoint: rule.Entrypoint, Aliases: rule.AlsoMatch, PortForward: rule.PortForward, Scheme: rule.Scheme,
+					Ready: rule.Ready, Probe: rule.Probe,
 				}); err != nil {
 					return nil, err
 				}
@@ -303,6 +307,18 @@ func rulesFromLabels(labels map[string]string) (map[string]domain.RouteRule, err
 			rule.PortForward = value
 		case field == "scheme":
 			rule.Scheme = value
+		case field == "ready":
+			if !domain.ValidReady(value) {
+				errs = append(errs, fmt.Sprintf("%s: %q: want true, false, tcp or a path such as /healthz", key, value))
+				continue
+			}
+			rule.Ready = value
+		case field == "probe":
+			if !slices.Contains(domain.Probes, value) {
+				errs = append(errs, fmt.Sprintf("%s: %q: want %s", key, value, strings.Join(domain.Probes, ", ")))
+				continue
+			}
+			rule.Probe = value
 		case field == "aliases":
 			for _, alias := range strings.Split(value, ",") {
 				if alias = strings.TrimSpace(alias); alias != "" {
@@ -330,7 +346,7 @@ func rulesFromLabels(labels map[string]string) (map[string]domain.RouteRule, err
 }
 
 // hostLabelFields are what a dev.multiversectl.host.<name>.<field> label can say.
-var hostLabelFields = []string{"entrypoint", "aliases", "portForward", "scheme"}
+var hostLabelFields = []string{"entrypoint", "aliases", "portForward", "scheme", "ready", "probe"}
 
 // publishes reports the services whose labels ask to keep their host ports.
 func publishes(cfg ProjectConfig) []string {
@@ -353,4 +369,67 @@ func orWeb(entrypoint string) string {
 		return "web"
 	}
 	return entrypoint
+}
+
+// combineSources resolves several sources joined with "+", for a setting that
+// has to list addresses of more than one kind: `forward:web+url:web`. Each
+// source gives its items (a list source all of its own), duplicates are dropped
+// with the first kept, and the order is the one written. They are joined with a
+// separator named after the last one, `forward:web+url:web:space`, comma by
+// default. A forwarded address that has not been allocated yet is left out and
+// is not an error, as in origins; a host that does not exist is.
+func (s *Service) combineSources(source string, st domain.UniverseState, hosts, origins []string) (string, error) {
+	terms := strings.Split(source, "+")
+	// Spaces around a "+" are for reading: `origins + hosts:space`.
+	for i := range terms {
+		terms[i] = strings.TrimSpace(terms[i])
+	}
+	joiner := separators["comma"]
+	last := len(terms) - 1
+	if i := strings.LastIndex(terms[last], ":"); i >= 0 {
+		head, sep := terms[last][:i], terms[last][i+1:]
+		_, named := separators[sep]
+		// "url:web" ends in a host that may be called anything, so only the
+		// three-part form "url:web:space" ends in a separator; a source with no
+		// key has nothing to be mistaken for.
+		if named && (slices.Contains([]string{srcOrigins, srcHosts, srcDomain, srcUniverse, srcSlug}, head) || strings.Count(terms[last], ":") >= 2) {
+			joiner, terms[last] = separators[sep], head
+		}
+	}
+	var items []string
+	for _, term := range terms {
+		term = strings.TrimSpace(term)
+		switch {
+		case term == "":
+			return "", fmt.Errorf("%q: an empty source between +", source)
+		case term == srcOrigins:
+			items = appendAllNew(items, origins)
+		case term == srcHosts:
+			items = appendAllNew(items, hosts)
+		case strings.HasPrefix(term, srcOrigins+":") || strings.HasPrefix(term, srcHosts+":"):
+			return "", fmt.Errorf("%q: a separator goes once, at the end of the whole value", term)
+		default:
+			if key, ok := strings.CutPrefix(term, srcForward); ok {
+				// Only a host that is forwarded and has no port yet is left
+				// out; one that is not forwarded at all is the error it is
+				// on its own.
+				if rule := st.Rules[key]; domain.Forwarded(rule.PortForward) && rule.ForwardURL == "" {
+					continue
+				}
+			}
+			value, err := s.resolveEnvSource(term, st, hosts, origins)
+			if err != nil {
+				return "", err
+			}
+			items = appendNew(items, value)
+		}
+	}
+	return strings.Join(items, joiner), nil
+}
+
+func appendAllNew(list, more []string) []string {
+	for _, item := range more {
+		list = appendNew(list, item)
+	}
+	return list
 }

@@ -65,6 +65,9 @@ type AppSummary struct {
 	// OnDemand is set for an app that does not start unless named. While nothing
 	// of it runs it expects nothing, so it is not counted as missing.
 	OnDemand bool
+	// NoRuntime is set for an app whose repository has no compose file: there is
+	// nothing to run, so nothing is expected of it.
+	NoRuntime bool
 
 	// Expected is how many services should be up once the app is started, so
 	// a listing can say 2/3 rather than 2. Zero unless services were asked
@@ -124,7 +127,9 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 		return nil, fmt.Errorf("listing universes: %w", err)
 	}
 	out := make([]Summary, 0, len(states))
+	base := s
 	for _, st := range states {
+		s := base.forUniverseOrSelf(st.Name)
 		containers, err := s.Runtime.Containers(ctx, st.Project)
 		if err != nil {
 			s.Out.Warn("universe %s: containers: %v", st.Name, err)
@@ -142,7 +147,7 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 			Slug:        st.Slug,
 			Project:     st.Project,
 			Domain:      st.Domain,
-			Dir:         s.Universe(st.Name).Dir(),
+			Dir:         s.UniverseOf(st).Dir(),
 			Branches:    st.Branches,
 			Hosts:       st.Hosts,
 			Running:     countRunning(containers),
@@ -172,7 +177,7 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 	if s.Manifest == nil {
 		return nil
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 
 	out := make([]AppSummary, 0, len(s.Manifest.Apps))
 	for _, key := range mapKeys(s.Manifest.Apps) {
@@ -186,7 +191,8 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 			Project: project,
 			Running: runningFor(containers, project),
 
-			OnDemand: app.OnDemand,
+			OnDemand:  app.OnDemand,
+			NoRuntime: s.NothingToRun(u, key),
 		}
 		for _, route := range s.Routes(st, key) {
 			summary.URLs = append(summary.URLs, HostURL{
@@ -204,9 +210,11 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 		}
 		if opts.Services {
 			summary.Services = s.serviceStates(ctx, u, st, key, containers)
+			// While none of an app that is on demand runs, nothing of it is expected:
+			// not what was never started, and not what an earlier start left stopped.
 			if app.OnDemand && summary.Running == 0 {
 				for i, svc := range summary.Services {
-					if svc.State == StateNotUp {
+					if svc.State == StateNotUp || svc.State == StateStopped {
 						summary.Services[i].State, summary.Services[i].Detail = StateOff, "on demand"
 					}
 				}
@@ -227,7 +235,7 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 // manifest declares, and any the state remembers from a manifest that has
 // since changed — a directory that exists is worth naming either way.
 func (s *Service) checkouts(st domain.UniverseState) []Checkout {
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	owner := map[string]string{}
 	if s.Manifest != nil {
 		for _, key := range mapKeys(s.Manifest.Apps) {
@@ -396,4 +404,67 @@ func countRunning(containers []Container) int {
 func isRunning(c Container) bool {
 	status := strings.ToLower(c.Status)
 	return strings.HasPrefix(status, "up") || status == "running"
+}
+
+// Shortfall is a service that should be up and is not, and why.
+type Shortfall struct {
+	App     string
+	Service string
+	// Why is one of "stopped", "failed" or "not started"; Detail is the
+	// runtime's own words (such as "Exited (1) 2 minutes ago") when it has any.
+	Why    string
+	Detail string
+}
+
+// Shortfalls lists what keeps a universe from being fully up: the services
+// counted in its expected total that are not running. What is off on purpose
+// (an app on demand, an app with no runtime, an optional or deselected service)
+// is never in it, which is what makes "partial" mean the same as the count.
+func (s Summary) Shortfalls() []Shortfall {
+	var out []Shortfall
+	for _, a := range s.Apps {
+		for _, svc := range a.Services {
+			if !svc.Counted() || svc.Up() {
+				continue
+			}
+			out = append(out, Shortfall{App: a.Key, Service: svc.Name, Why: whyDown(svc), Detail: svc.Detail})
+		}
+	}
+	return out
+}
+
+// Skipped names the apps a universe does not count, and the reason: the ones on
+// demand that are not running, and the ones whose repository has nothing to run.
+func (s Summary) Skipped() map[string]string {
+	out := map[string]string{}
+	for _, a := range s.Apps {
+		switch {
+		case a.NoRuntime:
+			out[a.Key] = "no runtime (no compose file in its repository)"
+		case a.OnDemand && a.Running == 0:
+			out[a.Key] = "on demand"
+		}
+	}
+	return out
+}
+
+// whyDown reads the runtime's status of a container that is not running: a
+// container that exited with an error, is restarting or is dead failed; one
+// that exited cleanly was stopped; none at all was never started.
+func whyDown(svc ServiceStatus) string {
+	if svc.State == StateNotUp {
+		return "not started"
+	}
+	detail := strings.ToLower(svc.Detail)
+	switch {
+	// `docker stop` ends a container with SIGTERM, or SIGKILL after the grace
+	// period: 143 and 137 are a service someone stopped, not one that failed.
+	case strings.HasPrefix(detail, "exited (0)"), strings.HasPrefix(detail, "exited (143)"), strings.HasPrefix(detail, "exited (137)"):
+		return "stopped"
+	case strings.HasPrefix(detail, "exited"), strings.HasPrefix(detail, "restarting"), strings.HasPrefix(detail, "dead"):
+		return "failed"
+	case strings.HasPrefix(detail, "created"):
+		return "not started"
+	}
+	return "stopped"
 }

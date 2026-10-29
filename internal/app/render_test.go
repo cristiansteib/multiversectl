@@ -135,8 +135,8 @@ func TestARenderedJSONConfigHasTheUniversesAddresses(t *testing.T) {
 	want := `{
   "apiUrl": "http://api-u1.example.test",
   "callback": "http://192.0.2.7:41000",
-  "origins": ["http://api-u1.example.test","http://web-u1.example.test"],
-  "cors": "http://api-u1.example.test http://web-u1.example.test",
+  "origins": ["http://api-u1.example.test","http://192.0.2.7:41000","http://web-u1.example.test"],
+  "cors": "http://api-u1.example.test http://192.0.2.7:41000 http://web-u1.example.test",
   "universe": "1",
   "mode": "u1"
 }
@@ -337,6 +337,21 @@ type startRuntime struct {
 	path       string
 	ups, downs []string        // compose projects started and brought down
 	running    []app.Container // what Containers reports
+	// health is what Health reports on each call, the last one repeating.
+	health [][]app.ServiceHealth
+	asked  int
+}
+
+func (r *startRuntime) Health(context.Context, app.RuntimeRequest) ([]app.ServiceHealth, error) {
+	r.asked++
+	if len(r.health) == 0 {
+		return nil, nil
+	}
+	h := r.health[0]
+	if len(r.health) > 1 {
+		r.health = r.health[1:]
+	}
+	return h, nil
 }
 
 func (r *startRuntime) Down(_ context.Context, req app.RuntimeRequest, _ bool) error {

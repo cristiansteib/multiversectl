@@ -25,6 +25,8 @@ import (
 const (
 	projectLabel = "com.docker.compose.project"
 	serviceLabel = "com.docker.compose.service"
+	workdirLabel = "com.docker.compose.project.working_dir"
+	configLabel  = "com.docker.compose.project.config_files"
 )
 
 // Compose runs the container runtime through the docker CLI.
@@ -260,9 +262,52 @@ func (c *Compose) Containers(ctx context.Context, namePrefix string) ([]app.Cont
 			Project:   labelValue(row.Labels, projectLabel),
 			Ports:     row.Ports,
 			Published: publishedPorts(row.Ports),
+			// Several config files are joined with commas, as labels are, so
+			// what comes back is the first one: enough to say whose it is.
+			WorkingDir: labelValue(row.Labels, workdirLabel),
+			ConfigFile: labelValue(row.Labels, configLabel),
 		})
 	}
 	return containers, scanner.Err()
+}
+
+// Health reads `compose ps` for the project: one row per container, with the
+// healthcheck's verdict. Newer releases print one JSON object per line, older
+// ones a single array.
+func (c *Compose) Health(ctx context.Context, r app.RuntimeRequest) ([]app.ServiceHealth, error) {
+	var out bytes.Buffer
+	quiet := &Compose{stdout: &out, stderr: io.Discard, trace: c.trace}
+	if err := quiet.stream(ctx, r, nil, "ps", "--all", "--format", "json"); err != nil {
+		return nil, err
+	}
+	return parseHealth(out.Bytes())
+}
+
+func parseHealth(out []byte) ([]app.ServiceHealth, error) {
+	type row struct{ Service, State, Health string }
+	var rows []row
+	out = bytes.TrimSpace(out)
+	if bytes.HasPrefix(out, []byte("[")) {
+		if err := json.Unmarshal(out, &rows); err != nil {
+			return nil, fmt.Errorf("parsing docker compose ps output: %w", err)
+		}
+	} else {
+		for _, line := range bytes.Split(out, []byte("\n")) {
+			if len(bytes.TrimSpace(line)) == 0 {
+				continue
+			}
+			var r row
+			if err := json.Unmarshal(line, &r); err != nil {
+				return nil, fmt.Errorf("parsing docker compose ps output: %w", err)
+			}
+			rows = append(rows, r)
+		}
+	}
+	health := make([]app.ServiceHealth, len(rows))
+	for i, r := range rows {
+		health[i] = app.ServiceHealth{Service: r.Service, State: r.State, Health: r.Health}
+	}
+	return health, nil
 }
 
 // Volumes lists the named volumes whose name starts with the prefix. The
@@ -317,9 +362,10 @@ func (c *Compose) Inspect(ctx context.Context, r app.RuntimeRequest) (app.Projec
 
 	var parsed struct {
 		Services map[string]struct {
-			Labels map[string]string `json:"labels"`
-			Build  json.RawMessage   `json:"build"`
-			Ports  []struct {
+			Labels      map[string]string `json:"labels"`
+			NetworkMode string            `json:"network_mode"`
+			Build       json.RawMessage   `json:"build"`
+			Ports       []struct {
 				Target int `json:"target"`
 			} `json:"ports"`
 			Expose []json.Number `json:"expose"`
@@ -345,7 +391,7 @@ func (c *Compose) Inspect(ctx context.Context, r app.RuntimeRequest) (app.Projec
 			}
 		}
 		sort.Ints(ports)
-		out.Services[name] = app.ServiceConfig{Labels: svc.Labels, Build: len(svc.Build) > 0, Ports: ports}
+		out.Services[name] = app.ServiceConfig{NetworkMode: svc.NetworkMode, Labels: svc.Labels, Build: len(svc.Build) > 0, Ports: ports}
 	}
 	return out, nil
 }

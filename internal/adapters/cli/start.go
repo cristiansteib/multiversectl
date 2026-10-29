@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -25,7 +26,7 @@ import (
 // end.
 func (r runner) startCmd() *cobra.Command {
 	var base, universe, as string
-	var open, yes, installOnly bool
+	var open, yes, installOnly, failFast, rebind, skipPreflight bool
 	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "start [name] [source]",
@@ -66,6 +67,10 @@ func (r runner) startCmd() *cobra.Command {
 	cmd.Flags().StringVar(&base, "base", "", "directory multiverses go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
 	cmd.Flags().StringVar(&as, "as", "", "the name to install it under (default: the one it defines, or its repository's)")
 	cmd.Flags().StringVarP(&universe, "universe", "u", "", "the universe to start (default: the only one, or a new one)")
+	wait := waitFlags(cmd)
+	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "reconfigure the shared proxy even though universes of other multiverses are served through it")
+	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others and report the failures at the end)")
+	cmd.Flags().BoolVar(&skipPreflight, "skip-preflight", false, "do not check docker, compose, buildx, disk space, the repositories and the secret files before cloning anything")
 	cmd.Flags().BoolVar(&open, "open", false, "open the first address in a browser")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "a catalog path to leave out of what a catalog node installs (repeatable)")
@@ -81,9 +86,9 @@ func (r runner) startCmd() *cobra.Command {
 			if len(args) == 0 {
 				return errors.New("--install-only needs a source: a catalog node, a path or a repository")
 			}
-			ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
+			ask := !yes && r.g.Root == "" && base == "" && userdirs.RootEnv() == ""
 			_, err := r.install(cmd, args, app.InstallOptions{
-				Base: firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"),
+				Base: firstNonEmpty(base, userdirs.RootEnv(), userdirs.DefaultRoot()),
 				Root: r.g.Root, Name: as, Exclude: exclude,
 			}, yes, ask)
 			return err
@@ -91,9 +96,27 @@ func (r runner) startCmd() *cobra.Command {
 		if len(exclude) > 0 {
 			return errors.New("--exclude picks among several multiverses to install; add --install-only (start runs one)")
 		}
+		// The machine first, before the multiverse is even fetched.
+		if !skipPreflight {
+			bare, err := r.f.Bare(*r.g, r.out)
+			if err != nil {
+				return err
+			}
+			if err := r.reportPreflight(bare.Preflight(ctx, app.PreflightInput{
+				Path: r.installPath(bare, base), Machine: true,
+			}), false); err != nil {
+				return err
+			}
+		}
 		s, err := r.startProject(cmd, args, base, as, yes)
 		if err != nil {
 			return err
+		}
+		// Then what its manifest names, before any of it is cloned.
+		if !skipPreflight {
+			if err := r.reportPreflight(s.Preflight(ctx, app.PreflightInput{Repos: true, Secrets: true}), false); err != nil {
+				return err
+			}
 		}
 		name, err := r.startUniverse(cmd, s, universe)
 		if err != nil {
@@ -105,8 +128,15 @@ func (r runner) startCmd() *cobra.Command {
 				return err
 			}
 		}
+		// The clones exist now: the secret files they name can be looked for
+		// before anything is started.
+		if !skipPreflight {
+			if err := r.reportPreflight(s.Preflight(ctx, app.PreflightInput{Secrets: true}), false); err != nil {
+				return err
+			}
+		}
 		r.out.Info("starting universe `%s`", name)
-		if err := s.Start(ctx, app.StartInput{Universe: name}); err != nil {
+		if err := s.Start(ctx, app.StartInput{Universe: name, FailFast: failFast, RebindProxy: rebind, Wait: wait()}); err != nil {
 			return err
 		}
 		return r.startDone(ctx, s, name, open)
@@ -156,10 +186,10 @@ func (r runner) startProject(cmd *cobra.Command, args []string, base, as string,
 	}
 	// Where it goes is asked only when nothing has said, as `start`
 	// does it.
-	ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
+	ask := !yes && r.g.Root == "" && base == "" && userdirs.RootEnv() == ""
 	r.quietHints = true // it is about to make the universe and start it
 	planned, err := r.install(cmd, args, app.InstallOptions{
-		Base: firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"),
+		Base: firstNonEmpty(base, userdirs.RootEnv(), userdirs.DefaultRoot()),
 		Root: r.g.Root,
 		Name: as,
 	}, yes, ask)
@@ -255,4 +285,17 @@ func (r runner) startDone(ctx context.Context, s *app.Service, name string, open
 	}
 	r.out.Info("next: `multiversectl universe ls`, or `multiversectl universe new` for a second one")
 	return nil
+}
+
+// waitFlags adds the flags that say how long to wait for an app to be usable
+// after its services run, and returns what they were set to.
+func waitFlags(cmd *cobra.Command) func() app.WaitOptions {
+	var noWait, strict bool
+	var timeout time.Duration
+	cmd.Flags().BoolVar(&noWait, "no-wait", false, "return as soon as compose does, without waiting for healthchecks or for hosts that ask for it (ready)")
+	cmd.Flags().DurationVar(&timeout, "wait-timeout", app.DefaultWaitTimeout, "the longest to wait for an app's healthchecks and ready hosts")
+	cmd.Flags().BoolVar(&strict, "wait-strict", false, "make not being ready in time an error (default: a warning naming what was waited for)")
+	return func() app.WaitOptions {
+		return app.WaitOptions{Disabled: noWait, Timeout: timeout, Strict: strict}
+	}
 }

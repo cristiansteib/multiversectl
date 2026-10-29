@@ -9,6 +9,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
+
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
@@ -19,13 +21,9 @@ var _ app.ConfigStore = (*Store)(nil)
 // New resolves $XDG_CONFIG_HOME/multiversectl/config.yaml, falling back to
 // ~/.config.
 func New() (*Store, error) {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("locate config directory: %w", err)
-		}
-		base = filepath.Join(home, ".config")
+	base, err := userdirs.Config()
+	if err != nil {
+		return nil, fmt.Errorf("locate config directory: %w", err)
 	}
 	return &Store{path: filepath.Join(base, "multiversectl", "config.yaml")}, nil
 }

@@ -49,7 +49,7 @@ func (r runner) confirm(ctx context.Context, s *app.Service, arg string) error {
 	if err != nil {
 		return err
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	out := r.out
 
 	out.Plain("")

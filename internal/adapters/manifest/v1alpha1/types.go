@@ -369,6 +369,15 @@ type Hook struct {
 	// Without it the hook runs after every start, so it should be safe to repeat.
 	Once bool `yaml:"once"`
 
+	// A command run first, in the same place as this one (the same service, or
+	// the same directory on the machine), to ask whether the work is already
+	// done: exit status 0 means it is, and the hook is skipped. Unlike once, which
+	// remembers that the hook ran, this looks at what it produced, so data that
+	// was lost (a database volume that was recreated) is loaded again. When
+	// it is set it decides, and once is not used. Not used when the hook is run
+	// by hand with `universe hooks run`.
+	SkipIf []string `yaml:"skipIf"`
+
 	// What it means when the command does not succeed: warn says so and goes on
 	// (the default, so a hook that breaks cannot keep a universe from being
 	// stopped or removed), fail ends the command, ignore goes on silently. A
@@ -463,6 +472,27 @@ type Host struct {
 	// label asks for the same with dev.multiversectl.host.<name>.scheme.
 	// +enum=http;https;h2c
 	Scheme string `yaml:"scheme"`
+
+	// Makes `up` wait until this host answers before it goes on to the app's
+	// postUp hooks: "true" asks the address over HTTP until it answers with a
+	// status below 500 (a TCP connection for an h2c host or a probe of tcp),
+	// "tcp" only connects, a path such as "/healthz" asks that path, and "false"
+	// (the default) does not wait. A connection goes to the host's forwarded
+	// port; a host without one is asked over HTTP, as the proxy accepts any
+	// connection. It is polled until --wait-timeout. A host that
+	// comes from a compose label asks for the same with
+	// dev.multiversectl.host.<name>.ready.
+	Ready string `yaml:"ready"`
+
+	// How `doctor` checks this host. By default it asks the address over HTTP
+	// (a TCP connection for an h2c host); "tcp" connects, "grpc" connects (the
+	// standard gRPC health check is not run, as multiversectl carries no gRPC
+	// client), "http" forces the HTTP request, and "none" leaves the host
+	// out. A connection goes to the host's forwarded port; a host without one
+	// is asked over HTTP, as the proxy accepts any connection. A host that comes from a compose label asks for the same with
+	// dev.multiversectl.host.<name>.probe.
+	// +enum=http;tcp;grpc;none
+	Probe string `yaml:"probe"`
 }
 
 type EnvVar struct {

@@ -76,11 +76,12 @@ func (s *Service) Render(ctx context.Context, in RenderInput) error {
 			return err
 		}
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	apps, err := s.appsToAct(in.Apps)
 	if err != nil {
 		return err
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	rendered := false
 	for _, appKey := range apps {
 		if len(s.Manifest.Apps[appKey].Render) == 0 {
@@ -207,6 +208,8 @@ func (s *Service) renderFuncs(st domain.UniverseState, env map[string]string) te
 			}
 			return rule.ForwardURL, nil
 		},
+		// Any source an env label can name, including several joined with +.
+		"source":  func(spec string) (string, error) { return s.resolveEnvSource(spec, st, hosts, origins) },
 		"origins": func(sep ...string) (string, error) { return list(func() []string { return origins }, sep) },
 		"hosts":   func(sep ...string) (string, error) { return list(func() []string { return hosts }, sep) },
 		"env": func(key string) (string, error) {

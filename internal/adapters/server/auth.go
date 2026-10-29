@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -133,13 +134,9 @@ const signInPage = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 // TokenPath is where the token is kept: beside the configuration, with the
 // other files of the server.
 func TokenPath() (string, error) {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".config")
+	base, err := userdirs.Config()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(base, "multiversectl", "server.token"), nil
 }

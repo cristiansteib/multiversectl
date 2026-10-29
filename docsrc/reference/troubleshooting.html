@@ -55,3 +55,23 @@
             ALLOWED_HOSTS: "${APP_HOST}"</pre></div>
   <p class="muted">Also check that the hostname is the one <code>multiversectl universe urls 3</code> prints, and that the service has the label or the single port that routes it.</p>
 </section>
+
+<section id="ts-foreign">
+  <h2 id="ts-foreign"><a href="#ts-foreign">A compose project belongs to another multiverse root</a></h2>
+  <p><code>up</code>, <code>down</code> or <code>rm</code> stops with <em>compose project acme-u1-api already has containers started from …, which is not universe 1</em>. A universe's compose project is named after its multiverse and the universe, so two roots that would give the same universe the same name share containers and volumes: starting one recreates the other's, and removing one deletes the other's data. Before it acts on a project, multiversectl checks the working directory and compose file the existing containers were started from and refuses when they are not under this universe. <code>universe rm</code> skips such a project with a warning and still removes the rest.</p>
+  <p>A multiverse installed under a name other than its manifest's (<code>start owner/repo --as copy</code>) puts that name in its compose projects (<code>acme-copy-u1-api</code>), so the clash does not arise for new installs; an install that predates this keeps the project it was created with until it is brought down and started again. An install named like its manifest keeps its project names unchanged.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl start owner/repo --as copy</pre></div>
+</section>
+
+<section id="ts-network-mode">
+  <h2 id="ts-network-mode"><a href="#ts-network-mode">A service with network_mode is not reachable through the proxy</a></h2>
+  <p>Compose refuses a service that sets both <code>network_mode</code> and <code>networks</code>, and the routing fragment joins every routed service to the proxy's network. So a service that sets <code>network_mode</code> (<code>host</code>, or <code>service:other</code>) is left out of the fragment: <code>up</code> warns <em>service "web" sets network_mode "host", so it cannot join the proxy's network and host web-u1.example.test cannot be reached through the proxy</em>, and the rest of the app starts. A <code>portForward</code> on that host is dropped with it, because the fragment cannot publish a port for such a service either; reach it on the host's own network, or route to a service on the default network instead.</p>
+</section>
+
+<section id="ts-rebind">
+  <h2 id="ts-rebind"><a href="#ts-rebind">Starting a universe would reconfigure the shared proxy for other multiverses</a></h2>
+  <p>One machine has one shared proxy. A multiverse whose <code>expose</code>, proxy entrypoints or TLS differ from the running proxy's would rebind it, and every universe of any other multiverse served through it would stop answering. When another multiverse has containers running, <code>up</code> refuses, says what would change and who would be affected, and changes nothing:</p>
+  <div class="code"><pre>error: this multiverse needs the shared proxy published on 127.0.0.1 instead of 0.0.0.0, which would stop
+universes of beta from answering: nothing was changed. …</pre></div>
+  <p>Match the settings (the multiverse's <code>expose</code>, entrypoints and certificates), stop the other universes first, or pass <code>--rebind-proxy</code> (on <code>universe up</code>, <code>start</code> and <code>system proxy up</code>) to reconfigure it anyway; the others answer again when started from their own multiverse. With nothing else running the proxy is rebound with a warning, as before.</p>
+</section>

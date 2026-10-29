@@ -39,7 +39,7 @@ func (s *Service) PrunePlan(ctx context.Context, o PruneOptions) ([]PruneItem, e
 	}
 	items := make([]PruneItem, 0, len(states))
 	for _, st := range states {
-		u := s.Universe(st.Name)
+		u := s.UniverseOf(st)
 		it := PruneItem{Name: st.Name, Dir: u.Dir(), Branches: st.Branches}
 		containers, err := s.Runtime.Containers(ctx, st.Project)
 		if err != nil {

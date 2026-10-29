@@ -35,6 +35,10 @@ type SelfUpdateResult struct {
 	Server bool
 	From   string
 	To     string
+	// Pending is a newer version whose binaries are still being attached to its
+	// release: nothing was updated because there is nothing to download yet,
+	// which is not the same as being up to date.
+	Pending string
 }
 
 // SelfUpdate replaces the binary with the latest release when it is newer.
@@ -52,6 +56,9 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 		return result, fmt.Errorf("latest release %q: not a version", latest.Version)
 	}
 	if !isNewer(latest.Version, in.CurrentVersion) {
+		if latest.Pending != "" && isNewer(latest.Pending, in.CurrentVersion) {
+			result.Pending = latest.Pending
+		}
 		return result, nil
 	}
 
@@ -67,7 +74,8 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 		name := fmt.Sprintf("multiversectl_%s_%s", in.OS, in.Arch)
 		url, ok := latest.Assets[name]
 		if !ok {
-			return result, fmt.Errorf("release %s has no asset %s: %w", latest.Version, name, domain.ErrNotFound)
+			return result, fmt.Errorf("release %s has no binary for %s/%s yet (%s); it may still be being published, try again shortly: %w",
+				latest.Version, in.OS, in.Arch, name, domain.ErrNotFound)
 		}
 		if err := s.install(ctx, "Downloading multiversectl "+latest.Version, url, name, sums, in.BinaryPath); err != nil {
 			return result, err

@@ -49,6 +49,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 	} else {
 		s.checkProxy(ctx, add)
 		s.checkMultiverses(add)
+		s.checkClones(ctx, add)
 	}
 
 	var st domain.UniverseState
@@ -74,7 +75,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 	}
 
 	if loaded && s.Manifest != nil {
-		s.checkUniverse(ctx, add, st)
+		s.forUniverseOrSelf(st.Name).checkUniverse(ctx, add, st)
 	}
 	return r, nil
 }
@@ -136,6 +137,34 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 		default:
 			add(label, StatusOK, "entrypoint %s: free", name)
 		}
+	}
+}
+
+// checkClones says which shared clones are behind their remote. Their files
+// are what a universe falls back on for a repository's own settings, secrets
+// and the code new universes branch from, and nothing else brings them forward
+// by itself when they have changes.
+func (s *Service) checkClones(ctx context.Context, add addCheck) {
+	fresh := s.CloneFreshness(ctx)
+	behind := 0
+	for _, key := range mapKeys(fresh) {
+		f := fresh[key]
+		if !f.Stale() {
+			continue
+		}
+		behind++
+		dir := s.Manifest.CloneDir(s.Multiverse, key)
+		switch {
+		case f.Dirty:
+			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch, and %s has uncommitted changes, so it is never moved on its own: commit or stash them, then `multiversectl catalog update`", f.Behind, f.Follows, dir)
+		case f.Ahead > 0:
+			add("clone "+key, StatusWarn, "%d commits behind origin/%s and %d ahead of it: update %s by hand", f.Behind, f.Follows, f.Ahead, dir)
+		default:
+			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch; a universe with no checkout of it reads its files from here. Run: multiversectl catalog update", f.Behind, f.Follows)
+		}
+	}
+	if len(fresh) > 0 && behind == 0 {
+		add("clones", StatusOK, "the %d shared clones are up to date with their remotes, as of the last fetch", len(fresh))
 	}
 }
 
@@ -223,7 +252,7 @@ func (s *Service) checkDomain(ctx context.Context, add addCheck, st domain.Unive
 }
 
 func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.UniverseState) {
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	appKeys := make([]string, 0, len(s.Manifest.Apps))
 	for key := range s.Manifest.Apps {
 		appKeys = append(appKeys, key)
@@ -256,7 +285,7 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 	for _, appKey := range s.Manifest.RunnableApps() {
 		// Each app runs as its own compose project, so that is the prefix
 		// its container names carry.
-		running := runningFor(containers, s.Universe(st.Name).ProjectFor(appKey))
+		running := runningFor(containers, s.UniverseOf(st).ProjectFor(appKey))
 		if running == 0 && s.Manifest.Apps[appKey].OnDemand {
 			add("app "+appKey, StatusOK, "off, on demand (start it with: multiversectl universe up %s %s)", st.Name, appKey)
 			continue
@@ -278,6 +307,24 @@ func (s *Service) checkAddresses(ctx context.Context, add addCheck, st domain.Un
 	for _, route := range s.Routes(st, appKey) {
 		url := s.routeURL(route)
 		name := "url " + appKey + "/" + strings.TrimSuffix(route.Name, "-"+st.Slug)
+		// Not every host speaks HTTP: a gRPC service answers an HTTP/1.1 request
+		// with an error that says nothing about whether it is up.
+		probe := probeFor(route)
+		if probe == "none" {
+			continue
+		}
+		if probe == "tcp" || probe == "grpc" {
+			if address, ok := directAddress(route); ok {
+				if err := s.System.Dial(ctx, address); err != nil {
+					add(name, StatusWarn, "%s does not accept connections: %v", address, shortError(err))
+				} else {
+					add(name, StatusOK, "%s accepts connections%s", address, map[bool]string{true: " (the gRPC health check is not run: multiversectl carries no gRPC client)", false: ""}[probe == "grpc"])
+				}
+				continue
+			}
+			// Only through the proxy: asked over HTTP below, since the proxy
+			// itself accepts every connection.
+		}
 		answer, err := s.System.Probe(ctx, url)
 		status := answer.Status
 		switch {
@@ -293,6 +340,31 @@ func (s *Service) checkAddresses(ctx context.Context, add addCheck, st domain.Un
 			add(name, StatusOK, "%s answers %d", url, status)
 		}
 	}
+}
+
+// probeFor is how doctor checks a host: what it says, else a TCP connection for
+// a service the proxy speaks h2c to, else an HTTP request.
+func probeFor(route Route) string {
+	switch {
+	case route.Probe != "":
+		return route.Probe
+	case route.Scheme == "h2c":
+		return "tcp"
+	}
+	return "http"
+}
+
+// directAddress is where a TCP check reaches the service itself: the port it
+// is forwarded on. Through the proxy a connection is always accepted, by the
+// proxy, whether or not anything is behind it, so a host with no forwarded
+// port is asked over HTTP instead, where the proxy says 502 to 504 for a
+// service that is not there.
+func directAddress(route Route) (string, bool) {
+	if route.ForwardURL == "" {
+		return "", false
+	}
+	address, err := tcpAddress(route.ForwardURL)
+	return address, err == nil
 }
 
 // runningFor counts running containers of an app's services, relying on the

@@ -63,6 +63,10 @@ type Git interface {
 	// the tool generates is hidden from git without touching a tracked .gitignore.
 	// For a linked worktree git keeps it with the main clone, so it is shared.
 	ExcludeFile(ctx context.Context, dir string) (string, error)
+	// LsRemote asks a remote for its refs and nothing else, without ever asking
+	// anybody a question (no password prompt, no host key prompt): whether a
+	// clone of url would work from here. The error carries git's own words.
+	LsRemote(ctx context.Context, url string) error
 	// Checkout detaches HEAD at ref, a branch (as of origin), tag or commit.
 	Checkout(ctx context.Context, repoDir, ref string) error
 
@@ -153,6 +157,19 @@ type Container struct {
 	// Published is only the host port mappings: the ones that would collide
 	// with another universe.
 	Published string
+	// WorkingDir and ConfigFile are where the runtime says the compose project
+	// was started from: the first of its compose files, and the directory it
+	// ran in. They say whose a project is when its name alone cannot.
+	WorkingDir string
+	ConfigFile string
+}
+
+// ServiceHealth is one container of a compose project as `compose ps` reports
+// it. Health is empty for a service with no healthcheck.
+type ServiceHealth struct {
+	Service string
+	State   string // running, exited, restarting, ...
+	Health  string // healthy, unhealthy, starting, or ""
 }
 
 // ContainerStats is one reading of a container's resource use, as the runtime
@@ -210,6 +227,9 @@ type Runtime interface {
 	// of a manifest repeating it.
 	Inspect(ctx context.Context, r RuntimeRequest) (ProjectConfig, error)
 	Containers(ctx context.Context, namePrefix string) ([]Container, error)
+	// Health reports, for the project's containers, the state of each and its
+	// healthcheck's verdict: what `up` waits on.
+	Health(ctx context.Context, r RuntimeRequest) ([]ServiceHealth, error)
 	// Volumes reports the named volumes whose name starts with the prefix,
 	// each tagged with the multiverse that owns it.
 	Volumes(ctx context.Context, namePrefix string) ([]Volume, error)
@@ -223,9 +243,12 @@ type ProjectConfig struct {
 
 // ServiceConfig is one service as the runtime understands it.
 type ServiceConfig struct {
-	Labels map[string]string
-	Build  bool
-	Ports  []int // container ports it exposes or publishes
+	// NetworkMode is the service's network_mode ("host", "service:db", ...),
+	// which compose refuses to combine with a list of networks.
+	NetworkMode string
+	Labels      map[string]string
+	Build       bool
+	Ports       []int // container ports it exposes or publishes
 }
 
 // Names returns the service names, sorted.
@@ -289,6 +312,9 @@ type Route struct {
 	ByIP bool
 	// Scheme is how the proxy talks to the service; empty is plain http.
 	Scheme string
+	// Ready and Probe are the host's settings of the same names.
+	Ready string
+	Probe string
 }
 
 // Router materialises routing for a universe's apps. Returning extra runtime
@@ -359,6 +385,10 @@ type System interface {
 	UID() int
 	GID() int
 	Getenv(key string) string
+	// ProcessEnv is a variable as this process has it, and so as the programs
+	// it starts (docker compose) see it: Getenv is the user's directories as
+	// multiversectl uses them, relocated under a state directory.
+	ProcessEnv(key string) string
 	LANIP(ctx context.Context) (string, error)
 	Resolve(ctx context.Context, host string) ([]string, error)
 	PortFree(ctx context.Context, port int) (bool, error)
@@ -367,6 +397,11 @@ type System interface {
 	// Probe asks url once and returns what it answered, without following
 	// redirects: any answer means something is listening.
 	Probe(ctx context.Context, url string) (Answer, error)
+	// Dial opens a TCP connection to host:port and closes it: whether anything
+	// is listening there.
+	Dial(ctx context.Context, address string) error
+	// FreeSpace is how many bytes are free for a user on the filesystem path is on.
+	FreeSpace(ctx context.Context, path string) (uint64, error)
 	Which(name string) (string, bool)
 }
 
@@ -393,6 +428,10 @@ type Release struct {
 	// entries it has: features, breaking changes.
 	Fixes   []string
 	Changes int
+	// Pending is a newer version that is published but whose binaries are not
+	// all attached yet. Only the newest finished release carries it, and only
+	// when such a version exists.
+	Pending string
 }
 
 // Releases is the self-update port.
@@ -594,6 +633,15 @@ type ManifestLoader interface {
 	// Decode reads manifest text that is not (or no longer) in a file, with dir
 	// the folder its relative paths are against: what a universe was started with.
 	Decode(data []byte, dir string) (*domain.Manifest, error)
+}
+
+// PartLoader is what a ManifestLoader may also do: read a multiverse together
+// with the files its repositories carry for themselves, taken from the first of
+// the directories given for each. It is how a universe reads its own checkout's
+// file and not the shared clone's. A loader without it leaves every universe on
+// the clone.
+type PartLoader interface {
+	LoadMerged(path string, dirs func(repoKey string) []string) (*domain.Manifest, error)
 }
 
 // CatalogDecoder turns a catalog file into the domain model; the app stays

@@ -197,6 +197,11 @@ type BriefUniverse struct {
 	// Down names the services that should be up and are not, so a healthy
 	// universe costs nothing and a broken one says where to look.
 	Down []string `json:"down,omitempty"`
+	// Why says, for each service in down, whether it is stopped, failed or was
+	// not started; Skipped names the apps that are not counted and why (on
+	// demand, no runtime).
+	Why     map[string]string `json:"why,omitempty"`
+	Skipped map[string]string `json:"skipped,omitempty"`
 	// Behind is, per repository, how many commits of the branch it follows the
 	// checkout lacks. Absent when it is current: `universe sync` fixes it.
 	Behind map[string]int `json:"behind,omitempty"`
@@ -253,6 +258,12 @@ func briefView(c app.ProjectContext, list []app.Summary) BriefView {
 				if sv.Counted() && !sv.Up() && u.Running > 0 {
 					b.Down = append(b.Down, a.Key+"/"+sv.Name)
 				}
+			}
+		}
+		if state == "partial" {
+			b.Why, b.Skipped = map[string]string{}, u.Skipped()
+			for _, sf := range u.Shortfalls() {
+				b.Why[sf.App+"/"+sf.Service] = sf.Why
 			}
 		}
 		v.Universes = append(v.Universes, b)

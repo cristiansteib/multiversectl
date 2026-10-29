@@ -19,6 +19,56 @@ type StartInput struct {
 	Universe string
 	Apps     []string
 	With     []string
+	// RebindProxy lets the start reconfigure the shared proxy when universes of
+	// other multiverses are running through it.
+	RebindProxy bool
+	// Wait says how to wait for each app to be usable once its services run.
+	Wait WaitOptions
+	// FailFast stops at the first app that does not start. By default the
+	// others are still started and the failures are reported at the end.
+	FailFast bool
+}
+
+// AppFailure is one app that did not start, and why.
+type AppFailure struct {
+	App string
+	Err error
+}
+
+// StartFailed is what a start returns when some apps came up and some did not.
+// What failed is already said, app by app, when it is returned.
+type StartFailed struct {
+	Up     []string
+	Failed []AppFailure
+	Apps   int
+}
+
+func (e *StartFailed) Unwrap() []error {
+	out := make([]error, len(e.Failed))
+	for i, f := range e.Failed {
+		out[i] = f.Err
+	}
+	return out
+}
+
+func (e *StartFailed) Error() string {
+	names := make([]string, len(e.Failed))
+	for i, f := range e.Failed {
+		names[i] = f.App
+	}
+	return fmt.Sprintf("%d of %d apps did not start (%s)", len(e.Failed), e.Apps, strings.Join(names, ", "))
+}
+
+// sayStartSummary is the end of a start that was not clean: which apps are up
+// and which are not, so the answer is in one place and not in the scrollback.
+func (s *Service) sayStartSummary(up []string, failed []AppFailure) {
+	if len(up) > 0 {
+		s.Out.OK("up: %s", strings.Join(up, ", "))
+	}
+	for _, f := range failed {
+		s.Out.Warn("failed: %s", strings.ReplaceAll(strings.TrimSpace(f.Err.Error()), "\n", "\n    "))
+	}
+	s.Out.Info("the multiverse's own postUp hooks were not run; fix the failed apps and start them again")
 }
 
 // Start brings up the proxy and then each app of the universe.
@@ -37,11 +87,18 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if st, err = s.Resolve(in.Universe); err != nil {
 		return err
 	}
+	// First, so a repository's file that a universe without a checkout of it
+	// reads from the clone is the current one.
+	s.KeepClonesCurrent(ctx)
+	// The repositories' own files are read from this universe's worktrees.
+	if s, err = s.forUniverse(st.Name); err != nil {
+		return err
+	}
 	apps, err := s.appsToStart(st.Name, in.Apps)
 	if err != nil {
 		return err
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	s.say(1, "universe `%s`: starting %s", st.Name, strings.Join(apps, ", "))
 
 	// Before the proxy is touched, so a missing file leaves nothing half started.
@@ -56,7 +113,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		return err
 	}
 	s.say(1, "making sure the proxy and its network are up")
-	if err := s.EnsureProxy(ctx, st.Domain); err != nil {
+	if err := s.EnsureProxy(ctx, st.Domain, in.RebindProxy); err != nil {
 		return err
 	}
 
@@ -91,71 +148,136 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if st, err = s.fire(ctx, domain.PreUp, st, multiverseHooks, nil, nil); err != nil {
 		return err
 	}
+	var up []string
+	var failed []AppFailure
 	for _, appKey := range apps {
 		if s.NothingToRun(u, appKey) {
 			s.Out.Info("%s: no compose file in its repository, so there is nothing to start", appKey)
 			continue
 		}
-		// Before the compose files are read and before anything starts: a file the
-		// app reads at boot, or an env_file, must be there by then.
-		if err := s.renderApp(ctx, u, st, appKey, false); err != nil {
-			return err
-		}
-		// The compose files already name the services; asking them means a
-		// manifest does not have to repeat the list, and cannot get it wrong.
-		if _, err := s.composeFiles(u, appKey); err != nil {
-			return err
-		}
-		base := s.request(u, st, appKey, in.With)
-		s.say(1, "%s: reading its services from the compose files", appKey)
-		s.say(3, "%s: compose project %s, files %s, profiles %v", appKey, base.Project, strings.Join(base.Files, ", "), base.Profiles)
-		cfg, err := s.Runtime.Inspect(ctx, base)
-		if err != nil {
-			return fmt.Errorf("%s: reading services: %w", appKey, err)
-		}
-		defined := cfg.Names()
-		s.say(1, "%s: services %s", appKey, strings.Join(defined, ", "))
-
-		serviceEnv, err := s.serviceEnv(st, cfg)
-		if err != nil {
-			return fmt.Errorf("%s: %w", appKey, err)
-		}
-		extraFiles, err := s.Router.Materialize(ctx, OverrideRequest{
-			Dir:       u.Dir(),
-			App:       appKey,
-			Routes:    s.Routes(st, appKey),
-			Unpublish: s.unpublished(appKey, defined, cfg),
-			Env:       serviceEnv,
-			Bind:      s.Manifest.BindAddress(),
-		})
-		if err != nil {
-			return fmt.Errorf("%s: routing: %w", appKey, err)
-		}
-		req := s.request(u, st, appKey, in.With, extraFiles...)
-		if len(req.Services) == 0 {
-			req.Services = defined
-		}
-		if st, err = s.fire(ctx, domain.PreUp, st, appKey, &req, defined); err != nil {
-			return err
-		}
-		if s.Manifest.Apps[appKey].Build || buildsAnImage(cfg) {
-			s.say(1, "%s: building the images", appKey)
-			if err := s.Runtime.Build(ctx, req); err != nil {
-				return fmt.Errorf("%s: build: %w", appKey, err)
+		var err error
+		if st, err = s.startApp(ctx, u, st, appKey, in); err != nil {
+			if in.FailFast || ctx.Err() != nil {
+				return err
 			}
+			// The apps are independent: one that cannot start must not keep the
+			// others from it. Its hooks have not run, and are not run later.
+			s.Out.Warn("%s did not start; going on with the other apps", appKey)
+			if !strings.HasPrefix(err.Error(), appKey+":") {
+				err = fmt.Errorf("%s: %w", appKey, err)
+			}
+			failed = append(failed, AppFailure{App: appKey, Err: err})
+			continue
 		}
-		s.say(1, "%s: starting %s", appKey, strings.Join(req.Services, ", "))
-		s.say(3, "%s: environment given to compose: %s (names only)", appKey, strings.Join(slices.Sorted(maps.Keys(req.Env)), ", "))
-		if err := s.Runtime.Up(ctx, req); err != nil {
-			return fmt.Errorf("%s: start: %w", appKey, err)
-		}
-		s.Out.OK("%s up", appKey)
-		if st, err = s.fire(ctx, domain.PostUp, st, appKey, &req, defined); err != nil {
-			return err
-		}
+		up = append(up, appKey)
+	}
+	if len(failed) == 1 && len(up) == 0 {
+		return failed[0].Err // one app: nothing to sum up, and the error says it
+	}
+	if len(failed) > 0 {
+		s.sayStartSummary(up, failed)
+		return &StartFailed{Up: up, Failed: failed, Apps: len(up) + len(failed)}
 	}
 	_, err = s.fire(ctx, domain.PostUp, st, multiverseHooks, nil, nil)
 	return err
+}
+
+// startApp brings one app up: renders its files, routes it, builds, starts,
+// waits for it, and runs its hooks. It returns the state as the hooks left it.
+func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.UniverseState, appKey string, in StartInput) (domain.UniverseState, error) {
+	// Before the compose files are read and before anything starts: a file the
+	// app reads at boot, or an env_file, must be there by then.
+	if err := s.renderApp(ctx, u, st, appKey, false); err != nil {
+		return st, err
+	}
+	// The compose files already name the services; asking them means a
+	// manifest does not have to repeat the list, and cannot get it wrong.
+	if _, err := s.composeFiles(u, appKey); err != nil {
+		return st, err
+	}
+	base := s.request(u, st, appKey, in.With)
+	s.say(1, "%s: reading its services from the compose files", appKey)
+	s.say(3, "%s: compose project %s, files %s, profiles %v", appKey, base.Project, strings.Join(base.Files, ", "), base.Profiles)
+	cfg, err := s.Runtime.Inspect(ctx, base)
+	if err != nil {
+		return st, fmt.Errorf("%s: reading services: %w", appKey, err)
+	}
+	defined := cfg.Names()
+	s.say(1, "%s: services %s", appKey, strings.Join(defined, ", "))
+
+	serviceEnv, err := s.serviceEnv(st, cfg)
+	if err != nil {
+		return st, fmt.Errorf("%s: %w", appKey, err)
+	}
+	routes := s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg)
+	extraFiles, err := s.Router.Materialize(ctx, OverrideRequest{
+		Dir:       u.Dir(),
+		App:       appKey,
+		Routes:    routes,
+		Unpublish: s.unpublished(appKey, defined, cfg),
+		Env:       serviceEnv,
+		Bind:      s.Manifest.BindAddress(),
+	})
+	if err != nil {
+		return st, fmt.Errorf("%s: routing: %w", appKey, err)
+	}
+	req := s.request(u, st, appKey, in.With, extraFiles...)
+	if len(req.Services) == 0 {
+		req.Services = defined
+	}
+	// Before the hooks and the build: an image is tagged with the project's
+	// name, so building for another root's project would replace its images.
+	if err := s.guardProject(ctx, u, req.Project); err != nil {
+		return st, fmt.Errorf("%s: %w", appKey, err)
+	}
+	if st, err = s.fire(ctx, domain.PreUp, st, appKey, &req, defined); err != nil {
+		return st, err
+	}
+	if s.Manifest.Apps[appKey].Build || buildsAnImage(cfg) {
+		s.say(1, "%s: building the images", appKey)
+		if err := s.Runtime.Build(ctx, req); err != nil {
+			return st, fmt.Errorf("%s: build: %w", appKey, err)
+		}
+	}
+	s.say(1, "%s: starting %s", appKey, strings.Join(req.Services, ", "))
+	s.say(3, "%s: environment given to compose: %s (names only)", appKey, strings.Join(slices.Sorted(maps.Keys(req.Env)), ", "))
+	if err := s.Runtime.Up(ctx, req); err != nil {
+		return st, fmt.Errorf("%s: start: %w", appKey, err)
+	}
+	s.Out.OK("%s up", appKey)
+	// Before the hooks, which may rely on the app answering.
+	if err := s.waitReady(ctx, appKey, routes, req, in.Wait); err != nil {
+		return st, err
+	}
+	if st, err = s.fire(ctx, domain.PostUp, st, appKey, &req, defined); err != nil {
+		return st, err
+	}
+	return st, nil
+}
+
+// withoutUnroutable drops the routes to services that set network_mode. The
+// routing fragment joins a service to the proxy's network, and compose rejects
+// a service that has both network_mode and networks, which would fail the whole
+// app. A service in another network mode (host, or another container's) is not
+// on the proxy's network at all, so it cannot be reached through the proxy
+// whatever is written; a port forward is dropped with it, because the fragment
+// cannot publish a port for such a service either.
+func (s *Service) withoutUnroutable(appKey string, routes []Route, cfg ProjectConfig) []Route {
+	var out []Route
+	for _, r := range routes {
+		mode := cfg.Services[r.Service].NetworkMode
+		if mode == "" {
+			out = append(out, r)
+			continue
+		}
+		extra := ""
+		if r.HostPort > 0 {
+			extra = fmt.Sprintf("; its forwarded port %d is not published either (a service in network_mode %q is reached on that network directly)", r.HostPort, mode)
+		}
+		s.Out.Warn("%s: service %q sets network_mode %q, so it cannot join the proxy's network and host %s cannot be reached through the proxy%s",
+			appKey, r.Service, mode, r.Hostname, extra)
+	}
+	return out
 }
 
 // unpublished is every service that must not bind a host port: all of them,
@@ -200,20 +322,25 @@ func hostnames(rules map[string]domain.RouteRule) map[string]string {
 }
 
 // EnsureProxy makes sure the shared network and ingress are running.
-func (s *Service) EnsureProxy(ctx context.Context, dom string) error {
+//
+// rebind lets it reconfigure a proxy that is running with different settings
+// (the interface it is published on, its entrypoints, its TLS) even though
+// universes of other multiverses are being served through it; without it that
+// is refused, since they would stop answering.
+func (s *Service) EnsureProxy(ctx context.Context, dom string, rebind bool) error {
 	// Universes are started side by side, by the web view and by agents, and
 	// the first of them to need the shared proxy must not race the others to
 	// create it: one makes the network and the container, the rest find them.
 	proxyMu.Lock()
 	defer proxyMu.Unlock()
-	return s.ensureProxy(ctx, dom)
+	return s.ensureProxy(ctx, dom, rebind)
 }
 
 // proxyMu serialises the checks and the start of the one proxy a machine has,
 // across every universe started from this process.
 var proxyMu sync.Mutex
 
-func (s *Service) ensureProxy(ctx context.Context, dom string) error {
+func (s *Service) ensureProxy(ctx context.Context, dom string, rebind bool) error {
 	network := s.Manifest.Proxy.Network
 	if network == "" {
 		network = "multiversenet"
@@ -246,6 +373,12 @@ func (s *Service) ensureProxy(ctx context.Context, dom string) error {
 			status.Bind = "0.0.0.0"
 		}
 		if change := proxyChange(status, want); change != "" {
+			if others := s.otherMultiversesServed(ctx); len(others) > 0 && !rebind {
+				return fmt.Errorf("this multiverse needs the shared proxy %s, which would stop universes of %s from answering: nothing was changed. "+
+					"Make this multiverse match the running proxy (its `expose`, proxy entrypoints and TLS), stop those universes first, "+
+					"or pass --rebind-proxy to reconfigure it anyway; they answer again when started from their own multiverse",
+					change, strings.Join(others, ", "))
+			}
 			s.Out.Warn("the shared proxy is being reconfigured: %s — universes of any other multiverse on this machine stop answering until it is started from there again", change)
 		}
 	}
@@ -265,7 +398,9 @@ func (s *Service) checkProxyPorts(ctx context.Context) error {
 		port := s.Manifest.Proxy.Entrypoints[name]
 		// A check that cannot run is not a conflict; Docker will say if it is.
 		if free, err := s.System.PortFree(ctx, port); err == nil && !free {
-			return fmt.Errorf("proxy entrypoint %q needs port %d, which another process is using (find it with: lsof -nP -iTCP:%d -sTCP:LISTEN)", name, port, port)
+			return fmt.Errorf("proxy entrypoint %q needs port %d, which another process is using (find it with: lsof -nP -iTCP:%d -sTCP:LISTEN). "+
+				"When it is another multiversectl proxy (docker ps --filter name=multiverse-proxy), such as the real one during a rehearsal with --state-dir, "+
+				"stop it with `multiversectl system proxy down`, given the same --state-dir it was started with", name, port, port)
 		}
 	}
 	return nil
@@ -347,10 +482,11 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 	if err != nil {
 		return err
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	if _, ok := s.Manifest.Apps[in.App]; !ok {
 		return fmt.Errorf("app %q: %w in the manifest", in.App, domain.ErrNotFound)
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	req := s.request(u, st, in.App, nil)
 
 	service := in.Service
@@ -475,4 +611,41 @@ func (s *Service) sayRules(rules map[string]domain.RouteRule) {
 	for _, key := range slices.Sorted(maps.Keys(rules)) {
 		s.say(3, "address %s: %s", key, rules[key].Hostname)
 	}
+}
+
+// otherMultiversesServed names the other multiverses on this machine that have
+// containers running: those are the ones a reconfigured shared proxy would stop
+// answering. A multiverse is told apart by where its containers were started
+// from, so a container that carries no such label is not counted; and one whose
+// manifest cannot be read has no name to look its containers up by.
+func (s *Service) otherMultiversesServed(ctx context.Context) []string {
+	if s.Config == nil || s.Manifests == nil {
+		return nil
+	}
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(cfg.Multiverses)) {
+		entry := cfg.Multiverses[name]
+		if entry.Root == "" || samePath(entry.Root, s.Multiverse) || samePath(entry.Manifest, s.Manifest.Path) {
+			continue
+		}
+		other, err := s.Manifests.Load(entry.Manifest)
+		if err != nil {
+			continue
+		}
+		containers, err := s.Runtime.Containers(ctx, other.Name)
+		if err != nil {
+			continue
+		}
+		for _, c := range containers {
+			if isRunning(c) && (within(c.WorkingDir, entry.Root) || within(c.ConfigFile, entry.Root)) {
+				out = append(out, name)
+				break
+			}
+		}
+	}
+	return out
 }

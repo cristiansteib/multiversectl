@@ -103,3 +103,82 @@ func TestDoctorTellsTheProxysAnswersFromTheServices(t *testing.T) {
 		t.Errorf("the findings do not say what to do: %v / %v", got["url api/lost"].Detail, got["url api/rpc"].Detail)
 	}
 }
+
+type dialSystem struct {
+	System
+	http   map[string]int
+	open   map[string]bool // host:port that accept connections
+	probed []string
+}
+
+func (d *dialSystem) Probe(_ context.Context, url string) (Answer, error) {
+	d.probed = append(d.probed, url)
+	if status, ok := d.http[url]; ok {
+		return Answer{Status: status}, nil
+	}
+	return Answer{}, errors.New("connection refused")
+}
+
+func (d *dialSystem) Dial(_ context.Context, address string) error {
+	if d.open[address] {
+		return nil
+	}
+	return errors.New("dial tcp " + address + ": connect: connection refused")
+}
+
+// A gRPC or other non-HTTP host is asked whether it accepts connections, not
+// made to answer a request it would reject. The connection goes to the port
+// the host is forwarded on: through the proxy any connection is accepted, by
+// the proxy, so a host with no forwarded port is asked over HTTP, where the
+// proxy says whether anything is behind it.
+func TestDoctorChecksEachHostTheWayItSpeaks(t *testing.T) {
+	manifest := &domain.Manifest{Name: "acme", Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80}}}
+	st := domain.UniverseState{
+		Name: "3", Slug: "3",
+		Rules: map[string]domain.RouteRule{
+			"api":   {App: "api", Hostname: "api-3.example.test", Service: "web", Entrypoint: "web"},
+			"rpc":   {App: "api", Hostname: "rpc-3.example.test", Service: "rpc", Entrypoint: "web", Scheme: "h2c", ForwardURL: "http://10.0.0.5:20001"},
+			"queue": {App: "api", Hostname: "queue-3.example.test", Service: "mq", Entrypoint: "web", Probe: "tcp", ForwardURL: "http://10.0.0.5:20002"},
+			"db":    {App: "api", Hostname: "db-3.example.test", Service: "db", Entrypoint: "web", Probe: "none"},
+			"grpc":  {App: "api", Hostname: "grpc-3.example.test", Service: "g", Entrypoint: "web", Probe: "grpc", ForwardURL: "http://10.0.0.5:20003"},
+			"down":  {App: "api", Hostname: "down-3.example.test", Service: "x", Entrypoint: "web", Scheme: "h2c", ForwardURL: "http://10.0.0.5:20004"},
+			// An h2c host that is forced back to HTTP is asked over HTTP.
+			"edge": {App: "api", Hostname: "edge-3.example.test", Service: "e", Entrypoint: "web", Scheme: "h2c", Probe: "http"},
+			// h2c hosts reached only through the proxy: one with a service
+			// behind it, one without.
+			"stream": {App: "api", Hostname: "stream-3.example.test", Service: "s", Entrypoint: "web", Scheme: "h2c"},
+			"gone":   {App: "api", Hostname: "gone-3.example.test", Service: "y", Entrypoint: "web", Probe: "tcp"},
+		},
+	}
+	sys := &dialSystem{
+		http: map[string]int{"http://api-3.example.test": 200, "http://edge-3.example.test": 404, "http://stream-3.example.test": 415, "http://gone-3.example.test": 502},
+		open: map[string]bool{"10.0.0.5:20001": true, "10.0.0.5:20002": true, "10.0.0.5:20003": true,
+			// The proxy's own port, which must never be taken as an answer.
+			"stream-3.example.test:80": true, "gone-3.example.test:80": true},
+	}
+	svc := New(Deps{System: sys}, "/ws", manifest, "test")
+	got := map[string]Check{}
+	svc.checkAddresses(context.Background(), func(name string, status Status, format string, a ...any) {
+		got[name] = Check{Name: name, Status: status, Detail: fmt.Sprintf(format, a...)}
+	}, st, "api")
+
+	for name, want := range map[string]Status{
+		"url api/api": StatusOK, "url api/rpc": StatusOK, "url api/queue": StatusOK, "url api/grpc": StatusOK,
+		"url api/down": StatusWarn, "url api/edge": StatusOK, "url api/stream": StatusOK, "url api/gone": StatusWarn,
+	} {
+		if got[name].Status != want {
+			t.Errorf("%s = %+v, want %s", name, got[name], want)
+		}
+	}
+	if _, probed := got["url api/db"]; probed {
+		t.Error("a host with probe none must not be checked")
+	}
+	if !strings.Contains(got["url api/grpc"].Detail, "no gRPC client") || !strings.Contains(got["url api/down"].Detail, "does not accept connections") {
+		t.Errorf("details: %q / %q", got["url api/grpc"].Detail, got["url api/down"].Detail)
+	}
+	for _, url := range sys.probed {
+		if strings.Contains(url, "rpc-3") || strings.Contains(url, "queue-3") || strings.Contains(url, "grpc-3") {
+			t.Errorf("sent HTTP to a host that does not speak it: %s", url)
+		}
+	}
+}

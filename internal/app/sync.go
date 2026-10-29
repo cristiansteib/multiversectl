@@ -94,6 +94,12 @@ type SyncOptions struct {
 // reported and the work goes on with what is already here. The dirs fetched
 // are marked in done.
 func (s *Service) fetchClones(ctx context.Context, label string, keys []string, done map[string]bool) {
+	s.fetchClonesAs(ctx, label, keys, done, false)
+}
+
+// fetchClonesAs is fetchClones; quiet is for a fetch nobody asked for, which
+// never asks a question and does not warn when the network is not there.
+func (s *Service) fetchClonesAs(ctx context.Context, label string, keys []string, done map[string]bool, quiet bool) {
 	var progress Progress = noProgress{}
 	if s.Progress != nil {
 		progress = s.Progress
@@ -105,14 +111,20 @@ func (s *Service) fetchClones(ctx context.Context, label string, keys []string, 
 			continue
 		}
 		done[dir] = true
-		jobs = append(jobs, Job{Name: key, Run: func(ctx context.Context) error { return s.Git.Fetch(ctx, dir) }})
+		fetch := s.Git.Fetch
+		if quiet {
+			fetch = s.Git.FetchQuietly
+		}
+		jobs = append(jobs, Job{Name: key, Run: func(ctx context.Context) error { return fetch(ctx, dir) }})
 	}
 	if len(jobs) == 0 {
 		return
 	}
 	errs := progress.Parallel(label, cloneLimit, jobs)
 	for i, j := range jobs {
-		if errs[i] != nil {
+		if errs[i] != nil && quiet {
+			s.say(1, "%s: fetch: %v", j.Name, errs[i])
+		} else if errs[i] != nil {
 			s.Out.Warn("%s: fetch: %v (continuing with what is already here)", j.Name, errs[i])
 		}
 	}
@@ -139,7 +151,8 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 	if s.Manifest == nil {
 		return nil, domain.ErrNoManifest
 	}
-	u := s.Universe(st.Name)
+	s = s.forUniverseOrSelf(st.Name)
+	u := s.UniverseOf(st)
 	fetched := map[string]bool{}
 	var out []SyncResult
 	repos := make([]string, 0, len(st.Branches))
@@ -149,6 +162,13 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 	sort.Strings(repos)
 	moved := 0
 	s.fetchClones(ctx, "Fetching "+plural(len(repos), "repository"), repos, fetched)
+	// The shared clones are fetched anyway; what a repository says about itself
+	// is read from them wherever a universe has no checkout of its own.
+	for _, r := range s.forwardClones(ctx, repos) {
+		if r.Moved > 0 {
+			s.Out.Info("%s: the shared clone %s", r.Repo, r.Detail)
+		}
+	}
 	for _, repo := range repos {
 		dir := u.RepoDir(repo)
 		clone := s.Manifest.CloneDir(s.Multiverse, repo)
@@ -217,15 +237,51 @@ func (s *Service) UpdateClones(ctx context.Context) ([]CloneResult, error) {
 	if s.Manifest == nil {
 		return nil, domain.ErrNoManifest
 	}
-	var out []CloneResult
 	s.fetchClones(ctx, "Fetching "+plural(len(s.repoKeys()), "repository"), s.repoKeys(), map[string]bool{})
-	for _, key := range s.repoKeys() {
+	return s.forwardClones(ctx, s.repoKeys()), nil
+}
+
+// KeepClonesCurrent is UpdateClones for a command that did not ask for it: the
+// fetch is quiet, and only what moved is said. It is what makes a repository's
+// own file in the shared clone follow the repository, for the universes that
+// read it from there, without anybody updating the clone by hand.
+func (s *Service) KeepClonesCurrent(ctx context.Context) {
+	if s.Manifest == nil {
+		return
+	}
+	s.fetchClonesAs(ctx, "Fetching "+plural(len(s.repoKeys()), "repository"), s.repoKeys(), map[string]bool{}, true)
+	for _, r := range s.forwardClones(ctx, s.repoKeys()) {
+		if r.Moved > 0 {
+			s.Out.Info("%s: the shared clone %s", r.Repo, r.Detail)
+		} else {
+			s.say(1, "%s: the shared clone: %s", r.Repo, r.Detail)
+		}
+	}
+}
+
+// cloneTarget is the branch a clone follows: the repository's base when the
+// clone is on it (repos.<key>.base), else origin's default branch.
+func (s *Service) cloneTarget(ctx context.Context, key, dir string) (string, error) {
+	if base, err := s.baseBranch(ctx, key, dir); err == nil {
+		if cur, _ := s.Git.CurrentBranch(ctx, dir); cur == base {
+			return base, nil
+		}
+	}
+	return s.Git.DefaultBranch(ctx, dir)
+}
+
+// forwardClones moves each clone forward to the branch it follows when that
+// loses nothing: a clone with changes, on a branch of its own or with commits
+// of its own is left alone and reported. Clones that are current are not listed.
+func (s *Service) forwardClones(ctx context.Context, keys []string) []CloneResult {
+	var out []CloneResult
+	for _, key := range keys {
 		dir := s.Manifest.CloneDir(s.Multiverse, key)
 		if !s.Files.Exists(dir) {
 			continue
 		}
 		res := CloneResult{Repo: key}
-		def, err := s.Git.DefaultBranch(ctx, dir)
+		def, err := s.cloneTarget(ctx, key, dir)
 		if err != nil {
 			continue
 		}
@@ -250,11 +306,11 @@ func (s *Service) UpdateClones(ctx context.Context) ([]CloneResult, error) {
 			out = append(out, res)
 		}
 	}
-	return out, nil
+	return out
 }
 
-// CloneFreshness measures every clone against origin's default branch, as of
-// the last fetch, for a view that shows which ones are behind.
+// CloneFreshness measures every clone against the branch it follows, as of the
+// last fetch, for a view that shows which ones are behind.
 func (s *Service) CloneFreshness(ctx context.Context) map[string]Freshness {
 	out := map[string]Freshness{}
 	if s.Manifest == nil {
@@ -265,7 +321,7 @@ func (s *Service) CloneFreshness(ctx context.Context) map[string]Freshness {
 		if !s.Files.Exists(dir) {
 			continue
 		}
-		if def, err := s.Git.DefaultBranch(ctx, dir); err == nil {
+		if def, err := s.cloneTarget(ctx, key, dir); err == nil {
 			out[key] = s.freshnessOf(ctx, dir, def)
 		}
 	}
@@ -279,7 +335,7 @@ func (s *Service) behindHint(ctx context.Context, st domain.UniverseState) strin
 	if s.Manifest == nil {
 		return ""
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	var behind []string
 	for _, repo := range mapKeys(st.Branches) {
 		dir := u.RepoDir(repo)

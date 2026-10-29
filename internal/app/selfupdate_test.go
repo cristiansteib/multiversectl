@@ -24,6 +24,8 @@ type fakeReleases struct {
 	tampered map[string]bool
 	noSums   bool
 	omit     map[string]bool // left out of checksums.txt
+	version  string          // the newest finished release; v2.0.0 when empty
+	pending  string          // a newer version whose binaries are still being attached
 }
 
 func (f fakeReleases) Latest(context.Context) (app.Release, error) {
@@ -34,7 +36,11 @@ func (f fakeReleases) Latest(context.Context) (app.Release, error) {
 	if !f.noSums {
 		urls["checksums.txt"] = "checksums.txt"
 	}
-	return app.Release{Version: "v2.0.0", Assets: urls}, nil
+	version := f.version
+	if version == "" {
+		version = "v2.0.0"
+	}
+	return app.Release{Version: version, Assets: urls, Pending: f.pending}, nil
 }
 
 func (f fakeReleases) Recent(ctx context.Context) ([]app.Release, error) {
@@ -177,5 +183,27 @@ func TestAnAssetMissingFromTheListIsNotInstalled(t *testing.T) {
 	}, "linux", "amd64")
 	if err == nil || !strings.Contains(err.Error(), "not listed") {
 		t.Fatalf("want it refused for being unlisted, got %v", err)
+	}
+}
+
+// A tag that is published before its binaries are attached is not "up to date":
+// there is something newer, and nothing to download yet.
+func TestSelfUpdateSaysWhenTheNewestVersionIsStillBeingPublished(t *testing.T) {
+	res, err, _, _ := update(t, fakeReleases{version: "v1.0.0", pending: "v1.1.0", assets: map[string]string{
+		"multiversectl_linux_amd64": "cli 1",
+	}}, "linux", "amd64")
+	if err != nil || res.Updated || res.Pending != "v1.1.0" {
+		t.Fatalf("res=%+v err=%v", res, err)
+	}
+	res, err, _, _ = update(t, fakeReleases{version: "v1.0.0", assets: map[string]string{"multiversectl_linux_amd64": "cli 1"}}, "linux", "amd64")
+	if err != nil || res.Updated || res.Pending != "" {
+		t.Fatalf("nothing pending: res=%+v err=%v", res, err)
+	}
+}
+
+func TestSelfUpdateNamesThePlatformAReleaseHasNoBinaryFor(t *testing.T) {
+	_, err, _, _ := update(t, fakeReleases{assets: map[string]string{"multiversectl_linux_amd64": "cli 2"}}, "darwin", "arm64")
+	if err == nil || !strings.Contains(err.Error(), "no binary for darwin/arm64 yet") || !strings.Contains(err.Error(), "try again shortly") {
+		t.Fatalf("err = %v", err)
 	}
 }

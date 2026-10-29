@@ -82,6 +82,9 @@ func (g *GitHub) Recent(ctx context.Context) ([]app.Release, error) {
 		return nil, fmt.Errorf("decode latest release: %w", err)
 	}
 	var out []app.Release
+	// The newest published version that is not finished, as long as no finished
+	// one has been seen yet: it is the one that is on its way.
+	pending := ""
 	for _, r := range body {
 		if r.Draft || r.Prerelease {
 			continue
@@ -92,11 +95,19 @@ func (g *GitHub) Recent(ctx context.Context) ([]app.Release, error) {
 			rel.Assets[a.Name] = a.URL
 		}
 		if _, done := rel.Assets["checksums.txt"]; done {
+			if len(out) == 0 {
+				rel.Pending = pending
+			}
 			out = append(out, rel)
+		} else if len(out) == 0 && pending == "" {
+			pending = r.TagName
 		}
 	}
 	if len(out) > 0 {
 		return out, nil
+	}
+	if pending != "" {
+		return nil, fmt.Errorf("version %s has no binaries attached yet: it is still being published, or its release failed; try again shortly, and if it stays so see its release page", pending)
 	}
 	return nil, fmt.Errorf("fetch latest release: none of the newest %d has its binaries yet", len(body))
 }

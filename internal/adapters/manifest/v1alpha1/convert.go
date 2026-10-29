@@ -3,9 +3,9 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"gopkg.in/yaml.v3"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -177,6 +177,8 @@ func convertApp(a App) (domain.App, error) {
 			AlsoMatch:   h.AlsoMatch,
 			PortForward: h.PortForward,
 			Scheme:      h.Scheme,
+			Ready:       h.Ready,
+			Probe:       h.Probe,
 		})
 		if err != nil {
 			return app, err
@@ -190,7 +192,7 @@ func convertApp(a App) (domain.App, error) {
 // ~/work/acme resolves per user.
 func expandHome(path string) string {
 	if path == "~" || strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
+		if home, err := userdirs.Home(); err == nil {
 			return filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
 		}
 	}
@@ -289,7 +291,7 @@ func convertHooks(h Hooks) (map[domain.HookEvent][]domain.Hook, error) {
 }
 
 func convertHook(w Hook) (domain.Hook, error) {
-	hook := domain.Hook{Name: w.Name, Once: w.Once, OnFailure: domain.Failure(w.OnFailure)}
+	hook := domain.Hook{Name: w.Name, Once: w.Once, SkipIf: w.SkipIf, OnFailure: domain.Failure(w.OnFailure)}
 	switch {
 	case w.Container != nil && w.Host != nil:
 		return hook, errors.New("container and host: give one, not both")

@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"io"
 	"net"
 	"net/http"
@@ -22,9 +23,40 @@ type System struct{}
 
 func New() *System { return &System{} }
 
-func (System) UID() int                 { return os.Getuid() }
-func (System) GID() int                 { return os.Getgid() }
-func (System) Getenv(key string) string { return os.Getenv(key) }
+func (System) UID() int { return os.Getuid() }
+func (System) GID() int { return os.Getgid() }
+
+// Getenv is the environment, except that with a state directory the places
+// the user's files go (HOME and the XDG directories) are inside it: the shell
+// completion, the agent skill and "~/" in a path are written under it too.
+func (System) Getenv(key string) string {
+	if userdirs.Dir() != "" {
+		var dir string
+		var err error
+		switch key {
+		// ZDOTDIR is where zsh reads .zshrc: under a state directory it is the
+		// relocated home, so a rehearsal never edits the real startup file.
+		case "HOME", "ZDOTDIR":
+			dir, err = userdirs.Home()
+		case "XDG_CONFIG_HOME":
+			dir, err = userdirs.Config()
+		case "XDG_DATA_HOME":
+			dir, err = userdirs.Data()
+		case "XDG_STATE_HOME":
+			dir, err = userdirs.State()
+		case "XDG_CACHE_HOME":
+			dir, err = userdirs.Cache()
+		default:
+			return os.Getenv(key)
+		}
+		if err == nil {
+			return dir
+		}
+	}
+	return os.Getenv(key)
+}
+
+func (System) ProcessEnv(key string) string { return os.Getenv(key) }
 
 func (System) Which(name string) (string, bool) {
 	p, err := exec.LookPath(name)
@@ -99,10 +131,15 @@ func (System) Probe(ctx context.Context, url string) (app.Answer, error) {
 	}
 	// The address is the proxy's own, and on a TLS entrypoint with no certificate
 	// configured it presents a self-signed one: what is asked is whether the app
-	// answers, not whether a browser would trust it.
+	// answers, not whether a browser would trust it. Each probe is one request
+	// on a transport of its own, so no connection is kept alive after it: `up`
+	// polls every two seconds, and the web view's server runs for days.
 	client := &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		Transport:     &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, //nolint:gosec // see above
+		Transport: &http.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // see above
+			DisableKeepAlives: true,
+		},
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -129,4 +166,24 @@ func (System) RunHost(ctx context.Context, c app.HostCommand) (string, error) {
 	cmd.Stdout, cmd.Stderr = &out, &out
 	err := cmd.Run()
 	return out.String(), err
+}
+
+// Dial connects to address and closes the connection: whether something listens.
+func (System) Dial(ctx context.Context, address string) error {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
+}
+
+// FreeSpace is the bytes available to this user on the filesystem holding path.
+func (System) FreeSpace(_ context.Context, path string) (uint64, error) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(path, &st); err != nil {
+		return 0, err
+	}
+	return uint64(st.Bavail) * uint64(st.Bsize), nil //nolint:gosec // both are non-negative
 }

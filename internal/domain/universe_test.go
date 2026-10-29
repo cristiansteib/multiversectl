@@ -107,3 +107,35 @@ func TestProxyClashes(t *testing.T) {
 		t.Errorf("a different bind address moves the proxy: %q", c)
 	}
 }
+
+// An install named like its manifest keeps the project it always had; one
+// installed under another name gets its own, so two installs of one manifest
+// do not share containers or volumes.
+func TestProjectNamesTheInstallWhenItDiffersFromTheManifest(t *testing.T) {
+	m := &Manifest{Name: "acme"}
+	for _, c := range []struct{ install, want string }{
+		{"", "acme-u1"},
+		{"acme", "acme-u1"},
+		{"acme-staging", "acme-acme-staging-u1"},
+		{"Other Team", "acme-other-team-u1"},
+	} {
+		u := Universe{Name: "1", Manifest: m, Install: c.install}
+		if got := u.Project(); got != c.want {
+			t.Errorf("install %q: Project() = %q, want %q", c.install, got, c.want)
+		}
+	}
+	u := Universe{Name: "1", Manifest: m, Install: "copy"}
+	if got := u.ProjectFor("api"); got != "acme-copy-u1-api" {
+		t.Errorf("ProjectFor = %q", got)
+	}
+}
+
+// A universe made before installs were told apart, or under a name the install
+// has since changed, keeps the project its state records: its containers and
+// volumes carry that name, and a new one would start a second set beside them.
+func TestAnExistingUniverseKeepsItsRecordedProject(t *testing.T) {
+	u := Universe{Name: "1", Manifest: &Manifest{Name: "acme"}, Install: "platform", Recorded: "acme-u1"}
+	if got := u.ProjectFor("api"); got != "acme-u1-api" {
+		t.Errorf("ProjectFor = %q, want the recorded acme-u1-api", got)
+	}
+}

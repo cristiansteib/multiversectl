@@ -44,6 +44,9 @@ type ConfigReport struct {
 	SnapshotProblems []string
 	// Changed is whether the manifest is not the one it was started with.
 	Changed bool
+	// RepoFiles are the repositories' own files this universe reads on top of
+	// it, and whether each comes from its worktree or from the shared clone.
+	RepoFiles []RepoFile
 }
 
 // UniverseConfig reports the manifest of a universe against the one it was started with.
@@ -57,7 +60,7 @@ func (s *Service) UniverseConfig(universe string) (ConfigReport, error) {
 	if err != nil {
 		return ConfigReport{}, err
 	}
-	rep := ConfigReport{Path: s.Manifest.Path, Current: data, SHA256: ConfigSHA(data), Problems: s.checkManifest(data)}
+	rep := ConfigReport{Path: s.Manifest.Path, Current: data, SHA256: ConfigSHA(data), Problems: s.checkManifest(data), RepoFiles: s.RepoFiles(st.Name)}
 	if st.StartedWith.SHA256 != "" {
 		rec := st.StartedWith
 		rep.StartedWith = &rec

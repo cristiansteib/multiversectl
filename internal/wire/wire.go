@@ -188,6 +188,12 @@ type ManifestLoader struct{}
 
 func (ManifestLoader) Load(path string) (*domain.Manifest, error) { return manifest.Load(path) }
 
+// LoadMerged reads a multiverse with what its repositories say about
+// themselves, looking for each in the directories given.
+func (ManifestLoader) LoadMerged(path string, dirs func(repoKey string) []string) (*domain.Manifest, error) {
+	return manifest.LoadMerged(path, dirs)
+}
+
 func (ManifestLoader) Decode(data []byte, dir string) (*domain.Manifest, error) {
 	return manifest.Decode(data, dir)
 }

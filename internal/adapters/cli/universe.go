@@ -145,6 +145,7 @@ func (r runner) checkoutCmd() *cobra.Command {
 
 func (r runner) upCmd() *cobra.Command {
 	var with []string
+	var failFast, rebind bool
 	cmd := &cobra.Command{
 		Use:     "up <universe> [app ...]",
 		Aliases: []string{"start"},
@@ -153,13 +154,16 @@ func (r runner) upCmd() *cobra.Command {
 		Args:    cobra.ArbitraryArgs,
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
+	wait := waitFlags(cmd)
+	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "reconfigure the shared proxy even though universes of other multiverses are served through it")
+	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others, report the failures at the end, exit non-zero)")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
 			args, err := r.universeArgs(cmd, args, s)
 			if err != nil {
 				return err
 			}
-			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with})
+			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with, FailFast: failFast, RebindProxy: rebind, Wait: wait()})
 		})(cmd, args)
 	}
 	return cmd
@@ -280,6 +284,11 @@ func (r runner) lsCmd() *cobra.Command {
 			}
 			if f.table {
 				lsTable(r.out, list, f.wide)
+				if f.wide { // the services are only known when they were asked for
+					for _, note := range partialNotes(list) {
+						r.out.Warn("%s", note)
+					}
+				}
 			}
 			if f.list {
 				if f.table {
@@ -818,6 +827,13 @@ func (r runner) universeConfigCmd() *cobra.Command {
 			}
 			r.out.Plain("manifest   %s", rep.Path)
 			r.out.Plain("sha256     %s", rep.SHA256[:16])
+			for _, f := range rep.RepoFiles {
+				from := "this universe's checkout"
+				if f.FromClone {
+					from = "the shared clone"
+				}
+				r.out.Plain("repo file  %s: %s (%s)", f.Repo, f.Path, from)
+			}
 			if len(rep.Problems) == 0 {
 				r.out.OK("it loads without complaint")
 			} else {
@@ -885,6 +901,9 @@ func (r runner) universeStatusCmd() *cobra.Command {
 				{Text: joinPairs(u.Branches)}, {Text: strings.TrimSpace(u.PR + " " + u.Note), Style: dim}})
 		}
 		r.out.Cells([]string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCHES", "NOTE"}, rows)
+		for _, note := range partialNotes(list) {
+			r.out.Warn("%s", note)
+		}
 		for _, u := range list {
 			var behind []string
 			for _, c := range u.Checkouts {
@@ -899,6 +918,37 @@ func (r runner) universeStatusCmd() *cobra.Command {
 		return nil
 	})
 	return cmd
+}
+
+// partialNotes says, for each universe that is partly up, which services are
+// not running and why, so "partial" is never left to be worked out from the
+// containers. What is off on purpose is not among them; it is named after,
+// so it is clear it was not counted.
+func partialNotes(list []app.Summary) []string {
+	var notes []string
+	for _, u := range list {
+		if state, _, _ := standing(u); state != "partial" {
+			continue
+		}
+		var down []string
+		for _, sf := range u.Shortfalls() {
+			item := sf.App + "/" + sf.Service + " " + sf.Why
+			if sf.Detail != "" && sf.Why != "not started" {
+				item += " (" + sf.Detail + ")"
+			}
+			down = append(down, item)
+		}
+		note := fmt.Sprintf("universe %s is partial: %s", u.Name, strings.Join(down, ", "))
+		if skipped := u.Skipped(); len(skipped) > 0 {
+			var parts []string
+			for _, key := range sortedKeys(skipped) {
+				parts = append(parts, key+" "+skipped[key])
+			}
+			note += "; not counted: " + strings.Join(parts, ", ")
+		}
+		notes = append(notes, note)
+	}
+	return notes
 }
 
 // standing reduces a universe to the one word a glance wants. Optional services

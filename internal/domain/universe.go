@@ -21,6 +21,14 @@ type Universe struct {
 	Multiverse string // absolute path to the multiverse root
 	Manifest   *Manifest
 	Branch     map[string]string // repo key -> branch checked out
+	// Install is the name this multiverse is installed under on the machine,
+	// when it is not the manifest's own (`start --as`). Two installs of one
+	// manifest would otherwise give the same universe the same compose project.
+	Install string
+	// Recorded is the project the universe was created with, as its state
+	// keeps it. Once a universe exists its project never changes, whatever
+	// the install is called now: its containers and volumes carry that name.
+	Recorded string
 }
 
 var (
@@ -107,7 +115,16 @@ func (u Universe) Slug() string {
 // Multiverse is the compose project name; it namespaces containers,
 // networks and volumes, which is what keeps universes from colliding.
 func (u Universe) Project() string {
-	return fmt.Sprintf("%s-%s", u.Manifest.Name, u.Slug())
+	if u.Recorded != "" {
+		return u.Recorded
+	}
+	name := u.Manifest.Name
+	// The default case, an install named like its manifest, keeps the name it
+	// has always had so that existing installs keep their projects.
+	if inst := Slugify(u.Install); inst != "" && inst != name {
+		name += "-" + inst
+	}
+	return fmt.Sprintf("%s-%s", name, u.Slug())
 }
 
 // ProjectFor is the compose project of one app. Apps of a universe get a

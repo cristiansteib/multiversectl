@@ -3,7 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -190,9 +190,9 @@ func (r runner) offerInstall(cmd *cobra.Command, c *app.Catalogs, res app.Projec
 		r.out.Info("start it later with: `%s`", hint)
 		return nil
 	}
-	ask := !yes && r.g.Root == "" && res.Root == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
+	ask := !yes && r.g.Root == "" && res.Root == "" && userdirs.RootEnv() == ""
 	_, err = r.install(cmd, []string{src}, app.InstallOptions{
-		Base: firstNonEmpty(os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse"), Root: firstNonEmpty(r.g.Root, res.Root),
+		Base: firstNonEmpty(userdirs.RootEnv(), userdirs.DefaultRoot()), Root: firstNonEmpty(r.g.Root, res.Root),
 	}, yes, ask)
 	return err
 }
