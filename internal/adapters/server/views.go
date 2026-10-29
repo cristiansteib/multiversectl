@@ -119,6 +119,7 @@ type appView struct {
 	Path     string        `json:"path"`
 	Running  int           `json:"running"`
 	Expected int           `json:"expected"`
+	OnDemand bool          `json:"onDemand,omitempty"`
 	URLs     []urlView     `json:"urls,omitempty"`
 	Services []serviceView `json:"services,omitempty"`
 }

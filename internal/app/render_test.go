@@ -335,13 +335,25 @@ type startRuntime struct {
 	app.Runtime
 	configAtUp []string // what the file held when the services were started; "" if absent
 	path       string
+	ups, downs []string        // compose projects started and brought down
+	running    []app.Container // what Containers reports
+}
+
+func (r *startRuntime) Down(_ context.Context, req app.RuntimeRequest, _ bool) error {
+	r.downs = append(r.downs, req.Project)
+	return nil
+}
+
+func (r *startRuntime) Containers(context.Context, string) ([]app.Container, error) {
+	return r.running, nil
 }
 
 func (r *startRuntime) Inspect(context.Context, app.RuntimeRequest) (app.ProjectConfig, error) {
 	return app.ProjectConfig{Services: map[string]app.ServiceConfig{"web": {}}}, nil
 }
 
-func (r *startRuntime) Up(context.Context, app.RuntimeRequest) error {
+func (r *startRuntime) Up(_ context.Context, req app.RuntimeRequest) error {
+	r.ups = append(r.ups, req.Project)
 	b, _ := os.ReadFile(r.path)
 	r.configAtUp = append(r.configAtUp, string(b))
 	return nil

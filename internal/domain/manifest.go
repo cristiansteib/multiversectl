@@ -141,6 +141,12 @@ type App struct {
 	Build   bool   // build images before starting
 	Hosts   map[string]HostRule
 
+	// OnDemand keeps the app out of a start that names no app: it is checked out
+	// and has its addresses like any other, but only runs when asked for by name.
+	// It is the negative so that the zero value, and every manifest written before
+	// the setting existed, still starts everything.
+	OnDemand bool
+
 	// Derived marks an app no one declared: one repository, everything by
 	// convention. Such an app may turn out to have no compose file at all,
 	// which is a repository with nothing to run rather than a mistake.
@@ -407,6 +413,18 @@ func (m *Manifest) RunnableApps() []string {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
+	return keys
+}
+
+// AutostartApps are the apps a start that names none brings up: every one but
+// those marked on demand.
+func (m *Manifest) AutostartApps() []string {
+	var keys []string
+	for _, key := range m.RunnableApps() {
+		if !m.Apps[key].OnDemand {
+			keys = append(keys, key)
+		}
+	}
 	return keys
 }
 

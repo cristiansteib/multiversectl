@@ -230,17 +230,25 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 	}
 	sort.Strings(appKeys)
 
+	containers, err := s.Runtime.Containers(ctx, st.Project)
+	// An app on demand that is not running is not started by anything, so a
+	// secret it lacks is not yet a problem: it is checked when it is started.
+	idle := func(appKey string) bool {
+		return err == nil && s.Manifest.Apps[appKey].OnDemand && runningFor(containers, u.ProjectFor(appKey)) == 0
+	}
 	for _, appKey := range appKeys {
 		for _, pair := range s.SecretPaths(u, appKey) {
-			if s.Files.Exists(pair.Dst) {
+			switch {
+			case s.Files.Exists(pair.Dst):
 				add("secret "+appKey, StatusOK, "%s", pair.Dst)
-			} else {
+			case idle(appKey):
+				add("secret "+appKey, StatusOK, "%s is not there yet; it is needed when the app is started", pair.Dst)
+			default:
 				add("secret "+appKey, StatusFail, "missing %s", pair.Dst)
 			}
 		}
 	}
 
-	containers, err := s.Runtime.Containers(ctx, st.Project)
 	if err != nil {
 		add("containers", StatusWarn, "%v", err)
 		return
@@ -249,6 +257,10 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 		// Each app runs as its own compose project, so that is the prefix
 		// its container names carry.
 		running := runningFor(containers, s.Universe(st.Name).ProjectFor(appKey))
+		if running == 0 && s.Manifest.Apps[appKey].OnDemand {
+			add("app "+appKey, StatusOK, "off, on demand (start it with: multiversectl universe up %s %s)", st.Name, appKey)
+			continue
+		}
 		add("app "+appKey, StatusOK, "%d running", running)
 		if running > 0 {
 			s.checkAddresses(ctx, add, st, appKey)

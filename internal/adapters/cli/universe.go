@@ -643,6 +643,9 @@ func stateText(svc app.ServiceStatus) string {
 	if svc.State == app.StateOptional {
 		return "off  " + svc.Detail
 	}
+	if svc.State == app.StateOff && svc.Detail == "on demand" {
+		return "off  on demand"
+	}
 	return string(svc.State)
 }
 

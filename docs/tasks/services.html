@@ -216,6 +216,18 @@
   <p class="muted">The group name is activated as a compose profile too. Comma-separate several: <code>--with celery,mail</code>.</p>
 </section>
 
+<section id="hw-autostart">
+  <h2 id="hw-autostart"><a href="#hw-autostart">Keep an app from starting by default</a></h2>
+  <p>An app that should exist in every universe but not run unless someone wants it &mdash; a tool that needs extra setup, a code generator, a heavy optional service &mdash; says so:</p>
+  <div class="code"><pre><span class="c"># multiverse.yaml, or the repository's own .multiverse.yaml</span>
+<span class="k">apps</span>:
+  - <span class="k">name</span>: codegen
+    <span class="k">autostart</span>: false</pre></div>
+  <div class="code"><pre><span class="p">$ </span>multiversectl universe up 3              <span class="c"># every app but codegen</span>
+<span class="p">$ </span>multiversectl universe up 3 codegen      <span class="c"># starts it</span></pre></div>
+  <p class="muted">An app with <code>autostart: false</code> is still checked out and has its addresses, so others can refer to it and starting it later needs nothing more. A start that names no app prints one line for each one it leaves out. <code>down</code>, <code>rm</code> and <code>hooks run</code> with no app named deal with it only while it is running; <code>doctor</code> and <code>ls</code> show it as off, on demand, not as a failure. Unlike <code>optional</code>, which adds services to an app that already starts, this decides whether the app starts at all; <code>--with</code> does not start it.</p>
+</section>
+
 <section id="hw-dynamic">
   <h2 id="hw-dynamic"><a href="#hw-dynamic">Configure what depends on the universe</a></h2>
   <p>A universe's hostnames do not exist until it does, so anything built from them — trusted origins, allowed hosts, CORS, a front-end's API base URL — is asked for with a label on the service that needs it:</p>
@@ -255,6 +267,7 @@
       <li><a href="#hw-select">Start the dev service and not the production one</a></li>
       <li><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></li>
       <li><a href="#hw-optional">Run optional services on demand</a></li>
+      <li><a href="#hw-autostart">Keep an app from starting by default</a></li>
       <li><a href="#hw-dynamic">Configure what depends on the universe</a></li>
     </ul>
   </aside>

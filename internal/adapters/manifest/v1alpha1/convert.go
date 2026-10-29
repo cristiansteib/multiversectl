@@ -121,6 +121,7 @@ func convertApp(a App) (domain.App, error) {
 		SecretTemplates: a.SecretTemplates,
 		Publish:         a.Publish,
 		Build:           a.Build,
+		OnDemand:        a.Autostart != nil && !*a.Autostart,
 		DefaultService:  a.DefaultService,
 		Optional:        map[string][]string{},
 		Hosts:           map[string]domain.HostRule{},
