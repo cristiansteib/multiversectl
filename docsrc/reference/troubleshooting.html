@@ -62,3 +62,8 @@
   <p>A multiverse installed under a name other than its manifest's (<code>start owner/repo --as copy</code>) puts that name in its compose projects (<code>acme-copy-u1-api</code>), so the clash does not arise for new installs; an install that predates this keeps the project it was created with until it is brought down and started again. An install named like its manifest keeps its project names unchanged.</p>
   <div class="code"><pre><span class="p">$ </span>multiversectl start owner/repo --as copy</pre></div>
 </section>
+
+<section id="ts-network-mode">
+  <h2 id="ts-network-mode"><a href="#ts-network-mode">A service with network_mode is not reachable through the proxy</a></h2>
+  <p>Compose refuses a service that sets both <code>network_mode</code> and <code>networks</code>, and the routing fragment joins every routed service to the proxy's network. So a service that sets <code>network_mode</code> (<code>host</code>, or <code>service:other</code>) is left out of the fragment: <code>up</code> warns <em>service "web" sets network_mode "host", so it cannot join the proxy's network and host web-u1.example.test cannot be reached through the proxy</em>, and the rest of the app starts. A <code>portForward</code> on that host is dropped with it, because the fragment cannot publish a port for such a service either; reach it on the host's own network, or route to a service on the default network instead.</p>
+</section>

@@ -123,7 +123,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		extraFiles, err := s.Router.Materialize(ctx, OverrideRequest{
 			Dir:       u.Dir(),
 			App:       appKey,
-			Routes:    s.Routes(st, appKey),
+			Routes:    s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg),
 			Unpublish: s.unpublished(appKey, defined, cfg),
 			Env:       serviceEnv,
 			Bind:      s.Manifest.BindAddress(),
@@ -159,6 +159,31 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	}
 	_, err = s.fire(ctx, domain.PostUp, st, multiverseHooks, nil, nil)
 	return err
+}
+
+// withoutUnroutable drops the routes to services that set network_mode. The
+// routing fragment joins a service to the proxy's network, and compose rejects
+// a service that has both network_mode and networks, which would fail the whole
+// app. A service in another network mode (host, or another container's) is not
+// on the proxy's network at all, so it cannot be reached through the proxy
+// whatever is written; a port forward is dropped with it, because the fragment
+// cannot publish a port for such a service either.
+func (s *Service) withoutUnroutable(appKey string, routes []Route, cfg ProjectConfig) []Route {
+	var out []Route
+	for _, r := range routes {
+		mode := cfg.Services[r.Service].NetworkMode
+		if mode == "" {
+			out = append(out, r)
+			continue
+		}
+		extra := ""
+		if r.HostPort > 0 {
+			extra = fmt.Sprintf("; its forwarded port %d is not published either (a service in network_mode %q is reached on that network directly)", r.HostPort, mode)
+		}
+		s.Out.Warn("%s: service %q sets network_mode %q, so it cannot join the proxy's network and host %s cannot be reached through the proxy%s",
+			appKey, r.Service, mode, r.Hostname, extra)
+	}
+	return out
 }
 
 // unpublished is every service that must not bind a host port: all of them,

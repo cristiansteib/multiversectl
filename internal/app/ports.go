@@ -228,9 +228,12 @@ type ProjectConfig struct {
 
 // ServiceConfig is one service as the runtime understands it.
 type ServiceConfig struct {
-	Labels map[string]string
-	Build  bool
-	Ports  []int // container ports it exposes or publishes
+	// NetworkMode is the service's network_mode ("host", "service:db", ...),
+	// which compose refuses to combine with a list of networks.
+	NetworkMode string
+	Labels      map[string]string
+	Build       bool
+	Ports       []int // container ports it exposes or publishes
 }
 
 // Names returns the service names, sorted.

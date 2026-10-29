@@ -323,9 +323,10 @@ func (c *Compose) Inspect(ctx context.Context, r app.RuntimeRequest) (app.Projec
 
 	var parsed struct {
 		Services map[string]struct {
-			Labels map[string]string `json:"labels"`
-			Build  json.RawMessage   `json:"build"`
-			Ports  []struct {
+			Labels      map[string]string `json:"labels"`
+			NetworkMode string            `json:"network_mode"`
+			Build       json.RawMessage   `json:"build"`
+			Ports       []struct {
 				Target int `json:"target"`
 			} `json:"ports"`
 			Expose []json.Number `json:"expose"`
@@ -351,7 +352,7 @@ func (c *Compose) Inspect(ctx context.Context, r app.RuntimeRequest) (app.Projec
 			}
 		}
 		sort.Ints(ports)
-		out.Services[name] = app.ServiceConfig{Labels: svc.Labels, Build: len(svc.Build) > 0, Ports: ports}
+		out.Services[name] = app.ServiceConfig{NetworkMode: svc.NetworkMode, Labels: svc.Labels, Build: len(svc.Build) > 0, Ports: ports}
 	}
 	return out, nil
 }
