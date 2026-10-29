@@ -153,6 +153,30 @@ web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.t
 </section>
 
 
+<section id="features">
+  <h2 id="features"><a href="#features">What it does</a></h2>
+  <p>The features that matter most, and where each is explained.</p>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Feature</th><th scope="col">What you get</th><th scope="col">Read more</th></tr></thead><tbody>
+  <tr><td data-l="Feature"><strong>The whole system per copy</strong></td><td data-l="What you get">A worktree of every repository on one branch, every app running, created, started, listed and removed as one. Numbered (<code>3</code>) or named after its branch (<code>fix/login</code>); one repository can follow another branch, or an existing one.</td><td data-l="Read more"><a href="tasks/branches.html">Work across branches</a></td></tr>
+  <tr><td data-l="Feature"><strong>Hostnames, not ports</strong></td><td data-l="What you get">One shared proxy routes <code>api-u3.&lt;domain&gt;</code> to the right copy. No universe publishes a port, so nothing collides and nothing needs port arithmetic.</td><td data-l="Read more"><a href="concepts/networking.html">Networking</a></td></tr>
+  <tr><td data-l="Feature"><strong>Open it from any device</strong></td><td data-l="What you get">With <code>expose: lan</code> every address resolves on your network, a phone included, with nothing installed; <code>local</code> keeps it to this machine; a domain of your own, or none at all and an IP and port per host.</td><td data-l="Read more"><a href="tasks/reach.html">Reach a universe</a></td></tr>
+  <tr><td data-l="Feature"><strong>Addresses handed to the services</strong></td><td data-l="What you get"><code>API_URL</code>, <code>MULTIVERSE_ORIGINS</code> and labels such as <code>dev.multiversectl.env.CSRF_TRUSTED_ORIGINS: origins</code> give each copy its own URLs and origins, so logins, callbacks and CORS work everywhere.</td><td data-l="Read more"><a href="concepts/labels.html#env">Labels</a>, <a href="reference/variables.html">Variables</a></td></tr>
+  <tr><td data-l="Feature"><strong>HTTPS</strong></td><td data-l="What you get">An entrypoint marked <code>tls</code>, with your own wildcard certificate or the proxy's, and every address then says <code>https://</code>. Backends that speak TLS or gRPC are reached with <code>scheme</code>.</td><td data-l="Read more"><a href="concepts/networking.html#tls">Serving https</a></td></tr>
+  <tr><td data-l="Feature"><strong>Your compose files, unchanged</strong></td><td data-l="What you get">A repository with one exposed port needs no configuration; labels say the rest and do nothing when you run compose by hand. What only this environment needs goes in an overlay.</td><td data-l="Read more"><a href="concepts/labels.html">Labels</a>, <a href="concepts/overlays.html">Overlays</a></td></tr>
+  <tr><td data-l="Feature"><strong>A database per copy</strong></td><td data-l="What you get">Volumes are namespaced per universe, so a migration on one branch never touches another's data, and removing a universe removes exactly what was its own.</td><td data-l="Read more"><a href="concepts/storage.html">Storage and data</a></td></tr>
+  <tr><td data-l="Feature"><strong>Hooks</strong></td><td data-l="What you get">Commands tied to a universe's life, in a container or on the machine: seed a user once, register the address with an identity provider, take it back on removal. Retries and failure policies included.</td><td data-l="Read more"><a href="tasks/services.html#hw-hooks">Hooks</a></td></tr>
+  <tr><td data-l="Feature"><strong>Rendered config files</strong></td><td data-l="What you get">A config file the app reads at startup, written from a template and the universe's values, kept out of git's sight.</td><td data-l="Read more"><a href="tasks/services.html#hw-render">Render</a></td></tr>
+  <tr><td data-l="Feature"><strong>Secrets</strong></td><td data-l="What you get">Files git does not hold, such as <code>.env</code>, copied into each universe from the clone, made from a template when missing; <code>doctor</code> fails before a universe half-starts without one.</td><td data-l="Read more"><a href="concepts/storage.html#secrets">Secrets</a></td></tr>
+  <tr><td data-l="Feature"><strong>Optional and on-demand apps</strong></td><td data-l="What you get">Groups of services started with <code>--with</code>, and apps that run only when named, so a copy starts what you need.</td><td data-l="Read more"><a href="tasks/services.html#hw-optional">Optional</a>, <a href="tasks/services.html#hw-autostart">Autostart</a></td></tr>
+  <tr><td data-l="Feature"><strong>Keep branches current</strong></td><td data-l="What you get"><code>universe sync</code> fetches and moves each checkout forward to what it follows, with <code>--merge</code> for one that has commits of its own; a branch is deleted with its universe only once its work is elsewhere.</td><td data-l="Read more"><a href="reference/cli.html">Commands</a></td></tr>
+  <tr><td data-l="Feature"><strong><code>doctor</code></strong></td><td data-l="What you get">Checks the machine, the proxy, the secrets and every address, and tells a running app from the proxy's own error pages.</td><td data-l="Read more"><a href="reference/troubleshooting.html">Troubleshooting</a></td></tr>
+  <tr><td data-l="Feature"><strong>A web view</strong></td><td data-l="What you get">Every universe, its containers, logs and use of the machine; what each branch adds and its pull request; buttons to start, stop, create and remove; pair a phone to it.</td><td data-l="Read more"><a href="tasks/server.html">In a browser</a></td></tr>
+  <tr><td data-l="Feature"><strong>Catalogs</strong></td><td data-l="What you get">An index of multiverses kept in git, which can nest other people's: a team says what exists, each machine installs what it needs.</td><td data-l="Read more"><a href="concepts/catalogs.html">Catalogs</a></td></tr>
+  <tr><td data-l="Feature"><strong>Made for agents too</strong></td><td data-l="What you get"><code>--json</code> on every command, <code>--help --json</code> to describe one, and a skill that tells an agent to work in a universe of its own.</td><td data-l="Read more"><a href="tasks/server.html#hw-agents">Agents</a></td></tr>
+  </tbody></table></div>
+</section>
+
 <section id="not">
   <h2 id="not"><a href="#not">What it is not</a></h2>
   <p>Knowing where it stops saves trying it for the wrong job.</p>
@@ -166,7 +190,7 @@ web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.t
   <tr><td data-l="It is not">An agent runner</td><td data-l="Because">It gives an agent a whole environment to work in; it does not start, prompt or supervise the agent.</td><td data-l="Use">Your agent, or a worktree manager, pointed at a universe</td></tr>
   <tr><td data-l="It is not">A way to share one database among copies</td><td data-l="Because">Each universe runs its own services, data included. That keeps branches apart, and it is what the machine's memory has to hold.</td><td data-l="Use">Fewer universes, or lighter services in an overlay</td></tr>
   </tbody></table></div>
-  <p><a href="start/compare.html">Compared with other tools</a> goes through the neighbours one by one, and when each is the better choice.</p>
+  <p><a href="start/compare.html">Compared with other tools</a> puts it next to its neighbours, feature by feature, and says when each is the better choice.</p>
 </section>
 
 <section id="where">
@@ -178,7 +202,7 @@ web  <span class="u">main</span>        <span class="a">http://app-u2.10-0-0-5.t
     </a>
     <a class="card" href="start/compare.html">
       <strong>Compared with other tools</strong>
-      <span>Compose per worktree, agent sandboxes, Tilt, Garden, previews: when to pick each instead.</span>
+      <span>A feature table next to Docktree, container-use, Tilt, Skaffold, Garden and Preevy.</span>
     </a>
     <a class="card" href="concepts/networking.html">
       <strong>Networking</strong>

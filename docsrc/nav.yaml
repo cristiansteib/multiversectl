@@ -30,8 +30,8 @@ groups:
         title: Compared with other tools
         nav: Compared with others
         summary: >-
-          Compose stacks per worktree, agent sandboxes, Tilt, Skaffold, Garden,
-          preview environments: what each is for, and when to pick it instead.
+          A feature table of multiversectl next to Docktree, container-use,
+          Tilt, Skaffold, Garden and Preevy, and when to pick another.
   - title: Concepts
     pages:
       - path: concepts/universes

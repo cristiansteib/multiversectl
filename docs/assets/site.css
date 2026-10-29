@@ -207,6 +207,10 @@ pre .c{color:var(--muted)}pre .k{color:var(--addr)}pre .p{color:var(--num);user-
    window's, because this site's middle column stays about the same at every
    desktop size. */
 .tw.entries{container-type:inline-size}
+/* A grid of marks, one column per tool: tighter cells and centred marks, so
+   eight columns fit the middle column without scrolling. */
+.tw.matrix th,.tw.matrix td{padding:7px 5px;font-size:.8125rem;text-align:center}
+.tw.matrix th:first-child,.tw.matrix td:first-child{text-align:left;padding-left:0}
 table{width:100%;border-collapse:collapse;font-size:.9rem}
 th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
 th{font:600 .8125rem var(--mono);color:var(--muted)}
