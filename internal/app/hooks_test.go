@@ -547,3 +547,34 @@ func TestForgettingOnceHooksOfAnAppLeavesTheOthersAlone(t *testing.T) {
 		t.Error("the state it was given must not change")
 	}
 }
+
+// startingDB cannot be asked until its second call, and then holds the data:
+// the hook's first try failed only because the database was not up yet.
+type startingDB struct {
+	Runtime
+	ran   []string
+	calls int
+}
+
+func (r *startingDB) ExecQuiet(_ context.Context, _ RuntimeRequest, _ string, args []string) (string, error) {
+	r.ran = append(r.ran, args[0])
+	if r.calls++; r.calls <= 2 {
+		return "", errors.New("could not connect to the database")
+	}
+	return "", nil // the check finds the rows
+}
+
+// A skipIf that could not ask is asked again before each retry, so a seed is
+// not loaded a second time once the database answers and has the data.
+func TestSkipIfIsAskedAgainBeforeEachRetry(t *testing.T) {
+	quickly(t)
+	rt := &startingDB{}
+	seed := domain.Hook{Name: "seed", SkipIf: []string{"check"}, Command: []string{"seed"}}
+	m := &domain.Manifest{Apps: map[string]domain.App{"api": {Repo: "api", Hooks: map[domain.HookEvent][]domain.Hook{domain.PostUp: {seed}}}}}
+	svc := New(Deps{Runtime: rt, Store: &savingStore{}, Out: &warnings{}, System: fakeSystem{}, Files: &tempFiles{}}, "/ws", m, "test")
+
+	afterUp(svc, domain.UniverseState{Name: "1"}, []string{"web"})
+	if got := strings.Join(rt.ran, " "); got != "check seed check" {
+		t.Errorf("ran %q: want the check, the failed seed, then the check that finds it done", got)
+	}
+}

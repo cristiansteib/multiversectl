@@ -168,17 +168,35 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 			byHand = fmt.Sprintf("multiversectl universe exec %s %s --service %s -- %s", st.Name, appKey, service, line)
 			where = "in " + service
 		}
-		// Asked once, without retries: a command that cannot run (the service is
-		// not answering yet) says the work is not known to be done, and the hook
-		// itself is then tried with its own patience.
-		if len(hook.SkipIf) > 0 && !manual {
-			if _, err := runCmd(ctx, hook.SkipIf); err == nil {
-				s.Out.Info("%s: %s is already done (`%s` succeeded), skipped", owner, what, shellLine(hook.SkipIf))
-				continue
+		// A failing skipIf says the work is not known to be done, which is also
+		// what it says when it could not ask yet (the service is still
+		// starting). So it is asked again before every retry: the retry that
+		// finds the service answering then sees the work done, instead of
+		// doing it a second time.
+		askSkip := len(hook.SkipIf) > 0 && !manual
+		isDone := func(ctx context.Context) bool {
+			if !askSkip {
+				return false
 			}
+			_, err := runCmd(ctx, hook.SkipIf)
+			return err == nil
+		}
+		skipped := func() {
+			s.Out.Info("%s: %s is already done (`%s` succeeded), skipped", owner, what, shellLine(hook.SkipIf))
+		}
+		if isDone(ctx) {
+			skipped()
+			continue
 		}
 		s.Out.Info("%s: running %s %s", owner, what, where)
-		try := func(ctx context.Context) (string, error) { return runCmd(ctx, hook.Command) }
+		tries, wasDone := 0, false
+		try := func(ctx context.Context) (string, error) {
+			if tries++; tries > 1 && isDone(ctx) {
+				wasDone = true
+				return "", nil
+			}
+			return runCmd(ctx, hook.Command)
+		}
 
 		attempt := func() (string, error) {
 			if hook.Timeout > 0 {
@@ -206,6 +224,10 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 				s.Out.Plain("%s", tail)
 			}
 			return st, nil
+		}
+		if wasDone {
+			skipped()
+			continue
 		}
 		s.Out.OK("%s: ran %s", owner, what)
 		if tail := lastLines(out, 20); tail != "" {
