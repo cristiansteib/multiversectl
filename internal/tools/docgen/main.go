@@ -12,6 +12,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"os"
@@ -92,6 +94,10 @@ type pageData struct {
 	TOC         []heading
 	Prev, Next  *link
 	Breadcrumbs []link
+	// V holds a version per asset, a hash of its content, so a page asks for
+	// a new URL whenever the file changes and no browser keeps an old
+	// stylesheet against a new page.
+	V map[string]string
 }
 
 const heroFragment = "_hero.html"
@@ -103,13 +109,34 @@ func main() {
 	if len(os.Args) != 3 {
 		fail("usage: docgen <src dir> <out dir>")
 	}
-	if err := render(os.Args[1], os.Args[2]); err != nil {
+	if err := render(os.Args[1], os.Args[2], filepath.Join(os.Args[2], "assets")); err != nil {
 		fail("%v", err)
 	}
 }
 
-// render writes every page of the site from src into out.
-func render(src, out string) error {
+// assetVersions hashes each asset the layout links to.
+func assetVersions(dir string) (map[string]string, error) {
+	v := map[string]string{}
+	for _, name := range []string{"site.css", "site.js"} {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return nil, err
+		}
+		sum := sha256.Sum256(b)
+		v[name] = hex.EncodeToString(sum[:4])
+	}
+	return v, nil
+}
+
+// render writes every page of the site from src into out. The assets are
+// written by hand rather than generated, so they are read from where they are
+// committed, which is out's own assets folder except under test.
+func render(src, out, assets string) error {
+	versions, err := assetVersions(assets)
+	if err != nil {
+		return err
+	}
+
 	var site nav
 	raw, err := os.ReadFile(filepath.Join(src, "nav.yaml"))
 	if err != nil {
@@ -142,6 +169,7 @@ func render(src, out string) error {
 			Hero:    p.Hero,
 			Content: template.HTML(content),
 			Nav:     menu(site, p),
+			V:       versions,
 		}
 		if p.Hero {
 			hero, err := os.ReadFile(filepath.Join(src, heroFragment))
