@@ -37,7 +37,7 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 		apps = s.withoutIdleOnDemand(ctx, st, apps)
 	}
 
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	if st, err = s.fire(ctx, domain.PreDown, st, multiverseHooks, nil, nil); err != nil {
 		return err
 	}

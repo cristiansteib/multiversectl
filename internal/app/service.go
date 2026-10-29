@@ -86,6 +86,15 @@ func (s *Service) Universe(name string) domain.Universe {
 	return domain.Universe{Name: name, Multiverse: s.Multiverse, Manifest: s.Manifest, Install: s.Install}
 }
 
+// UniverseOf is an existing universe, with the project its state records: one
+// made before installs were told apart, or under another install name, keeps
+// the project its containers and volumes already carry.
+func (s *Service) UniverseOf(st domain.UniverseState) domain.Universe {
+	u := s.Universe(st.Name)
+	u.Recorded = st.Project
+	return u
+}
+
 // Resolve finds the universe a command's argument names. The argument may be
 // the name as typed, the directory it lives in, or the slug that appears in
 // its hostnames, because all three are in front of the user at some point.
@@ -394,7 +403,7 @@ func (s *Service) withoutIdleOnDemand(ctx context.Context, st domain.UniverseSta
 	if err != nil {
 		return keys
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	var out []string
 	for _, key := range keys {
 		if s.Manifest.Apps[key].OnDemand && runningFor(containers, u.ProjectFor(key)) == 0 {

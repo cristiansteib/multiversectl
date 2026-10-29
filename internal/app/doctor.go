@@ -252,7 +252,7 @@ func (s *Service) checkDomain(ctx context.Context, add addCheck, st domain.Unive
 }
 
 func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.UniverseState) {
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	appKeys := make([]string, 0, len(s.Manifest.Apps))
 	for key := range s.Manifest.Apps {
 		appKeys = append(appKeys, key)
@@ -285,7 +285,7 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 	for _, appKey := range s.Manifest.RunnableApps() {
 		// Each app runs as its own compose project, so that is the prefix
 		// its container names carry.
-		running := runningFor(containers, s.Universe(st.Name).ProjectFor(appKey))
+		running := runningFor(containers, s.UniverseOf(st).ProjectFor(appKey))
 		if running == 0 && s.Manifest.Apps[appKey].OnDemand {
 			add("app "+appKey, StatusOK, "off, on demand (start it with: multiversectl universe up %s %s)", st.Name, appKey)
 			continue

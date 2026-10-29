@@ -81,7 +81,7 @@ func (s *Service) Render(ctx context.Context, in RenderInput) error {
 	if err != nil {
 		return err
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	rendered := false
 	for _, appKey := range apps {
 		if len(s.Manifest.Apps[appKey].Render) == 0 {

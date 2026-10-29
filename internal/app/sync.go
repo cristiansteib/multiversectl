@@ -152,7 +152,7 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 		return nil, domain.ErrNoManifest
 	}
 	s = s.forUniverseOrSelf(st.Name)
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	fetched := map[string]bool{}
 	var out []SyncResult
 	repos := make([]string, 0, len(st.Branches))
@@ -324,7 +324,7 @@ func (s *Service) behindHint(ctx context.Context, st domain.UniverseState) strin
 	if s.Manifest == nil {
 		return ""
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	var behind []string
 	for _, repo := range mapKeys(st.Branches) {
 		dir := u.RepoDir(repo)

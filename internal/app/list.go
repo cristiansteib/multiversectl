@@ -147,7 +147,7 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 			Slug:        st.Slug,
 			Project:     st.Project,
 			Domain:      st.Domain,
-			Dir:         s.Universe(st.Name).Dir(),
+			Dir:         s.UniverseOf(st).Dir(),
 			Branches:    st.Branches,
 			Hosts:       st.Hosts,
 			Running:     countRunning(containers),
@@ -177,7 +177,7 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 	if s.Manifest == nil {
 		return nil
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 
 	out := make([]AppSummary, 0, len(s.Manifest.Apps))
 	for _, key := range mapKeys(s.Manifest.Apps) {
@@ -235,7 +235,7 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 // manifest declares, and any the state remembers from a manifest that has
 // since changed — a directory that exists is worth naming either way.
 func (s *Service) checkouts(st domain.UniverseState) []Checkout {
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	owner := map[string]string{}
 	if s.Manifest != nil {
 		for _, key := range mapKeys(s.Manifest.Apps) {

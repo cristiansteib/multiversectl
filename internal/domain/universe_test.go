@@ -129,3 +129,13 @@ func TestProjectNamesTheInstallWhenItDiffersFromTheManifest(t *testing.T) {
 		t.Errorf("ProjectFor = %q", got)
 	}
 }
+
+// A universe made before installs were told apart, or under a name the install
+// has since changed, keeps the project its state records: its containers and
+// volumes carry that name, and a new one would start a second set beside them.
+func TestAnExistingUniverseKeepsItsRecordedProject(t *testing.T) {
+	u := Universe{Name: "1", Manifest: &Manifest{Name: "acme"}, Install: "platform", Recorded: "acme-u1"}
+	if got := u.ProjectFor("api"); got != "acme-u1-api" {
+		t.Errorf("ProjectFor = %q, want the recorded acme-u1-api", got)
+	}
+}

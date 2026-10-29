@@ -109,7 +109,7 @@ func (s *Service) runHooks(ctx context.Context, ev domain.HookEvent, st domain.U
 	if len(hooks) == 0 {
 		return st, nil
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	env := s.hookEnv(u, st, ev, appKey)
 	owner := cmp.Or(appKey, "multiverse")
 
@@ -404,7 +404,7 @@ func (s *Service) RunHooks(ctx context.Context, universe string, ev domain.HookE
 		// Asked of the compose files only when a command in a service does not name
 		// one, since it is what lets an app with a single service leave it out.
 		if appKey != multiverseHooks && needsService(hooks, s.Manifest.Apps[appKey]) {
-			if cfg, err := s.inspect(ctx, s.Universe(st.Name), appKey); err == nil {
+			if cfg, err := s.inspect(ctx, s.UniverseOf(st), appKey); err == nil {
 				services = cfg.Names()
 			}
 		}

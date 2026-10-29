@@ -25,6 +25,10 @@ type Universe struct {
 	// when it is not the manifest's own (`start --as`). Two installs of one
 	// manifest would otherwise give the same universe the same compose project.
 	Install string
+	// Recorded is the project the universe was created with, as its state
+	// keeps it. Once a universe exists its project never changes, whatever
+	// the install is called now: its containers and volumes carry that name.
+	Recorded string
 }
 
 var (
@@ -111,6 +115,9 @@ func (u Universe) Slug() string {
 // Multiverse is the compose project name; it namespaces containers,
 // networks and volumes, which is what keeps universes from colliding.
 func (u Universe) Project() string {
+	if u.Recorded != "" {
+		return u.Recorded
+	}
 	name := u.Manifest.Name
 	// The default case, an install named like its manifest, keeps the name it
 	// has always had so that existing installs keep their projects.

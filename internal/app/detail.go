@@ -38,7 +38,7 @@ func (s *Service) containersOf(ctx context.Context, st domain.UniverseState) ([]
 	if err != nil {
 		return nil, err
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	appOf := map[string]string{}
 	for key := range s.Manifest.Apps {
 		appOf[u.ProjectFor(key)] = key
@@ -146,7 +146,7 @@ func (s *Service) ProjectStats(ctx context.Context) ([]StatRow, error) {
 	type owner struct{ universe, app string }
 	owners := map[string]owner{}
 	for _, st := range states {
-		u := s.Universe(st.Name)
+		u := s.UniverseOf(st)
 		for key := range s.Manifest.Apps {
 			owners[u.ProjectFor(key)] = owner{st.Name, key}
 		}
@@ -216,7 +216,7 @@ func (s *Service) Restart(ctx context.Context, in RestartInput) error {
 	for _, r := range rows {
 		if r.App == in.App && r.Service == in.Service {
 			s.Out.Info("restarting %s/%s in universe %s", in.App, in.Service, st.Name)
-			return s.Runtime.Restart(ctx, s.request(s.Universe(st.Name), st, in.App, nil), in.Service)
+			return s.Runtime.Restart(ctx, s.request(s.UniverseOf(st), st, in.App, nil), in.Service)
 		}
 	}
 	return fmt.Errorf("universe %s has no container for %s/%s: %w", st.Name, in.App, in.Service, domain.ErrNotFound)

@@ -52,14 +52,14 @@ func TestDoctorShowsAnIdleAppOnDemandAsOffNotAsAFailure(t *testing.T) {
 }
 
 func TestDoctorStillCountsAnAppOnDemandThatIsRunning(t *testing.T) {
-	probe := onDemandService(nil)
-	project := probe.Universe("3").ProjectFor("tool")
+	st := domain.UniverseState{Name: "3", Slug: "3", Project: "acme-3"}
+	project := onDemandService(nil).UniverseOf(st).ProjectFor("tool")
 	up := Container{Name: project + "-web-1", Project: project, Service: "web", Status: "Up 2 minutes"}
 	svc := onDemandService(idleRuntime{containers: []Container{up}})
 	var got []Check
 	svc.checkUniverse(context.Background(), func(name string, status Status, format string, a ...any) {
 		got = append(got, Check{Name: name, Status: status, Detail: strings.TrimSpace(format)})
-	}, domain.UniverseState{Name: "3", Slug: "3", Project: "acme-3"})
+	}, st)
 	if got[0].Status != StatusFail {
 		t.Errorf("a missing secret of a running app must fail: %+v", got[0])
 	}

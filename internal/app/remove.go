@@ -43,7 +43,7 @@ func (s *Service) Unsaved(ctx context.Context, name string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	var dirty []string
 	for _, repoKey := range sortedRepoKeys(s.Manifest.Repos) {
 		dest := u.RepoDir(repoKey)
@@ -84,7 +84,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 	}
 	defer unlockUniverse()
 	s = s.forUniverseOrSelf(st.Name)
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 
 	// Asked before anything is destroyed, not repository by repository: half a
 	// universe removed and then a refusal is worse than either answer.

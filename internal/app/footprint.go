@@ -41,7 +41,7 @@ func (s *Service) ProjectFootprint(ctx context.Context, name string) ([]Item, er
 	}
 	inUse := map[string]map[string]bool{} // repo key -> branches a universe is on
 	for _, st := range states {
-		u := s.Universe(st.Name)
+		u := s.UniverseOf(st)
 		it := Item{Kind: "universe", What: fmt.Sprintf("universe %s of %s", st.Name, name), Path: u.Dir(), Size: -1,
 			Remove: fmt.Sprintf("multiversectl -m %s universe rm %s", name, st.Name)}
 		var notes []string

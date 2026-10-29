@@ -95,7 +95,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if err != nil {
 		return err
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	s.KeepClonesCurrent(ctx)
 	s.say(1, "universe `%s`: starting %s", st.Name, strings.Join(apps, ", "))
 
@@ -479,7 +479,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 	if _, ok := s.Manifest.Apps[in.App]; !ok {
 		return fmt.Errorf("app %q: %w in the manifest", in.App, domain.ErrNotFound)
 	}
-	u := s.Universe(st.Name)
+	u := s.UniverseOf(st)
 	req := s.request(u, st, in.App, nil)
 
 	service := in.Service
