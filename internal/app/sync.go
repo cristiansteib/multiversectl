@@ -259,7 +259,18 @@ func (s *Service) KeepClonesCurrent(ctx context.Context) {
 	}
 }
 
-// forwardClones moves each clone forward to origin's default branch when that
+// cloneTarget is the branch a clone follows: the repository's base when the
+// clone is on it (repos.<key>.base), else origin's default branch.
+func (s *Service) cloneTarget(ctx context.Context, key, dir string) (string, error) {
+	if base, err := s.baseBranch(ctx, key, dir); err == nil {
+		if cur, _ := s.Git.CurrentBranch(ctx, dir); cur == base {
+			return base, nil
+		}
+	}
+	return s.Git.DefaultBranch(ctx, dir)
+}
+
+// forwardClones moves each clone forward to the branch it follows when that
 // loses nothing: a clone with changes, on a branch of its own or with commits
 // of its own is left alone and reported. Clones that are current are not listed.
 func (s *Service) forwardClones(ctx context.Context, keys []string) []CloneResult {
@@ -270,7 +281,7 @@ func (s *Service) forwardClones(ctx context.Context, keys []string) []CloneResul
 			continue
 		}
 		res := CloneResult{Repo: key}
-		def, err := s.Git.DefaultBranch(ctx, dir)
+		def, err := s.cloneTarget(ctx, key, dir)
 		if err != nil {
 			continue
 		}
@@ -298,8 +309,8 @@ func (s *Service) forwardClones(ctx context.Context, keys []string) []CloneResul
 	return out
 }
 
-// CloneFreshness measures every clone against origin's default branch, as of
-// the last fetch, for a view that shows which ones are behind.
+// CloneFreshness measures every clone against the branch it follows, as of the
+// last fetch, for a view that shows which ones are behind.
 func (s *Service) CloneFreshness(ctx context.Context) map[string]Freshness {
 	out := map[string]Freshness{}
 	if s.Manifest == nil {
@@ -310,7 +321,7 @@ func (s *Service) CloneFreshness(ctx context.Context) map[string]Freshness {
 		if !s.Files.Exists(dir) {
 			continue
 		}
-		if def, err := s.Git.DefaultBranch(ctx, dir); err == nil {
+		if def, err := s.cloneTarget(ctx, key, dir); err == nil {
 			out[key] = s.freshnessOf(ctx, dir, def)
 		}
 	}

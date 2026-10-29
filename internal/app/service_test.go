@@ -317,6 +317,7 @@ func TestEnvLabelSourcesCanBeCombined(t *testing.T) {
 		"universe+slug+domain:semicolon":    "3;u3;example.test",
 		"origins+url:web:space":             "http://api-u3.example.test http://web-u3.example.test http://192.0.2.7:41000",
 		"hosts+host:web+universe:semicolon": "api-u3.example.test;web-u3.example.test;3",
+		"origins + url:web:space":           "http://api-u3.example.test http://web-u3.example.test http://192.0.2.7:41000",
 	} {
 		got, err := svc.resolveEnvSource(source, st, hosts, origins)
 		if err != nil || got != want {
@@ -335,5 +336,12 @@ func TestEnvLabelSourcesCanBeCombined(t *testing.T) {
 		if _, err := svc.resolveEnvSource(bad, st, hosts, origins); err == nil {
 			t.Errorf("%q: want an error", bad)
 		}
+	}
+	// A host that is not forwarded at all has no forwarded address to give,
+	// combined or not: that is a mistake to say, not one to leave out.
+	st.Hosts["db"] = "db-u3.example.test"
+	st.Rules["db"] = domain.RouteRule{Entrypoint: "web"}
+	if _, err := svc.resolveEnvSource("forward:db+url:web", st, hosts, origins); err == nil {
+		t.Error("forward of a host that is not forwarded: want an error")
 	}
 }

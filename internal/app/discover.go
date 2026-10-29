@@ -380,6 +380,10 @@ func orWeb(entrypoint string) string {
 // is not an error, as in origins; a host that does not exist is.
 func (s *Service) combineSources(source string, st domain.UniverseState, hosts, origins []string) (string, error) {
 	terms := strings.Split(source, "+")
+	// Spaces around a "+" are for reading: `origins + hosts:space`.
+	for i := range terms {
+		terms[i] = strings.TrimSpace(terms[i])
+	}
 	joiner := separators["comma"]
 	last := len(terms) - 1
 	if i := strings.LastIndex(terms[last], ":"); i >= 0 {
@@ -406,7 +410,10 @@ func (s *Service) combineSources(source string, st domain.UniverseState, hosts, 
 			return "", fmt.Errorf("%q: a separator goes once, at the end of the whole value", term)
 		default:
 			if key, ok := strings.CutPrefix(term, srcForward); ok {
-				if _, known := st.Hosts[key]; known && st.Rules[key].ForwardURL == "" {
+				// Only a host that is forwarded and has no port yet is left
+				// out; one that is not forwarded at all is the error it is
+				// on its own.
+				if rule := st.Rules[key]; domain.Forwarded(rule.PortForward) && rule.ForwardURL == "" {
 					continue
 				}
 			}

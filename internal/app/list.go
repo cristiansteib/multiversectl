@@ -457,7 +457,9 @@ func whyDown(svc ServiceStatus) string {
 	}
 	detail := strings.ToLower(svc.Detail)
 	switch {
-	case strings.HasPrefix(detail, "exited (0)"):
+	// `docker stop` ends a container with SIGTERM, or SIGKILL after the grace
+	// period: 143 and 137 are a service someone stopped, not one that failed.
+	case strings.HasPrefix(detail, "exited (0)"), strings.HasPrefix(detail, "exited (143)"), strings.HasPrefix(detail, "exited (137)"):
 		return "stopped"
 	case strings.HasPrefix(detail, "exited"), strings.HasPrefix(detail, "restarting"), strings.HasPrefix(detail, "dead"):
 		return "failed"
