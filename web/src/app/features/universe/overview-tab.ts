@@ -1,4 +1,4 @@
-import { isHttpUrl } from '../../core/util';
+import { changeSize, isHttpUrl } from '../../core/util';
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Badge } from '../../shared/ui/badge';
 import { EmptyState } from '../../shared/ui/empty-state';
@@ -37,10 +37,11 @@ export class OverviewTab {
   protected readonly store = inject(UniverseStore);
   protected readonly u = this.store.universe;
   protected readonly reasons = computed(() => { const u = this.u(); return u ? reasonsFor(u) : []; });
-  protected readonly apps = computed(() => (this.u()?.apps ?? []).map((a) => {
+  /** The apps with the most changes first; the manifest's order settles a tie, and an unread repository counts for nothing. */
+  protected readonly apps = computed(() => (this.u()?.apps ?? []).map((a, i) => {
     const row = this.store.code().get(a.repo);
-    return { app: a, rows: rowsOf(a), code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo) };
-  }));
+    return { app: a, rows: rowsOf(a), code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo), size: changeSize(row), i };
+  }).sort((a, b) => b.size - a.size || a.i - b.i));
   protected readonly webUrl = isHttpUrl;
 
   protected dot = (s: string): string => SERVICE_DOT[s] ?? '';

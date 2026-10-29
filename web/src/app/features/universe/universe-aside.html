@@ -20,7 +20,7 @@
         <ul class="plain">
           @for (r of reviews(); track r.repo) {
             <li>
-              <mv-pr-chip [review]="r.review" [error]="r.reviewError" />
+              <mv-pr-chip [review]="r.review" [error]="r.reviewError" [stat]="r.change" [base]="r.base" />
               <span class="from muted">{{ r.repo }}</span>
             </li>
           }

@@ -1,9 +1,17 @@
 import { signal } from '@angular/core';
-import { LocView } from './models';
+import { DiffView, LocView } from './models';
 
 /** A repository as a short name: owner/repo from a URL. */
 export const shortRepoName = (u: string): string =>
   u.replace(/^[a-z+]+:\/\//, '').replace(/^[^@/]*@/, '').replace(/:/, '/').replace(/\.git$/, '');
+
+/**
+ * How much a repository has changed: what its branch amounts to against the
+ * branch it will be merged into, and what is edited and not committed yet. It is
+ * what puts the work first where repositories are listed.
+ */
+export const changeSize = (row?: { change?: DiffView; uncommitted?: DiffView } | null): number =>
+  (row?.change ? row.change.added + row.change.removed : 0) + (row?.uncommitted ? row.uncommitted.added + row.uncommitted.removed : 0);
 
 /** Counting out loud, in the one place that knows the rule. */
 export const plural = (n: number, one: string, many = one + 's'): string => `${n} ${n === 1 ? one : many}`;

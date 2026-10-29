@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Ops } from '../../core/ops.service';
-import { ago, isHttpUrl } from '../../core/util';
+import { ago, changeSize, isHttpUrl } from '../../core/util';
 import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { Icon } from '../../shared/ui/icon';
@@ -28,9 +28,11 @@ export class UniverseAside {
   protected readonly ago = ago;
 
   protected readonly links = this.store.links;
-  protected readonly reviews = this.store.reviews;
+  protected readonly reviews = computed(() => [...this.store.reviews()].sort((a, b) => changeSize(b) - changeSize(a)));
 
-  protected readonly repos = computed(() => (this.u()?.checkouts ?? []).map((c) => ({ c, loc: this.store.places().get(c.repo) })));
+  protected readonly repos = computed(() => (this.u()?.checkouts ?? [])
+    .map((c, i) => ({ c, loc: this.store.places().get(c.repo), size: changeSize(this.store.code().get(c.repo)), i }))
+    .sort((a, b) => b.size - a.size || a.i - b.i));
 
   /** What was done to this universe in this session, newest first. */
   protected readonly activity = computed(() => this.ops.list()
