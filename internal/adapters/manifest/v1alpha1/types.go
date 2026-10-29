@@ -152,7 +152,7 @@ type Repo struct {
 	URL string `yaml:"url"`
 
 	// Clone directory name under the root. Defaults to the repository's own
-	// name, as git would clone it (fichero-api for .../fichero-api.git), so it
+	// name, as git would clone it (acme-api for .../acme-api.git), so it
 	// is rarely needed; set it when the directory on disk is called otherwise.
 	// A repository with no compose file is still checked out into every
 	// universe for editing, and nothing starts for it.
@@ -277,7 +277,7 @@ type Render struct {
 
 	// The file's permission, as an octal string. Default 0644. Use "0600" for a
 	// file that holds a credential.
-	// +pattern=^0?[0-7]{3,4}$
+	// +pattern=^0?([1-7][0-7]{2}|0[1-7][0-7]|00[1-7])$
 	Mode string `yaml:"mode"`
 
 	// Allow the file to replace one that git tracks. Without it that is an

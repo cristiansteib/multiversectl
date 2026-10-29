@@ -16,7 +16,7 @@ func TestAnOldConfigIsReadAndSavedUnderTheNewName(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	old := "catalog: https://github.com/me/index\nmultiverses:\n    fichero:\n        root: /w/fichero\n        manifest: /w/fichero/.multiverse/source/multiverse.yaml\n        from: personal/fichero\n"
+	old := "catalog: https://github.com/me/index\nmultiverses:\n    acme:\n        root: /w/acme\n        manifest: /w/acme/.multiverse/source/multiverse.yaml\n        from: personal/acme\n"
 	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestAnOldConfigIsReadAndSavedUnderTheNewName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e := cfg.Multiverses["fichero"]; e.Root != "/w/fichero" || e.From != "personal/fichero" {
+	if e := cfg.Multiverses["acme"]; e.Root != "/w/acme" || e.From != "personal/acme" {
 		t.Fatalf("not read: %+v", cfg)
 	}
 	if err := store.Save(cfg); err != nil {
@@ -39,7 +39,7 @@ func TestAnOldConfigIsReadAndSavedUnderTheNewName(t *testing.T) {
 		t.Errorf("saved under the wrong key:\n%s", saved)
 	}
 	again, err := store.Load()
-	if err != nil || again.Multiverses["fichero"].Root != "/w/fichero" {
+	if err != nil || again.Multiverses["acme"].Root != "/w/acme" {
 		t.Errorf("round trip: %+v, %v", again, err)
 	}
 }

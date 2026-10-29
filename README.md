@@ -3,7 +3,7 @@
 [![CI](https://github.com/cristiansteib/multiversectl/actions/workflows/ci.yml/badge.svg)](https://github.com/cristiansteib/multiversectl/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Run several complete copies — **universes** — of a multi-repository project on
+Run several complete copies — **universes** — of a system spread over several repositories on
 one machine, so you can work on branches in parallel without port collisions or
 stepping on your own checkouts.
 
@@ -14,7 +14,7 @@ stepping on your own checkouts.
 
 ## What it solves
 
-A multi-repository project usually has one development stack, and it can only be
+A system spread over several repositories usually has one development stack, and it can only be
 in one state at a time. The moment you want a second — a branch to review while
 yours keeps running, a migration to try on a throwaway database, an agent that
 needs a whole environment — the ports are taken, the containers and volumes have
