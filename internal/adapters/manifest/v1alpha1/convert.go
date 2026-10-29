@@ -37,6 +37,7 @@ func Convert(w *Multiverse, dir string) (*domain.Manifest, error) {
 			Kind:        orDefault(s.Proxy.Kind, defaultProxyKind),
 			Network:     orDefault(s.Proxy.Network, defaultNetwork),
 			Entrypoints: map[string]int{},
+			TLS:         map[string]bool{},
 		},
 		Repos: map[string]domain.Repo{},
 		Apps:  map[string]domain.App{},
@@ -49,6 +50,14 @@ func Convert(w *Multiverse, dir string) (*domain.Manifest, error) {
 		if err := put(m.Proxy.Entrypoints, "spec.proxy.entrypoints", i, e.Name, e.Port); err != nil {
 			return nil, err
 		}
+		if e.TLS {
+			m.Proxy.TLS[e.Name] = true
+		}
+	}
+	for _, c := range s.Proxy.Certificates {
+		m.Proxy.Certificates = append(m.Proxy.Certificates, domain.Certificate{
+			CertFile: certPath(c.CertFile, dir), KeyFile: certPath(c.KeyFile, dir),
+		})
 	}
 	if len(m.Proxy.Entrypoints) == 0 {
 		// Host rules default to "web", so a manifest with no entrypoints still needs one.
@@ -218,11 +227,15 @@ func ConvertPart(w *Multiverse, repoKey string) (*domain.Part, error) {
 	case s.Root != "", s.Expose != "", s.Domain != "", s.Branch != "", len(s.Env) > 0, s.Proxy.Kind != "", s.Proxy.Network != "", !s.Hooks.empty():
 		return nil, errors.New("only spec.apps and spec.proxy.entrypoints can be set here; root, expose, domain, branch, env, hooks and the proxy's kind and network belong to the multiverse")
 	}
-	p := &domain.Part{Apps: map[string]domain.App{}, Entrypoints: map[string]int{}}
+	if len(s.Proxy.Certificates) > 0 {
+		return nil, errors.New("spec.proxy.certificates: the certificates are the machine's, so they belong to the multiverse")
+	}
+	p := &domain.Part{Apps: map[string]domain.App{}, Entrypoints: map[string]int{}, TLS: map[string]bool{}}
 	for i, e := range s.Proxy.Entrypoints {
 		if err := put(p.Entrypoints, "spec.proxy.entrypoints", i, e.Name, e.Port); err != nil {
 			return nil, err
 		}
+		p.TLS[e.Name] = e.TLS
 	}
 	for i, a := range s.Apps {
 		if a.Repo != "" && a.Repo != repoKey {
@@ -310,6 +323,16 @@ func parseDuration(field, value string) (time.Duration, error) {
 
 func (h Hooks) empty() bool {
 	return len(h.PostCreate)+len(h.PreUp)+len(h.PostUp)+len(h.PreDown)+len(h.PostDown)+len(h.PreRemove)+len(h.After) == 0
+}
+
+// certPath resolves a certificate file named in the manifest. Empty stays
+// empty, for Validate to name.
+func certPath(p, dir string) string {
+	switch p = expandHome(p); {
+	case p == "", filepath.IsAbs(p):
+		return p
+	}
+	return filepath.Join(dir, p)
 }
 
 // parseMode reads a permission written the way chmod does. "" is the default.

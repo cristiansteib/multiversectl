@@ -61,3 +61,18 @@ func TestABaseIsABranchNotTheRemotes(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// An address on a TLS entrypoint says https, and leaves out 443 as an address
+// on a plain one leaves out 80.
+func TestAnOriginFollowsItsEntrypointsScheme(t *testing.T) {
+	m := &Manifest{Proxy: Proxy{Entrypoints: map[string]int{"web": 443, "devapi": 8443, "plain": 80, "alt": 8001},
+		TLS: map[string]bool{"web": true, "devapi": true}}}
+	for ep, want := range map[string]string{
+		"web": "https://api-u3.example.test", "devapi": "https://api-u3.example.test:8443",
+		"plain": "http://api-u3.example.test", "alt": "http://api-u3.example.test:8001",
+	} {
+		if got := m.Origin(ep, "api-u3.example.test"); got != want {
+			t.Errorf("%s: %s, want %s", ep, got, want)
+		}
+	}
+}

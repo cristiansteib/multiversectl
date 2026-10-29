@@ -20,6 +20,7 @@ import (
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/trace"
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 const proxyProject = "multiverse-proxy"
@@ -76,12 +77,25 @@ func (t *Traefik) EnsureUp(ctx context.Context, r app.ProxyRequest) error {
 	if bind == "" {
 		bind = "0.0.0.0"
 	}
-	data := struct {
-		Network     string
-		Socket      string
-		Bind        string
-		Entrypoints []entrypoint
-	}{r.Network, dockerSocket(), bind, sortedEntrypoints(r.Entrypoints)}
+	eps := sortedEntrypoints(r.Entrypoints)
+	for i := range eps {
+		eps[i].TLS = r.TLS[eps[i].Name]
+	}
+	certs, err := mountCertificates(r.Certificates)
+	if err != nil {
+		return err
+	}
+	data := proxyData{Network: r.Network, Socket: dockerSocket(), Bind: bind, Entrypoints: eps,
+		Certificates: certs, TLSFile: filepath.Join(filepath.Dir(file), "tls.yml")}
+	if len(certs) > 0 {
+		tls, err := render("tls.yml.tmpl", data)
+		if err != nil {
+			return err
+		}
+		if err := writeIfChanged(data.TLSFile, tls); err != nil {
+			return err
+		}
+	}
 	content, err := render("proxy.yml.tmpl", data)
 	if err != nil {
 		return err
@@ -115,6 +129,7 @@ func (t *Traefik) Status(ctx context.Context) (app.ProxyStatus, error) {
 	}
 	st.Entrypoints = parseEntrypoints(string(content))
 	st.Bind = parseBind(string(content))
+	st.TLS = parseTLS(string(content))
 
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "docker", "compose", "--project-name", proxyProject, "-f", file, "ps", "--format", "{{json .}}")
@@ -150,12 +165,48 @@ func (t *Traefik) Materialize(ctx context.Context, r app.OverrideRequest) ([]str
 type entrypoint struct {
 	Name string
 	Port int
+	TLS  bool
+}
+
+type proxyData struct {
+	Network      string
+	Socket       string
+	Bind         string
+	Entrypoints  []entrypoint
+	Certificates []mountedCert
+	TLSFile      string // the proxy's dynamic TLS configuration, on this machine
+}
+
+// mountedCert is a certificate's files on this machine and where the proxy's
+// container sees them.
+type mountedCert struct {
+	CertFile, KeyFile string
+	Cert, Key         string
+}
+
+// mountCertificates checks the files are there before they are mounted: docker
+// makes an empty directory of a bind mount's missing source, and the proxy
+// then starts presenting its own certificate with nothing said.
+func mountCertificates(certs []domain.Certificate) ([]mountedCert, error) {
+	var out []mountedCert
+	for i, c := range certs {
+		for _, f := range []string{c.CertFile, c.KeyFile} {
+			if info, err := os.Stat(f); err != nil {
+				return nil, fmt.Errorf("proxy certificate: %w", err)
+			} else if info.IsDir() {
+				return nil, fmt.Errorf("proxy certificate: %s is a directory, not a PEM file", f)
+			}
+		}
+		out = append(out, mountedCert{CertFile: c.CertFile, KeyFile: c.KeyFile,
+			Cert: fmt.Sprintf("/certs/%d/cert.pem", i), Key: fmt.Sprintf("/certs/%d/key.pem", i)})
+	}
+	return out, nil
 }
 
 func sortedEntrypoints(m map[string]int) []entrypoint {
 	out := make([]entrypoint, 0, len(m))
 	for name, port := range m {
-		out = append(out, entrypoint{name, port})
+		out = append(out, entrypoint{Name: name, Port: port})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
@@ -164,6 +215,16 @@ func sortedEntrypoints(m map[string]int) []entrypoint {
 var bindRe = regexp.MustCompile(`- "([0-9.]+):[0-9]+:[0-9]+"`)
 
 var entrypointRe = regexp.MustCompile(`--entrypoints\.([^.\s]+)\.address=:(\d+)`)
+
+var tlsRe = regexp.MustCompile(`--entrypoints\.([^.\s]+)\.http\.tls=true`)
+
+func parseTLS(content string) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range tlsRe.FindAllStringSubmatch(content, -1) {
+		out[m[1]] = true
+	}
+	return out
+}
 
 // parseBind reads the address the proxy publishes on out of its own compose
 // file, so a caller can tell that starting would move it.

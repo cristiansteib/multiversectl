@@ -163,11 +163,7 @@ func (s *Service) routeURL(route Route) string {
 	if route.ByIP {
 		return route.ForwardURL
 	}
-	port := s.Manifest.Proxy.Entrypoints[route.Entrypoint]
-	if port != 0 && port != 80 {
-		return fmt.Sprintf("http://%s:%d", route.Hostname, port)
-	}
-	return "http://" + route.Hostname
+	return s.Manifest.Origin(route.Entrypoint, route.Hostname)
 }
 
 // appSummaries describes each app of a universe, with the URLs its host rules

@@ -1,10 +1,14 @@
 package traefik
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
+	"gopkg.in/yaml.v3"
 )
 
 func TestOverride(t *testing.T) {
@@ -93,13 +97,8 @@ services:
 
 func TestProxyTemplateRoundTrip(t *testing.T) {
 	for _, bind := range []string{"0.0.0.0", "127.0.0.1"} {
-		data := struct {
-			Network     string
-			Socket      string
-			Bind        string
-			Entrypoints []entrypoint
-		}{"multiversenet", "/var/run/docker.sock", bind,
-			sortedEntrypoints(map[string]int{"web": 80, "devapi": 8001})}
+		data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Bind: bind,
+			Entrypoints: sortedEntrypoints(map[string]int{"web": 80, "devapi": 8001})}
 		got, err := render("proxy.yml.tmpl", data)
 		if err != nil {
 			t.Fatal(err)
@@ -161,5 +160,51 @@ func TestOverrideSaysWhenAServiceSpeaksH2c(t *testing.T) {
 		if want && !strings.Contains(string(content), scheme) {
 			t.Errorf("scheme %q is not in the labels:\n%s", scheme, content)
 		}
+	}
+}
+
+// A TLS entrypoint serves every router on it over https, and certificates of
+// one's own reach the proxy through its file provider: both are the proxy's
+// static configuration, and survive a round trip through Status.
+func TestProxyTemplateServesTLSWithTheGivenCertificates(t *testing.T) {
+	dir := t.TempDir()
+	cert, key := filepath.Join(dir, "wild.pem"), filepath.Join(dir, "wild-key.pem")
+	for _, f := range []string{cert, key} {
+		if err := os.WriteFile(f, []byte("pem"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	certs, err := mountCertificates([]domain.Certificate{{CertFile: cert, KeyFile: key}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eps := []entrypoint{{Name: "web", Port: 443, TLS: true}, {Name: "devapi", Port: 8001}}
+	data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Bind: "0.0.0.0", Entrypoints: eps,
+		Certificates: certs, TLSFile: filepath.Join(dir, "tls.yml")}
+	proxy, err := render("proxy.yml.tmpl", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"--entrypoints.web.http.tls=true", "--providers.file.filename=/etc/multiversectl/tls.yml",
+		cert + ":/certs/0/cert.pem:ro", key + ":/certs/0/key.pem:ro"} {
+		if !strings.Contains(string(proxy), want) {
+			t.Errorf("want %s in:\n%s", want, proxy)
+		}
+	}
+	var parsed struct {
+		Services map[string]struct{ Volumes []string } `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(proxy, &parsed); err != nil || len(parsed.Services["traefik"].Volumes) != 4 {
+		t.Errorf("not the compose file it should be (%v): %+v\n%s", err, parsed, proxy)
+	}
+	if tls := parseTLS(string(proxy)); !tls["web"] || tls["devapi"] {
+		t.Errorf("TLS read back as %v", tls)
+	}
+	conf, err := render("tls.yml.tmpl", data)
+	if err != nil || !strings.Contains(string(conf), "certFile: /certs/0/cert.pem") {
+		t.Errorf("tls.yml = %s, %v", conf, err)
+	}
+	if _, err := mountCertificates([]domain.Certificate{{CertFile: filepath.Join(dir, "missing.pem"), KeyFile: key}}); err == nil {
+		t.Error("a missing certificate must be refused: docker would mount an empty directory in its place")
 	}
 }

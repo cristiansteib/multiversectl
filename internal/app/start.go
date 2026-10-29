@@ -222,10 +222,12 @@ func (s *Service) ensureProxy(ctx context.Context, dom string) error {
 		return err
 	}
 	want := ProxyRequest{
-		Domain:      dom,
-		Entrypoints: s.Manifest.Proxy.Entrypoints,
-		Network:     network,
-		Bind:        s.Manifest.BindAddress(),
+		Domain:       dom,
+		Entrypoints:  s.Manifest.Proxy.Entrypoints,
+		Network:      network,
+		Bind:         s.Manifest.BindAddress(),
+		TLS:          s.Manifest.Proxy.TLS,
+		Certificates: s.Manifest.Proxy.Certificates,
 	}
 	// One machine has one shared proxy, so a second multiverse with different
 	// entrypoints or a different exposure takes it over. Say so: the other
@@ -279,6 +281,11 @@ func proxyChange(status ProxyStatus, want ProxyRequest) string {
 	if !samePorts(status.Entrypoints, want.Entrypoints) {
 		changes = append(changes, fmt.Sprintf("entrypoints %s instead of %s",
 			describePorts(want.Entrypoints), describePorts(status.Entrypoints)))
+	}
+	for _, name := range slices.Sorted(maps.Keys(want.Entrypoints)) {
+		if status.TLS[name] != want.TLS[name] && status.Entrypoints[name] != 0 {
+			changes = append(changes, fmt.Sprintf("entrypoint %s %s TLS", name, map[bool]string{true: "with", false: "without"}[want.TLS[name]]))
+		}
 	}
 	return strings.Join(changes, ", ")
 }

@@ -222,11 +222,7 @@ func (s *Service) originOf(st domain.UniverseState, hostKey, hostname string) st
 	if rule := st.Rules[hostKey]; byIP(rule) {
 		return rule.ForwardURL
 	}
-	port := s.Manifest.Proxy.Entrypoints[st.Rules[hostKey].Entrypoint]
-	if port != 0 && port != 80 {
-		return fmt.Sprintf("http://%s:%d", hostname, port)
-	}
-	return "http://" + hostname
+	return s.Manifest.Origin(st.Rules[hostKey].Entrypoint, hostname)
 }
 
 // expand resolves ${VAR} from the environment and the {{uid}} / {{gid}}

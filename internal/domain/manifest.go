@@ -63,6 +63,30 @@ type Proxy struct {
 	Kind        string // "traefik"
 	Entrypoints map[string]int
 	Network     string
+	// TLS names the entrypoints a browser reaches over https.
+	TLS map[string]bool
+	// Certificates are what those entrypoints present; with none, the proxy's
+	// own self-signed one, which a browser warns about once.
+	Certificates []Certificate
+}
+
+// Certificate is a certificate and its key, as files on this machine.
+type Certificate struct {
+	CertFile string
+	KeyFile  string
+}
+
+// Origin is how a browser addresses a hostname on an entrypoint: the scheme
+// it is served with, and the port when it is not that scheme's own.
+func (m *Manifest) Origin(entrypoint, hostname string) string {
+	scheme, standard := "http", 80
+	if m.Proxy.TLS[entrypoint] {
+		scheme, standard = "https", 443
+	}
+	if port := m.Proxy.Entrypoints[entrypoint]; port != 0 && port != standard {
+		return fmt.Sprintf("%s://%s:%d", scheme, hostname, port)
+	}
+	return scheme + "://" + hostname
 }
 
 // DomainNone is the domain that opts out of hostnames: a universe is reached by
@@ -374,6 +398,16 @@ func (m *Manifest) Validate() error {
 			byPort[port] = name
 		}
 	}
+	for _, name := range slices.Sorted(maps.Keys(m.Proxy.TLS)) {
+		if _, ok := m.Proxy.Entrypoints[name]; !ok {
+			errs = append(errs, fmt.Sprintf("proxy.tls: no entrypoint %q", name))
+		}
+	}
+	for i, c := range m.Proxy.Certificates {
+		if !filepath.IsAbs(c.CertFile) || !filepath.IsAbs(c.KeyFile) {
+			errs = append(errs, fmt.Sprintf("proxy.certificates[%d]: certFile and keyFile are both required", i))
+		}
+	}
 	errs = append(errs, validateHooks("hooks", m.Hooks, nil, false)...)
 	seenHost := map[string]string{}
 	for key, app := range m.Apps {
@@ -535,6 +569,8 @@ func ProxyClashes(aName string, a *Manifest, bName string, b *Manifest) []string
 			out = append(out, fmt.Sprintf("%s needs proxy entrypoint %q (port %d); starting %s reconfigures the proxy without it", aName, n, ap, bName))
 		} else if bp != ap {
 			out = append(out, fmt.Sprintf("entrypoint %q is port %d for %s and %d for %s; the proxy can only have one", n, ap, aName, bp, bName))
+		} else if a.Proxy.TLS[n] != b.Proxy.TLS[n] {
+			out = append(out, fmt.Sprintf("entrypoint %q is served over TLS for one of %s and %s and not the other; the proxy can only do one", n, aName, bName))
 		}
 	}
 	for _, n := range sortedEntrypoints(b.Proxy.Entrypoints) {
@@ -563,6 +599,7 @@ func sortedEntrypoints(m map[string]int) []string {
 type Part struct {
 	Apps        map[string]App
 	Entrypoints map[string]int
+	TLS         map[string]bool
 }
 
 // Merge adds what a repository says about itself. The apps it declares replace
@@ -598,6 +635,14 @@ func (m *Manifest) Merge(repoKey string, p Part) error {
 			continue
 		}
 		m.Proxy.Entrypoints[name] = port
+	}
+	for name, on := range p.TLS {
+		if on {
+			if m.Proxy.TLS == nil {
+				m.Proxy.TLS = map[string]bool{}
+			}
+			m.Proxy.TLS[name] = true
+		}
 	}
 	if len(errs) > 0 {
 		sort.Strings(errs)
