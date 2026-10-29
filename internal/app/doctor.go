@@ -307,6 +307,23 @@ func (s *Service) checkAddresses(ctx context.Context, add addCheck, st domain.Un
 	for _, route := range s.Routes(st, appKey) {
 		url := s.routeURL(route)
 		name := "url " + appKey + "/" + strings.TrimSuffix(route.Name, "-"+st.Slug)
+		// Not every host speaks HTTP: a gRPC service answers an HTTP/1.1 request
+		// with an error that says nothing about whether it is up.
+		switch probeFor(route) {
+		case "none":
+			continue
+		case "tcp", "grpc":
+			address, err := tcpAddress(url)
+			if err == nil {
+				err = s.System.Dial(ctx, address)
+			}
+			if err != nil {
+				add(name, StatusWarn, "%s does not accept connections: %v", url, shortError(err))
+			} else {
+				add(name, StatusOK, "%s accepts connections%s", url, map[bool]string{true: " (the gRPC health check is not run: multiversectl carries no gRPC client)", false: ""}[probeFor(route) == "grpc"])
+			}
+			continue
+		}
 		answer, err := s.System.Probe(ctx, url)
 		status := answer.Status
 		switch {
@@ -322,6 +339,18 @@ func (s *Service) checkAddresses(ctx context.Context, add addCheck, st domain.Un
 			add(name, StatusOK, "%s answers %d", url, status)
 		}
 	}
+}
+
+// probeFor is how doctor checks a host: what it says, else a TCP connection for
+// a service the proxy speaks h2c to, else an HTTP request.
+func probeFor(route Route) string {
+	switch {
+	case route.Probe != "":
+		return route.Probe
+	case route.Scheme == "h2c":
+		return "tcp"
+	}
+	return "http"
 }
 
 // runningFor counts running containers of an app's services, relying on the
