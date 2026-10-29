@@ -48,6 +48,9 @@ type page struct {
 	// Hero marks the one page that opens with the landing header instead of a
 	// title and a table of contents.
 	Hero bool `yaml:"hero"`
+	// NoTOC drops the "on this page" column, for a page whose content needs
+	// the width more than the reader needs the landmarks.
+	NoTOC bool `yaml:"notoc"`
 }
 
 func (p page) navLabel() string {
@@ -86,6 +89,10 @@ type pageData struct {
 	Summary string
 	Section string
 	Hero    bool
+	// Wide is set by a page that dropped its table of contents, so the layout
+	// can give the column that space. The hero page has no contents either,
+	// but it is not asking for the width.
+	Wide bool
 	// HeroHTML is the landing header, which sits outside the two-column
 	// layout; the one page that has one is marked in nav.yaml.
 	HeroHTML    template.HTML
@@ -167,6 +174,7 @@ func render(src, out, assets string) error {
 			Summary: p.Summary,
 			Section: sections[p.Path],
 			Hero:    p.Hero,
+			Wide:    p.NoTOC,
 			Content: template.HTML(content),
 			Nav:     menu(site, p),
 			V:       versions,
@@ -178,8 +186,10 @@ func render(src, out, assets string) error {
 			}
 			data.HeroHTML = template.HTML(hero)
 		}
-		if !p.Hero {
+		if !p.Hero && !p.NoTOC {
 			data.TOC = headings(string(content))
+		}
+		if !p.Hero {
 			data.Breadcrumbs = []link{
 				{Label: "Documentation", Href: root(p.Path) + "index.html"},
 				{Label: sections[p.Path]},

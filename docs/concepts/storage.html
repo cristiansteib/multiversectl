@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Storage and data &middot; multiversectl</title>
 <meta name="description" content="Where a universe&#39;s code, images, volumes and secrets live, which of them are shared, and what removing one destroys.">
-<meta name="theme-color" content="#11141b">
-<script>try{if(localStorage.getItem('theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}</script>
+<meta name="theme-color" content="#f5f7fa">
+<script>try{if(localStorage.getItem('theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
-<link rel="stylesheet" href="../assets/site.css?v=5fc1757f">
+<link rel="stylesheet" href="../assets/site.css?v=19139cfb">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -18,14 +18,14 @@
   <div class="wrap">
     <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
     <nav class="topnav" aria-label="Sections">
-      <a href="../index.html">Start</a>
-      <a href="../concepts/universes.html" aria-current="true">Concepts</a>
+      <a href="../index.html">Start here</a>
+      <a href="../start/concepts.html" aria-current="true">In depth</a>
       <a href="../tasks/branches.html">Tasks</a>
       <a href="../reference/cli.html">Reference</a>
       <a href="../reference/troubleshooting.html">Troubleshooting</a>
     </nav>
     <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
-    <button class="theme" id="theme" type="button" aria-label="Light theme" aria-pressed="false" hidden>
+    <button class="theme" id="theme" type="button" aria-label="Dark theme" aria-pressed="false" hidden>
       <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
       <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
     </button>
@@ -36,22 +36,26 @@
   <aside class="side" id="side">
     <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
     <nav id="sidenav" aria-label="Documentation">
-      <p class="nav-h">Start</p>
+      <p class="nav-h">Start here</p>
       <ul>
-        <li><a href="../index.html">Overview</a></li>
+        <li><a href="../index.html">Home</a></li>
+        <li><a href="../docs.html">Documentation</a></li>
+        <li><a href="../start/machine.html">On your machine</a></li>
+        <li><a href="../start/lifecycle.html">Life of a universe</a></li>
         <li><a href="../start/install.html">Install</a></li>
         <li><a href="../start/quickstart.html">Quick start</a></li>
-        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
-        <li><a href="../start/compare.html">Compared with others</a></li>
       </ul>
-      <p class="nav-h">Concepts</p>
+      <p class="nav-h">In depth</p>
       <ul>
+        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
+        <li><a href="../start/scope.html">What it does</a></li>
         <li><a href="../concepts/universes.html">Universes</a></li>
         <li><a href="../concepts/networking.html">Networking</a></li>
         <li><a href="../concepts/storage.html" aria-current="page">Storage and data</a></li>
         <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
         <li><a href="../concepts/labels.html">Labels</a></li>
         <li><a href="../concepts/catalogs.html">Catalogs</a></li>
+        <li><a href="../start/compare.html">Compared with others</a></li>
       </ul>
       <p class="nav-h">Tasks</p>
       <ul>
@@ -81,7 +85,7 @@
   </aside>
 
 <main id="main">
-  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Concepts</span>
+  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>In depth</span>
   </nav>
   <h1>Storage and data</h1>
   <p class="lede">Where a universe&#39;s code, images, volumes and secrets live, which of them are shared, and what removing one destroys.</p>
@@ -92,7 +96,7 @@
   <tr><td data-l="Thing">Checkouts</td><td data-l="Per universe">One worktree per repository</td><td data-l="Shared">The clone's git object store</td></tr>
   <tr><td data-l="Thing">Containers</td><td data-l="Per universe">One compose project per app</td><td data-l="Shared">The container runtime and its image cache</td></tr>
   <tr><td data-l="Thing">Volumes</td><td data-l="Per universe">Named after the app's multiverse</td><td data-l="Shared">Nothing</td></tr>
-  <tr><td data-l="Thing">Networks</td><td data-l="Per universe">One per app, plus the proxy network</td><td data-l="Shared">The proxy network</td></tr>
+  <tr><td data-l="Thing">Networks</td><td data-l="Per universe">One or more per app, made by compose</td><td data-l="Shared">Nothing: the proxy joins each app's own network</td></tr>
   <tr><td data-l="Thing">Secrets</td><td data-l="Per universe">Copied into each checkout</td><td data-l="Shared">The originals in the clone</td></tr>
   <tr><td data-l="Thing">Hostnames</td><td data-l="Per universe">One per host key</td><td data-l="Shared">The domain and the proxy's ports</td></tr>
   </tbody></table></div>
@@ -167,7 +171,7 @@ web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</pre></d
   <p>Two files appear in a universe's directory, both rewritten on every start and both safe to delete:</p>
   <div class="tw"><table>
   <thead><tr><th scope="col">File</th><th scope="col">What it is</th></tr></thead><tbody>
-  <tr><td data-l="File"><code>.multiverse-routes-&lt;app&gt;.yml</code></td><td data-l="What">The proxy labels and network, the dropped published ports, and the variables asked for by label.</td></tr>
+  <tr><td data-l="File"><code>.multiverse-routes-&lt;app&gt;.yml</code></td><td data-l="What">The proxy labels, the dropped published ports, and the variables asked for by label.</td></tr>
   <tr><td data-l="File"><code>.multiverse-overlay-&lt;app&gt;.yml</code></td><td data-l="What">The app's inline <code>overlay:</code> from the manifest, written out so the runtime can read it.</td></tr>
   </tbody></table></div>
   <p>They sit beside the checkouts rather than inside them, so they never show up in <code>git status</code>.</p>
@@ -212,6 +216,6 @@ web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</pre></d
   </div>
 </footer>
 <span class="sr" id="status" role="status" aria-live="polite"></span>
-<script src="../assets/site.js?v=0bae81de"></script>
+<script src="../assets/site.js?v=8a44a73d"></script>
 </body>
 </html>

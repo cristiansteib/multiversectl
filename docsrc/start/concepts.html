@@ -27,5 +27,5 @@
 <section id="not-vm">
   <h2 id="not-vm"><a href="#not-vm">It is not a virtual machine</a></h2>
   <p>A universe is a namespace, not a sandbox. It shares the kernel, the runtime, the image cache and the git object store — which is why a new one costs seconds and the second does not double your disk use — and keeps apart the four things that collide: checkouts, container names, volumes and hostnames.</p>
-  <p>So it is not isolated for security: anything in one universe can reach another's containers over the proxy network. And it is not reproducible the way an image is — it is your machine, with your daemon and your caches.</p>
+  <p>So it is not isolated for security: universes share your daemon and your user, so anything in one can start, stop or read the containers of another through the runtime, and reach any address the proxy serves. And it is not reproducible the way an image is — it is your machine, with your daemon and your caches.</p>
 </section>

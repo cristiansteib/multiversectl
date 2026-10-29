@@ -65,7 +65,7 @@
   <h2 id="generated"><a href="#generated">The generated fragment</a></h2>
   <p>Written before each start, and where the environment-specific mechanics live:</p>
   <ul class="t">
-    <li><strong>Proxy labels</strong> for every host rule, and the proxy network on the services that serve one.</li>
+    <li><strong>Proxy labels</strong> for every host rule, naming the app network the proxy reaches the service on.</li>
     <li><strong><code>ports: !reset []</code></strong> on every service not allowed to publish — <code>!reset</code> clears a sequence an earlier file set rather than adding to it.</li>
     <li><strong>An <code>environment:</code> block</strong> for the values a service asked for by label.</li>
   </ul>

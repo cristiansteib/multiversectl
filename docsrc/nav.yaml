@@ -1,17 +1,43 @@
 # The site's menu and its page order, read by internal/tools/docgen.
 # A page here needs a fragment of the same path; a fragment with no page here
 # is an error, because nothing would link to it.
+#
+# Two tiers, on purpose. "Start here" is the short visual answer to what this
+# is and how it hangs together: a figure a reader can take in at a glance, and
+# as little prose as the figure needs. Everything exhaustive — every field,
+# every flag, every edge — lives under the groups below it, and the simple
+# pages link down into them rather than repeating them.
 groups:
-  - title: Start
+  - title: Start here
     pages:
       - path: index
         title: multiversectl
-        nav: Overview
+        nav: Home
         hero: true
         summary: >-
           Run your whole multi-repository stack as many times as you need,
           side by side, on one machine. Every copy gets its own branch, its
-          own containers and its own hostnames.
+          own containers and its own hostnames — so reviews, agents and
+          benchmarks run in parallel instead of taking turns.
+      - path: docs
+        title: Documentation
+        nav: Documentation
+        summary: >-
+          How a universe is put together, and where everything else is: the
+          visual pages first, then the reference.
+      - path: start/machine
+        title: What's on your machine
+        nav: On your machine
+        summary: >-
+          One picture of it all: what the machine keeps and every universe
+          shares, what one universe owns, and what is rewritten on every
+          start — with networking, data and what is actually running.
+      - path: start/lifecycle
+        title: Life of a universe
+        notoc: true
+        summary: >-
+          What exists after new, up, down and rm, what each of them keeps,
+          and the order up does its work in.
       - path: start/install
         title: Install
         summary: One binary for Linux and macOS, from a script, mise, a .deb or source.
@@ -20,20 +46,20 @@ groups:
         summary: >-
           Describe a multiverse, create a universe and open it — from nothing to
           two running copies of a multiverse.
+  - title: In depth
+    pages:
       - path: start/concepts
         title: Concepts at a glance
         nav: Concepts at a glance
         summary: >-
           The five words this documentation uses — multiverse, universe, app,
           host and entrypoint — and how they fit together.
-      - path: start/compare
-        title: Compared with other tools
-        nav: Compared with others
+      - path: start/scope
+        title: What it does, and what it is not
+        nav: What it does
         summary: >-
-          A feature table of multiversectl next to Docktree, container-use,
-          Tilt, Skaffold, Garden and Preevy, and when to pick another.
-  - title: Concepts
-    pages:
+          Everything it gives you, feature by feature, and the jobs it is the
+          wrong tool for, with what to use instead.
       - path: concepts/universes
         title: Universes
         summary: >-
@@ -64,6 +90,12 @@ groups:
         summary: >-
           An index of multiverses and of other indexes, kept in git, that says
           what exists and leaves what is installed to each machine.
+      - path: start/compare
+        title: Compared with other tools
+        nav: Compared with others
+        summary: >-
+          A feature table of multiversectl next to Docktree, container-use,
+          Tilt, Skaffold, Garden and Preevy, and when to pick another.
   - title: Tasks
     pages:
       - path: tasks/branches

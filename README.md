@@ -189,8 +189,9 @@ and in the generated [schema](schema/multiverse.v1alpha1.yaml).
 
 Each universe is a git worktree of every repository plus one compose project per
 app, reached through a shared reverse proxy on per-universe hostnames. The
-routing labels, the proxy network and the dropping of published ports are
-generated per universe, so your compose files stay the ones you already run.
+routing labels and the dropping of published ports are generated per universe,
+so your compose files stay the ones you already run. The proxy joins each app's
+own network, so no universe sees another's services by name.
 
 The documentation goes into
 [networking](https://multiversectl.dev/concepts/networking.html),

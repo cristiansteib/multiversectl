@@ -49,22 +49,23 @@
     if (e.key === 'Escape' && side.classList.contains('open')) { drawer(false); toggle.focus(); }
   });
 
-  // Theme: dark unless the reader asked for light. The head applies a stored
+  // Theme: light unless the reader asked for dark. The head applies a stored
   // choice before the first paint; this keeps the button, the browser's bar
   // colour and the screenshots that come in a light version in step with it.
   var theme = d.getElementById('theme'), bar = d.querySelector('meta[name=theme-color]');
-  function paint(light) {
-    if (light) root.dataset.theme = 'light'; else delete root.dataset.theme;
-    theme.setAttribute('aria-pressed', light);
-    bar.content = light ? '#f5f7fa' : '#11141b';
-    [].forEach.call(d.querySelectorAll('source[data-light]'), function (s) { s.media = light ? 'all' : 'not all'; });
+  function paint(dark) {
+    if (dark) root.dataset.theme = 'dark'; else delete root.dataset.theme;
+    theme.setAttribute('aria-pressed', dark);
+    theme.setAttribute('aria-label', dark ? 'Light theme' : 'Dark theme');
+    bar.content = dark ? '#11141b' : '#f5f7fa';
+    [].forEach.call(d.querySelectorAll('source[data-light]'), function (s) { s.media = dark ? 'not all' : 'all'; });
   }
-  paint(root.dataset.theme === 'light');
+  paint(root.dataset.theme === 'dark');
   theme.hidden = false;
   theme.addEventListener('click', function () {
-    var light = root.dataset.theme !== 'light';
-    paint(light);
-    try { localStorage.setItem('theme', light ? 'light' : 'dark'); } catch (e) {}
+    var dark = root.dataset.theme !== 'dark';
+    paint(dark);
+    try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {}
   });
 
   // Escape closes a comparison note until the pointer or focus moves to
