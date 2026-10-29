@@ -2,10 +2,10 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -150,6 +150,14 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			return fmt.Errorf("host %q: scheme %q: want %s", hostKey, rule.Scheme, strings.Join(domain.Schemes, ", "))
 		}
 		rule.Entrypoint = orWeb(rule.Entrypoint)
+		if _, ok := s.Manifest.Proxy.Entrypoints[rule.Entrypoint]; !ok {
+			return fmt.Errorf("host %q: no proxy entrypoint %q: want one of spec.proxy.entrypoints (%s)",
+				hostKey, rule.Entrypoint, strings.Join(slices.Sorted(maps.Keys(s.Manifest.Proxy.Entrypoints)), ", "))
+		}
+		if n := len(hostKey) + 1 + len(u.Slug()); n > domain.DNSLabelLimit {
+			return fmt.Errorf("host %q: %s-%s is %d characters, over the %d a hostname's part has room for — shorten the host or the universe's name",
+				hostKey, hostKey, u.Slug(), n, domain.DNSLabelLimit)
+		}
 		if rule.PortForward != "" && !domain.Forwarded(rule.PortForward) {
 			return fmt.Errorf("host %q: portForward %q: want %s or %s", hostKey, rule.PortForward, domain.PortForwardAuto, domain.PortForwardOnly)
 		}
@@ -186,7 +194,11 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 		}
 		labelled := false
 		for _, service := range cfg.Names() {
-			for hostKey, rule := range rulesFromLabels(cfg.Services[service].Labels) {
+			fromLabels, err := rulesFromLabels(cfg.Services[service].Labels)
+			if err != nil {
+				return nil, fmt.Errorf("%s: service %s: %w", appKey, service, err)
+			}
+			for hostKey, rule := range fromLabels {
 				labelled = true
 				rule.App, rule.Service = appKey, service
 				if err := add(hostKey, rule); err != nil {
@@ -206,6 +218,15 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 		}
 		if err := add(appKey, rule); err != nil {
 			return nil, err
+		}
+	}
+	// An alias is a host key, and one that names no host would quietly stop a
+	// route answering under a hostname someone relies on.
+	for _, hostKey := range mapKeys(rules) {
+		for _, alias := range rules[hostKey].Aliases {
+			if _, ok := rules[alias]; !ok {
+				return nil, fmt.Errorf("host %q: alsoMatch names %q, which no app of this universe answers on", hostKey, alias)
+			}
 		}
 	}
 	return rules, nil
@@ -234,16 +255,14 @@ func soleExposedPort(appKey string, cfg ProjectConfig) (domain.RouteRule, error)
 	return found, nil
 }
 
-// rulesFromLabels reads one service's dev.multiversectl.host.* labels.
-func rulesFromLabels(labels map[string]string) map[string]domain.RouteRule {
+// rulesFromLabels reads one service's dev.multiversectl.host.* labels. A label
+// it cannot use is an error, not a host that quietly is not there: a typo in a
+// field or a port written as "8080/tcp" would otherwise leave nothing to say
+// why the address does not answer.
+func rulesFromLabels(labels map[string]string) (map[string]domain.RouteRule, error) {
 	out := map[string]domain.RouteRule{}
-	keys := make([]string, 0, len(labels))
-	for key := range labels {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	for _, key := range keys {
+	var errs []string
+	for _, key := range mapKeys(labels) {
 		rest, ok := strings.CutPrefix(key, hostLabel)
 		if !ok || rest == "" {
 			continue
@@ -251,32 +270,52 @@ func rulesFromLabels(labels map[string]string) map[string]domain.RouteRule {
 		// "dev.multiversectl.host.app" is the port; "dev.multiversectl.host.app.entrypoint"
 		// is a detail about that same host.
 		name, field, hasField := strings.Cut(rest, ".")
+		if !domain.ValidKey(name) {
+			errs = append(errs, fmt.Sprintf("%s: host %q: want lowercase letters, digits and dashes, as it becomes part of a hostname", key, name))
+			continue
+		}
 		rule := out[name]
+		value := labels[key]
 		switch {
 		case !hasField:
-			rule.Port, _ = strconv.Atoi(labels[key])
+			port, err := strconv.Atoi(strings.TrimSpace(value))
+			if err != nil || port <= 0 || port > 65535 {
+				errs = append(errs, fmt.Sprintf("%s: %q is not a port: want the number the service listens on inside its container", key, value))
+				continue
+			}
+			rule.Port = port
 		case field == "entrypoint":
-			rule.Entrypoint = labels[key]
+			rule.Entrypoint = value
 		case field == "portForward":
-			rule.PortForward = labels[key]
+			rule.PortForward = value
 		case field == "scheme":
-			rule.Scheme = labels[key]
+			rule.Scheme = value
 		case field == "aliases":
-			for _, alias := range strings.Split(labels[key], ",") {
+			for _, alias := range strings.Split(value, ",") {
 				if alias = strings.TrimSpace(alias); alias != "" {
 					rule.Aliases = append(rule.Aliases, alias)
 				}
 			}
+		default:
+			errs = append(errs, fmt.Sprintf("%s: no field %q: want %s", key, field, strings.Join(hostLabelFields, ", ")))
+			continue
 		}
 		out[name] = rule
 	}
-	for name, rule := range out {
-		if rule.Port == 0 {
-			delete(out, name) // a host without a port cannot be reached
+	for _, name := range mapKeys(out) {
+		if out[name].Port == 0 {
+			errs = append(errs, fmt.Sprintf("%s%s: required — the port the host's other labels are about", hostLabel, name))
+			delete(out, name)
 		}
 	}
-	return out
+	if len(errs) > 0 {
+		return out, errors.New(strings.Join(errs, "; "))
+	}
+	return out, nil
 }
+
+// hostLabelFields are what a dev.multiversectl.host.<name>.<field> label can say.
+var hostLabelFields = []string{"entrypoint", "aliases", "portForward", "scheme"}
 
 // publishes reports the services whose labels ask to keep their host ports.
 func publishes(cfg ProjectConfig) []string {
