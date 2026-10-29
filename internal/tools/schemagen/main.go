@@ -449,7 +449,7 @@ const labelsFooter = `
 #
 #   UNIVERSE, UNIVERSE_SLUG, UNIVERSE_DIR   its name, the part hostnames carry, its path
 #   MULTIVERSE_DOMAIN                       the wildcard domain in use
-#   MULTIVERSE_ROOT, MULTIVERSE_PROJECT     the project's root directory, and its name
+#   MULTIVERSE_ROOT, MULTIVERSE_PROJECT     the multiverse's root directory, and its name
 #   COMPOSE_PROJECT_NAME                    the app's compose project
 #   <HOST>_HOST                             one per host key, e.g. APP_HOST
 #   <HOST>_URL                              the same with scheme and port

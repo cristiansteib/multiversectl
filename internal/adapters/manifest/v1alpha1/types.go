@@ -277,7 +277,7 @@ type Render struct {
 
 	// The file's permission, as an octal string. Default 0644. Use "0600" for a
 	// file that holds a credential.
-	// +pattern=^0?[0-7]{3}$
+	// +pattern=^0?([1-7][0-7]{2}|0[1-7][0-7]|00[1-7])$
 	Mode string `yaml:"mode"`
 
 	// Allow the file to replace one that git tracks. Without it that is an
