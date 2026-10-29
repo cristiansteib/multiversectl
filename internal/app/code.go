@@ -151,7 +151,7 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready *readiness) Code
 		reviewed <- asked{r, e}
 	}()
 	clone := s.Manifest.CloneDir(s.Multiverse, c.Repo)
-	cs.Freshness = s.freshnessOf(ctx, c.Path, s.followed(ctx, clone, c.Branch))
+	cs.Freshness = s.freshnessOf(ctx, c.Path, s.followed(ctx, c.Repo, clone, c.Branch))
 	cs.Fetched = s.Git.LastFetch(ctx, clone)
 	// Only with a branch to measure against: asked with none, DiffStat answers
 	// a different question — what is edited and not committed — and the page
@@ -175,7 +175,7 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready *readiness) Code
 	cs.Review, cs.ReviewError = r.review, r.err
 	// What the branch amounts to is measured against what it is to be merged
 	// into: the review says which, and without one it is the default branch.
-	cs.Base = s.baseOf(ctx, clone, cs.Review)
+	cs.Base = s.baseOf(ctx, c.Repo, clone, cs.Review)
 	switch {
 	case cs.Base == "":
 	case workKnown && cs.Base == cs.Follows:
@@ -222,11 +222,11 @@ func (s *Service) reviewOf(ctx context.Context, ready *readiness, repoURL, branc
 	return nil, ""
 }
 
-func (s *Service) baseOf(ctx context.Context, clone string, r *Review) string {
+func (s *Service) baseOf(ctx context.Context, repoKey, clone string, r *Review) string {
 	if r != nil && r.Base != "" {
 		return r.Base
 	}
-	if def, err := s.Git.DefaultBranch(ctx, clone); err == nil {
+	if def, err := s.baseBranch(ctx, repoKey, clone); err == nil {
 		return def
 	}
 	return ""
@@ -303,7 +303,7 @@ func (s *Service) diffTarget(ctx context.Context, name, repo, scope, base string
 			if r, ok := s.Manifest.Repos[c.Repo]; ok {
 				review, _ = s.reviewOf(ctx, &readiness{}, r.URL, c.Branch)
 			}
-			if b := s.baseOf(ctx, clone, review); b != "" {
+			if b := s.baseOf(ctx, c.Repo, clone, review); b != "" {
 				return c.Path, b, nil
 			}
 			return "", "", fmt.Errorf("%s has no branch to measure against", repo)

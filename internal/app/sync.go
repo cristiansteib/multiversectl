@@ -25,7 +25,7 @@ func (f Freshness) Stale() bool { return f.Behind > 0 }
 
 // followed is the branch of origin a universe's checkout is compared with: its
 // own counterpart once it has been pushed, otherwise the branch it started from.
-func (s *Service) followed(ctx context.Context, clone, branch string) string {
+func (s *Service) followed(ctx context.Context, repoKey, clone, branch string) string {
 	if branch != "" && !strings.HasPrefix(branch, "origin/") {
 		// Asking for the distance to origin/<branch> fails when it has none.
 		if _, err := s.Git.Behind(ctx, clone, branch); err == nil {
@@ -35,7 +35,7 @@ func (s *Service) followed(ctx context.Context, clone, branch string) string {
 	if strings.HasPrefix(branch, "origin/") { // a detached checkout of a base
 		return strings.TrimPrefix(branch, "origin/")
 	}
-	def, err := s.Git.DefaultBranch(ctx, clone)
+	def, err := s.baseBranch(ctx, repoKey, clone)
 	if err != nil {
 		return ""
 	}
@@ -69,7 +69,7 @@ func (s *Service) withFreshness(ctx context.Context, st domain.UniverseState, li
 			continue
 		}
 		clone := s.Manifest.CloneDir(s.Multiverse, c.Repo)
-		f := s.freshnessOf(ctx, c.Path, s.followed(ctx, clone, c.Branch))
+		f := s.freshnessOf(ctx, c.Path, s.followed(ctx, c.Repo, clone, c.Branch))
 		list[i].Freshness = &f
 	}
 	return list
@@ -159,7 +159,7 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 			continue
 		}
 		s.refresh(ctx, clone, fetched)
-		follows := s.followed(ctx, clone, st.Branches[repo])
+		follows := s.followed(ctx, repo, clone, st.Branches[repo])
 		f := s.freshnessOf(ctx, dir, follows)
 		switch {
 		case follows == "":
@@ -287,7 +287,7 @@ func (s *Service) behindHint(ctx context.Context, st domain.UniverseState) strin
 			continue
 		}
 		clone := s.Manifest.CloneDir(s.Multiverse, repo)
-		if f := s.freshnessOf(ctx, dir, s.followed(ctx, clone, st.Branches[repo])); f.Behind > 0 {
+		if f := s.freshnessOf(ctx, dir, s.followed(ctx, repo, clone, st.Branches[repo])); f.Behind > 0 {
 			behind = append(behind, fmt.Sprintf("%s (%d commits behind origin/%s)", repo, f.Behind, f.Follows))
 		}
 	}

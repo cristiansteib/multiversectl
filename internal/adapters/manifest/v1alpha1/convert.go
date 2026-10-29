@@ -56,8 +56,9 @@ func Convert(w *Multiverse, dir string) (*domain.Manifest, error) {
 	}
 	for i, r := range s.Repos {
 		err := put(m.Repos, "spec.repos", i, r.Name, domain.Repo{
-			URL: r.URL,
-			Dir: orDefault(r.Dir, domain.DirFor(r.URL, r.Name)),
+			URL:  r.URL,
+			Dir:  orDefault(r.Dir, domain.DirFor(r.URL, r.Name)),
+			Base: r.Base,
 		})
 		if err != nil {
 			return nil, err
@@ -122,9 +123,16 @@ func convertApp(a App) (domain.App, error) {
 		Publish:         a.Publish,
 		Build:           a.Build,
 		OnDemand:        a.Autostart != nil && !*a.Autostart,
+		AutostartSet:    a.Autostart != nil,
 		DefaultService:  a.DefaultService,
 		Optional:        map[string][]string{},
 		Hosts:           map[string]domain.HostRule{},
+		Env:             map[string]string{},
+	}
+	for i, e := range a.Env {
+		if err := put(app.Env, "env", i, e.Name, e.Value); err != nil {
+			return app, err
+		}
 	}
 	hooks, err := convertHooks(a.Hooks)
 	if err != nil {

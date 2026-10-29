@@ -233,7 +233,7 @@ func (s *Service) dropBranch(ctx context.Context, st domain.UniverseState, repoK
 	if !owned || branch == "" || strings.HasPrefix(branch, "origin/") {
 		return
 	}
-	base, err := s.Git.DefaultBranch(ctx, clone)
+	base, err := s.baseBranch(ctx, repoKey, clone)
 	if err != nil {
 		s.Out.Info("%s: kept branch %s (%v)", repoKey, branch, err)
 		return

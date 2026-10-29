@@ -167,6 +167,24 @@ func (s *Service) runtimeEnv(u domain.Universe, st domain.UniverseState) map[str
 	return env
 }
 
+// appEnv is runtimeEnv with what the app sets on top of the multiverse.
+func (s *Service) appEnv(u domain.Universe, st domain.UniverseState, appKey string) map[string]string {
+	env := s.runtimeEnv(u, st)
+	for key, value := range s.Manifest.Apps[appKey].Env {
+		env[key] = s.expand(value)
+	}
+	return env
+}
+
+// baseBranch is what a repository's universe branches start from and are
+// measured against: the multiverse's word for it, or the remote's default.
+func (s *Service) baseBranch(ctx context.Context, repoKey, clone string) (string, error) {
+	if base := s.Manifest.Repos[repoKey].Base; base != "" {
+		return base, nil
+	}
+	return s.Git.DefaultBranch(ctx, clone)
+}
+
 // universeAddresses are every hostname of a universe and every one as an
 // origin, both in a stable order so a generated value does not churn.
 func (s *Service) universeAddresses(st domain.UniverseState) (hosts, origins []string) {
@@ -290,7 +308,7 @@ func (s *Service) request(u domain.Universe, st domain.UniverseState, appKey str
 		Files:    append(files, extraFiles...),
 		Profiles: profiles,
 		Services: services,
-		Env:      s.runtimeEnv(u, st),
+		Env:      s.appEnv(u, st, appKey),
 		WorkDir:  repoDir,
 	}
 }

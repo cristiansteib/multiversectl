@@ -38,3 +38,18 @@ func TestTheProxyIsChecked(t *testing.T) {
 		}
 	}
 }
+
+// A group that is only a profile starts nothing when the app names its
+// services, since compose then starts only those.
+func TestAnOptionalGroupWithoutServicesNeedsTheAppToLeaveThemOut(t *testing.T) {
+	m := &Manifest{Name: "acme", Domain: "example.test", Expose: ExposeLocal, Proxy: Proxy{Entrypoints: map[string]int{"web": 80}},
+		Repos: map[string]Repo{"api": {URL: "x"}},
+		Apps:  map[string]App{"api": {Repo: "api", Services: []string{"web"}, Optional: map[string][]string{"celery": nil}}}}
+	if err := m.Validate(); err == nil || !strings.Contains(err.Error(), "optional.celery.services") {
+		t.Errorf("err = %v", err)
+	}
+	m.Apps["api"] = App{Repo: "api", Optional: map[string][]string{"celery": nil}}
+	if err := m.Validate(); err != nil {
+		t.Errorf("a profile-only group on an app that starts every service: %v", err)
+	}
+}

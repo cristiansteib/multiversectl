@@ -131,3 +131,40 @@ func TestAnAppOnDemandIsSaidInTheMultiverseOrInTheRepositorysOwnFile(t *testing.
 		t.Errorf("an unqualified start runs %q, want docs", got)
 	}
 }
+
+// A multiverse that declares the app its repository's own file also declares
+// sets what it says on top of the repository's, rather than refusing to load.
+func TestAMultiverseAppIsLayeredOverTheRepositorysOwn(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "api/.multiverse.yaml", part(`  apps:
+    - name: api
+      services: [web, worker]
+      secrets: [.env]
+      autostart: false
+      env:
+        - {name: LOG_LEVEL, value: info}
+        - {name: WORKERS, value: "2"}
+`))
+	m, err := Decode([]byte(multiverseOfThree+`  apps:
+    - name: api
+      repo: api
+      autostart: true
+      env:
+        - {name: LOG_LEVEL, value: debug}
+      hosts:
+        - {name: api, service: web, port: 8000}
+`), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := MergeParts(m, root); err != nil {
+		t.Fatal(err)
+	}
+	api := m.Apps["api"]
+	if len(api.Services) != 2 || len(api.Secrets) != 1 || api.Hosts["api"].Port != 8000 || api.OnDemand {
+		t.Errorf("api = %+v: want the repository's services and secrets, the multiverse's hosts and autostart", api)
+	}
+	if api.Env["LOG_LEVEL"] != "debug" || api.Env["WORKERS"] != "2" {
+		t.Errorf("env = %v: want the multiverse's value over the repository's, key by key", api.Env)
+	}
+}
