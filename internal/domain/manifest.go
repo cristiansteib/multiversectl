@@ -353,8 +353,6 @@ func (m *Manifest) Validate() error {
 	for _, name := range sortedEntrypoints(m.Proxy.Entrypoints) {
 		port := m.Proxy.Entrypoints[name]
 		switch {
-		case !nameRe.MatchString(name):
-			errs = append(errs, fmt.Sprintf("proxy.entrypoints.%s: invalid name", name))
 		case port <= 0 || port > 65535:
 			errs = append(errs, fmt.Sprintf("proxy.entrypoints.%s.port: %d is out of range", name, port))
 		case byPort[port] != "":
@@ -409,9 +407,6 @@ func (m *Manifest) Validate() error {
 				if alias == hostKey {
 					errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.alsoMatch: a host cannot match itself", key, hostKey))
 				}
-			}
-			if len(hostKey) > DNSLabelLimit-1-len("u1") {
-				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s: %d characters leaves no room in a hostname for the universe's part", key, hostKey, len(hostKey)))
 			}
 			if rule.Port <= 0 || rule.Port > 65535 {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.port: %d is out of range", key, hostKey, rule.Port))

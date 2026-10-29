@@ -139,6 +139,12 @@ func (s *Service) resolveEnvSource(source string, st domain.UniverseState, hosts
 // resolveRules works out every address of a universe, in order of how
 // explicit it is: hosts declared in the manifest, then labels in the compose
 // files, then a single exposed port.
+//
+// A host that could not be reached however it is routed (a label that cannot
+// be read, an entrypoint the proxy lacks, a hostname too long to resolve) is
+// left out with a warning naming it, rather than failing: every universe is
+// resolved for every app, including ones on demand that this start will not
+// touch, and one bad label should cost its own address and no other.
 func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom string) (map[string]domain.RouteRule, error) {
 	rules := map[string]domain.RouteRule{}
 	add := func(hostKey string, rule domain.RouteRule) error {
@@ -151,12 +157,15 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 		}
 		rule.Entrypoint = orWeb(rule.Entrypoint)
 		if _, ok := s.Manifest.Proxy.Entrypoints[rule.Entrypoint]; !ok {
-			return fmt.Errorf("host %q: no proxy entrypoint %q: want one of spec.proxy.entrypoints (%s)",
-				hostKey, rule.Entrypoint, strings.Join(slices.Sorted(maps.Keys(s.Manifest.Proxy.Entrypoints)), ", "))
+			s.Out.Warn("host %s (%s/%s) gets no address: no proxy entrypoint %q; want one of spec.proxy.entrypoints (%s)",
+				hostKey, rule.App, rule.Service, rule.Entrypoint, strings.Join(slices.Sorted(maps.Keys(s.Manifest.Proxy.Entrypoints)), ", "))
+			return nil
 		}
-		if n := len(hostKey) + 1 + len(u.Slug()); n > domain.DNSLabelLimit {
-			return fmt.Errorf("host %q: %s-%s is %d characters, over the %d a hostname's part has room for — shorten the host or the universe's name",
-				hostKey, hostKey, u.Slug(), n, domain.DNSLabelLimit)
+		// With no domain the name is only the proxy's own, and no resolver sees it.
+		if n := len(hostKey) + 1 + len(u.Slug()); n > domain.DNSLabelLimit && !s.Manifest.IPOnly() {
+			s.Out.Warn("host %s (%s/%s) gets no address: %s-%s is %d characters, over the %d a hostname's part has room for; shorten the host or the universe's name",
+				hostKey, rule.App, rule.Service, hostKey, u.Slug(), n, domain.DNSLabelLimit)
+			return nil
 		}
 		if rule.PortForward != "" && !domain.Forwarded(rule.PortForward) {
 			return fmt.Errorf("host %q: portForward %q: want %s or %s", hostKey, rule.PortForward, domain.PortForwardAuto, domain.PortForwardOnly)
@@ -196,7 +205,7 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 		for _, service := range cfg.Names() {
 			fromLabels, err := rulesFromLabels(cfg.Services[service].Labels)
 			if err != nil {
-				return nil, fmt.Errorf("%s: service %s: %w", appKey, service, err)
+				s.Out.Warn("%s: service %s: %v", appKey, service, err)
 			}
 			for hostKey, rule := range fromLabels {
 				labelled = true
@@ -221,11 +230,13 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 		}
 	}
 	// An alias is a host key, and one that names no host would quietly stop a
-	// route answering under a hostname someone relies on.
+	// route answering under a hostname someone relies on. It may be a host of
+	// a service behind a profile, which is not read here, so it is said and not
+	// refused.
 	for _, hostKey := range mapKeys(rules) {
 		for _, alias := range rules[hostKey].Aliases {
 			if _, ok := rules[alias]; !ok {
-				return nil, fmt.Errorf("host %q: alsoMatch names %q, which no app of this universe answers on", hostKey, alias)
+				s.Out.Warn("host %s: alsoMatch names %q, which no app of this universe answers on; it does not answer under that name", hostKey, alias)
 			}
 		}
 	}
@@ -256,12 +267,13 @@ func soleExposedPort(appKey string, cfg ProjectConfig) (domain.RouteRule, error)
 }
 
 // rulesFromLabels reads one service's dev.multiversectl.host.* labels. A label
-// it cannot use is an error, not a host that quietly is not there: a typo in a
-// field or a port written as "8080/tcp" would otherwise leave nothing to say
-// why the address does not answer.
+// it cannot use is reported, with the hosts that could be read, not a host that
+// quietly is not there: a typo in a field or a port written as "8080/tcp"
+// would otherwise leave nothing to say why the address does not answer.
 func rulesFromLabels(labels map[string]string) (map[string]domain.RouteRule, error) {
 	out := map[string]domain.RouteRule{}
 	var errs []string
+	badPort := map[string]bool{} // said once, not again as a missing port
 	for _, key := range mapKeys(labels) {
 		rest, ok := strings.CutPrefix(key, hostLabel)
 		if !ok || rest == "" {
@@ -281,6 +293,7 @@ func rulesFromLabels(labels map[string]string) (map[string]domain.RouteRule, err
 			port, err := strconv.Atoi(strings.TrimSpace(value))
 			if err != nil || port <= 0 || port > 65535 {
 				errs = append(errs, fmt.Sprintf("%s: %q is not a port: want the number the service listens on inside its container", key, value))
+				badPort[name] = true
 				continue
 			}
 			rule.Port = port
@@ -304,7 +317,9 @@ func rulesFromLabels(labels map[string]string) (map[string]domain.RouteRule, err
 	}
 	for _, name := range mapKeys(out) {
 		if out[name].Port == 0 {
-			errs = append(errs, fmt.Sprintf("%s%s: required — the port the host's other labels are about", hostLabel, name))
+			if !badPort[name] {
+				errs = append(errs, fmt.Sprintf("%s%s: required — the port the host's other labels are about", hostLabel, name))
+			}
 			delete(out, name)
 		}
 	}
