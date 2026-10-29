@@ -28,6 +28,7 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 	if st, err = s.Resolve(in.Universe); err != nil {
 		return err
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	apps, err := s.appsToAct(in.Apps)
 	if err != nil {
 		return err

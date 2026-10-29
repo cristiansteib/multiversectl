@@ -76,6 +76,7 @@ func (s *Service) Render(ctx context.Context, in RenderInput) error {
 			return err
 		}
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	apps, err := s.appsToAct(in.Apps)
 	if err != nil {
 		return err

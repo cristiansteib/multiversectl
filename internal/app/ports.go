@@ -608,6 +608,15 @@ type ManifestLoader interface {
 	Decode(data []byte, dir string) (*domain.Manifest, error)
 }
 
+// PartLoader is what a ManifestLoader may also do: read a multiverse together
+// with the files its repositories carry for themselves, taken from the first of
+// the directories given for each. It is how a universe reads its own checkout's
+// file and not the shared clone's. A loader without it leaves every universe on
+// the clone.
+type PartLoader interface {
+	LoadMerged(path string, dirs func(repoKey string) []string) (*domain.Manifest, error)
+}
+
 // CatalogDecoder turns a catalog file into the domain model; the app stays
 // ignorant of the file format.
 type CatalogDecoder interface {

@@ -309,6 +309,7 @@ func (s *Service) Hooks(universe string) ([]HookInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	var out []HookInfo
 	list := func(app string, hooks map[domain.HookEvent][]domain.Hook) {
 		for _, ev := range domain.HookEvents {
@@ -357,6 +358,7 @@ func (s *Service) RunHooks(ctx context.Context, universe string, ev domain.HookE
 	if st, err = s.Resolve(universe); err != nil {
 		return err
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	targets := apps
 	if len(targets) == 0 {
 		targets = append([]string{multiverseHooks}, s.withoutIdleOnDemand(ctx, st, s.Manifest.RunnableApps())...)

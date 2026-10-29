@@ -83,6 +83,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		return err
 	}
 	defer unlockUniverse()
+	s = s.forUniverseOrSelf(st.Name)
 	u := s.Universe(st.Name)
 
 	// Asked before anything is destroyed, not repository by repository: half a

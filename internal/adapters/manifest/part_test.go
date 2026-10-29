@@ -193,3 +193,28 @@ func TestALayerDropsWhatOnlyTheReplacedListsNeeded(t *testing.T) {
 		t.Errorf("api = %+v", api)
 	}
 }
+
+// A universe reads the file from its own checkout and the shared clone only
+// for a repository it has none of.
+func TestAPartIsReadFromTheFirstDirectoryThatHasOne(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "worktree/api/.multiverse.yaml", part("  apps:\n    - services: [web]\n"))
+	put(t, root, "clone/api/.multiverse.yaml", part("  apps:\n    - services: [old]\n"))
+	put(t, root, "clone/ui/.multiverse.yaml", part("  apps:\n    - services: [front]\n"))
+	m, err := Decode([]byte(multiverseOfThree), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dirs := func(key string) []string {
+		return []string{filepath.Join(root, "worktree", key), filepath.Join(root, "clone", key)}
+	}
+	if err := MergePartsFrom(m, dirs); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Apps["api"].Services; len(got) != 1 || got[0] != "web" {
+		t.Errorf("api read %v, want its worktree's file", got)
+	}
+	if got := m.Apps["ui"].Services; len(got) != 1 || got[0] != "front" {
+		t.Errorf("ui read %v, want the clone's file as it has no checkout", got)
+	}
+}

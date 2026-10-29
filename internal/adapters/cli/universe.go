@@ -820,6 +820,13 @@ func (r runner) universeConfigCmd() *cobra.Command {
 			}
 			r.out.Plain("manifest   %s", rep.Path)
 			r.out.Plain("sha256     %s", rep.SHA256[:16])
+			for _, f := range rep.RepoFiles {
+				from := "this universe's checkout"
+				if f.FromClone {
+					from = "the shared clone"
+				}
+				r.out.Plain("repo file  %s: %s (%s)", f.Repo, f.Path, from)
+			}
 			if len(rep.Problems) == 0 {
 				r.out.OK("it loads without complaint")
 			} else {

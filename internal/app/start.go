@@ -82,11 +82,16 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if st, err = s.Resolve(in.Universe); err != nil {
 		return err
 	}
+	// The repositories' own files are read from this universe's worktrees.
+	if s, err = s.forUniverse(st.Name); err != nil {
+		return err
+	}
 	apps, err := s.appsToStart(st.Name, in.Apps)
 	if err != nil {
 		return err
 	}
 	u := s.Universe(st.Name)
+	s.KeepClonesCurrent(ctx)
 	s.say(1, "universe `%s`: starting %s", st.Name, strings.Join(apps, ", "))
 
 	// Before the proxy is touched, so a missing file leaves nothing half started.
@@ -450,6 +455,7 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 	if err != nil {
 		return err
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	if _, ok := s.Manifest.Apps[in.App]; !ok {
 		return fmt.Errorf("app %q: %w in the manifest", in.App, domain.ErrNotFound)
 	}

@@ -94,6 +94,12 @@ type SyncOptions struct {
 // reported and the work goes on with what is already here. The dirs fetched
 // are marked in done.
 func (s *Service) fetchClones(ctx context.Context, label string, keys []string, done map[string]bool) {
+	s.fetchClonesAs(ctx, label, keys, done, false)
+}
+
+// fetchClonesAs is fetchClones; quiet is for a fetch nobody asked for, which
+// never asks a question and does not warn when the network is not there.
+func (s *Service) fetchClonesAs(ctx context.Context, label string, keys []string, done map[string]bool, quiet bool) {
 	var progress Progress = noProgress{}
 	if s.Progress != nil {
 		progress = s.Progress
@@ -105,14 +111,20 @@ func (s *Service) fetchClones(ctx context.Context, label string, keys []string, 
 			continue
 		}
 		done[dir] = true
-		jobs = append(jobs, Job{Name: key, Run: func(ctx context.Context) error { return s.Git.Fetch(ctx, dir) }})
+		fetch := s.Git.Fetch
+		if quiet {
+			fetch = s.Git.FetchQuietly
+		}
+		jobs = append(jobs, Job{Name: key, Run: func(ctx context.Context) error { return fetch(ctx, dir) }})
 	}
 	if len(jobs) == 0 {
 		return
 	}
 	errs := progress.Parallel(label, cloneLimit, jobs)
 	for i, j := range jobs {
-		if errs[i] != nil {
+		if errs[i] != nil && quiet {
+			s.say(1, "%s: fetch: %v", j.Name, errs[i])
+		} else if errs[i] != nil {
 			s.Out.Warn("%s: fetch: %v (continuing with what is already here)", j.Name, errs[i])
 		}
 	}
@@ -139,6 +151,7 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 	if s.Manifest == nil {
 		return nil, domain.ErrNoManifest
 	}
+	s = s.forUniverseOrSelf(st.Name)
 	u := s.Universe(st.Name)
 	fetched := map[string]bool{}
 	var out []SyncResult
@@ -149,6 +162,13 @@ func (s *Service) Sync(ctx context.Context, name string, opts SyncOptions) ([]Sy
 	sort.Strings(repos)
 	moved := 0
 	s.fetchClones(ctx, "Fetching "+plural(len(repos), "repository"), repos, fetched)
+	// The shared clones are fetched anyway; what a repository says about itself
+	// is read from them wherever a universe has no checkout of its own.
+	for _, r := range s.forwardClones(ctx, repos) {
+		if r.Moved > 0 {
+			s.Out.Info("%s: the shared clone %s", r.Repo, r.Detail)
+		}
+	}
 	for _, repo := range repos {
 		dir := u.RepoDir(repo)
 		clone := s.Manifest.CloneDir(s.Multiverse, repo)
@@ -217,9 +237,34 @@ func (s *Service) UpdateClones(ctx context.Context) ([]CloneResult, error) {
 	if s.Manifest == nil {
 		return nil, domain.ErrNoManifest
 	}
-	var out []CloneResult
 	s.fetchClones(ctx, "Fetching "+plural(len(s.repoKeys()), "repository"), s.repoKeys(), map[string]bool{})
-	for _, key := range s.repoKeys() {
+	return s.forwardClones(ctx, s.repoKeys()), nil
+}
+
+// KeepClonesCurrent is UpdateClones for a command that did not ask for it: the
+// fetch is quiet, and only what moved is said. It is what makes a repository's
+// own file in the shared clone follow the repository, for the universes that
+// read it from there, without anybody updating the clone by hand.
+func (s *Service) KeepClonesCurrent(ctx context.Context) {
+	if s.Manifest == nil {
+		return
+	}
+	s.fetchClonesAs(ctx, "Fetching "+plural(len(s.repoKeys()), "repository"), s.repoKeys(), map[string]bool{}, true)
+	for _, r := range s.forwardClones(ctx, s.repoKeys()) {
+		if r.Moved > 0 {
+			s.Out.Info("%s: the shared clone %s", r.Repo, r.Detail)
+		} else {
+			s.say(1, "%s: the shared clone: %s", r.Repo, r.Detail)
+		}
+	}
+}
+
+// forwardClones moves each clone forward to origin's default branch when that
+// loses nothing: a clone with changes, on a branch of its own or with commits
+// of its own is left alone and reported. Clones that are current are not listed.
+func (s *Service) forwardClones(ctx context.Context, keys []string) []CloneResult {
+	var out []CloneResult
+	for _, key := range keys {
 		dir := s.Manifest.CloneDir(s.Multiverse, key)
 		if !s.Files.Exists(dir) {
 			continue
@@ -250,7 +295,7 @@ func (s *Service) UpdateClones(ctx context.Context) ([]CloneResult, error) {
 			out = append(out, res)
 		}
 	}
-	return out, nil
+	return out
 }
 
 // CloneFreshness measures every clone against origin's default branch, as of

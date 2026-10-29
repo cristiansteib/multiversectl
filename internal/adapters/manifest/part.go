@@ -45,31 +45,57 @@ func DecodePart(data []byte, repoKey string) (*domain.Part, error) {
 // itself. A repository not cloned yet, or with no file of its own, is left as
 // the multiverse describes it.
 func MergeParts(m *domain.Manifest, root string) error {
+	return MergePartsFrom(m, func(key string) []string { return []string{m.CloneDir(root, key)} })
+}
+
+// MergePartsFrom is MergeParts with the directories to look in given per
+// repository, first match wins: a universe reads its own worktree and falls
+// back to the shared clone.
+func MergePartsFrom(m *domain.Manifest, dirs func(repoKey string) []string) error {
 	keys := make([]string, 0, len(m.Repos))
 	for key := range m.Repos {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	for _, key := range keys {
-		dir := m.CloneDir(root, key)
-		for _, name := range partNames {
-			path := filepath.Join(dir, name)
-			data, err := os.ReadFile(path)
-			if errors.Is(err, os.ErrNotExist) {
-				continue
+		merged := false
+		for _, dir := range dirs(key) {
+			for _, name := range partNames {
+				path := filepath.Join(dir, name)
+				data, err := os.ReadFile(path)
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				if err != nil {
+					return fmt.Errorf("repo %s: %w", key, err)
+				}
+				part, err := DecodePart(data, key)
+				if err != nil {
+					return fmt.Errorf("repo %s: %s: %w", key, path, err)
+				}
+				if err := m.Merge(key, *part); err != nil {
+					return fmt.Errorf("repo %s: %s: %w", key, path, err)
+				}
+				merged = true
+				break
 			}
-			if err != nil {
-				return fmt.Errorf("repo %s: %w", key, err)
+			if merged {
+				break
 			}
-			part, err := DecodePart(data, key)
-			if err != nil {
-				return fmt.Errorf("repo %s: %s: %w", key, path, err)
-			}
-			if err := m.Merge(key, *part); err != nil {
-				return fmt.Errorf("repo %s: %s: %w", key, path, err)
-			}
-			break
 		}
 	}
 	return nil
+}
+
+// LoadMerged is Load followed by the repositories' own files, read from the
+// directories dirs names for each.
+func LoadMerged(path string, dirs func(repoKey string) []string) (*domain.Manifest, error) {
+	m, err := Load(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := MergePartsFrom(m, dirs); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return m, nil
 }

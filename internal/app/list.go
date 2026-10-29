@@ -124,7 +124,9 @@ func (s *Service) List(ctx context.Context, opts ListOptions) ([]Summary, error)
 		return nil, fmt.Errorf("listing universes: %w", err)
 	}
 	out := make([]Summary, 0, len(states))
+	base := s
 	for _, st := range states {
+		s := base.forUniverseOrSelf(st.Name)
 		containers, err := s.Runtime.Containers(ctx, st.Project)
 		if err != nil {
 			s.Out.Warn("universe %s: containers: %v", st.Name, err)

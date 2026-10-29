@@ -49,6 +49,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 	} else {
 		s.checkProxy(ctx, add)
 		s.checkMultiverses(add)
+		s.checkClones(ctx, add)
 	}
 
 	var st domain.UniverseState
@@ -74,7 +75,7 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 	}
 
 	if loaded && s.Manifest != nil {
-		s.checkUniverse(ctx, add, st)
+		s.forUniverseOrSelf(st.Name).checkUniverse(ctx, add, st)
 	}
 	return r, nil
 }
@@ -136,6 +137,34 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 		default:
 			add(label, StatusOK, "entrypoint %s: free", name)
 		}
+	}
+}
+
+// checkClones says which shared clones are behind their remote. Their files
+// are what a universe falls back on for a repository's own settings, secrets
+// and the code new universes branch from, and nothing else brings them forward
+// by itself when they have changes.
+func (s *Service) checkClones(ctx context.Context, add addCheck) {
+	fresh := s.CloneFreshness(ctx)
+	behind := 0
+	for _, key := range mapKeys(fresh) {
+		f := fresh[key]
+		if !f.Stale() {
+			continue
+		}
+		behind++
+		dir := s.Manifest.CloneDir(s.Multiverse, key)
+		switch {
+		case f.Dirty:
+			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch, and %s has uncommitted changes, so it is never moved on its own: commit or stash them, then `multiversectl catalog update`", f.Behind, f.Follows, dir)
+		case f.Ahead > 0:
+			add("clone "+key, StatusWarn, "%d commits behind origin/%s and %d ahead of it: update %s by hand", f.Behind, f.Follows, f.Ahead, dir)
+		default:
+			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch; a universe with no checkout of it reads its files from here. Run: multiversectl catalog update", f.Behind, f.Follows)
+		}
+	}
+	if len(fresh) > 0 && behind == 0 {
+		add("clones", StatusOK, "the %d shared clones are up to date with their remotes, as of the last fetch", len(fresh))
 	}
 }
 
