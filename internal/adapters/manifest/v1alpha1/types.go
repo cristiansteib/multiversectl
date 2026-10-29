@@ -477,7 +477,9 @@ type Host struct {
 	// postUp hooks: "true" asks the address over HTTP until it answers with a
 	// status below 500 (a TCP connection for an h2c host or a probe of tcp),
 	// "tcp" only connects, a path such as "/healthz" asks that path, and "false"
-	// (the default) does not wait. It is polled until --wait-timeout. A host that
+	// (the default) does not wait. A connection goes to the host's forwarded
+	// port; a host without one is asked over HTTP, as the proxy accepts any
+	// connection. It is polled until --wait-timeout. A host that
 	// comes from a compose label asks for the same with
 	// dev.multiversectl.host.<name>.ready.
 	Ready string `yaml:"ready"`
@@ -486,7 +488,8 @@ type Host struct {
 	// (a TCP connection for an h2c host); "tcp" connects, "grpc" connects (the
 	// standard gRPC health check is not run, as multiversectl carries no gRPC
 	// client), "http" forces the HTTP request, and "none" leaves the host
-	// out. A host that comes from a compose label asks for the same with
+	// out. A connection goes to the host's forwarded port; a host without one
+	// is asked over HTTP, as the proxy accepts any connection. A host that comes from a compose label asks for the same with
 	// dev.multiversectl.host.<name>.probe.
 	// +enum=http;tcp;grpc;none
 	Probe string `yaml:"probe"`
