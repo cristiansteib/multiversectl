@@ -62,7 +62,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
       - {<span class="k">name</span>: web, <span class="k">port</span>: 443, <span class="k">tls</span>: true}
     <span class="k">certificates</span>:
       - {<span class="k">certFile</span>: ~/certs/wildcard.pem, <span class="k">keyFile</span>: ~/certs/wildcard-key.pem}</pre></div>
-  <p>The certificates are files on the machine, mounted into the proxy read-only; a relative path is relative to the manifest. A forwarded address (<code>portForward</code>) reaches the service without the proxy and stays <code>http://</code>.</p>
+  <p>The certificates are files on the machine, mounted into the proxy read-only; a relative path is relative to the manifest. A renewed certificate is read when the proxy next starts. A forwarded address (<code>portForward</code>) reaches the service without the proxy and stays <code>http://</code>.</p>
 </section>
 
 <section id="no-dns">

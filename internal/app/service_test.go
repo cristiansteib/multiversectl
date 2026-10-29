@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -272,5 +273,20 @@ func TestAnAppsEnvIsOverTheMultiversesAndOnlyItsOwn(t *testing.T) {
 	}
 	if got := svc.appEnv(u, st, "ui")["LOG_LEVEL"]; got != "info" {
 		t.Errorf("ui: LOG_LEVEL = %q", got)
+	}
+}
+
+// Starting from a multiverse with other certificates, or another entrypoint's
+// TLS, takes the proxy from whoever set it up: that is said, like a port is.
+func TestAProxyChangeNamesCertificatesAndTLS(t *testing.T) {
+	status := ProxyStatus{Bind: "0.0.0.0", Entrypoints: map[string]int{"web": 443}, TLS: map[string]bool{"web": true}, Certificates: []string{"/a.pem"}}
+	want := ProxyRequest{Bind: "0.0.0.0", Entrypoints: map[string]int{"web": 443}}
+	got := proxyChange(status, want)
+	if !strings.Contains(got, "certificates none instead of /a.pem") || !strings.Contains(got, "web without TLS") {
+		t.Errorf("change = %q", got)
+	}
+	want.TLS, want.Certificates = map[string]bool{"web": true}, []domain.Certificate{{CertFile: "/a.pem", KeyFile: "/k.pem"}}
+	if got := proxyChange(status, want); got != "" {
+		t.Errorf("no change, yet %q", got)
 	}
 }

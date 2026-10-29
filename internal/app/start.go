@@ -282,12 +282,26 @@ func proxyChange(status ProxyStatus, want ProxyRequest) string {
 		changes = append(changes, fmt.Sprintf("entrypoints %s instead of %s",
 			describePorts(want.Entrypoints), describePorts(status.Entrypoints)))
 	}
+	var certs []string
+	for _, c := range want.Certificates {
+		certs = append(certs, c.CertFile)
+	}
+	if !slices.Equal(status.Certificates, certs) {
+		changes = append(changes, fmt.Sprintf("certificates %s instead of %s", orNone(certs), orNone(status.Certificates)))
+	}
 	for _, name := range slices.Sorted(maps.Keys(want.Entrypoints)) {
 		if status.TLS[name] != want.TLS[name] && status.Entrypoints[name] != 0 {
 			changes = append(changes, fmt.Sprintf("entrypoint %s %s TLS", name, map[bool]string{true: "with", false: "without"}[want.TLS[name]]))
 		}
 	}
 	return strings.Join(changes, ", ")
+}
+
+func orNone(list []string) string {
+	if len(list) == 0 {
+		return "none"
+	}
+	return strings.Join(list, ", ")
 }
 
 func samePorts(a, b map[string]int) bool {

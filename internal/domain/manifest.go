@@ -404,8 +404,12 @@ func (m *Manifest) Validate() error {
 		}
 	}
 	for i, c := range m.Proxy.Certificates {
-		if !filepath.IsAbs(c.CertFile) || !filepath.IsAbs(c.KeyFile) {
+		switch {
+		case !filepath.IsAbs(c.CertFile) || !filepath.IsAbs(c.KeyFile):
 			errs = append(errs, fmt.Sprintf("proxy.certificates[%d]: certFile and keyFile are both required", i))
+		case strings.Contains(c.CertFile+c.KeyFile, ":"):
+			// A bind mount is source:target:mode; a colon in the path would split it.
+			errs = append(errs, fmt.Sprintf("proxy.certificates[%d]: a path with a colon cannot be mounted into the proxy", i))
 		}
 	}
 	errs = append(errs, validateHooks("hooks", m.Hooks, nil, false)...)
@@ -578,6 +582,9 @@ func ProxyClashes(aName string, a *Manifest, bName string, b *Manifest) []string
 			out = append(out, fmt.Sprintf("%s needs proxy entrypoint %q (port %d); starting %s reconfigures the proxy without it", bName, n, b.Proxy.Entrypoints[n], aName))
 		}
 	}
+	if !slices.Equal(a.Proxy.Certificates, b.Proxy.Certificates) && (len(a.Proxy.Certificates) > 0 || len(b.Proxy.Certificates) > 0) {
+		out = append(out, fmt.Sprintf("%s and %s give the proxy different certificates; starting either one replaces the other's", aName, bName))
+	}
 	if x, y := a.BindAddress(), b.BindAddress(); x != y {
 		out = append(out, fmt.Sprintf("%s publishes the proxy on %s and %s on %s; starting either one moves it", aName, x, bName, y))
 	}
@@ -629,6 +636,10 @@ func (m *Manifest) Merge(repoKey string, p Part) error {
 		a.Repo = repoKey
 		m.Apps[key] = a
 	}
+	hadEntrypoint := map[string]bool{}
+	for name := range m.Proxy.Entrypoints {
+		hadEntrypoint[name] = true
+	}
 	for name, port := range p.Entrypoints {
 		if have, ok := m.Proxy.Entrypoints[name]; ok && have != port {
 			errs = append(errs, fmt.Sprintf("proxy entrypoint %q is %d here and %d elsewhere", name, port, have))
@@ -636,7 +647,13 @@ func (m *Manifest) Merge(repoKey string, p Part) error {
 		}
 		m.Proxy.Entrypoints[name] = port
 	}
-	for name, on := range p.TLS {
+	for _, name := range slices.Sorted(maps.Keys(p.TLS)) {
+		on := p.TLS[name]
+		if had, ok := m.Proxy.TLS[name]; (ok || hadEntrypoint[name]) && had != on {
+			// Every universe's origins follow it, so one repository cannot turn it.
+			errs = append(errs, fmt.Sprintf("proxy entrypoint %q is served over TLS here and not elsewhere, or the reverse", name))
+			continue
+		}
 		if on {
 			if m.Proxy.TLS == nil {
 				m.Proxy.TLS = map[string]bool{}

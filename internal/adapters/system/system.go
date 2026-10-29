@@ -3,6 +3,7 @@ package system
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -96,7 +97,13 @@ func (System) Probe(ctx context.Context, url string) (app.Answer, error) {
 	if err != nil {
 		return app.Answer{}, err
 	}
-	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	// The address is the proxy's own, and on a TLS entrypoint with no certificate
+	// configured it presents a self-signed one: what is asked is whether the app
+	// answers, not whether a browser would trust it.
+	client := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		Transport:     &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}, //nolint:gosec // see above
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return app.Answer{}, err

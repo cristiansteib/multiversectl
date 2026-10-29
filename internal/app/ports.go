@@ -259,6 +259,8 @@ type ProxyStatus struct {
 	Entrypoints map[string]int
 	Bind        string // the host address its ports are published on
 	TLS         map[string]bool
+	// Certificates are the certificate files it presents, on this machine.
+	Certificates []string
 }
 
 // Proxy is the ingress port.

@@ -76,3 +76,23 @@ func TestAnOriginFollowsItsEntrypointsScheme(t *testing.T) {
 		}
 	}
 }
+
+// One repository's own file cannot turn an entrypoint every universe's origins
+// follow, and certificates two multiverses disagree about are a clash.
+func TestTLSIsTheMultiversesToSay(t *testing.T) {
+	m := &Manifest{Name: "acme", Domain: "example.test", Expose: ExposeLocal,
+		Proxy: Proxy{Entrypoints: map[string]int{"web": 80}, TLS: map[string]bool{}},
+		Repos: map[string]Repo{"api": {URL: "x"}}, Apps: map[string]App{}}
+	err := m.Merge("api", Part{Entrypoints: map[string]int{"web": 80}, TLS: map[string]bool{"web": true}})
+	if err == nil || !strings.Contains(err.Error(), "TLS") || m.Proxy.TLS["web"] {
+		t.Errorf("err = %v, tls = %v", err, m.Proxy.TLS)
+	}
+	if err := m.Merge("api", Part{Entrypoints: map[string]int{"rpc": 8443}, TLS: map[string]bool{"rpc": true}}); err != nil || !m.Proxy.TLS["rpc"] {
+		t.Errorf("a new entrypoint of the repository's own: %v, %v", err, m.Proxy.TLS)
+	}
+	b := *m
+	b.Proxy.Certificates = []Certificate{{CertFile: "/c.pem", KeyFile: "/k.pem"}}
+	if got := strings.Join(ProxyClashes("a", m, "b", &b), "\n"); !strings.Contains(got, "certificates") {
+		t.Errorf("clashes = %q", got)
+	}
+}

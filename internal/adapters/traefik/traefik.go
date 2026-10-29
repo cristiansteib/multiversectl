@@ -130,6 +130,7 @@ func (t *Traefik) Status(ctx context.Context) (app.ProxyStatus, error) {
 	st.Entrypoints = parseEntrypoints(string(content))
 	st.Bind = parseBind(string(content))
 	st.TLS = parseTLS(string(content))
+	st.Certificates = parseCertificates(string(content))
 
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "docker", "compose", "--project-name", proxyProject, "-f", file, "ps", "--format", "{{json .}}")
@@ -215,6 +216,16 @@ func sortedEntrypoints(m map[string]int) []entrypoint {
 var bindRe = regexp.MustCompile(`- "([0-9.]+):[0-9]+:[0-9]+"`)
 
 var entrypointRe = regexp.MustCompile(`--entrypoints\.([^.\s]+)\.address=:(\d+)`)
+
+var certRe = regexp.MustCompile(`- "(.+):/certs/\d+/cert\.pem:ro"`)
+
+func parseCertificates(content string) []string {
+	var out []string
+	for _, m := range certRe.FindAllStringSubmatch(content, -1) {
+		out = append(out, m[1])
+	}
+	return out
+}
 
 var tlsRe = regexp.MustCompile(`--entrypoints\.([^.\s]+)\.http\.tls=true`)
 
