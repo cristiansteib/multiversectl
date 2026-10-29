@@ -313,6 +313,16 @@ func Forwarded(portForward string) bool {
 
 var nameRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
+// ValidKey says whether s can name a repository, an app or a host: a host key
+// becomes the first part of a hostname, so it is held to what DNS accepts.
+func ValidKey(s string) bool { return nameRe.MatchString(s) }
+
+// DNSLabelLimit is the longest one part of a hostname may be.
+const DNSLabelLimit = 63
+
+// ProxyKinds are the proxies a universe can be served through.
+var ProxyKinds = []string{"traefik"}
+
 // Validate reports every problem it finds, so one run fixes the manifest.
 func (m *Manifest) Validate() error {
 	var errs []string
@@ -334,6 +344,21 @@ func (m *Manifest) Validate() error {
 		}
 		if repo.URL == "" {
 			errs = append(errs, fmt.Sprintf("repos.%s.url: required", key))
+		}
+	}
+	if m.Proxy.Kind != "" && !slices.Contains(ProxyKinds, m.Proxy.Kind) {
+		errs = append(errs, fmt.Sprintf("proxy.kind: %q is not supported (want %s)", m.Proxy.Kind, strings.Join(ProxyKinds, ", ")))
+	}
+	byPort := map[int]string{}
+	for _, name := range sortedEntrypoints(m.Proxy.Entrypoints) {
+		port := m.Proxy.Entrypoints[name]
+		switch {
+		case port <= 0 || port > 65535:
+			errs = append(errs, fmt.Sprintf("proxy.entrypoints.%s.port: %d is out of range", name, port))
+		case byPort[port] != "":
+			errs = append(errs, fmt.Sprintf("proxy.entrypoints.%s.port: %d is already entrypoint %q; the proxy can listen on a port once", name, port, byPort[port]))
+		default:
+			byPort[port] = name
 		}
 	}
 	errs = append(errs, validateHooks("hooks", m.Hooks, nil, false)...)
@@ -384,6 +409,11 @@ func (m *Manifest) Validate() error {
 			}
 			if rule.Scheme != "" && !slices.Contains(Schemes, rule.Scheme) {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.scheme: want %s", key, hostKey, strings.Join(Schemes, ", ")))
+			}
+			for _, alias := range rule.AlsoMatch {
+				if alias == hostKey {
+					errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.alsoMatch: a host cannot match itself", key, hostKey))
+				}
 			}
 			if rule.Port <= 0 || rule.Port > 65535 {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.port: %d is out of range", key, hostKey, rule.Port))
