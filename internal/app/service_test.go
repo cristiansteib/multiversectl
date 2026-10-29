@@ -215,14 +215,14 @@ func TestServiceEnvFromLabels(t *testing.T) {
 		vars[v.Name] = v.Value
 	}
 	for name, want := range map[string]string{
-		"DJANGO_CSRF_TRUSTED_ORIGINS": "http://api-fix-login.example.test,http://devapi-fix-login.example.test:8001",
+		"DJANGO_CSRF_TRUSTED_ORIGINS": "http://api-fix-login.example.test,http://devapi-fix-login.example.test:8001,http://192.0.2.7:41000",
 		"DJANGO_ALLOWED_HOSTS":        "api-fix-login.example.test,devapi-fix-login.example.test",
 		"API_BASE":                    "http://devapi-fix-login.example.test:8001",
 		"OWN_HOST":                    "api-fix-login.example.test",
 		"WHICH":                       "fix/login",
 		// A framework decides the shape of its own list: Django's CORS setting wants
 		// spaces where its CSRF one wants commas.
-		"CORS_ALLOWED_ORIGINS": "http://api-fix-login.example.test http://devapi-fix-login.example.test:8001",
+		"CORS_ALLOWED_ORIGINS": "http://api-fix-login.example.test http://devapi-fix-login.example.test:8001 http://192.0.2.7:41000",
 		"ALLOWED_HOSTS_LINES":  "api-fix-login.example.test\ndevapi-fix-login.example.test",
 		// A client that cannot use the hostname is given the address by IP and port.
 		"PHONE_URL": "http://192.0.2.7:41000",

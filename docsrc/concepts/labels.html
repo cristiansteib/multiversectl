@@ -51,8 +51,8 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></div>
       <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></div>
   <div class="tw"><table>
   <thead><tr><th scope="col">Source</th><th scope="col">Value</th></tr></thead><tbody>
-  <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port.</td></tr>
-  <tr><td data-l="Source"><code>hosts</code></td><td data-l="Value">Every hostname, comma separated.</td></tr>
+  <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin: first each hostname with its entrypoint's port, then the forwarded <code>http://&lt;ip&gt;:&lt;port&gt;</code> of every host that has one (<code>portForward: auto</code>, or <code>domain: none</code>), without repeats, each group in host key order. A forwarded port exists once the universe has been started; before that only the hostnames are listed.</td></tr>
+  <tr><td data-l="Source"><code>hosts</code></td><td data-l="Value">Every hostname, comma separated. Names only: a forwarded <code>&lt;ip&gt;:&lt;port&gt;</code> address has no hostname, so it is not listed here (it is in <code>origins</code>).</td></tr>
   <tr><td data-l="Source"><code>origins:space</code>, <code>hosts:space</code></td><td data-l="Value">The same list joined as the setting wants it: <code>comma</code> (the default), <code>space</code>, <code>semicolon</code> or <code>newline</code>. A framework decides the shape of its own setting, so it is named rather than guessed.</td></tr>
   <tr><td data-l="Source"><code>domain</code></td><td data-l="Value">The wildcard domain in use.</td></tr>
   <tr><td data-l="Source"><code>universe</code></td><td data-l="Value">The universe's name, as typed.</td></tr>

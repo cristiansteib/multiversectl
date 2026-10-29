@@ -167,14 +167,30 @@ func (s *Service) runtimeEnv(u domain.Universe, st domain.UniverseState) map[str
 	return env
 }
 
-// universeAddresses are every hostname of a universe and every one as an
-// origin, both in a stable order so a generated value does not churn.
+// universeAddresses are every hostname of a universe and every address as an
+// origin, both in a stable order so a generated value does not churn. Origins
+// are the hostname ones first, in host key order, then the forwarded
+// http://<ip>:<port> of every host that has one, in host key order, without
+// repeats. Hosts stay names only: a forwarded address has none. A forwarded
+// port exists only once the universe has been started, so before that there is
+// nothing to add and the origins are the hostname ones.
 func (s *Service) universeAddresses(st domain.UniverseState) (hosts, origins []string) {
-	for _, hostKey := range mapKeys(st.Hosts) {
+	add := func(origin string) {
+		if !slices.Contains(origins, origin) {
+			origins = append(origins, origin)
+		}
+	}
+	keys := mapKeys(st.Hosts)
+	for _, hostKey := range keys {
 		if host := s.hostOf(st, hostKey, st.Hosts[hostKey]); !slices.Contains(hosts, host) {
 			hosts = append(hosts, host)
 		}
-		origins = append(origins, s.originOf(st, hostKey, st.Hosts[hostKey]))
+		add(s.originOf(st, hostKey, st.Hosts[hostKey]))
+	}
+	for _, hostKey := range keys {
+		if forward := st.Rules[hostKey].ForwardURL; forward != "" {
+			add(forward)
+		}
 	}
 	return hosts, origins
 }

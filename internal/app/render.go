@@ -33,8 +33,9 @@ type renderData struct {
 	App      string
 	Dir      string // the universe's directory
 	RepoDir  string // the app's checkout, where the file is written
-	// Hosts and Origins are every hostname of the universe and every one as an
-	// origin, in a stable order; origins and hosts join them.
+	// Hosts and Origins are every hostname of the universe and every address as
+	// an origin (the forwarded IP:port ones included), in a stable order; origins
+	// and hosts join them.
 	Hosts   []string
 	Origins []string
 	// Env is the environment a hook receives: <HOST>_URL, <HOST>_FORWARD_URL,

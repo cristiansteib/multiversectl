@@ -428,7 +428,8 @@ const labelsFooter = `
 # the generated fragment, which is merged last — so it wins over the service's
 # own environment and over any env_file. The sources are:
 #
-#   origins        every address as an origin, each with its entrypoint's port
+#   origins        every address as an origin: hostnames with their entrypoint's port, then the
+#                  forwarded http://<ip>:<port> of each host that has one
 #   hosts          every hostname
 #   domain         the wildcard domain in use
 #   universe       the universe's name
@@ -454,7 +455,7 @@ const labelsFooter = `
 #   <HOST>_HOST                             one per host key, e.g. APP_HOST
 #   <HOST>_URL                              the same with scheme and port
 #   MULTIVERSE_HOSTS                        every hostname, comma separated
-#   MULTIVERSE_ORIGINS                      every one as an origin, with ports
+#   MULTIVERSE_ORIGINS                      every address as an origin, forwarded IP:port ones included
 #   <REPO>_DIR                              one per repository checkout
 #   HOST_UID, HOST_GID                      the current user
 #

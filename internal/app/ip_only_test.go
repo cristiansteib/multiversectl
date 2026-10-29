@@ -115,3 +115,65 @@ func TestAHostCanAskToBeReachedByIPAlone(t *testing.T) {
 		t.Errorf("the keycloak address is listed %v", listed)
 	}
 }
+
+// origins lists the hostname origins first, then the forwarded IP:port of every
+// host that has one; hosts stays names only. A host whose port is not allocated
+// yet (before the first start) adds nothing, and nothing is listed twice.
+func TestOriginsIncludeForwardedAddresses(t *testing.T) {
+	manifest := &domain.Manifest{
+		Name: "acme", Domain: "auto", Expose: domain.ExposeLAN,
+		Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80}},
+		Repos: map[string]domain.Repo{"api": {}},
+	}
+	svc := New(Deps{System: fakeSystem{}}, "/ws", manifest, "test")
+	state := func(rules map[string]domain.RouteRule) domain.UniverseState {
+		hosts := map[string]string{}
+		for key := range rules {
+			hosts[key] = key + "-u3.example.test"
+		}
+		return domain.UniverseState{Name: "3", Slug: "u3", Domain: "example.test", Hosts: hosts, Rules: rules}
+	}
+	web := func(url string) domain.RouteRule {
+		return domain.RouteRule{Entrypoint: "web", PortForward: domain.PortForwardAuto, ForwardURL: url}
+	}
+	cases := map[string]struct {
+		rules   map[string]domain.RouteRule
+		origins string
+		hosts   string
+	}{
+		"no portForward": {
+			rules:   map[string]domain.RouteRule{"api": {Entrypoint: "web"}, "web": {Entrypoint: "web"}},
+			origins: "http://api-u3.example.test,http://web-u3.example.test",
+			hosts:   "api-u3.example.test,web-u3.example.test",
+		},
+		"forwarded after the hostnames": {
+			rules:   map[string]domain.RouteRule{"api": web("http://192.0.2.7:41000"), "web": {Entrypoint: "web"}},
+			origins: "http://api-u3.example.test,http://web-u3.example.test,http://192.0.2.7:41000",
+			hosts:   "api-u3.example.test,web-u3.example.test",
+		},
+		"not allocated yet": {
+			rules:   map[string]domain.RouteRule{"api": web(""), "web": {Entrypoint: "web"}},
+			origins: "http://api-u3.example.test,http://web-u3.example.test",
+			hosts:   "api-u3.example.test,web-u3.example.test",
+		},
+		"same address twice": {
+			rules:   map[string]domain.RouteRule{"api": web("http://192.0.2.7:41000"), "web": web("http://192.0.2.7:41000")},
+			origins: "http://api-u3.example.test,http://web-u3.example.test,http://192.0.2.7:41000",
+			hosts:   "api-u3.example.test,web-u3.example.test",
+		},
+		"only is a single address": {
+			rules:   map[string]domain.RouteRule{"api": {Entrypoint: "web", PortForward: domain.PortForwardOnly, ForwardURL: "http://192.0.2.7:41000"}},
+			origins: "http://192.0.2.7:41000",
+			hosts:   "192.0.2.7",
+		},
+	}
+	for name, c := range cases {
+		hosts, origins := svc.universeAddresses(state(c.rules))
+		if got := strings.Join(origins, ","); got != c.origins {
+			t.Errorf("%s: origins = %q, want %q", name, got, c.origins)
+		}
+		if got := strings.Join(hosts, ","); got != c.hosts {
+			t.Errorf("%s: hosts = %q, want %q", name, got, c.hosts)
+		}
+	}
+}
