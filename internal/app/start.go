@@ -398,7 +398,9 @@ func (s *Service) checkProxyPorts(ctx context.Context) error {
 		port := s.Manifest.Proxy.Entrypoints[name]
 		// A check that cannot run is not a conflict; Docker will say if it is.
 		if free, err := s.System.PortFree(ctx, port); err == nil && !free {
-			return fmt.Errorf("proxy entrypoint %q needs port %d, which another process is using (find it with: lsof -nP -iTCP:%d -sTCP:LISTEN)", name, port, port)
+			return fmt.Errorf("proxy entrypoint %q needs port %d, which another process is using (find it with: lsof -nP -iTCP:%d -sTCP:LISTEN). "+
+				"When it is another multiversectl proxy (docker ps --filter name=multiverse-proxy), such as the real one during a rehearsal with --state-dir, "+
+				"stop it with `multiversectl system proxy down`, given the same --state-dir it was started with", name, port, port)
 		}
 	}
 	return nil

@@ -132,7 +132,10 @@ release:
   mode: keep-existing
   # A tag can be pushed again at the same version — after a history rewrite,
   # or when a release is re-run. Replacing the artifacts makes that idempotent
-  # instead of failing on "asset already exists".
+  # instead of failing on "asset already exists". With use_existing_draft the
+  # release it fills is found among the drafts, so a re-run of one that was
+  # already published needs it made a draft again first
+  # (gh release edit vX.Y.Z --draft).
   replace_existing_artifacts: true
 
 # semantic-release writes the release notes from the commits, so GoReleaser

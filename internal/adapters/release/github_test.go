@@ -58,7 +58,7 @@ func TestLatestSaysWhichNewerVersionIsOnItsWay(t *testing.T) {
 	srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`[{"tag_name":"v2.0.0","assets":[]}]`))
 	})
-	if _, err := g.Latest(context.Background()); err == nil || !strings.Contains(err.Error(), "v2.0.0 is being published") {
+	if _, err := g.Latest(context.Background()); err == nil || !strings.Contains(err.Error(), "v2.0.0 has no binaries attached yet") {
 		t.Fatalf("err = %v", err)
 	}
 }

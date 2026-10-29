@@ -107,7 +107,7 @@ func (g *GitHub) Recent(ctx context.Context) ([]app.Release, error) {
 		return out, nil
 	}
 	if pending != "" {
-		return nil, fmt.Errorf("version %s is being published, its binaries are not attached yet: try again shortly", pending)
+		return nil, fmt.Errorf("version %s has no binaries attached yet: it is still being published, or its release failed; try again shortly, and if it stays so see its release page", pending)
 	}
 	return nil, fmt.Errorf("fetch latest release: none of the newest %d has its binaries yet", len(body))
 }

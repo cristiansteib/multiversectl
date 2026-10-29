@@ -239,7 +239,7 @@ func (r runner) selfUpdateCmd() *cobra.Command {
 				s.Out.OK("updated %s -> %s%s", res.From, res.To, map[bool]string{true: ", with the web view", false: ""}[res.Server])
 				r.restartServerAfterUpdate(cmd.Context())
 			} else if res.Pending != "" {
-				s.Out.Warn("version %s is being published, its binaries are not attached yet: try again shortly (this is %s)", res.Pending, res.From)
+				s.Out.Warn("version %s has no binaries attached yet: it is still being published, or its release failed; try again shortly (this is %s)", res.Pending, res.From)
 			} else {
 				s.Out.OK("already up to date (%s)", res.From)
 			}
