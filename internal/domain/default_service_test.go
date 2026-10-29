@@ -53,3 +53,11 @@ func TestAnOptionalGroupWithoutServicesNeedsTheAppToLeaveThemOut(t *testing.T) {
 		t.Errorf("a profile-only group on an app that starts every service: %v", err)
 	}
 }
+
+func TestABaseIsABranchNotTheRemotes(t *testing.T) {
+	m := &Manifest{Name: "acme", Domain: "example.test", Expose: ExposeLocal, Proxy: Proxy{Entrypoints: map[string]int{"web": 80}},
+		Repos: map[string]Repo{"api": {URL: "x", Base: "origin/develop"}}}
+	if err := m.Validate(); err == nil || !strings.Contains(err.Error(), "name the branch (develop)") {
+		t.Errorf("err = %v", err)
+	}
+}

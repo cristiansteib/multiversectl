@@ -168,3 +168,28 @@ func TestAMultiverseAppIsLayeredOverTheRepositorysOwn(t *testing.T) {
 		t.Errorf("env = %v: want the multiverse's value over the repository's, key by key", api.Env)
 	}
 }
+
+// What the repository said about services and secrets the multiverse replaced
+// goes with them, rather than making the layered app invalid.
+func TestALayerDropsWhatOnlyTheReplacedListsNeeded(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "api/.multiverse.yaml", part(`  apps:
+    - name: api
+      services: [web, worker]
+      defaultService: worker
+      secrets: [.env]
+      secretTemplates: {.env: env.sample}
+`))
+	m, err := Decode([]byte(multiverseOfThree+`  apps:
+    - {name: api, repo: api, services: [web], secrets: [.env.local]}
+`), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := MergeParts(m, root); err != nil {
+		t.Fatal(err)
+	}
+	if api := m.Apps["api"]; api.DefaultService != "" || len(api.SecretTemplates) != 0 {
+		t.Errorf("api = %+v", api)
+	}
+}

@@ -354,6 +354,10 @@ func (m *Manifest) Validate() error {
 		if repo.URL == "" {
 			errs = append(errs, fmt.Sprintf("repos.%s.url: required", key))
 		}
+		if strings.HasPrefix(repo.Base, "origin/") {
+			// It is compared with origin/<base>, so the remote's name would be there twice.
+			errs = append(errs, fmt.Sprintf("repos.%s.base: name the branch (%s), not the remote's", key, strings.TrimPrefix(repo.Base, "origin/")))
+		}
 	}
 	if m.Proxy.Kind != "" && !slices.Contains(ProxyKinds, m.Proxy.Kind) {
 		errs = append(errs, fmt.Sprintf("proxy.kind: %q is not supported (want %s)", m.Proxy.Kind, strings.Join(ProxyKinds, ", ")))
@@ -642,11 +646,21 @@ func Layer(base, top App) App {
 	if len(top.Hosts) > 0 {
 		out.Hosts = top.Hosts
 	}
+	if top.DefaultService == "" && len(top.Services) > 0 && !slices.Contains(out.Services, out.DefaultService) {
+		// The repository's choice among services the multiverse no longer runs.
+		out.DefaultService = ""
+	}
 	out.Build = base.Build || top.Build
 	if top.AutostartSet {
 		out.OnDemand, out.AutostartSet = top.OnDemand, true
 	}
-	out.SecretTemplates = layerMap(base.SecretTemplates, top.SecretTemplates)
+	out.SecretTemplates = maps.Clone(layerMap(base.SecretTemplates, top.SecretTemplates))
+	for name := range out.SecretTemplates {
+		if !slices.Contains(out.Secrets, name) {
+			// A template the repository gave for a secret the multiverse dropped.
+			delete(out.SecretTemplates, name)
+		}
+	}
 	out.Env = layerMap(base.Env, top.Env)
 	out.Derived = false
 	return out

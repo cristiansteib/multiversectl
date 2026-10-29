@@ -84,3 +84,33 @@ func TestAnIdleAppOnDemandExpectsNoServices(t *testing.T) {
 		}
 	}
 }
+
+// profileRuntime defines celery's worker only while the celery profile is on.
+type profileRuntime struct{ Runtime }
+
+func (profileRuntime) Containers(context.Context, string) ([]Container, error) { return nil, nil }
+func (profileRuntime) Inspect(_ context.Context, r RuntimeRequest) (ProjectConfig, error) {
+	services := map[string]ServiceConfig{"web": {}}
+	for _, p := range r.Profiles {
+		if p == "celery" {
+			services["worker"] = ServiceConfig{}
+		}
+	}
+	return ProjectConfig{Services: services}, nil
+}
+
+// A group that is only a profile still says which flag starts its services.
+func TestAProfileOnlyGroupsServicesAreListedAsOptional(t *testing.T) {
+	m := &domain.Manifest{Name: "acme", Repos: map[string]domain.Repo{"api": {}}, Apps: map[string]domain.App{
+		"api": {Repo: "api", Optional: map[string][]string{"celery": nil}},
+	}}
+	svc := New(Deps{Runtime: profileRuntime{}, Files: noFiles{}, System: fakeSystem{}, Out: discardOut{}}, "/ws", m, "test")
+	u := svc.Universe("3")
+	got := map[string]ServiceStatus{}
+	for _, st := range svc.serviceStates(context.Background(), u, domain.UniverseState{Name: "3"}, "api", nil) {
+		got[st.Name] = st
+	}
+	if w := got["worker"]; w.State != StateOptional || w.Detail != "--with celery" || got["web"].State != StateNotUp {
+		t.Errorf("states = %+v", got)
+	}
+}
