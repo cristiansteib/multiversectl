@@ -159,3 +159,50 @@ func TestTheBriefViewNamesTheRunningContainerOfEachService(t *testing.T) {
 		t.Errorf("the least view stays least: %s", less)
 	}
 }
+
+func partialUniverse() app.Summary {
+	return app.Summary{
+		Name: "3", Dir: "/r/universes/3", Running: 1,
+		Apps: []app.AppSummary{
+			{Key: "api", Running: 1, Expected: 3, Services: []app.ServiceStatus{
+				{Name: "web", State: app.StateRunning},
+				{Name: "worker", State: app.StateStopped, Detail: "Exited (1) 2 minutes ago"},
+				{Name: "db", State: app.StateNotUp},
+			}},
+			{Key: "tool", OnDemand: true, Services: []app.ServiceStatus{{Name: "web", State: app.StateOff, Detail: "on demand"}}},
+			{Key: "docs", NoRuntime: true},
+		},
+	}
+}
+
+// A partial universe says which service is not running and why, and names what
+// it did not count so that it is clear it was left out on purpose.
+func TestAPartialUniverseSaysWhatIsNotRunningAndWhy(t *testing.T) {
+	notes := partialNotes([]app.Summary{partialUniverse(), {Name: "4", Running: 0}})
+	if len(notes) != 1 {
+		t.Fatalf("notes = %q", notes)
+	}
+	for _, want := range []string{
+		"universe 3 is partial:", "api/worker failed (Exited (1) 2 minutes ago)", "api/db not started",
+		"not counted: docs no runtime (no compose file in its repository), tool on demand",
+	} {
+		if !strings.Contains(notes[0], want) {
+			t.Errorf("missing %q in %q", want, notes[0])
+		}
+	}
+	if strings.Contains(notes[0], "api/web") {
+		t.Errorf("a service that is up is not a reason: %q", notes[0])
+	}
+}
+
+func TestTheBriefViewGivesTheReasonsToo(t *testing.T) {
+	b, err := json.Marshal(briefView(app.ProjectContext{Name: "acme"}, []app.Summary{partialUniverse()}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"state":"partial"`, `"why":{"api/db":"not started","api/worker":"failed"}`, `"skipped":{"docs":"no runtime (no compose file in its repository)","tool":"on demand"}`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("missing %s in %s", want, b)
+		}
+	}
+}

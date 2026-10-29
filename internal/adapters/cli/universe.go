@@ -284,6 +284,11 @@ func (r runner) lsCmd() *cobra.Command {
 			}
 			if f.table {
 				lsTable(r.out, list, f.wide)
+				if f.wide { // the services are only known when they were asked for
+					for _, note := range partialNotes(list) {
+						r.out.Warn("%s", note)
+					}
+				}
 			}
 			if f.list {
 				if f.table {
@@ -896,6 +901,9 @@ func (r runner) universeStatusCmd() *cobra.Command {
 				{Text: joinPairs(u.Branches)}, {Text: strings.TrimSpace(u.PR + " " + u.Note), Style: dim}})
 		}
 		r.out.Cells([]string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCHES", "NOTE"}, rows)
+		for _, note := range partialNotes(list) {
+			r.out.Warn("%s", note)
+		}
 		for _, u := range list {
 			var behind []string
 			for _, c := range u.Checkouts {
@@ -910,6 +918,37 @@ func (r runner) universeStatusCmd() *cobra.Command {
 		return nil
 	})
 	return cmd
+}
+
+// partialNotes says, for each universe that is partly up, which services are
+// not running and why, so "partial" is never left to be worked out from the
+// containers. What is off on purpose is not among them; it is named after,
+// so it is clear it was not counted.
+func partialNotes(list []app.Summary) []string {
+	var notes []string
+	for _, u := range list {
+		if state, _, _ := standing(u); state != "partial" {
+			continue
+		}
+		var down []string
+		for _, sf := range u.Shortfalls() {
+			item := sf.App + "/" + sf.Service + " " + sf.Why
+			if sf.Detail != "" && sf.Why != "not started" {
+				item += " (" + sf.Detail + ")"
+			}
+			down = append(down, item)
+		}
+		note := fmt.Sprintf("universe %s is partial: %s", u.Name, strings.Join(down, ", "))
+		if skipped := u.Skipped(); len(skipped) > 0 {
+			var parts []string
+			for _, key := range sortedKeys(skipped) {
+				parts = append(parts, key+" "+skipped[key])
+			}
+			note += "; not counted: " + strings.Join(parts, ", ")
+		}
+		notes = append(notes, note)
+	}
+	return notes
 }
 
 // standing reduces a universe to the one word a glance wants. Optional services
