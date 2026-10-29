@@ -243,3 +243,34 @@ func TestServiceEnvFromLabels(t *testing.T) {
 		}
 	}
 }
+
+// A repository whose work starts on another branch says so once, and every
+// universe branches from it and is measured against it.
+func TestARepositorysBaseIsWhereItsUniversesStart(t *testing.T) {
+	manifest := &domain.Manifest{Name: "acme", Repos: map[string]domain.Repo{"api": {Base: "develop"}, "ui": {}}}
+	svc := New(Deps{Git: &codeGit{}, System: fakeSystem{}}, "/ws", manifest, "test")
+	for repo, want := range map[string]string{"api": "develop", "ui": "main"} {
+		if got, err := svc.baseBranch(context.Background(), repo, "/ws/"+repo); err != nil || got != want {
+			t.Errorf("%s: base = %q, %v; want %q", repo, got, err, want)
+		}
+	}
+	if got := svc.followed(context.Background(), "api", "/ws/api", ""); got != "develop" {
+		t.Errorf("an unpushed universe follows %q, want its base", got)
+	}
+}
+
+// An app's env is its own: it is over the multiverse's, and no other app sees it.
+func TestAnAppsEnvIsOverTheMultiversesAndOnlyItsOwn(t *testing.T) {
+	manifest := &domain.Manifest{Name: "acme", Env: map[string]string{"LOG_LEVEL": "info"},
+		Repos: map[string]domain.Repo{"api": {}, "ui": {}},
+		Apps:  map[string]domain.App{"api": {Repo: "api", Env: map[string]string{"LOG_LEVEL": "debug"}}, "ui": {Repo: "ui"}}}
+	svc := New(Deps{System: fakeSystem{}}, "/ws", manifest, "test")
+	u := svc.Universe("3")
+	st := domain.UniverseState{Name: "3"}
+	if got := svc.appEnv(u, st, "api")["LOG_LEVEL"]; got != "debug" {
+		t.Errorf("api: LOG_LEVEL = %q", got)
+	}
+	if got := svc.appEnv(u, st, "ui")["LOG_LEVEL"]; got != "info" {
+		t.Errorf("ui: LOG_LEVEL = %q", got)
+	}
+}

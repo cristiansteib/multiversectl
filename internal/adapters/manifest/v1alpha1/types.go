@@ -157,6 +157,12 @@ type Repo struct {
 	// A repository with no compose file is still checked out into every
 	// universe for editing, and nothing starts for it.
 	Dir string `yaml:"dir"`
+
+	// The branch a new universe's branch starts from, and what it is measured
+	// against while there is no pull request saying otherwise. Leave it out for
+	// the remote's default branch; set it when work starts elsewhere, such as
+	// develop. `universe new --base` overrides it.
+	Base string `yaml:"base"`
 }
 
 type App struct {
@@ -232,6 +238,11 @@ type App struct {
 	// proxy and published ports are what make two copies collide. A service can
 	// ask for this itself with the label dev.multiversectl.publish: "true".
 	Publish []string `yaml:"publish"`
+
+	// Variables exported into this app's runtime invocations and hooks, over
+	// spec.env: for a value only this app needs, or one two apps need different.
+	// They expand as spec.env does.
+	Env []EnvVar `yaml:"env"`
 
 	// The service `universe exec` and `universe run` use when --service is not
 	// given. Needed only when the app has several services; with one, that one
@@ -377,10 +388,13 @@ type HostHook struct {
 }
 
 type Optional struct {
+	// The group's name, and the compose profile it activates.
 	// +required
 	Name string `yaml:"name"`
 
-	// +required
+	// The services the group adds. Leave it out when the profile already says
+	// which they are; it is needed when the app names its services, as compose
+	// then starts only the ones named.
 	Services []string `yaml:"services"`
 }
 

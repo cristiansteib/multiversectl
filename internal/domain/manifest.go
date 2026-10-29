@@ -100,6 +100,9 @@ func (m *Manifest) DefaultBranchFor(number int) string {
 type Repo struct {
 	URL string
 	Dir string // clone directory name, defaults to the repository's own name
+	// Base is the branch a new universe's branch starts from and is measured
+	// against; empty is the remote's default branch.
+	Base string
 }
 
 // DirFor is the directory a repository is cloned into when the manifest does
@@ -140,12 +143,18 @@ type App struct {
 	Overlay []byte // inline compose fragment, rendered by the manifest adapter
 	Build   bool   // build images before starting
 	Hosts   map[string]HostRule
+	// Env is exported into this app's runtime invocations and hooks, over the
+	// multiverse's own.
+	Env map[string]string
 
 	// OnDemand keeps the app out of a start that names no app: it is checked out
 	// and has its addresses like any other, but only runs when asked for by name.
 	// It is the negative so that the zero value, and every manifest written before
 	// the setting existed, still starts everything.
 	OnDemand bool
+	// AutostartSet says the file said either way, which is what lets a
+	// multiverse start an app its repository's own file leaves on demand.
+	AutostartSet bool
 
 	// Derived marks an app no one declared: one repository, everything by
 	// convention. Such an app may turn out to have no compose file at all,
@@ -345,6 +354,10 @@ func (m *Manifest) Validate() error {
 		if repo.URL == "" {
 			errs = append(errs, fmt.Sprintf("repos.%s.url: required", key))
 		}
+		if strings.HasPrefix(repo.Base, "origin/") {
+			// It is compared with origin/<base>, so the remote's name would be there twice.
+			errs = append(errs, fmt.Sprintf("repos.%s.base: name the branch (%s), not the remote's", key, strings.TrimPrefix(repo.Base, "origin/")))
+		}
 	}
 	if m.Proxy.Kind != "" && !slices.Contains(ProxyKinds, m.Proxy.Kind) {
 		errs = append(errs, fmt.Sprintf("proxy.kind: %q is not supported (want %s)", m.Proxy.Kind, strings.Join(ProxyKinds, ", ")))
@@ -369,6 +382,14 @@ func (m *Manifest) Validate() error {
 		}
 		if _, ok := m.Repos[app.Repo]; !ok {
 			errs = append(errs, fmt.Sprintf("apps.%s.repo: no such repo %q", key, app.Repo))
+		}
+		for name, extra := range app.Optional {
+			// A group with no services is a compose profile and nothing more. With
+			// the app's services named, compose starts only those, so the profile's
+			// would never run.
+			if len(extra) == 0 && len(app.Services) > 0 {
+				errs = append(errs, fmt.Sprintf("apps.%s.optional.%s.services: required when the app names its services, or the group starts nothing", key, name))
+			}
 		}
 		if app.DefaultService != "" && len(app.Services) > 0 && !slices.Contains(app.Services, app.DefaultService) {
 			errs = append(errs, fmt.Sprintf("apps.%s.defaultService: %q is not one of its services (%s)", key, app.DefaultService, strings.Join(app.Services, ", ")))
@@ -547,7 +568,9 @@ type Part struct {
 // Merge adds what a repository says about itself. The apps it declares replace
 // the one the multiverse would have derived for it; they cannot take the name
 // of another repository's app, and an entrypoint another part or the manifest
-// already has must be on the same port.
+// already has must be on the same port. An app the multiverse also declares for
+// this repository is the repository's, with what the multiverse sets on top:
+// the multiverse is what this machine runs, and the repository its default.
 func (m *Manifest) Merge(repoKey string, p Part) error {
 	if _, ok := m.Repos[repoKey]; !ok {
 		return fmt.Errorf("no repo %q to merge into", repoKey)
@@ -560,8 +583,11 @@ func (m *Manifest) Merge(repoKey string, p Part) error {
 	}
 	for key, a := range p.Apps {
 		if other, taken := m.Apps[key]; taken {
-			errs = append(errs, fmt.Sprintf("app %q is already defined for repo %q", key, other.Repo))
-			continue
+			if other.Repo != repoKey {
+				errs = append(errs, fmt.Sprintf("app %q is already defined for repo %q", key, other.Repo))
+				continue
+			}
+			a = Layer(a, other)
 		}
 		a.Repo = repoKey
 		m.Apps[key] = a
@@ -578,6 +604,78 @@ func (m *Manifest) Merge(repoKey string, p Part) error {
 		return &ValidationError{Problems: errs}
 	}
 	return m.Validate()
+}
+
+// Layer is base with every setting top makes put over it. A list or map that top
+// gives replaces base's whole, as a value it sets does: merging the entries of
+// two lists of compose files or hosts would make an order neither file wrote.
+// Env and secret templates are merged by key, since each key is a setting of
+// its own.
+func Layer(base, top App) App {
+	out := base
+	if len(top.Compose) > 0 {
+		out.Compose = top.Compose
+	}
+	if len(top.Profiles) > 0 {
+		out.Profiles = top.Profiles
+	}
+	if len(top.Services) > 0 {
+		out.Services = top.Services
+	}
+	if len(top.Optional) > 0 {
+		out.Optional = top.Optional
+	}
+	if len(top.Secrets) > 0 {
+		out.Secrets = top.Secrets
+	}
+	if len(top.Publish) > 0 {
+		out.Publish = top.Publish
+	}
+	if top.DefaultService != "" {
+		out.DefaultService = top.DefaultService
+	}
+	if len(top.Hooks) > 0 {
+		out.Hooks = top.Hooks
+	}
+	if len(top.Render) > 0 {
+		out.Render = top.Render
+	}
+	if len(top.Overlay) > 0 {
+		out.Overlay = top.Overlay
+	}
+	if len(top.Hosts) > 0 {
+		out.Hosts = top.Hosts
+	}
+	if top.DefaultService == "" && len(top.Services) > 0 && !slices.Contains(out.Services, out.DefaultService) {
+		// The repository's choice among services the multiverse no longer runs.
+		out.DefaultService = ""
+	}
+	out.Build = base.Build || top.Build
+	if top.AutostartSet {
+		out.OnDemand, out.AutostartSet = top.OnDemand, true
+	}
+	out.SecretTemplates = maps.Clone(layerMap(base.SecretTemplates, top.SecretTemplates))
+	for name := range out.SecretTemplates {
+		if !slices.Contains(out.Secrets, name) {
+			// A template the repository gave for a secret the multiverse dropped.
+			delete(out.SecretTemplates, name)
+		}
+	}
+	out.Env = layerMap(base.Env, top.Env)
+	out.Derived = false
+	return out
+}
+
+func layerMap(base, top map[string]string) map[string]string {
+	if len(top) == 0 {
+		return base
+	}
+	out := maps.Clone(base)
+	if out == nil {
+		out = map[string]string{}
+	}
+	maps.Copy(out, top)
+	return out
 }
 
 // validateHooks reports what is wrong with the hooks under path. services are

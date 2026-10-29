@@ -294,6 +294,7 @@ func (s *Service) serviceStates(ctx context.Context, u domain.Universe, st domai
 			group[svc] = name
 		}
 	}
+	s.profileServices(ctx, u, st, appKey, group)
 
 	out := make([]ServiceStatus, 0, len(names))
 	for _, name := range names {
@@ -330,6 +331,36 @@ func (s *Service) definedServices(ctx context.Context, u domain.Universe, st dom
 		return nil
 	}
 	return cfg.Names()
+}
+
+// profileServices adds to group the services of the groups that name none:
+// those are a compose profile only, and its services are the ones that appear
+// when it is active. Only asked for when there is such a group, as each is a
+// read of the compose files.
+func (s *Service) profileServices(ctx context.Context, u domain.Universe, st domain.UniverseState, appKey string, group map[string]string) {
+	app := s.Manifest.Apps[appKey]
+	var base map[string]ServiceConfig
+	for _, name := range mapKeys(app.Optional) {
+		if len(app.Optional[name]) > 0 {
+			continue
+		}
+		if base == nil {
+			cfg, err := s.Runtime.Inspect(ctx, s.request(u, st, appKey, nil))
+			if err != nil {
+				return
+			}
+			base = cfg.Services
+		}
+		cfg, err := s.Runtime.Inspect(ctx, s.request(u, st, appKey, []string{name}))
+		if err != nil {
+			continue
+		}
+		for svc := range cfg.Services {
+			if _, always := base[svc]; !always && group[svc] == "" {
+				group[svc] = name
+			}
+		}
+	}
 }
 
 // volumesOf are the volumes belonging to one app's multiverse, named in full:

@@ -169,6 +169,15 @@ spec:
                           called otherwise. A repository with no compose
                           file is still checked out into every universe for
                           editing, and nothing starts for it.
+                      base:
+                        type: string
+                        description: >-
+                          The branch a new universe's branch starts from,
+                          and what it is measured against while there is no
+                          pull request saying otherwise. Leave it out for
+                          the remote's default branch; set it when work
+                          starts elsewhere, such as develop. `universe new
+                          --base` overrides it.
                 apps:
                   type: array
                   description: >-
@@ -251,12 +260,21 @@ spec:
                           a compose profile.
                         items:
                           type: object
-                          required: [name, services]
+                          required: [name]
                           properties:
                             name:
                               type: string
+                              description: >-
+                                The group's name, and the compose profile it
+                                activates.
                             services:
                               type: array
+                              description: >-
+                                The services the group adds. Leave it out
+                                when the profile already says which they
+                                are; it is needed when the app names its
+                                services, as compose then starts only the
+                                ones named.
                               items:
                                 type: string
                       secrets:
@@ -1084,6 +1102,21 @@ spec:
                           the label dev.multiversectl.publish: "true".
                         items:
                           type: string
+                      env:
+                        type: array
+                        description: >-
+                          Variables exported into this app's runtime
+                          invocations and hooks, over spec.env: for a value
+                          only this app needs, or one two apps need
+                          different. They expand as spec.env does.
+                        items:
+                          type: object
+                          required: [name, value]
+                          properties:
+                            name:
+                              type: string
+                            value:
+                              type: string
                       defaultService:
                         type: string
                         description: >-

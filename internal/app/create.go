@@ -210,7 +210,7 @@ func (s *Service) plan(ctx context.Context, u domain.Universe, in CreateInput) (
 
 		base := firstNonEmpty(in.Bases[key], in.Base)
 		if base == "" {
-			def, err := s.Git.DefaultBranch(ctx, clone)
+			def, err := s.baseBranch(ctx, key, clone)
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", key, err)
 			}

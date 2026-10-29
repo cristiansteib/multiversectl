@@ -55,6 +55,9 @@ type hookHost struct {
 // file already gets, and which event it is running for.
 func (s *Service) hookEnv(u domain.Universe, st domain.UniverseState, ev domain.HookEvent, appKey string) map[string]string {
 	env := s.runtimeEnv(u, st)
+	if appKey != "" {
+		env = s.appEnv(u, st, appKey)
+	}
 	env["MULTIVERSE_EVENT"] = string(ev)
 	env["MULTIVERSE_APP"] = appKey
 	return env
