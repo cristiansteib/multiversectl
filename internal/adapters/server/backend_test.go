@@ -90,15 +90,15 @@ type listStore struct {
 func (s listStore) List() ([]domain.UniverseState, error) { return s.all, nil }
 
 // An app that leaves its addresses to its compose files still shows them: the
-// newest universe that resolved them speaks for every one.
+// universe that last resolved them speaks for every one.
 func TestTheMultiverseShowsTheHostsItsComposeFilesDeclare(t *testing.T) {
 	older, newer := time.Unix(100, 0), time.Unix(200, 0)
 	svc := &app.Service{Deps: app.Deps{Store: listStore{all: []domain.UniverseState{
 		{Name: "1", Created: older, Rules: map[string]domain.RouteRule{"api": {App: "api", Service: "web", Port: 7000}}},
-		{Name: "2", Created: newer, Rules: map[string]domain.RouteRule{
-			"api":    {App: "api", Service: "web", Port: 8000, Scheme: "h2c", Aliases: []string{"app"}},
-			"devapi": {App: "api", Service: "web", Port: 8000, Entrypoint: "devapi", PortForward: "auto"},
-		}},
+		// Made earliest, but started since the others were made: it speaks for them.
+		{Name: "0", Created: time.Unix(50, 0), LastStarted: time.Unix(300, 0), Rules: map[string]domain.RouteRule{"api": {App: "api", Service: "web", Port: 8000, Scheme: "h2c", Aliases: []string{"app"}},
+			"devapi": {App: "api", Service: "web", Port: 8000, Entrypoint: "devapi", PortForward: "auto"}}},
+		{Name: "2", Created: newer, Rules: map[string]domain.RouteRule{"api": {App: "api", Service: "web", Port: 9000}}},
 	}}}}
 	got := discoveredHosts(svc)["api"]
 	if len(got) != 2 || got[0].Port != 8000 || got[0].Scheme != "h2c" || got[0].AlsoMatch[0] != "app" || !got[0].Discovered ||

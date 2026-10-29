@@ -260,8 +260,12 @@ func (s Services) Multiverse(ctx context.Context, name string) (multiverseView, 
 		}
 		for _, hk := range sortedKeys(a.Hosts) {
 			h := a.Hosts[hk]
+			forward := h.PortForward
+			if m.IPOnly() {
+				forward = domain.PortForwardOnly // what every host is, with no domain
+			}
 			av.Hosts = append(av.Hosts, hostDefView{Name: hk, Service: h.Service, Port: h.Port, Entrypoint: orWeb(h.Entrypoint),
-				AlsoMatch: h.AlsoMatch, PortForward: h.PortForward, Scheme: h.Scheme})
+				AlsoMatch: h.AlsoMatch, PortForward: forward, Scheme: h.Scheme})
 		}
 		if len(a.Hosts) == 0 {
 			av.Hosts = discovered[key]
@@ -273,14 +277,16 @@ func (s Services) Multiverse(ctx context.Context, name string) (multiverseView, 
 
 // discoveredHosts are the addresses of the apps that leave them to their compose
 // files: labels, or a single exposed port. Only a universe that has been made
-// knows them, and the host keys are the same in every one, so the most recently
-// made universe that has an app's hosts speaks for it.
+// knows them, and they are taken again on every start and sync, so the universe
+// that last did either speaks for the multiverse. A universe on a branch that
+// adds a label can make that one speak for it too; that is what the page's
+// "discovered" says.
 func discoveredHosts(svc *app.Service) map[string][]hostDefView {
 	all, err := svc.Store.List()
 	if err != nil {
 		return nil
 	}
-	sort.SliceStable(all, func(i, j int) bool { return all[i].Created.After(all[j].Created) })
+	sort.SliceStable(all, func(i, j int) bool { return lastResolved(all[i]).After(lastResolved(all[j])) })
 	out := map[string][]hostDefView{}
 	for _, st := range all {
 		byApp := map[string][]hostDefView{}
@@ -296,6 +302,13 @@ func discoveredHosts(svc *app.Service) map[string][]hostDefView {
 		}
 	}
 	return out
+}
+
+func lastResolved(st domain.UniverseState) time.Time {
+	if st.LastStarted.After(st.Created) {
+		return st.LastStarted
+	}
+	return st.Created
 }
 
 func orWeb(entrypoint string) string {
