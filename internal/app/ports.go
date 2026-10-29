@@ -249,6 +249,11 @@ type ServiceConfig struct {
 	Labels      map[string]string
 	Build       bool
 	Ports       []int // container ports it exposes or publishes
+	// Networks are the networks docker puts the service on, by the names it
+	// gives them, the project's default network first: the proxy reaches the
+	// service on the first of them. A compose file may name its own networks,
+	// and then there is no <project>_default network at all.
+	Networks []string
 }
 
 // Names returns the service names, sorted.
@@ -290,10 +295,11 @@ type ProxyStatus struct {
 type Proxy interface {
 	EnsureNetwork(ctx context.Context, name string) error
 	// ConnectNetwork joins the running proxy to a network an app's routed services
-	// are on, and DisconnectNetwork leaves it again (before the app is taken down,
-	// since a network the proxy is on cannot be removed). Neither restarts the proxy.
+	// are on, and DisconnectProject leaves every network of an app's compose
+	// project again, which has to happen before the app is taken down: compose
+	// cannot remove a network the proxy is still on. Neither restarts the proxy.
 	ConnectNetwork(ctx context.Context, name string) error
-	DisconnectNetwork(ctx context.Context, name string) error
+	DisconnectProject(ctx context.Context, project string) error
 	EnsureUp(ctx context.Context, r ProxyRequest) error
 	Down(ctx context.Context) error
 	Status(ctx context.Context) (ProxyStatus, error)

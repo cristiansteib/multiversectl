@@ -2,8 +2,10 @@ package compose
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -90,5 +92,18 @@ func TestRemovingAsRootRefusesWhatIsTooCloseToTheTop(t *testing.T) {
 		if err := New(io.Discard, io.Discard, nil).RemoveAsRoot(context.Background(), dir); err == nil || !strings.Contains(err.Error(), "not removing") {
 			t.Errorf("%q: %v", dir, err)
 		}
+	}
+}
+
+// The default network comes first, because that is the one the proxy is pointed at
+// when a service is on it. A compose file that names its own networks has none.
+func TestNetworkKeysPutTheDefaultFirst(t *testing.T) {
+	got := networkKeys(map[string]json.RawMessage{"back": nil, "default": nil, "admin": nil})
+	want := []string{"default", "admin", "back"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("networkKeys = %v, want %v", got, want)
+	}
+	if got := networkKeys(map[string]json.RawMessage{"internal": nil}); !slices.Equal(got, []string{"internal"}) {
+		t.Fatalf("networkKeys = %v, want the one network the compose file names", got)
 	}
 }

@@ -223,8 +223,8 @@ func TestARoutedServiceJoinsNoSharedNetwork(t *testing.T) {
 		byName[s.Name] = s
 	}
 	web, api := byName["web"], byName["api"]
-	if web == nil || len(web.Networks) != 0 || len(out.Networks) != 0 {
-		t.Fatalf("a routed service is attached to networks %+v (fragment declares %v), want none", web, out.Networks)
+	if web == nil {
+		t.Fatalf("the routed service has no entry in %+v", out.Services)
 	}
 	var named string
 	for _, l := range web.Labels {
@@ -241,8 +241,8 @@ func TestARoutedServiceJoinsNoSharedNetwork(t *testing.T) {
 	if len(api.Ports) != 1 || api.Ports[0] != "0.0.0.0:41000:8000" {
 		t.Errorf("api ports = %v, want 0.0.0.0:41000:8000", api.Ports)
 	}
-	if len(api.Networks) != 0 || len(api.Labels) != 0 {
-		t.Errorf("a service reached by IP alone has networks %v and labels %v, want none", api.Networks, api.Labels)
+	if len(api.Labels) != 0 {
+		t.Errorf("a service reached by IP alone carries labels %v, want none", api.Labels)
 	}
 	text, err := render("routes.yml.tmpl", out)
 	if err != nil {

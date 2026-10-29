@@ -132,6 +132,9 @@ func (u Universe) Project() string {
 // that app of that universe, so a service name on it means one service. A network
 // shared by several universes would not: every service answers to its plain name
 // there, and "auth" would be the auth service of each universe at once.
+//
+// It is the name before the compose files are read; they have the last word, since
+// a compose file that names its own networks has no default network at all.
 func (u Universe) ProxyNetwork(appKey string) string { return u.ProjectFor(appKey) + "_default" }
 
 // ProjectFor is the compose project of one app. Apps of a universe get a

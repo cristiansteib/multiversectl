@@ -123,19 +123,28 @@ func (t *Traefik) ConnectNetwork(ctx context.Context, name string) error {
 	return nil
 }
 
-// DisconnectNetwork leaves a network. A proxy that is not running, or not on it,
-// has nothing to leave.
-func (t *Traefik) DisconnectNetwork(ctx context.Context, name string) error {
+// DisconnectProject takes the proxy off every network of a compose project, which
+// has to happen before the project is taken down: compose cannot remove a network
+// something is still connected to. The networks are found by compose's own label
+// rather than by an assumed name, so a compose file that names its own networks is
+// covered too. A proxy that is not running, or not on them, has nothing to leave.
+func (t *Traefik) DisconnectProject(ctx context.Context, project string) error {
 	id, err := t.proxyContainer(ctx)
 	if err != nil || id == "" {
 		return nil
 	}
-	if _, err := t.capture(ctx, "network", "disconnect", name, id); err != nil {
-		msg := err.Error()
-		if strings.Contains(msg, "is not connected") || strings.Contains(msg, "not found") || strings.Contains(msg, "No such network") {
-			return nil
-		}
+	out, err := t.capture(ctx, "network", "ls", "--quiet", "--filter", "label=com.docker.compose.project="+project)
+	if err != nil {
 		return err
+	}
+	for _, network := range strings.Fields(out) {
+		if _, err := t.capture(ctx, "network", "disconnect", network, id); err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, "is not connected") || strings.Contains(msg, "not found") || strings.Contains(msg, "No such network") {
+				continue
+			}
+			return err
+		}
 	}
 	return nil
 }
@@ -383,13 +392,11 @@ type service struct {
 	Ports     []string // "bind:host:container", replacing every published port
 	Labels    []label
 	Env       []label
-	Networks  []string
 	seen      map[string]bool
 }
 
 type override struct {
 	Services []*service
-	Networks []string
 }
 
 // buildOverride groups routes by service so two routes on one service share a
@@ -409,7 +416,6 @@ func buildOverride(r app.OverrideRequest) override {
 		byName[name] = s
 		return s
 	}
-	networks := map[string]bool{}
 	for _, name := range unpublish {
 		get(name).Unpublish = true
 	}
@@ -459,14 +465,9 @@ func buildOverride(r app.OverrideRequest) override {
 	}
 	out := override{}
 	for _, s := range byName {
-		sort.Strings(s.Networks)
 		out.Services = append(out.Services, s)
 	}
 	sort.Slice(out.Services, func(i, j int) bool { return out.Services[i].Name < out.Services[j].Name })
-	for n := range networks {
-		out.Networks = append(out.Networks, n)
-	}
-	sort.Strings(out.Networks)
 	return out
 }
 

@@ -27,7 +27,7 @@ type portProxy struct {
 
 func (p *portProxy) EnsureNetwork(context.Context, string) error     { return nil }
 func (p *portProxy) ConnectNetwork(context.Context, string) error    { return nil }
-func (p *portProxy) DisconnectNetwork(context.Context, string) error { return nil }
+func (p *portProxy) DisconnectProject(context.Context, string) error { return nil }
 func (p *portProxy) Status(context.Context) (ProxyStatus, error) {
 	return ProxyStatus{Running: p.running}, nil
 }

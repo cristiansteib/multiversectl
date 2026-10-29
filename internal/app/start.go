@@ -209,7 +209,7 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 	if err != nil {
 		return st, fmt.Errorf("%s: %w", appKey, err)
 	}
-	routes := s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg)
+	routes := onTheirOwnNetworks(s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg), cfg)
 	extraFiles, err := s.Router.Materialize(ctx, OverrideRequest{
 		Dir:       u.Dir(),
 		App:       appKey,
@@ -259,13 +259,11 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 	return st, nil
 }
 
-// withoutUnroutable drops the routes to services that set network_mode. The
-// routing fragment joins a service to the proxy's network, and compose rejects
-// a service that has both network_mode and networks, which would fail the whole
-// app. A service in another network mode (host, or another container's) is not
-// on the proxy's network at all, so it cannot be reached through the proxy
-// whatever is written; a port forward is dropped with it, because the fragment
-// cannot publish a port for such a service either.
+// withoutUnroutable drops the routes to services that set network_mode. A service
+// in another network mode (host, or another container's) is on none of its project's
+// networks, so the proxy has nothing to join and cannot reach it whatever is
+// written; a port forward is dropped with it, because the fragment cannot publish
+// a port for such a service either.
 func (s *Service) withoutUnroutable(appKey string, routes []Route, cfg ProjectConfig) []Route {
 	var out []Route
 	for _, r := range routes {
@@ -278,7 +276,7 @@ func (s *Service) withoutUnroutable(appKey string, routes []Route, cfg ProjectCo
 		if r.HostPort > 0 {
 			extra = fmt.Sprintf("; its forwarded port %d is not published either (a service in network_mode %q is reached on that network directly)", r.HostPort, mode)
 		}
-		s.Out.Warn("%s: service %q sets network_mode %q, so it cannot join the proxy's network and host %s cannot be reached through the proxy%s",
+		s.Out.Warn("%s: service %q sets network_mode %q, so it is on none of its app's networks and host %s cannot be reached through the proxy%s",
 			appKey, r.Service, mode, r.Hostname, extra)
 	}
 	return out
@@ -671,12 +669,29 @@ func (s *Service) joinProxy(ctx context.Context, appKey string, routes []Route) 
 	return nil
 }
 
-// leaveProxy disconnects the proxy from an app's network before the app is taken
-// down: compose cannot remove a network that something is still connected to.
+// leaveProxy disconnects the proxy from the app's networks before the app is taken
+// down: compose cannot remove a network that something is still connected to. It
+// goes by the compose project rather than by one network name, so an app whose
+// compose files name their own networks is covered too.
 // There is nothing to undo when the proxy is not there, so a failure is not one.
 func (s *Service) leaveProxy(ctx context.Context, u domain.Universe, appKey string) {
 	if s.Proxy == nil {
 		return
 	}
-	_ = s.Proxy.DisconnectNetwork(ctx, u.ProxyNetwork(appKey))
+	_ = s.Proxy.DisconnectProject(ctx, u.ProjectFor(appKey))
+}
+
+// onTheirOwnNetworks points each route at the network docker really puts its
+// service on. The name is guessed before the compose files are read, and the guess
+// is wrong for a compose file that names its own networks: there is no
+// <project>_default then, and connecting the proxy to it would fail the start.
+func onTheirOwnNetworks(routes []Route, cfg ProjectConfig) []Route {
+	out := make([]Route, 0, len(routes))
+	for _, r := range routes {
+		if nets := cfg.Services[r.Service].Networks; r.Network != "" && len(nets) > 0 {
+			r.Network = nets[0]
+		}
+		out = append(out, r)
+	}
+	return out
 }

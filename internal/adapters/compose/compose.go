@@ -368,8 +368,14 @@ func (c *Compose) Inspect(ctx context.Context, r app.RuntimeRequest) (app.Projec
 			Ports       []struct {
 				Target int `json:"target"`
 			} `json:"ports"`
-			Expose []json.Number `json:"expose"`
+			Expose   []json.Number              `json:"expose"`
+			Networks map[string]json.RawMessage `json:"networks"`
 		} `json:"services"`
+		// The project's networks, keyed as the compose files write them, each
+		// carrying the name docker knows it by.
+		Networks map[string]struct {
+			Name string `json:"name"`
+		} `json:"networks"`
 	}
 	if err := json.Unmarshal(stdout.Bytes(), &parsed); err != nil {
 		return app.ProjectConfig{}, fmt.Errorf("docker compose config: %w", err)
@@ -391,9 +397,32 @@ func (c *Compose) Inspect(ctx context.Context, r app.RuntimeRequest) (app.Projec
 			}
 		}
 		sort.Ints(ports)
-		out.Services[name] = app.ServiceConfig{NetworkMode: svc.NetworkMode, Labels: svc.Labels, Build: len(svc.Build) > 0, Ports: ports}
+		networks := make([]string, 0, len(svc.Networks))
+		for _, key := range networkKeys(svc.Networks) {
+			if resolved := parsed.Networks[key].Name; resolved != "" {
+				networks = append(networks, resolved)
+			}
+		}
+		out.Services[name] = app.ServiceConfig{NetworkMode: svc.NetworkMode, Labels: svc.Labels, Build: len(svc.Build) > 0, Ports: ports, Networks: networks}
 	}
 	return out, nil
+}
+
+// networkKeys sorts the networks a service is attached to, "default" first: that is
+// the one the proxy is pointed at when the service is on it, and a compose file that
+// names its own networks has no default network at all.
+func networkKeys(declared map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(declared))
+	for key := range declared {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if (keys[i] == "default") != (keys[j] == "default") {
+			return keys[i] == "default"
+		}
+		return keys[i] < keys[j]
+	})
+	return keys
 }
 
 func (c *Compose) Version(ctx context.Context) (string, error) {

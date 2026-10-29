@@ -121,3 +121,36 @@ func TestOnlyTheProxyIsExpectedOnTheOldSharedNetwork(t *testing.T) {
 		t.Fatalf("members = %v, want none", got)
 	}
 }
+
+// The network of a route is guessed before the compose files are read, and the
+// compose files have the last word: a service that names its own network is not on
+// <project>_default, and connecting the proxy to a network that does not exist
+// would fail the start.
+func TestTheComposeFilesDecideWhichNetworkTheProxyIsPointedAt(t *testing.T) {
+	cfg := ProjectConfig{Services: map[string]ServiceConfig{
+		"web":  {Networks: []string{"acme-u3-web_internal", "acme-u3-web_admin"}},
+		"api":  {Networks: []string{"acme-u3-web_default"}},
+		"edge": {}, // a runtime that tells us nothing: keep the guess
+	}}
+	routes := onTheirOwnNetworks([]Route{
+		{Service: "web", Network: "acme-u3-web_default"},
+		{Service: "api", Network: "acme-u3-web_default"},
+		{Service: "edge", Network: "acme-u3-web_default"},
+		{Service: "direct", Network: ""}, // reached by IP alone: it joins nothing
+	}, cfg)
+	got := map[string]string{}
+	for _, r := range routes {
+		got[r.Service] = r.Network
+	}
+	want := map[string]string{
+		"web":    "acme-u3-web_internal",
+		"api":    "acme-u3-web_default",
+		"edge":   "acme-u3-web_default",
+		"direct": "",
+	}
+	for service, network := range want {
+		if got[service] != network {
+			t.Errorf("%s is reached on %q, want %q", service, got[service], network)
+		}
+	}
+}

@@ -384,7 +384,7 @@ type startProxy struct{ app.Proxy }
 
 func (startProxy) EnsureNetwork(context.Context, string) error     { return nil }
 func (startProxy) ConnectNetwork(context.Context, string) error    { return nil }
-func (startProxy) DisconnectNetwork(context.Context, string) error { return nil }
+func (startProxy) DisconnectProject(context.Context, string) error { return nil }
 func (startProxy) Status(context.Context) (app.ProxyStatus, error) {
 	return app.ProxyStatus{Running: true, Bind: "0.0.0.0", Entrypoints: map[string]int{"web": 80}}, nil
 }
