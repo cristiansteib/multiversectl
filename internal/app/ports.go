@@ -401,6 +401,10 @@ type Release struct {
 	// entries it has: features, breaking changes.
 	Fixes   []string
 	Changes int
+	// Pending is a newer version that is published but whose binaries are not
+	// all attached yet. Only the newest finished release carries it, and only
+	// when such a version exists.
+	Pending string
 }
 
 // Releases is the self-update port.
