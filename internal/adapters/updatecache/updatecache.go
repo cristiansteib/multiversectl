@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
@@ -18,7 +19,7 @@ var _ app.UpdateStore = (*Store)(nil)
 // New resolves $XDG_CACHE_HOME/multiversectl/update.json, falling back to the
 // platform's cache directory.
 func New() (*Store, error) {
-	base, err := os.UserCacheDir()
+	base, err := userdirs.Cache()
 	if err != nil {
 		return nil, err
 	}

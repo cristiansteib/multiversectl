@@ -19,11 +19,15 @@ import (
 	"text/template"
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/trace"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-const proxyProject = "multiverse-proxy"
+// proxyProject is the shared proxy's compose project. Relocating the state
+// directory gives it a name of its own, so a rehearsal cannot recreate the
+// proxy that serves the universes the machine really has.
+func proxyProject() string { return "multiverse-proxy" + userdirs.Suffix() }
 
 //go:embed templates/*.tmpl
 var templates embed.FS
@@ -103,7 +107,7 @@ func (t *Traefik) EnsureUp(ctx context.Context, r app.ProxyRequest) error {
 	if err := writeIfChanged(file, content); err != nil {
 		return err
 	}
-	return t.docker(ctx, "compose", "--project-name", proxyProject, "-f", file, "up", "-d")
+	return t.docker(ctx, "compose", "--project-name", proxyProject(), "-f", file, "up", "-d")
 }
 
 func (t *Traefik) Down(ctx context.Context) error {
@@ -114,7 +118,7 @@ func (t *Traefik) Down(ctx context.Context) error {
 	if _, err := os.Stat(file); err != nil {
 		return nil
 	}
-	return t.docker(ctx, "compose", "--project-name", proxyProject, "-f", file, "down")
+	return t.docker(ctx, "compose", "--project-name", proxyProject(), "-f", file, "down")
 }
 
 func (t *Traefik) Status(ctx context.Context) (app.ProxyStatus, error) {
@@ -133,7 +137,7 @@ func (t *Traefik) Status(ctx context.Context) (app.ProxyStatus, error) {
 	st.Certificates = parseCertificates(string(content))
 
 	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "docker", "compose", "--project-name", proxyProject, "-f", file, "ps", "--format", "{{json .}}")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "--project-name", proxyProject(), "-f", file, "ps", "--format", "{{json .}}")
 	cmd.Stderr = &stderr
 	done := t.trace.Begin(cmd)
 	out, err := cmd.Output()
@@ -389,13 +393,9 @@ func writeIfChanged(path string, content []byte) error {
 }
 
 func proxyFile() (string, error) {
-	base := os.Getenv("XDG_STATE_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".local", "state")
+	base, err := userdirs.State()
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(base, "multiversectl", "proxy", "docker-compose.yml"), nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"io"
 	"os"
 	"os/exec"
@@ -613,7 +614,7 @@ func installBase() string {
 	if b := os.Getenv("MULTIVERSECTL_ROOT"); b != "" {
 		return b
 	}
-	return "~/multiverse"
+	return userdirs.DefaultRoot()
 }
 
 func (s Services) plan(ctx context.Context, path string, exclude []string) ([]app.InstallTarget, error) {

@@ -646,3 +646,26 @@ func parseNumstat(out string) app.DiffStat {
 	}
 	return d
 }
+
+// LsRemote asks the remote for its refs, never prompting: a remote that wants a
+// password or an unknown ssh host fails with git's own words, which is what a
+// preflight classifies.
+func (g Git) LsRemote(ctx context.Context, url string) error {
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--quiet", "--", url, "HEAD")
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	if os.Getenv("GIT_SSH_COMMAND") == "" {
+		cmd.Env = append(cmd.Env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=10")
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	done := g.trace.Begin(cmd)
+	err := cmd.Run()
+	done(err)
+	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("git ls-remote: %w", ctx.Err())
+		}
+		return fmt.Errorf("git ls-remote: %s", strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}

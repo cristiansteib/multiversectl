@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
@@ -19,6 +20,8 @@ type Globals struct {
 	NoColor    bool
 	Verbose    int
 	JSON       bool
+	// StateDir relocates every per-user location (--state-dir).
+	StateDir string
 }
 
 // Factory builds services; main owns it so the CLI never names an adapter.
@@ -64,6 +67,13 @@ func New(f Factory) (*cobra.Command, *Globals) {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			// First of all: everything below reads where the user's files are, and so
+			// does any program this one starts, which inherits it.
+			if g.StateDir != "" {
+				if err := os.Setenv(userdirs.Env, g.StateDir); err != nil {
+					return err
+				}
+			}
 			*out = *NewOutput(os.Stdout, ColorEnabled(os.Stdout, g.NoColor))
 			run.refreshCompletions(root, cmd)
 			run.refreshSkills(cmd)
@@ -77,6 +87,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	flags.StringVarP(&g.Manifest, "manifest", "f", "", "path to the multiverse manifest")
 	flags.StringVarP(&g.Multiverse, "multiverse", "m", "", "multiverse to act on (default: the one whose folder you are in, else the only one installed)")
 	flags.StringVar(&g.Root, "root", "", "multiverse root (default $MULTIVERSECTL_ROOT, the manifest's spec.root, config, or the manifest's directory)")
+	flags.StringVar(&g.StateDir, "state-dir", "", "keep every per-user file (config, caches, installed multiverses, web view state, shell and agent files) under this directory instead of $HOME ($"+userdirs.Env+"); to rehearse a first run")
 	flags.BoolVar(&g.NoColor, "no-color", false, "disable colour output")
 	flags.CountVarP(&g.Verbose, "verbose", "v", "say what is being done: -v the steps and what the commands print, -vv the commands run, -vvv how each ended (--verbose=N too)")
 	flags.BoolVar(&g.JSON, jsonFlag, false, "machine-readable output: -o json on a listing, and --help as a document (for agents)")

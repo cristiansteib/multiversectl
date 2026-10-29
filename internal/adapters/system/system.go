@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"io"
 	"net"
 	"net/http"
@@ -22,9 +23,36 @@ type System struct{}
 
 func New() *System { return &System{} }
 
-func (System) UID() int                 { return os.Getuid() }
-func (System) GID() int                 { return os.Getgid() }
-func (System) Getenv(key string) string { return os.Getenv(key) }
+func (System) UID() int { return os.Getuid() }
+func (System) GID() int { return os.Getgid() }
+
+// Getenv is the environment, except that with a state directory the places
+// the user's files go (HOME and the XDG directories) are inside it: the shell
+// completion, the agent skill and "~/" in a path are written under it too.
+func (System) Getenv(key string) string {
+	if userdirs.Dir() != "" {
+		var dir string
+		var err error
+		switch key {
+		case "HOME":
+			dir, err = userdirs.Home()
+		case "XDG_CONFIG_HOME":
+			dir, err = userdirs.Config()
+		case "XDG_DATA_HOME":
+			dir, err = userdirs.Data()
+		case "XDG_STATE_HOME":
+			dir, err = userdirs.State()
+		case "XDG_CACHE_HOME":
+			dir, err = userdirs.Cache()
+		default:
+			return os.Getenv(key)
+		}
+		if err == nil {
+			return dir
+		}
+	}
+	return os.Getenv(key)
+}
 
 func (System) Which(name string) (string, bool) {
 	p, err := exec.LookPath(name)
@@ -140,4 +168,13 @@ func (System) Dial(ctx context.Context, address string) error {
 		return err
 	}
 	return conn.Close()
+}
+
+// FreeSpace is the bytes available to this user on the filesystem holding path.
+func (System) FreeSpace(_ context.Context, path string) (uint64, error) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(path, &st); err != nil {
+		return 0, err
+	}
+	return uint64(st.Bavail) * uint64(st.Bsize), nil //nolint:gosec // both are non-negative
 }

@@ -63,6 +63,10 @@ type Git interface {
 	// the tool generates is hidden from git without touching a tracked .gitignore.
 	// For a linked worktree git keeps it with the main clone, so it is shared.
 	ExcludeFile(ctx context.Context, dir string) (string, error)
+	// LsRemote asks a remote for its refs and nothing else, without ever asking
+	// anybody a question (no password prompt, no host key prompt): whether a
+	// clone of url would work from here. The error carries git's own words.
+	LsRemote(ctx context.Context, url string) error
 	// Checkout detaches HEAD at ref, a branch (as of origin), tag or commit.
 	Checkout(ctx context.Context, repoDir, ref string) error
 
@@ -392,6 +396,8 @@ type System interface {
 	// Dial opens a TCP connection to host:port and closes it: whether anything
 	// is listening there.
 	Dial(ctx context.Context, address string) error
+	// FreeSpace is how many bytes are free for a user on the filesystem path is on.
+	FreeSpace(ctx context.Context, path string) (uint64, error)
 	Which(name string) (string, bool)
 }
 

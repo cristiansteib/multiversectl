@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
@@ -35,13 +36,9 @@ var _ app.ServerProcess = (*Process)(nil)
 
 // New keeps its files under $XDG_CONFIG_HOME/multiversectl, beside the config.
 func New() (*Process, error) {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("locate config directory: %w", err)
-		}
-		base = filepath.Join(home, ".config")
+	base, err := userdirs.Config()
+	if err != nil {
+		return nil, fmt.Errorf("locate config directory: %w", err)
 	}
 	return &Process{dir: filepath.Join(base, "multiversectl"), binary: locate}, nil
 }

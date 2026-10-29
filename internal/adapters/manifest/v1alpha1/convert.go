@@ -3,9 +3,9 @@ package v1alpha1
 import (
 	"errors"
 	"fmt"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"gopkg.in/yaml.v3"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -192,7 +192,7 @@ func convertApp(a App) (domain.App, error) {
 // ~/work/acme resolves per user.
 func expandHome(path string) string {
 	if path == "~" || strings.HasPrefix(path, "~/") {
-		if home, err := os.UserHomeDir(); err == nil {
+		if home, err := userdirs.Home(); err == nil {
 			return filepath.Join(home, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
 		}
 	}

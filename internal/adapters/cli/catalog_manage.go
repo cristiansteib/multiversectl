@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"io"
 	"os"
 	"strings"
@@ -102,7 +103,7 @@ func (e manageRunner) Apply(plan managePlan) tea.ExecCommand {
 				fail("bring back", err)
 			}
 		}
-		base := firstNonEmpty(os.Getenv("MULTIVERSECTL_ROOT"), "~/multiverse")
+		base := firstNonEmpty(os.Getenv("MULTIVERSECTL_ROOT"), userdirs.DefaultRoot())
 		for _, it := range plan.Install {
 			step("start " + it.Path + " --install-only")
 			if _, err := e.r.install(e.cmd, []string{it.Path}, app.InstallOptions{Base: base, Root: e.r.g.Root}, false, false); err != nil {
