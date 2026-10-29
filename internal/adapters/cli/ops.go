@@ -99,21 +99,24 @@ func exportLine(key, value string) string {
 
 func (r runner) proxyCmd() *cobra.Command {
 	proxy := &cobra.Command{Use: "proxy", Short: "Manage the shared ingress every universe is reached through"}
+	var rebind bool
+	up := &cobra.Command{
+		Use: "up", Short: "Start the proxy and its network", Args: cobra.NoArgs,
+		RunE: r.withService(func(ctx context.Context, s *app.Service) error {
+			dom, err := s.ResolveDomain(ctx)
+			if err != nil {
+				return err
+			}
+			if err := s.EnsureProxy(ctx, dom, rebind); err != nil {
+				return err
+			}
+			s.Out.OK("proxy up for *.%s", dom)
+			return nil
+		}),
+	}
+	up.Flags().BoolVar(&rebind, "rebind-proxy", false, "reconfigure a running proxy even though universes of other multiverses are served through it")
 	proxy.AddCommand(
-		&cobra.Command{
-			Use: "up", Short: "Start the proxy and its network", Args: cobra.NoArgs,
-			RunE: r.withService(func(ctx context.Context, s *app.Service) error {
-				dom, err := s.ResolveDomain(ctx)
-				if err != nil {
-					return err
-				}
-				if err := s.EnsureProxy(ctx, dom); err != nil {
-					return err
-				}
-				s.Out.OK("proxy up for *.%s", dom)
-				return nil
-			}),
-		},
+		up,
 		&cobra.Command{
 			Use: "down", Short: "Stop the proxy (universes keep their data)", Args: cobra.NoArgs,
 			RunE: r.withService(func(ctx context.Context, s *app.Service) error {

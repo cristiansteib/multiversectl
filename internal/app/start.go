@@ -19,6 +19,9 @@ type StartInput struct {
 	Universe string
 	Apps     []string
 	With     []string
+	// RebindProxy lets the start reconfigure the shared proxy when universes of
+	// other multiverses are running through it.
+	RebindProxy bool
 	// Wait says how to wait for each app to be usable once its services run.
 	Wait WaitOptions
 	// FailFast stops at the first app that does not start. By default the
@@ -108,7 +111,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		return err
 	}
 	s.say(1, "making sure the proxy and its network are up")
-	if err := s.EnsureProxy(ctx, st.Domain); err != nil {
+	if err := s.EnsureProxy(ctx, st.Domain, in.RebindProxy); err != nil {
 		return err
 	}
 
@@ -314,20 +317,25 @@ func hostnames(rules map[string]domain.RouteRule) map[string]string {
 }
 
 // EnsureProxy makes sure the shared network and ingress are running.
-func (s *Service) EnsureProxy(ctx context.Context, dom string) error {
+//
+// rebind lets it reconfigure a proxy that is running with different settings
+// (the interface it is published on, its entrypoints, its TLS) even though
+// universes of other multiverses are being served through it; without it that
+// is refused, since they would stop answering.
+func (s *Service) EnsureProxy(ctx context.Context, dom string, rebind bool) error {
 	// Universes are started side by side, by the web view and by agents, and
 	// the first of them to need the shared proxy must not race the others to
 	// create it: one makes the network and the container, the rest find them.
 	proxyMu.Lock()
 	defer proxyMu.Unlock()
-	return s.ensureProxy(ctx, dom)
+	return s.ensureProxy(ctx, dom, rebind)
 }
 
 // proxyMu serialises the checks and the start of the one proxy a machine has,
 // across every universe started from this process.
 var proxyMu sync.Mutex
 
-func (s *Service) ensureProxy(ctx context.Context, dom string) error {
+func (s *Service) ensureProxy(ctx context.Context, dom string, rebind bool) error {
 	network := s.Manifest.Proxy.Network
 	if network == "" {
 		network = "multiversenet"
@@ -360,6 +368,12 @@ func (s *Service) ensureProxy(ctx context.Context, dom string) error {
 			status.Bind = "0.0.0.0"
 		}
 		if change := proxyChange(status, want); change != "" {
+			if others := s.otherMultiversesServed(ctx); len(others) > 0 && !rebind {
+				return fmt.Errorf("this multiverse needs the shared proxy %s, which would stop universes of %s from answering: nothing was changed. "+
+					"Make this multiverse match the running proxy (its `expose`, proxy entrypoints and TLS), stop those universes first, "+
+					"or pass --rebind-proxy to reconfigure it anyway; they answer again when started from their own multiverse",
+					change, strings.Join(others, ", "))
+			}
 			s.Out.Warn("the shared proxy is being reconfigured: %s — universes of any other multiverse on this machine stop answering until it is started from there again", change)
 		}
 	}
@@ -590,4 +604,41 @@ func (s *Service) sayRules(rules map[string]domain.RouteRule) {
 	for _, key := range slices.Sorted(maps.Keys(rules)) {
 		s.say(3, "address %s: %s", key, rules[key].Hostname)
 	}
+}
+
+// otherMultiversesServed names the other multiverses on this machine that have
+// containers running: those are the ones a reconfigured shared proxy would stop
+// answering. A multiverse is told apart by where its containers were started
+// from, so a container that carries no such label is not counted; and one whose
+// manifest cannot be read has no name to look its containers up by.
+func (s *Service) otherMultiversesServed(ctx context.Context) []string {
+	if s.Config == nil || s.Manifests == nil {
+		return nil
+	}
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, name := range slices.Sorted(maps.Keys(cfg.Multiverses)) {
+		entry := cfg.Multiverses[name]
+		if entry.Root == "" || samePath(entry.Root, s.Multiverse) || samePath(entry.Manifest, s.Manifest.Path) {
+			continue
+		}
+		other, err := s.Manifests.Load(entry.Manifest)
+		if err != nil {
+			continue
+		}
+		containers, err := s.Runtime.Containers(ctx, other.Name)
+		if err != nil {
+			continue
+		}
+		for _, c := range containers {
+			if isRunning(c) && (within(c.WorkingDir, entry.Root) || within(c.ConfigFile, entry.Root)) {
+				out = append(out, name)
+				break
+			}
+		}
+	}
+	return out
 }

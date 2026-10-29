@@ -26,7 +26,7 @@ import (
 // end.
 func (r runner) startCmd() *cobra.Command {
 	var base, universe, as string
-	var open, yes, installOnly, failFast bool
+	var open, yes, installOnly, failFast, rebind bool
 	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "start [name] [source]",
@@ -68,6 +68,7 @@ func (r runner) startCmd() *cobra.Command {
 	cmd.Flags().StringVar(&as, "as", "", "the name to install it under (default: the one it defines, or its repository's)")
 	cmd.Flags().StringVarP(&universe, "universe", "u", "", "the universe to start (default: the only one, or a new one)")
 	wait := waitFlags(cmd)
+	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "reconfigure the shared proxy even though universes of other multiverses are served through it")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others and report the failures at the end)")
 	cmd.Flags().BoolVar(&open, "open", false, "open the first address in a browser")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
@@ -109,7 +110,7 @@ func (r runner) startCmd() *cobra.Command {
 			}
 		}
 		r.out.Info("starting universe `%s`", name)
-		if err := s.Start(ctx, app.StartInput{Universe: name, FailFast: failFast, Wait: wait()}); err != nil {
+		if err := s.Start(ctx, app.StartInput{Universe: name, FailFast: failFast, RebindProxy: rebind, Wait: wait()}); err != nil {
 			return err
 		}
 		return r.startDone(ctx, s, name, open)

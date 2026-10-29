@@ -145,7 +145,7 @@ func (r runner) checkoutCmd() *cobra.Command {
 
 func (r runner) upCmd() *cobra.Command {
 	var with []string
-	var failFast bool
+	var failFast, rebind bool
 	cmd := &cobra.Command{
 		Use:     "up <universe> [app ...]",
 		Aliases: []string{"start"},
@@ -155,6 +155,7 @@ func (r runner) upCmd() *cobra.Command {
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
 	wait := waitFlags(cmd)
+	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "reconfigure the shared proxy even though universes of other multiverses are served through it")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others, report the failures at the end, exit non-zero)")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
@@ -162,7 +163,7 @@ func (r runner) upCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with, FailFast: failFast, Wait: wait()})
+			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with, FailFast: failFast, RebindProxy: rebind, Wait: wait()})
 		})(cmd, args)
 	}
 	return cmd
