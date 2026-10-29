@@ -469,3 +469,81 @@ func TestRunningAnEventByHandIgnoresOnceAndFailsLoudly(t *testing.T) {
 		t.Error("an unknown app was accepted")
 	}
 }
+
+// skipIf asks the real state in the place the hook runs, so data that was lost
+// is loaded again where a marker of what ran would say it never needs to be.
+type skipRuntime struct {
+	Runtime
+	ran     []string
+	already bool // what the skipIf command finds
+}
+
+func (r *skipRuntime) ExecQuiet(_ context.Context, _ RuntimeRequest, service string, args []string) (string, error) {
+	r.ran = append(r.ran, fmt.Sprintf("%s %v", service, args))
+	if args[0] == "check" && !r.already {
+		return "", errors.New("exit status 1")
+	}
+	return "", nil
+}
+
+func TestASkipIfCommandDecidesWhetherAHookRunsEvenAfterItWasMarkedDone(t *testing.T) {
+	quickly(t)
+	rt := &skipRuntime{}
+	store, out := &savingStore{}, &warnings{}
+	seed := domain.Hook{Name: "seed", Once: true, SkipIf: []string{"check", "rows"}, Command: []string{"seed"}}
+	m := &domain.Manifest{Apps: map[string]domain.App{"api": {Repo: "api", Hooks: map[domain.HookEvent][]domain.Hook{domain.PostUp: {seed}}}}}
+	svc := New(Deps{Runtime: rt, Store: store, Out: out, System: fakeSystem{}, Files: &tempFiles{}}, "/ws", m, "test")
+
+	// The table is empty: the check fails, the hook runs.
+	st := afterUp(svc, domain.UniverseState{Name: "1"}, []string{"web"})
+	if got := strings.Join(rt.ran, "; "); got != "web [check rows]; web [seed]" {
+		t.Fatalf("ran %q", got)
+	}
+	// What it produced is not recorded: the check is the truth.
+	if len(st.HooksDone) != 0 {
+		t.Errorf("recorded %v", st.HooksDone)
+	}
+	// It is there now: skipped.
+	rt.ran, rt.already = nil, true
+	afterUp(svc, st, []string{"web"})
+	if got := strings.Join(rt.ran, "; "); got != "web [check rows]" {
+		t.Errorf("with the data in place ran %q, want only the check", got)
+	}
+	// The volume was recreated: the same marker-less state runs it again.
+	rt.ran, rt.already = nil, false
+	afterUp(svc, st, []string{"web"})
+	if got := strings.Join(rt.ran, "; "); got != "web [check rows]; web [seed]" {
+		t.Errorf("after the data was lost ran %q", got)
+	}
+}
+
+func TestSkipIfRunsOnTheMachineForAHostHook(t *testing.T) {
+	m := &machine{failures: 1} // the check fails: nothing is done yet
+	s := lockedService(&fakeLocks{})
+	s.System, s.Files, s.Commands = fakeSystem{}, &tempFiles{}, m
+	s.Manifest.Apps = map[string]domain.App{"api": {Repo: "api", Hooks: map[domain.HookEvent][]domain.Hook{
+		domain.PostUp: {{Host: true, Dir: "api", SkipIf: []string{"test", "-f", "seeded"}, Command: []string{"seed"}}},
+	}}}
+	st, _ := s.Resolve("3")
+	if _, err := s.fire(context.Background(), domain.PostUp, st, "api", &RuntimeRequest{}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, c := range m.ran {
+		names = append(names, c.Args[0]+"@"+c.Dir)
+	}
+	if len(names) != 2 || !strings.HasPrefix(names[0], "test@") || !strings.HasSuffix(names[0], "/api") || !strings.HasPrefix(names[1], "seed@") {
+		t.Errorf("ran %v: want the check and then the hook, in the same directory", names)
+	}
+}
+
+func TestForgettingOnceHooksOfAnAppLeavesTheOthersAlone(t *testing.T) {
+	st := domain.UniverseState{HooksDone: []string{"api|web|seed", "api|postCreate|host:|x", "worker|web|seed", "|postUp|host:|y"}}
+	got := forgetOnce(st, "api").HooksDone
+	if len(got) != 2 || got[0] != "worker|web|seed" || got[1] != "|postUp|host:|y" {
+		t.Errorf("kept %v", got)
+	}
+	if len(st.HooksDone) != 4 {
+		t.Error("the state it was given must not change")
+	}
+}

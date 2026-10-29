@@ -116,6 +116,16 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		}
 		if err := s.Runtime.Down(ctx, req, true); err != nil {
 			s.Out.Warn("%s: down: %v", appKey, err)
+			continue
+		}
+		// Its volumes are gone, and what a once hook loaded went with them. If
+		// the removal stops short of deleting the universe, a later start must
+		// load it again.
+		if forgotten := forgetOnce(st, appKey); len(forgotten.HooksDone) != len(st.HooksDone) {
+			st = forgotten
+			if err := s.Store.Save(st); err != nil {
+				s.Out.Warn("%s: could not forget which once-hooks ran: %v", appKey, err)
+			}
 		}
 	}
 

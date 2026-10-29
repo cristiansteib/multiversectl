@@ -369,6 +369,15 @@ type Hook struct {
 	// Without it the hook runs after every start, so it should be safe to repeat.
 	Once bool `yaml:"once"`
 
+	// A command run first, in the same place as this one (the same service, or
+	// the same directory on the machine), to ask whether the work is already
+	// done: exit status 0 means it is, and the hook is skipped. Unlike once, which
+	// remembers that the hook ran, this looks at what it produced, so data that
+	// was lost (a database volume that was recreated) is loaded again. When
+	// it is set it decides, and once is not used. Not used when the hook is run
+	// by hand with `universe hooks run`.
+	SkipIf []string `yaml:"skipIf"`
+
 	// What it means when the command does not succeed: warn says so and goes on
 	// (the default, so a hook that breaks cannot keep a universe from being
 	// stopped or removed), fail ends the command, ignore goes on silently. A

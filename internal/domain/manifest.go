@@ -265,6 +265,11 @@ type Hook struct {
 	Dir string
 	// Once runs it on a universe's first start only.
 	Once bool
+	// SkipIf is a command run in the same place as the hook, before it: when it
+	// exits 0 the work is already done and the hook is skipped. It asks the real
+	// state, which a marker of what ran cannot know about. When it is set it
+	// decides, and Once's marker is neither consulted nor kept.
+	SkipIf []string
 	// OnFailure is what a failure means; empty is FailStop for a preUp and
 	// FailWarn for anything else, so a hook that breaks cannot keep a universe
 	// from being stopped or removed.

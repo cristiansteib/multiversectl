@@ -289,7 +289,7 @@ func convertHooks(h Hooks) (map[domain.HookEvent][]domain.Hook, error) {
 }
 
 func convertHook(w Hook) (domain.Hook, error) {
-	hook := domain.Hook{Name: w.Name, Once: w.Once, OnFailure: domain.Failure(w.OnFailure)}
+	hook := domain.Hook{Name: w.Name, Once: w.Once, SkipIf: w.SkipIf, OnFailure: domain.Failure(w.OnFailure)}
 	switch {
 	case w.Container != nil && w.Host != nil:
 		return hook, errors.New("container and host: give one, not both")
