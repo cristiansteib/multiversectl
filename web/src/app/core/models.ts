@@ -35,7 +35,12 @@ export interface DiffFilesView { base?: string; files: FileView[] }
 export interface PatchView { path: string; patch: string; truncated?: boolean }
 
 export interface RepoView { key: string; clone?: string; loc?: LocView; url: string; dir: string; cloned: boolean; follows?: string; behind?: number; ahead?: number; dirty?: boolean }
-export interface HostDefView { name: string; service: string; port: number; entrypoint: string }
+export interface HostDefView {
+  name: string; service: string; port: number; entrypoint: string;
+  alsoMatch?: string[]; portForward?: string; scheme?: string;
+  /** From the app's compose files, as a universe last resolved them, not from the manifest. */
+  discovered?: boolean;
+}
 export interface AppDefView { key: string; repo: string; services?: string[]; optional?: string[]; hosts?: HostDefView[] }
 export interface MultiverseView {
   name: string; root: string; manifest?: string; from?: string; source?: string; universesDir?: string;

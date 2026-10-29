@@ -73,7 +73,13 @@
           @if (a.services?.length) { <div class="row svcs">@for (s of a.services; track s) { <span class="chip">{{ s }}</span> }</div> }
           @if (a.optional?.length) { <p class="muted small">Optional: {{ a.optional!.join(', ') }}</p> }
           @for (x of a.hosts ?? []; track x.name) {
-            <div class="mono small wrap">{{ x.name }} → {{ x.service }}:{{ x.port }}{{ x.entrypoint !== 'web' ? ' (' + x.entrypoint + ')' : '' }}</div>
+            <div class="mono small wrap" [title]="x.discovered ? 'From the compose files, as a universe last resolved them' : 'Declared in the manifest'">
+              {{ x.name }} → {{ x.service }}:{{ x.port }}{{ x.entrypoint !== 'web' ? ' (' + x.entrypoint + ')' : '' }}
+              @if (x.scheme && x.scheme !== 'http') { <span class="chip">{{ x.scheme }}</span> }
+              @if (x.portForward) { <span class="chip">forward: {{ x.portForward }}</span> }
+              @if (x.alsoMatch?.length) { <span class="muted">also {{ x.alsoMatch!.join(', ') }}</span> }
+              @if (x.discovered) { <span class="muted">· discovered</span> }
+            </div>
           }
         </div>
       }
