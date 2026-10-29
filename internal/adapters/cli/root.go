@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -69,8 +70,14 @@ func New(f Factory) (*cobra.Command, *Globals) {
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			// First of all: everything below reads where the user's files are, and so
 			// does any program this one starts, which inherits it.
+			// Absolute, so a program started in another directory (a hook) finds
+			// the same one.
 			if g.StateDir != "" {
-				if err := os.Setenv(userdirs.Env, g.StateDir); err != nil {
+				dir, err := filepath.Abs(g.StateDir)
+				if err != nil {
+					return err
+				}
+				if err := os.Setenv(userdirs.Env, dir); err != nil {
 					return err
 				}
 			}

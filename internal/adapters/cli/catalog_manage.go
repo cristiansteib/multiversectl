@@ -103,7 +103,7 @@ func (e manageRunner) Apply(plan managePlan) tea.ExecCommand {
 				fail("bring back", err)
 			}
 		}
-		base := firstNonEmpty(os.Getenv("MULTIVERSECTL_ROOT"), userdirs.DefaultRoot())
+		base := firstNonEmpty(userdirs.RootEnv(), userdirs.DefaultRoot())
 		for _, it := range plan.Install {
 			step("start " + it.Path + " --install-only")
 			if _, err := e.r.install(e.cmd, []string{it.Path}, app.InstallOptions{Base: base, Root: e.r.g.Root}, false, false); err != nil {

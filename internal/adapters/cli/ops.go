@@ -64,7 +64,7 @@ func (r runner) doctorCmd() *cobra.Command {
 
 // installPath is where multiverses will be written, for the disk check.
 func (r runner) installPath(s *app.Service, base string) string {
-	path := firstNonEmpty(r.g.Root, s.Multiverse, base, os.Getenv("MULTIVERSECTL_ROOT"), userdirs.DefaultRoot())
+	path := firstNonEmpty(r.g.Root, s.Multiverse, base, userdirs.RootEnv(), userdirs.DefaultRoot())
 	if path == "~" || strings.HasPrefix(path, "~/") {
 		if home := s.System.Getenv("HOME"); home != "" {
 			path = filepath.Join(home, strings.TrimPrefix(path, "~"))

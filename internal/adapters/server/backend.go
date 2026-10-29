@@ -611,7 +611,7 @@ func (s Services) selfUpdate(ctx context.Context, k Sink) error {
 
 // installBase is the directory multiverses go under, as the command line has it.
 func installBase() string {
-	if b := os.Getenv("MULTIVERSECTL_ROOT"); b != "" {
+	if b := userdirs.RootEnv(); b != "" {
 		return b
 	}
 	return userdirs.DefaultRoot()

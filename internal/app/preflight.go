@@ -308,9 +308,10 @@ func (s *Service) composeSecretFiles(repoDir string, app domain.App) []composeSe
 }
 
 // secretFilePath resolves a compose secret's file the way compose does: ~ and
-// ${HOME} are the user's home, and a relative path is beside the compose file.
+// ${HOME} are the home compose itself is given, which a state directory does
+// not move, and a relative path is beside the compose file.
 func (s *Service) secretFilePath(file, dir string) string {
-	if home := s.System.Getenv("HOME"); home != "" {
+	if home := s.System.ProcessEnv("HOME"); home != "" {
 		file = strings.ReplaceAll(strings.ReplaceAll(file, "${HOME}", home), "$HOME", home)
 		if file == "~" || strings.HasPrefix(file, "~/") {
 			file = filepath.Join(home, strings.TrimPrefix(file, "~"))

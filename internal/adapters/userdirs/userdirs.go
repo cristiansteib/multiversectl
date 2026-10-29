@@ -75,6 +75,16 @@ func under(sub, xdg, fromHome string) (string, error) {
 	return filepath.Join(home, fromHome), nil
 }
 
+// RootEnv is $MULTIVERSECTL_ROOT, where the user installs multiverses, except
+// when everything is relocated: a rehearsal must not install into the real
+// root, so it uses its own unless --root or --base name another.
+func RootEnv() string {
+	if Dir() != "" {
+		return ""
+	}
+	return os.Getenv("MULTIVERSECTL_ROOT")
+}
+
 // DefaultRoot is where multiverses are installed when nothing says otherwise.
 func DefaultRoot() string {
 	if Dir() != "" {

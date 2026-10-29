@@ -13,6 +13,7 @@ import (
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/cli"
 	"github.com/cristiansteib/multiversectl/internal/adapters/manifest"
+	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/wire"
 )
@@ -132,7 +133,7 @@ func multiverse(g cli.Globals, out app.Output) (*app.Service, error) {
 			return nil, err
 		}
 	}
-	root := wire.First(g.Root, os.Getenv("MULTIVERSECTL_ROOT"), saved.Root)
+	root := wire.First(g.Root, userdirs.RootEnv(), saved.Root)
 	path := g.Manifest
 	if path == "" && saved.Manifest != "" && (root == "" || root == saved.Root) {
 		path = saved.Manifest
@@ -167,7 +168,7 @@ func at(g cli.Globals, out app.Output, root, manifestPath string) (*app.Service,
 
 // bare is for commands that must work before any manifest exists.
 func bare(g cli.Globals, out app.Output) (*app.Service, error) {
-	return machine(g).Bare(out, wire.First(g.Root, os.Getenv("MULTIVERSECTL_ROOT")))
+	return machine(g).Bare(out, wire.First(g.Root, userdirs.RootEnv()))
 }
 
 func catalogs(g cli.Globals, out app.Output) (*app.Catalogs, error) {

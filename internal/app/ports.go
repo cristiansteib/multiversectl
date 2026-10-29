@@ -385,6 +385,10 @@ type System interface {
 	UID() int
 	GID() int
 	Getenv(key string) string
+	// ProcessEnv is a variable as this process has it, and so as the programs
+	// it starts (docker compose) see it: Getenv is the user's directories as
+	// multiversectl uses them, relocated under a state directory.
+	ProcessEnv(key string) string
 	LANIP(ctx context.Context) (string, error)
 	Resolve(ctx context.Context, host string) ([]string, error)
 	PortFree(ctx context.Context, port int) (bool, error)

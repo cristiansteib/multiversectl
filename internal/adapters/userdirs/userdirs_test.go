@@ -48,3 +48,17 @@ func TestAStateDirectoryHoldsEveryUserLocation(t *testing.T) {
 		t.Error("another directory must still get a suffix")
 	}
 }
+
+// A rehearsal installs under its own directory even when the user names a
+// root for real installs, which it would otherwise install into.
+func TestARehearsalIgnoresTheRealInstallRoot(t *testing.T) {
+	t.Setenv("MULTIVERSECTL_ROOT", "/srv/work")
+	t.Setenv(Env, "")
+	if got := RootEnv(); got != "/srv/work" {
+		t.Errorf("RootEnv() = %q, want the user's root", got)
+	}
+	t.Setenv(Env, t.TempDir())
+	if got := RootEnv(); got != "" {
+		t.Errorf("RootEnv() = %q under a state dir, want none", got)
+	}
+}

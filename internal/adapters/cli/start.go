@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -87,9 +86,9 @@ func (r runner) startCmd() *cobra.Command {
 			if len(args) == 0 {
 				return errors.New("--install-only needs a source: a catalog node, a path or a repository")
 			}
-			ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
+			ask := !yes && r.g.Root == "" && base == "" && userdirs.RootEnv() == ""
 			_, err := r.install(cmd, args, app.InstallOptions{
-				Base: firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), userdirs.DefaultRoot()),
+				Base: firstNonEmpty(base, userdirs.RootEnv(), userdirs.DefaultRoot()),
 				Root: r.g.Root, Name: as, Exclude: exclude,
 			}, yes, ask)
 			return err
@@ -187,10 +186,10 @@ func (r runner) startProject(cmd *cobra.Command, args []string, base, as string,
 	}
 	// Where it goes is asked only when nothing has said, as `start`
 	// does it.
-	ask := !yes && r.g.Root == "" && base == "" && os.Getenv("MULTIVERSECTL_ROOT") == ""
+	ask := !yes && r.g.Root == "" && base == "" && userdirs.RootEnv() == ""
 	r.quietHints = true // it is about to make the universe and start it
 	planned, err := r.install(cmd, args, app.InstallOptions{
-		Base: firstNonEmpty(base, os.Getenv("MULTIVERSECTL_ROOT"), userdirs.DefaultRoot()),
+		Base: firstNonEmpty(base, userdirs.RootEnv(), userdirs.DefaultRoot()),
 		Root: r.g.Root,
 		Name: as,
 	}, yes, ask)

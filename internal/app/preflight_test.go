@@ -54,6 +54,10 @@ func (p preflightSystem) Getenv(k string) string {
 	return ""
 }
 
+// ProcessEnv is the home compose is given; under a state directory Getenv's
+// would be the relocated one, which compose never sees.
+func (p preflightSystem) ProcessEnv(k string) string { return p.Getenv(k) }
+
 type preflightCommands struct{ err error }
 
 func (c preflightCommands) RunHost(_ context.Context, h HostCommand) (string, error) {

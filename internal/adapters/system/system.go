@@ -34,7 +34,9 @@ func (System) Getenv(key string) string {
 		var dir string
 		var err error
 		switch key {
-		case "HOME":
+		// ZDOTDIR is where zsh reads .zshrc: under a state directory it is the
+		// relocated home, so a rehearsal never edits the real startup file.
+		case "HOME", "ZDOTDIR":
 			dir, err = userdirs.Home()
 		case "XDG_CONFIG_HOME":
 			dir, err = userdirs.Config()
@@ -53,6 +55,8 @@ func (System) Getenv(key string) string {
 	}
 	return os.Getenv(key)
 }
+
+func (System) ProcessEnv(key string) string { return os.Getenv(key) }
 
 func (System) Which(name string) (string, bool) {
 	p, err := exec.LookPath(name)
