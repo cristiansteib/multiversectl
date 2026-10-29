@@ -28,7 +28,7 @@
   <section class="repo" role="tabpanel" [attr.aria-label]="r.repo">
     <div class="head row">
       @if (r.branch) { <span class="chip" title="The branch checked out in this repository"><mv-icon name="branch" /> {{ r.branch }}</span> }
-      <mv-pr-chip [review]="r.review" [error]="r.reviewError" />
+      <mv-pr-chip [review]="r.review" [error]="r.reviewError" [stat]="r.change" [base]="r.base" />
       @for (f of facts(); track f.text) { <span class="fact" [class]="f.kind" [attr.title]="f.title">{{ f.text }}</span> }
     </div>
 

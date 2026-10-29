@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { ReviewView } from '../../core/models';
+import { DiffView, ReviewView } from '../../core/models';
 import { ago, isHttpUrl } from '../../core/util';
 import { Badge } from './badge';
 import { PrIcon } from './pr-icon';
@@ -20,6 +20,7 @@ import { PrIcon } from './pr-icon';
         <mv-pr-icon [state]="v.state" />
         <b>{{ v.mark }}{{ v.number }}</b>
         <span class="st">{{ v.state }}</span>
+        @if (lines(); as d) { <span class="lines" title="Lines this branch adds and removes against {{ base() || 'its base' }}"><b class="add">+{{ d.added }}</b><b class="del">−{{ d.removed }}</b></span> }
         @if (!compact()) { <span class="t">{{ v.title }}</span> }
       </a>
     } @else if (error()) {
@@ -30,12 +31,19 @@ import { PrIcon } from './pr-icon';
     .pr { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line);
       background: var(--panel); color: var(--text); text-decoration: none; font-size: .84rem }
     .pr:hover { border-color: var(--accent) }
+    .lines { display: inline-flex; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap }
+    .add { color: var(--ok); font-weight: 600 } .del { color: var(--bad); font-weight: 600 }
     .st { color: var(--muted) } .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); min-width: 0 }`,
 })
 export class PrChip {
   readonly review = input<ReviewView | null | undefined>();
   /** Why the hosting service could not be asked, when it could not. */
   readonly error = input<string | undefined>();
+  /** The lines the branch adds and removes, which is what the request amounts to. */
+  readonly stat = input<DiffView | null | undefined>();
+  /** What the lines are measured against, for the hint. */
+  readonly base = input<string | undefined>();
+  protected readonly lines = computed(() => { const d = this.stat(); return d && (d.added || d.removed) ? d : null; });
   /** Number and state only, for a place with little room. */
   readonly compact = input(false);
   protected readonly link = computed(() => { const v = this.review(); return v && isHttpUrl(v.url) ? v : null; });
