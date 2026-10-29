@@ -67,6 +67,23 @@
     try { localStorage.setItem('theme', light ? 'light' : 'dark'); } catch (e) {}
   });
 
+  // Escape closes a comparison note until the pointer or focus moves to
+  // another row, as notes that open on hover must allow (WCAG 1.4.13).
+  [].forEach.call(d.querySelectorAll('.matrix'), function (m) {
+    var row = null;
+    function moved(e) {
+      var r = e.target.closest && e.target.closest('tr');
+      if (r !== row) { row = r; m.classList.remove('hush'); }
+    }
+    m.addEventListener('mouseover', moved);
+    m.addEventListener('focusin', moved);
+    m.addEventListener('mouseleave', function () { row = null; m.classList.remove('hush'); });
+  });
+  d.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    [].forEach.call(d.querySelectorAll('.matrix'), function (m) { m.classList.add('hush'); });
+  });
+
   // Scroll-spy over the table of contents. The menu is a list of pages now,
   // and the page you are on is marked when it is rendered.
   var links = {};
