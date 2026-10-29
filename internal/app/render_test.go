@@ -337,6 +337,21 @@ type startRuntime struct {
 	path       string
 	ups, downs []string        // compose projects started and brought down
 	running    []app.Container // what Containers reports
+	// health is what Health reports on each call, the last one repeating.
+	health [][]app.ServiceHealth
+	asked  int
+}
+
+func (r *startRuntime) Health(context.Context, app.RuntimeRequest) ([]app.ServiceHealth, error) {
+	r.asked++
+	if len(r.health) == 0 {
+		return nil, nil
+	}
+	h := r.health[0]
+	if len(r.health) > 1 {
+		r.health = r.health[1:]
+	}
+	return h, nil
 }
 
 func (r *startRuntime) Down(_ context.Context, req app.RuntimeRequest, _ bool) error {

@@ -190,6 +190,7 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 				if err := add(hostKey, domain.RouteRule{
 					App: appKey, Service: rule.Service, Port: rule.Port,
 					Entrypoint: rule.Entrypoint, Aliases: rule.AlsoMatch, PortForward: rule.PortForward, Scheme: rule.Scheme,
+					Ready: rule.Ready, Probe: rule.Probe,
 				}); err != nil {
 					return nil, err
 				}
@@ -303,6 +304,18 @@ func rulesFromLabels(labels map[string]string) (map[string]domain.RouteRule, err
 			rule.PortForward = value
 		case field == "scheme":
 			rule.Scheme = value
+		case field == "ready":
+			if !domain.ValidReady(value) {
+				errs = append(errs, fmt.Sprintf("%s: %q: want true, false, tcp or a path such as /healthz", key, value))
+				continue
+			}
+			rule.Ready = value
+		case field == "probe":
+			if !slices.Contains(domain.Probes, value) {
+				errs = append(errs, fmt.Sprintf("%s: %q: want %s", key, value, strings.Join(domain.Probes, ", ")))
+				continue
+			}
+			rule.Probe = value
 		case field == "aliases":
 			for _, alias := range strings.Split(value, ",") {
 				if alias = strings.TrimSpace(alias); alias != "" {
@@ -330,7 +343,7 @@ func rulesFromLabels(labels map[string]string) (map[string]domain.RouteRule, err
 }
 
 // hostLabelFields are what a dev.multiversectl.host.<name>.<field> label can say.
-var hostLabelFields = []string{"entrypoint", "aliases", "portForward", "scheme"}
+var hostLabelFields = []string{"entrypoint", "aliases", "portForward", "scheme", "ready", "probe"}
 
 // publishes reports the services whose labels ask to keep their host ports.
 func publishes(cfg ProjectConfig) []string {

@@ -271,6 +271,45 @@ func (c *Compose) Containers(ctx context.Context, namePrefix string) ([]app.Cont
 	return containers, scanner.Err()
 }
 
+// Health reads `compose ps` for the project: one row per container, with the
+// healthcheck's verdict. Newer releases print one JSON object per line, older
+// ones a single array.
+func (c *Compose) Health(ctx context.Context, r app.RuntimeRequest) ([]app.ServiceHealth, error) {
+	var out bytes.Buffer
+	quiet := &Compose{stdout: &out, stderr: io.Discard, trace: c.trace}
+	if err := quiet.stream(ctx, r, nil, "ps", "--all", "--format", "json"); err != nil {
+		return nil, err
+	}
+	return parseHealth(out.Bytes())
+}
+
+func parseHealth(out []byte) ([]app.ServiceHealth, error) {
+	type row struct{ Service, State, Health string }
+	var rows []row
+	out = bytes.TrimSpace(out)
+	if bytes.HasPrefix(out, []byte("[")) {
+		if err := json.Unmarshal(out, &rows); err != nil {
+			return nil, fmt.Errorf("parsing docker compose ps output: %w", err)
+		}
+	} else {
+		for _, line := range bytes.Split(out, []byte("\n")) {
+			if len(bytes.TrimSpace(line)) == 0 {
+				continue
+			}
+			var r row
+			if err := json.Unmarshal(line, &r); err != nil {
+				return nil, fmt.Errorf("parsing docker compose ps output: %w", err)
+			}
+			rows = append(rows, r)
+		}
+	}
+	health := make([]app.ServiceHealth, len(rows))
+	for i, r := range rows {
+		health[i] = app.ServiceHealth{Service: r.Service, State: r.State, Health: r.Health}
+	}
+	return health, nil
+}
+
 // Volumes lists the named volumes whose name starts with the prefix. The
 // name filter is a substring match, so the prefix is checked again here:
 // project "acme-u1" must not drag in "acme-u11".

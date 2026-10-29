@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -66,6 +67,7 @@ func (r runner) startCmd() *cobra.Command {
 	cmd.Flags().StringVar(&base, "base", "", "directory multiverses go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
 	cmd.Flags().StringVar(&as, "as", "", "the name to install it under (default: the one it defines, or its repository's)")
 	cmd.Flags().StringVarP(&universe, "universe", "u", "", "the universe to start (default: the only one, or a new one)")
+	wait := waitFlags(cmd)
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others and report the failures at the end)")
 	cmd.Flags().BoolVar(&open, "open", false, "open the first address in a browser")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
@@ -107,7 +109,7 @@ func (r runner) startCmd() *cobra.Command {
 			}
 		}
 		r.out.Info("starting universe `%s`", name)
-		if err := s.Start(ctx, app.StartInput{Universe: name, FailFast: failFast}); err != nil {
+		if err := s.Start(ctx, app.StartInput{Universe: name, FailFast: failFast, Wait: wait()}); err != nil {
 			return err
 		}
 		return r.startDone(ctx, s, name, open)
@@ -256,4 +258,17 @@ func (r runner) startDone(ctx context.Context, s *app.Service, name string, open
 	}
 	r.out.Info("next: `multiversectl universe ls`, or `multiversectl universe new` for a second one")
 	return nil
+}
+
+// waitFlags adds the flags that say how long to wait for an app to be usable
+// after its services run, and returns what they were set to.
+func waitFlags(cmd *cobra.Command) func() app.WaitOptions {
+	var noWait, strict bool
+	var timeout time.Duration
+	cmd.Flags().BoolVar(&noWait, "no-wait", false, "return as soon as compose does, without waiting for healthchecks or for hosts that ask for it (ready)")
+	cmd.Flags().DurationVar(&timeout, "wait-timeout", app.DefaultWaitTimeout, "the longest to wait for an app's healthchecks and ready hosts")
+	cmd.Flags().BoolVar(&strict, "wait-strict", false, "make not being ready in time an error (default: a warning naming what was waited for)")
+	return func() app.WaitOptions {
+		return app.WaitOptions{Disabled: noWait, Timeout: timeout, Strict: strict}
+	}
 }

@@ -19,6 +19,8 @@ type StartInput struct {
 	Universe string
 	Apps     []string
 	With     []string
+	// Wait says how to wait for each app to be usable once its services run.
+	Wait WaitOptions
 	// FailFast stops at the first app that does not start. By default the
 	// others are still started and the failures are reported at the end.
 	FailFast bool
@@ -235,6 +237,10 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 		return st, fmt.Errorf("%s: start: %w", appKey, err)
 	}
 	s.Out.OK("%s up", appKey)
+	// Before the hooks, which may rely on the app answering.
+	if err := s.waitReady(ctx, st, appKey, req, in.Wait); err != nil {
+		return st, err
+	}
 	if st, err = s.fire(ctx, domain.PostUp, st, appKey, &req, defined); err != nil {
 		return st, err
 	}

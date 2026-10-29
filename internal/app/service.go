@@ -430,6 +430,8 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 			ForwardURL: rule.ForwardURL,
 			ByIP:       byIP(rule),
 			Scheme:     rule.Scheme,
+			Ready:      rule.Ready,
+			Probe:      rule.Probe,
 		})
 	}
 	return routes

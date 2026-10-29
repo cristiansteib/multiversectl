@@ -177,6 +177,8 @@ func convertApp(a App) (domain.App, error) {
 			AlsoMatch:   h.AlsoMatch,
 			PortForward: h.PortForward,
 			Scheme:      h.Scheme,
+			Ready:       h.Ready,
+			Probe:       h.Probe,
 		})
 		if err != nil {
 			return app, err

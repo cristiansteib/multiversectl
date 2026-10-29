@@ -160,6 +160,14 @@ type Container struct {
 	ConfigFile string
 }
 
+// ServiceHealth is one container of a compose project as `compose ps` reports
+// it. Health is empty for a service with no healthcheck.
+type ServiceHealth struct {
+	Service string
+	State   string // running, exited, restarting, ...
+	Health  string // healthy, unhealthy, starting, or ""
+}
+
 // ContainerStats is one reading of a container's resource use, as the runtime
 // reports it: CPU and Memory are percentages, MemUsage is "used / limit", and
 // MemBytes and MemLimit are that pair in bytes, so it can be totalled and
@@ -215,6 +223,9 @@ type Runtime interface {
 	// of a manifest repeating it.
 	Inspect(ctx context.Context, r RuntimeRequest) (ProjectConfig, error)
 	Containers(ctx context.Context, namePrefix string) ([]Container, error)
+	// Health reports, for the project's containers, the state of each and its
+	// healthcheck's verdict: what `up` waits on.
+	Health(ctx context.Context, r RuntimeRequest) ([]ServiceHealth, error)
 	// Volumes reports the named volumes whose name starts with the prefix,
 	// each tagged with the multiverse that owns it.
 	Volumes(ctx context.Context, namePrefix string) ([]Volume, error)
@@ -297,6 +308,9 @@ type Route struct {
 	ByIP bool
 	// Scheme is how the proxy talks to the service; empty is plain http.
 	Scheme string
+	// Ready and Probe are the host's settings of the same names.
+	Ready string
+	Probe string
 }
 
 // Router materialises routing for a universe's apps. Returning extra runtime
@@ -375,6 +389,9 @@ type System interface {
 	// Probe asks url once and returns what it answered, without following
 	// redirects: any answer means something is listening.
 	Probe(ctx context.Context, url string) (Answer, error)
+	// Dial opens a TCP connection to host:port and closes it: whether anything
+	// is listening there.
+	Dial(ctx context.Context, address string) error
 	Which(name string) (string, bool)
 }
 

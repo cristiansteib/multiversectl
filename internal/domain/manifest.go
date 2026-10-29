@@ -331,6 +331,27 @@ type HostRule struct {
 	// gRPC one. Without it the proxy forwards HTTP/1.1 and a gRPC server answers
 	// with an error nothing in the universe explains.
 	Scheme string
+	// Ready makes `up` wait until the host answers (see ValidReady); empty is no
+	// wait. Probe is how `doctor` checks it (see Probes); empty is a plain
+	// HTTP request, except for an h2c host, which is a TCP connection.
+	Ready string
+	Probe string
+}
+
+// Probes are the ways `doctor` can check a host: an HTTP request, a TCP
+// connection, the standard gRPC health check, or not at all.
+var Probes = []string{"http", "tcp", "grpc", "none"}
+
+// ReadyTCP and ReadyHTTP are the values of a host's ready setting besides a path.
+const (
+	ReadyTrue = "true"
+	ReadyTCP  = "tcp"
+)
+
+// ValidReady says whether s is something a host's ready setting can be: true (the
+// default check for the host), tcp, false (no wait), or a path to ask over HTTP.
+func ValidReady(s string) bool {
+	return s == "" || s == ReadyTrue || s == "false" || s == ReadyTCP || strings.HasPrefix(s, "/")
 }
 
 // Schemes are the ones the proxy can speak to a service.
@@ -473,6 +494,12 @@ func (m *Manifest) Validate() error {
 			}
 			if rule.Scheme != "" && !slices.Contains(Schemes, rule.Scheme) {
 				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.scheme: want %s", key, hostKey, strings.Join(Schemes, ", ")))
+			}
+			if !ValidReady(rule.Ready) {
+				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.ready: want true, false, tcp or a path such as /healthz", key, hostKey))
+			}
+			if rule.Probe != "" && !slices.Contains(Probes, rule.Probe) {
+				errs = append(errs, fmt.Sprintf("apps.%s.hosts.%s.probe: want %s", key, hostKey, strings.Join(Probes, ", ")))
 			}
 			for _, alias := range rule.AlsoMatch {
 				if alias == hostKey {

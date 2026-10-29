@@ -130,3 +130,14 @@ func (System) RunHost(ctx context.Context, c app.HostCommand) (string, error) {
 	err := cmd.Run()
 	return out.String(), err
 }
+
+// Dial connects to address and closes the connection: whether something listens.
+func (System) Dial(ctx context.Context, address string) error {
+	ctx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
+}

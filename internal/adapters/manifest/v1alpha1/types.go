@@ -472,6 +472,24 @@ type Host struct {
 	// label asks for the same with dev.multiversectl.host.<name>.scheme.
 	// +enum=http;https;h2c
 	Scheme string `yaml:"scheme"`
+
+	// Makes `up` wait until this host answers before it goes on to the app's
+	// postUp hooks: "true" asks the address over HTTP until it answers with a
+	// status below 500 (a TCP connection for an h2c host or a probe of tcp),
+	// "tcp" only connects, a path such as "/healthz" asks that path, and "false"
+	// (the default) does not wait. It is polled until --wait-timeout. A host that
+	// comes from a compose label asks for the same with
+	// dev.multiversectl.host.<name>.ready.
+	Ready string `yaml:"ready"`
+
+	// How `doctor` checks this host. By default it asks the address over HTTP
+	// (a TCP connection for an h2c host); "tcp" connects, "grpc" connects (the
+	// standard gRPC health check is not run, as multiversectl carries no gRPC
+	// client), "http" forces the HTTP request, and "none" leaves the host
+	// out. A host that comes from a compose label asks for the same with
+	// dev.multiversectl.host.<name>.probe.
+	// +enum=http;tcp;grpc;none
+	Probe string `yaml:"probe"`
 }
 
 type EnvVar struct {
