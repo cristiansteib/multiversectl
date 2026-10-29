@@ -168,3 +168,19 @@ func TestNoWaitAndAHostWithoutReadyAskNothing(t *testing.T) {
 		t.Errorf("a host that did not ask was probed: %v %v", sys.probes, sys.dials)
 	}
 }
+
+// A one-shot service that has exited keeps the health it had, and a stopped
+// service the start did not ask for is listed too; neither holds a start.
+func TestAnExitedOrUnaskedServiceIsNotWaitedFor(t *testing.T) {
+	r, rt, _, _ := readyRig(t, "", "")
+	rt.health = [][]app.ServiceHealth{{
+		{Service: "web", State: "running", Health: "healthy"},
+		{Service: "migrate", State: "exited", Health: "unhealthy"},
+	}}
+	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if rt.asked != 1 || strings.Contains(r.out.text(), "waiting for migrate") {
+		t.Errorf("asked %d times:\n%s", rt.asked, r.out.text())
+	}
+}

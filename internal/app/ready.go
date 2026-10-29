@@ -38,7 +38,10 @@ type WaitOptions struct {
 //
 // Not being ready in time is a warning naming what was waited for and the last
 // thing it said, since the app is started either way; with Strict it is an error.
-func (s *Service) waitReady(ctx context.Context, st domain.UniverseState, appKey string, req RuntimeRequest, opts WaitOptions) error {
+//
+// routes are the app's routes as the proxy was given them: a host dropped from
+// routing (a service with network_mode) can never answer through it.
+func (s *Service) waitReady(ctx context.Context, appKey string, routes []Route, req RuntimeRequest, opts WaitOptions) error {
 	if opts.Disabled {
 		return nil
 	}
@@ -49,7 +52,7 @@ func (s *Service) waitReady(ctx context.Context, st domain.UniverseState, appKey
 	deadline := time.Now().Add(timeout)
 
 	var hosts []Route
-	for _, route := range s.Routes(st, appKey) {
+	for _, route := range routes {
 		if route.Ready != "" && route.Ready != "false" {
 			hosts = append(hosts, route)
 		}
@@ -113,14 +116,28 @@ func mapKeysOf[V any](m map[string]V) func(func(string) bool) {
 // pendingHealth is the services with a healthcheck that are not healthy yet, with
 // what each says. A runtime that cannot be asked has nothing pending: waiting is
 // an extra, and not being able to do it must not fail a start.
+//
+// Only containers that run, of the services this start asked for, are waited
+// for: the listing includes stopped ones, and a one-shot service that exited
+// keeps the health it had, which would hold every start for the whole timeout.
 func (s *Service) pendingHealth(ctx context.Context, req RuntimeRequest, last map[string]string) map[string]string {
 	rows, err := s.Runtime.Health(ctx, req)
 	if err != nil {
 		s.say(3, "%s: health: %v", req.Project, err)
 		return nil
 	}
+	asked := map[string]bool{}
+	for _, svc := range req.Services {
+		asked[svc] = true
+	}
 	pending := map[string]string{}
 	for _, row := range rows {
+		if len(asked) > 0 && !asked[row.Service] {
+			continue
+		}
+		if row.State != "" && row.State != "running" && row.State != "restarting" {
+			continue
+		}
 		if row.Health != "" && row.Health != "healthy" {
 			pending[row.Service] = row.Health
 			last[row.Service] = row.Health

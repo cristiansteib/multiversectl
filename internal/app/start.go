@@ -207,10 +207,11 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 	if err != nil {
 		return st, fmt.Errorf("%s: %w", appKey, err)
 	}
+	routes := s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg)
 	extraFiles, err := s.Router.Materialize(ctx, OverrideRequest{
 		Dir:       u.Dir(),
 		App:       appKey,
-		Routes:    s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg),
+		Routes:    routes,
 		Unpublish: s.unpublished(appKey, defined, cfg),
 		Env:       serviceEnv,
 		Bind:      s.Manifest.BindAddress(),
@@ -222,6 +223,11 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 	if len(req.Services) == 0 {
 		req.Services = defined
 	}
+	// Before the hooks and the build: an image is tagged with the project's
+	// name, so building for another root's project would replace its images.
+	if err := s.guardProject(ctx, u, req.Project); err != nil {
+		return st, fmt.Errorf("%s: %w", appKey, err)
+	}
 	if st, err = s.fire(ctx, domain.PreUp, st, appKey, &req, defined); err != nil {
 		return st, err
 	}
@@ -231,9 +237,6 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 			return st, fmt.Errorf("%s: build: %w", appKey, err)
 		}
 	}
-	if err := s.guardProject(ctx, u, req.Project); err != nil {
-		return st, fmt.Errorf("%s: %w", appKey, err)
-	}
 	s.say(1, "%s: starting %s", appKey, strings.Join(req.Services, ", "))
 	s.say(3, "%s: environment given to compose: %s (names only)", appKey, strings.Join(slices.Sorted(maps.Keys(req.Env)), ", "))
 	if err := s.Runtime.Up(ctx, req); err != nil {
@@ -241,7 +244,7 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 	}
 	s.Out.OK("%s up", appKey)
 	// Before the hooks, which may rely on the app answering.
-	if err := s.waitReady(ctx, st, appKey, req, in.Wait); err != nil {
+	if err := s.waitReady(ctx, appKey, routes, req, in.Wait); err != nil {
 		return st, err
 	}
 	if st, err = s.fire(ctx, domain.PostUp, st, appKey, &req, defined); err != nil {

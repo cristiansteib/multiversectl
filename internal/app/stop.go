@@ -42,12 +42,13 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 		return err
 	}
 	for _, appKey := range apps {
-		if st, err = s.fire(ctx, domain.PreDown, st, appKey, nil, nil); err != nil {
-			return err
-		}
 		req := s.request(u, st, appKey, nil)
+		// Before its hooks, which would act on another root's containers.
 		if err := s.guardProject(ctx, u, req.Project); err != nil {
 			return fmt.Errorf("universe %s: %s: %w", st.Name, appKey, err)
+		}
+		if st, err = s.fire(ctx, domain.PreDown, st, appKey, nil, nil); err != nil {
+			return err
 		}
 		if err := s.Runtime.Down(ctx, req, false); err != nil {
 			return fmt.Errorf("universe %s: %s: stop: %w", st.Name, appKey, err)
