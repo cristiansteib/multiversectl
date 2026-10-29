@@ -25,7 +25,7 @@ import (
 // end.
 func (r runner) startCmd() *cobra.Command {
 	var base, universe, as string
-	var open, yes, installOnly bool
+	var open, yes, installOnly, failFast bool
 	var exclude []string
 	cmd := &cobra.Command{
 		Use:   "start [name] [source]",
@@ -66,6 +66,7 @@ func (r runner) startCmd() *cobra.Command {
 	cmd.Flags().StringVar(&base, "base", "", "directory multiverses go under (default $MULTIVERSECTL_ROOT or ~/multiverse)")
 	cmd.Flags().StringVar(&as, "as", "", "the name to install it under (default: the one it defines, or its repository's)")
 	cmd.Flags().StringVarP(&universe, "universe", "u", "", "the universe to start (default: the only one, or a new one)")
+	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others and report the failures at the end)")
 	cmd.Flags().BoolVar(&open, "open", false, "open the first address in a browser")
 	cmd.Flags().BoolVar(&yes, "yes", false, "accept every default and confirmation")
 	cmd.Flags().StringArrayVar(&exclude, "exclude", nil, "a catalog path to leave out of what a catalog node installs (repeatable)")
@@ -106,7 +107,7 @@ func (r runner) startCmd() *cobra.Command {
 			}
 		}
 		r.out.Info("starting universe `%s`", name)
-		if err := s.Start(ctx, app.StartInput{Universe: name}); err != nil {
+		if err := s.Start(ctx, app.StartInput{Universe: name, FailFast: failFast}); err != nil {
 			return err
 		}
 		return r.startDone(ctx, s, name, open)

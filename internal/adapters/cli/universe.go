@@ -145,6 +145,7 @@ func (r runner) checkoutCmd() *cobra.Command {
 
 func (r runner) upCmd() *cobra.Command {
 	var with []string
+	var failFast bool
 	cmd := &cobra.Command{
 		Use:     "up <universe> [app ...]",
 		Aliases: []string{"start"},
@@ -153,13 +154,14 @@ func (r runner) upCmd() *cobra.Command {
 		Args:    cobra.ArbitraryArgs,
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
+	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others, report the failures at the end, exit non-zero)")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
 			args, err := r.universeArgs(cmd, args, s)
 			if err != nil {
 				return err
 			}
-			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with})
+			return s.Start(ctx, app.StartInput{Universe: args[0], Apps: args[1:], With: with, FailFast: failFast})
 		})(cmd, args)
 	}
 	return cmd

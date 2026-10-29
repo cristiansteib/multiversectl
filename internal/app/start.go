@@ -19,6 +19,51 @@ type StartInput struct {
 	Universe string
 	Apps     []string
 	With     []string
+	// FailFast stops at the first app that does not start. By default the
+	// others are still started and the failures are reported at the end.
+	FailFast bool
+}
+
+// AppFailure is one app that did not start, and why.
+type AppFailure struct {
+	App string
+	Err error
+}
+
+// StartFailed is what a start returns when some apps came up and some did not.
+// What failed is already said, app by app, when it is returned.
+type StartFailed struct {
+	Up     []string
+	Failed []AppFailure
+	Apps   int
+}
+
+func (e *StartFailed) Unwrap() []error {
+	out := make([]error, len(e.Failed))
+	for i, f := range e.Failed {
+		out[i] = f.Err
+	}
+	return out
+}
+
+func (e *StartFailed) Error() string {
+	names := make([]string, len(e.Failed))
+	for i, f := range e.Failed {
+		names[i] = f.App
+	}
+	return fmt.Sprintf("%d of %d apps did not start (%s)", len(e.Failed), e.Apps, strings.Join(names, ", "))
+}
+
+// sayStartSummary is the end of a start that was not clean: which apps are up
+// and which are not, so the answer is in one place and not in the scrollback.
+func (s *Service) sayStartSummary(up []string, failed []AppFailure) {
+	if len(up) > 0 {
+		s.Out.OK("up: %s", strings.Join(up, ", "))
+	}
+	for _, f := range failed {
+		s.Out.Warn("failed: %s", strings.ReplaceAll(strings.TrimSpace(f.Err.Error()), "\n", "\n    "))
+	}
+	s.Out.Info("the multiverse's own postUp hooks were not run; fix the failed apps and start them again")
 }
 
 // Start brings up the proxy and then each app of the universe.
@@ -91,74 +136,104 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if st, err = s.fire(ctx, domain.PreUp, st, multiverseHooks, nil, nil); err != nil {
 		return err
 	}
+	var up []string
+	var failed []AppFailure
 	for _, appKey := range apps {
 		if s.NothingToRun(u, appKey) {
 			s.Out.Info("%s: no compose file in its repository, so there is nothing to start", appKey)
 			continue
 		}
-		// Before the compose files are read and before anything starts: a file the
-		// app reads at boot, or an env_file, must be there by then.
-		if err := s.renderApp(ctx, u, st, appKey, false); err != nil {
-			return err
-		}
-		// The compose files already name the services; asking them means a
-		// manifest does not have to repeat the list, and cannot get it wrong.
-		if _, err := s.composeFiles(u, appKey); err != nil {
-			return err
-		}
-		base := s.request(u, st, appKey, in.With)
-		s.say(1, "%s: reading its services from the compose files", appKey)
-		s.say(3, "%s: compose project %s, files %s, profiles %v", appKey, base.Project, strings.Join(base.Files, ", "), base.Profiles)
-		cfg, err := s.Runtime.Inspect(ctx, base)
-		if err != nil {
-			return fmt.Errorf("%s: reading services: %w", appKey, err)
-		}
-		defined := cfg.Names()
-		s.say(1, "%s: services %s", appKey, strings.Join(defined, ", "))
-
-		serviceEnv, err := s.serviceEnv(st, cfg)
-		if err != nil {
-			return fmt.Errorf("%s: %w", appKey, err)
-		}
-		extraFiles, err := s.Router.Materialize(ctx, OverrideRequest{
-			Dir:       u.Dir(),
-			App:       appKey,
-			Routes:    s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg),
-			Unpublish: s.unpublished(appKey, defined, cfg),
-			Env:       serviceEnv,
-			Bind:      s.Manifest.BindAddress(),
-		})
-		if err != nil {
-			return fmt.Errorf("%s: routing: %w", appKey, err)
-		}
-		req := s.request(u, st, appKey, in.With, extraFiles...)
-		if len(req.Services) == 0 {
-			req.Services = defined
-		}
-		if st, err = s.fire(ctx, domain.PreUp, st, appKey, &req, defined); err != nil {
-			return err
-		}
-		if s.Manifest.Apps[appKey].Build || buildsAnImage(cfg) {
-			s.say(1, "%s: building the images", appKey)
-			if err := s.Runtime.Build(ctx, req); err != nil {
-				return fmt.Errorf("%s: build: %w", appKey, err)
+		var err error
+		if st, err = s.startApp(ctx, u, st, appKey, in); err != nil {
+			if in.FailFast || ctx.Err() != nil {
+				return err
 			}
+			// The apps are independent: one that cannot start must not keep the
+			// others from it. Its hooks have not run, and are not run later.
+			s.Out.Warn("%s did not start; going on with the other apps", appKey)
+			if !strings.HasPrefix(err.Error(), appKey+":") {
+				err = fmt.Errorf("%s: %w", appKey, err)
+			}
+			failed = append(failed, AppFailure{App: appKey, Err: err})
+			continue
 		}
-		if err := s.guardProject(ctx, u, req.Project); err != nil {
-			return fmt.Errorf("%s: %w", appKey, err)
-		}
-		s.say(1, "%s: starting %s", appKey, strings.Join(req.Services, ", "))
-		s.say(3, "%s: environment given to compose: %s (names only)", appKey, strings.Join(slices.Sorted(maps.Keys(req.Env)), ", "))
-		if err := s.Runtime.Up(ctx, req); err != nil {
-			return fmt.Errorf("%s: start: %w", appKey, err)
-		}
-		s.Out.OK("%s up", appKey)
-		if st, err = s.fire(ctx, domain.PostUp, st, appKey, &req, defined); err != nil {
-			return err
-		}
+		up = append(up, appKey)
+	}
+	if len(failed) == 1 && len(up) == 0 {
+		return failed[0].Err // one app: nothing to sum up, and the error says it
+	}
+	if len(failed) > 0 {
+		s.sayStartSummary(up, failed)
+		return &StartFailed{Up: up, Failed: failed, Apps: len(up) + len(failed)}
 	}
 	_, err = s.fire(ctx, domain.PostUp, st, multiverseHooks, nil, nil)
 	return err
+}
+
+// startApp brings one app up: renders its files, routes it, builds, starts,
+// waits for it, and runs its hooks. It returns the state as the hooks left it.
+func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.UniverseState, appKey string, in StartInput) (domain.UniverseState, error) {
+	// Before the compose files are read and before anything starts: a file the
+	// app reads at boot, or an env_file, must be there by then.
+	if err := s.renderApp(ctx, u, st, appKey, false); err != nil {
+		return st, err
+	}
+	// The compose files already name the services; asking them means a
+	// manifest does not have to repeat the list, and cannot get it wrong.
+	if _, err := s.composeFiles(u, appKey); err != nil {
+		return st, err
+	}
+	base := s.request(u, st, appKey, in.With)
+	s.say(1, "%s: reading its services from the compose files", appKey)
+	s.say(3, "%s: compose project %s, files %s, profiles %v", appKey, base.Project, strings.Join(base.Files, ", "), base.Profiles)
+	cfg, err := s.Runtime.Inspect(ctx, base)
+	if err != nil {
+		return st, fmt.Errorf("%s: reading services: %w", appKey, err)
+	}
+	defined := cfg.Names()
+	s.say(1, "%s: services %s", appKey, strings.Join(defined, ", "))
+
+	serviceEnv, err := s.serviceEnv(st, cfg)
+	if err != nil {
+		return st, fmt.Errorf("%s: %w", appKey, err)
+	}
+	extraFiles, err := s.Router.Materialize(ctx, OverrideRequest{
+		Dir:       u.Dir(),
+		App:       appKey,
+		Routes:    s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg),
+		Unpublish: s.unpublished(appKey, defined, cfg),
+		Env:       serviceEnv,
+		Bind:      s.Manifest.BindAddress(),
+	})
+	if err != nil {
+		return st, fmt.Errorf("%s: routing: %w", appKey, err)
+	}
+	req := s.request(u, st, appKey, in.With, extraFiles...)
+	if len(req.Services) == 0 {
+		req.Services = defined
+	}
+	if st, err = s.fire(ctx, domain.PreUp, st, appKey, &req, defined); err != nil {
+		return st, err
+	}
+	if s.Manifest.Apps[appKey].Build || buildsAnImage(cfg) {
+		s.say(1, "%s: building the images", appKey)
+		if err := s.Runtime.Build(ctx, req); err != nil {
+			return st, fmt.Errorf("%s: build: %w", appKey, err)
+		}
+	}
+	if err := s.guardProject(ctx, u, req.Project); err != nil {
+		return st, fmt.Errorf("%s: %w", appKey, err)
+	}
+	s.say(1, "%s: starting %s", appKey, strings.Join(req.Services, ", "))
+	s.say(3, "%s: environment given to compose: %s (names only)", appKey, strings.Join(slices.Sorted(maps.Keys(req.Env)), ", "))
+	if err := s.Runtime.Up(ctx, req); err != nil {
+		return st, fmt.Errorf("%s: start: %w", appKey, err)
+	}
+	s.Out.OK("%s up", appKey)
+	if st, err = s.fire(ctx, domain.PostUp, st, appKey, &req, defined); err != nil {
+		return st, err
+	}
+	return st, nil
 }
 
 // withoutUnroutable drops the routes to services that set network_mode. The
