@@ -39,13 +39,3 @@
   <tr><td data-l="Tool"><a href="https://containers.dev/">Dev Containers</a>, <a href="https://devpod.sh/">DevPod</a>, <a href="https://coder.com/">Coder</a>, <a href="https://www.gitpod.io/">Gitpod</a></td><td data-l="Pick it when">The problem is setting up the toolchain, not running many copies of the stack.</td></tr>
   </tbody></table></div>
 </section>
-
-<section id="weaker">
-  <h2 id="weaker"><a href="#weaker">Where multiversectl is weaker</a></h2>
-  <ul>
-    <li><strong>Every universe runs everything.</strong> Each copy has its own database, broker and caches, which keeps branches apart and makes the machine's memory the limit on how many.</li>
-    <li><strong>docker compose and one machine only.</strong> No cluster, no remote host.</li>
-    <li><strong>Not isolation.</strong> Universes share the kernel, the daemon and your user; see <a href="concepts.html#not-vm">It is not a virtual machine</a>.</li>
-    <li><strong>Before 1.0.</strong> The manifest's fields can still change between releases.</li>
-  </ul>
-</section>
