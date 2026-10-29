@@ -215,9 +215,22 @@ func (s *Service) universeAddresses(st domain.UniverseState) (hosts, origins []s
 		if host := s.hostOf(st, hostKey, st.Hosts[hostKey]); !slices.Contains(hosts, host) {
 			hosts = append(hosts, host)
 		}
-		origins = append(origins, s.originOf(st, hostKey, st.Hosts[hostKey]))
+		origins = appendNew(origins, s.originOf(st, hostKey, st.Hosts[hostKey]))
+		// "Every address" includes the one by IP and port: a client that uses it
+		// is refused by an app that trusts only the names. One whose port is not
+		// chosen yet has no such address, and is left out.
+		if forward := st.Rules[hostKey].ForwardURL; forward != "" {
+			origins = appendNew(origins, forward)
+		}
 	}
 	return hosts, origins
+}
+
+func appendNew(list []string, item string) []string {
+	if slices.Contains(list, item) {
+		return list
+	}
+	return append(list, item)
 }
 
 // hostOf is the name a host answers to as far as anything outside the proxy is

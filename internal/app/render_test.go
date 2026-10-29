@@ -135,8 +135,8 @@ func TestARenderedJSONConfigHasTheUniversesAddresses(t *testing.T) {
 	want := `{
   "apiUrl": "http://api-u1.example.test",
   "callback": "http://192.0.2.7:41000",
-  "origins": ["http://api-u1.example.test","http://web-u1.example.test"],
-  "cors": "http://api-u1.example.test http://web-u1.example.test",
+  "origins": ["http://api-u1.example.test","http://192.0.2.7:41000","http://web-u1.example.test"],
+  "cors": "http://api-u1.example.test http://192.0.2.7:41000 http://web-u1.example.test",
   "universe": "1",
   "mode": "u1"
 }

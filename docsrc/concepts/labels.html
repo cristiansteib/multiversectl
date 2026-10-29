@@ -55,7 +55,7 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></div>
       <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></div>
   <div class="tw"><table>
   <thead><tr><th scope="col">Source</th><th scope="col">Value</th></tr></thead><tbody>
-  <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port.</td></tr>
+  <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port, and the address by IP and port of every host that is forwarded (<code>portForward</code>), once its port is chosen. <code>hosts</code> stays hostnames only.</td></tr>
   <tr><td data-l="Source"><code>hosts</code></td><td data-l="Value">Every hostname, comma separated.</td></tr>
   <tr><td data-l="Source"><code>origins:space</code>, <code>hosts:space</code></td><td data-l="Value">The same list joined as the setting wants it: <code>comma</code> (the default), <code>space</code>, <code>semicolon</code> or <code>newline</code>. A framework decides the shape of its own setting, so it is named rather than guessed.</td></tr>
   <tr><td data-l="Source"><code>domain</code></td><td data-l="Value">The wildcard domain in use.</td></tr>
@@ -64,6 +64,7 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></div>
   <tr><td data-l="Source"><code>host:&lt;key&gt;</code></td><td data-l="Value">One host key's hostname.</td></tr>
   <tr><td data-l="Source"><code>url:&lt;key&gt;</code></td><td data-l="Value">One host key's whole address, port included.</td></tr>
   <tr><td data-l="Source"><code>forward:&lt;key&gt;</code></td><td data-l="Value">The address of a host that is also forwarded by IP and port (<code>portForward: auto</code>), for a client that cannot use the hostname. Fails when the host is not forwarded.</td></tr>
+  <tr><td data-l="Source"><code>forward:web+url:web</code></td><td data-l="Value">Several sources in one value, joined with <code>+</code>: each is resolved, a duplicate is dropped (the first stays), and the order is the one written. They are joined with the separator named after the last one, <code>forward:web+url:web:space</code> (also <code>origins+forward:web:newline</code>), comma by default. A list source (<code>origins</code>, <code>hosts</code>) contributes all of its items. A forwarded address whose port is not chosen yet is left out of a combination rather than failing it; a host that does not exist is an error.</td></tr>
   </tbody></table></div>
   <p>An unknown source fails the start and names the valid ones, rather than leaving a variable quietly empty to surface much later as a confusing runtime error.</p>
   <h3 id="env-precedence">It beats <code>env_file</code></h3>

@@ -216,14 +216,15 @@ func TestServiceEnvFromLabels(t *testing.T) {
 		vars[v.Name] = v.Value
 	}
 	for name, want := range map[string]string{
-		"DJANGO_CSRF_TRUSTED_ORIGINS": "http://api-fix-login.example.test,http://devapi-fix-login.example.test:8001",
+		// Every address, the forwarded one of a host included.
+		"DJANGO_CSRF_TRUSTED_ORIGINS": "http://api-fix-login.example.test,http://192.0.2.7:41000,http://devapi-fix-login.example.test:8001",
 		"DJANGO_ALLOWED_HOSTS":        "api-fix-login.example.test,devapi-fix-login.example.test",
 		"API_BASE":                    "http://devapi-fix-login.example.test:8001",
 		"OWN_HOST":                    "api-fix-login.example.test",
 		"WHICH":                       "fix/login",
 		// A framework decides the shape of its own list: Django's CORS setting wants
 		// spaces where its CSRF one wants commas.
-		"CORS_ALLOWED_ORIGINS": "http://api-fix-login.example.test http://devapi-fix-login.example.test:8001",
+		"CORS_ALLOWED_ORIGINS": "http://api-fix-login.example.test http://192.0.2.7:41000 http://devapi-fix-login.example.test:8001",
 		"ALLOWED_HOSTS_LINES":  "api-fix-login.example.test\ndevapi-fix-login.example.test",
 		// A client that cannot use the hostname is given the address by IP and port.
 		"PHONE_URL": "http://192.0.2.7:41000",
@@ -288,5 +289,51 @@ func TestAProxyChangeNamesCertificatesAndTLS(t *testing.T) {
 	want.TLS, want.Certificates = map[string]bool{"web": true}, []domain.Certificate{{CertFile: "/a.pem", KeyFile: "/k.pem"}}
 	if got := proxyChange(status, want); got != "" {
 		t.Errorf("no change, yet %q", got)
+	}
+}
+
+// One label can name several sources, joined with +: each resolved, duplicates
+// dropped, the order kept, joined with the separator at the end.
+func TestEnvLabelSourcesCanBeCombined(t *testing.T) {
+	manifest := &domain.Manifest{Name: "acme", Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80}}, Repos: map[string]domain.Repo{"api": {}}}
+	st := domain.UniverseState{
+		Name: "3", ID: "3", Slug: "u3", Domain: "example.test",
+		Hosts: map[string]string{"web": "web-u3.example.test", "api": "api-u3.example.test"},
+		Rules: map[string]domain.RouteRule{
+			"web": {Entrypoint: "web", PortForward: "auto", HostPort: 41000, ForwardURL: "http://192.0.2.7:41000"},
+			// Its forwarded port is not chosen yet.
+			"api": {Entrypoint: "web", PortForward: "auto"},
+		},
+	}
+	svc := New(Deps{System: fakeSystem{}, Store: fakeStore{st: st}}, "/ws", manifest, "test")
+	hosts, origins := svc.universeAddresses(st)
+	for source, want := range map[string]string{
+		"forward:web+url:web":               "http://192.0.2.7:41000,http://web-u3.example.test",
+		"url:web+forward:web":               "http://web-u3.example.test,http://192.0.2.7:41000",
+		"forward:web+url:web:space":         "http://192.0.2.7:41000 http://web-u3.example.test",
+		"forward:web+url:web:newline":       "http://192.0.2.7:41000\nhttp://web-u3.example.test",
+		"url:web+url:web+host:web":          "http://web-u3.example.test,web-u3.example.test",
+		"forward:api+url:api":               "http://api-u3.example.test", // not allocated: left out
+		"universe+slug+domain:semicolon":    "3;u3;example.test",
+		"origins+url:web:space":             "http://api-u3.example.test http://web-u3.example.test http://192.0.2.7:41000",
+		"hosts+host:web+universe:semicolon": "api-u3.example.test;web-u3.example.test;3",
+	} {
+		got, err := svc.resolveEnvSource(source, st, hosts, origins)
+		if err != nil || got != want {
+			t.Errorf("%s = %q, %v; want %q", source, got, err, want)
+		}
+	}
+	// origins lists the forwarded address of every host that has one, and
+	// hosts stays names.
+	if got := strings.Join(origins, " "); got != "http://api-u3.example.test http://web-u3.example.test http://192.0.2.7:41000" {
+		t.Errorf("origins = %v", origins)
+	}
+	if got := strings.Join(hosts, " "); got != "api-u3.example.test web-u3.example.test" {
+		t.Errorf("hosts = %v", hosts)
+	}
+	for _, bad := range []string{"url:web+", "+url:web", "url:nope+url:web", "origins:space+url:web", "forward:nope+url:web"} {
+		if _, err := svc.resolveEnvSource(bad, st, hosts, origins); err == nil {
+			t.Errorf("%q: want an error", bad)
+		}
 	}
 }
