@@ -74,6 +74,7 @@ type AppView struct {
 	Compose  string        `json:"compose"`
 	Running  int           `json:"running"`
 	Expected int           `json:"expected,omitempty"`
+	OnDemand bool          `json:"onDemand,omitempty"`
 	URLs     []URLView     `json:"urls"`
 	Services []ServiceView `json:"services,omitempty"`
 	Volumes  []string      `json:"volumes,omitempty"`
@@ -127,7 +128,7 @@ func universeView(u app.Summary) UniverseView {
 		v.LastStarted = &u.LastStarted
 	}
 	for _, a := range u.Apps {
-		av := AppView{Key: a.Key, Repo: a.Repo, Branch: a.Branch, Path: a.Path, Compose: a.Project, Running: a.Running, Expected: a.Expected, Volumes: a.Volumes, URLs: []URLView{}}
+		av := AppView{Key: a.Key, Repo: a.Repo, Branch: a.Branch, Path: a.Path, Compose: a.Project, Running: a.Running, Expected: a.Expected, OnDemand: a.OnDemand, Volumes: a.Volumes, URLs: []URLView{}}
 		for _, h := range a.URLs {
 			av.URLs = append(av.URLs, URLView{Host: h.Host, Service: h.Service, URL: h.URL})
 		}

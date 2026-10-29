@@ -203,7 +203,7 @@ func toUniverse(u app.Summary) universeView {
 		Note: u.Note, PR: u.PR, Branches: u.Branches, Apps: []appView{}, Checkouts: []checkoutView{},
 		Created: stamp(u.Created), LastStarted: stamp(u.LastStarted)}
 	for _, a := range u.Apps {
-		av := appView{Key: a.Key, Repo: a.Repo, Branch: a.Branch, Path: a.Path, Running: a.Running, Expected: a.Expected}
+		av := appView{Key: a.Key, Repo: a.Repo, Branch: a.Branch, Path: a.Path, Running: a.Running, Expected: a.Expected, OnDemand: a.OnDemand}
 		for _, h := range a.URLs {
 			av.URLs = append(av.URLs, urlView{Host: h.Host, Service: h.Service, URL: h.URL})
 		}

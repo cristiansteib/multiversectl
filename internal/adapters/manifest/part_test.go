@@ -106,3 +106,28 @@ func TestARepositoryCanAskForRenderedFilesInItsOwnFile(t *testing.T) {
 		t.Errorf("render = %+v", got)
 	}
 }
+
+func TestAnAppOnDemandIsSaidInTheMultiverseOrInTheRepositorysOwnFile(t *testing.T) {
+	root := t.TempDir()
+	put(t, root, "api/.multiverse.yaml", part(`  apps:
+    - autostart: false
+`))
+	m, err := Decode([]byte(multiverseOfThree+`  apps:
+    - {name: ui, repo: ui, autostart: false}
+    - {name: docs, repo: docs, autostart: true}
+`), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := MergeParts(m, root); err != nil {
+		t.Fatal(err)
+	}
+	for app, want := range map[string]bool{"api": true, "ui": true, "docs": false} {
+		if got := m.Apps[app].OnDemand; got != want {
+			t.Errorf("%s: on demand = %v, want %v", app, got, want)
+		}
+	}
+	if got := strings.Join(m.AutostartApps(), ","); got != "docs" {
+		t.Errorf("an unqualified start runs %q, want docs", got)
+	}
+}

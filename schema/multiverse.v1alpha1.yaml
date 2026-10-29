@@ -196,6 +196,19 @@ spec:
                           Which repo, by name, holds this app. Leave it out
                           in a repository's own file: the app is that
                           repository's.
+                      autostart:
+                        type: boolean
+                        description: >-
+                          Whether `universe up` and `universe start` bring
+                          this app up when no app is named. Set it to false
+                          for an app that should be checked out and have its
+                          addresses but run only when asked for (`universe
+                          up 3 <app>`): a tool that needs setup, a code
+                          generator, a heavy optional service. Commands that
+                          look after what runs (down, rm, status, doctor,
+                          ls) still deal with it when it is up, and do not
+                          report it as a problem when it is not.
+                        default: true
                       build:
                         type: boolean
                         description: >-

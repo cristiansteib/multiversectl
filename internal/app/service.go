@@ -309,6 +309,52 @@ func (s *Service) appsToAct(named []string) ([]string, error) {
 	return named, nil
 }
 
+// appsToStart is appsToAct for a start: with none named, the apps on demand are
+// left out, and the one line says how to start them. Naming one starts it.
+func (s *Service) appsToStart(universe string, named []string) ([]string, error) {
+	if len(named) > 0 {
+		return s.appsToAct(named)
+	}
+	all, err := s.appsToAct(nil)
+	if err != nil {
+		return nil, err
+	}
+	started := s.Manifest.AutostartApps()
+	for _, key := range all {
+		if s.Manifest.Apps[key].OnDemand {
+			s.Out.Info("%s: on demand, not started (start it with: multiversectl universe up %s %s)", key, universe, key)
+		}
+	}
+	return started, nil
+}
+
+// withoutIdleOnDemand drops the apps on demand that nothing of is running, for
+// the commands that look after what runs when no app was named: there is nothing
+// to stop, remove the containers of or run a hook in. When the containers cannot
+// be listed every app stays, since leaving something running is the worse error.
+func (s *Service) withoutIdleOnDemand(ctx context.Context, st domain.UniverseState, keys []string) []string {
+	hasOnDemand := false
+	for _, key := range keys {
+		hasOnDemand = hasOnDemand || s.Manifest.Apps[key].OnDemand
+	}
+	if !hasOnDemand {
+		return keys
+	}
+	containers, err := s.Runtime.Containers(ctx, st.Project)
+	if err != nil {
+		return keys
+	}
+	u := s.Universe(st.Name)
+	var out []string
+	for _, key := range keys {
+		if s.Manifest.Apps[key].OnDemand && runningFor(containers, u.ProjectFor(key)) == 0 {
+			continue
+		}
+		out = append(out, key)
+	}
+	return out
+}
+
 // Routes are the resolved addresses of one app of one universe, as stored when
 // it was last created or started.
 func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {

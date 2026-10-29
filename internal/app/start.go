@@ -37,7 +37,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if st, err = s.Resolve(in.Universe); err != nil {
 		return err
 	}
-	apps, err := s.appsToAct(in.Apps)
+	apps, err := s.appsToStart(st.Name, in.Apps)
 	if err != nil {
 		return err
 	}

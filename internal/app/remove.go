@@ -99,7 +99,7 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 
 	// Before anything is destroyed, while the containers a command may need are
 	// still there.
-	for _, appKey := range append(s.Manifest.RunnableApps(), multiverseHooks) {
+	for _, appKey := range append(s.withoutIdleOnDemand(ctx, st, s.Manifest.RunnableApps()), multiverseHooks) {
 		if st, err = s.fire(ctx, domain.PreRemove, st, appKey, nil, nil); err != nil {
 			return err
 		}

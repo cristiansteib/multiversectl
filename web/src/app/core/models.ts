@@ -12,7 +12,7 @@ export interface CatalogProgress { repo: string; ref?: string; phase: 'fetching'
 
 export interface ServiceView { name: string; state: string; detail?: string; published?: string }
 export interface UrlView { host: string; service: string; url: string }
-export interface AppView { key: string; repo: string; branch?: string; path: string; running: number; expected: number; urls?: UrlView[]; services?: ServiceView[] }
+export interface AppView { key: string; repo: string; branch?: string; path: string; running: number; expected: number; onDemand?: boolean; urls?: UrlView[]; services?: ServiceView[] }
 export interface CheckoutView { repo: string; branch?: string; path: string; app?: string; follows?: string; behind?: number; ahead?: number; dirty?: boolean }
 
 export interface UniverseView {

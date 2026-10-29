@@ -22,6 +22,7 @@
                 @if (x.code) { <mv-pr-chip [review]="x.code.review" [error]="x.code.reviewError" [stat]="x.code.change" [base]="x.code.base" /> }
               </span>
               <span class="grow"></span>
+              @if (x.app.onDemand && !x.app.running) { <mv-badge tone="mute">on demand</mv-badge> }
               @if (x.app.expected) { <mv-badge [tone]="x.app.running === x.app.expected ? 'ok' : x.app.running ? 'warn' : 'mute'">{{ x.app.running }}/{{ x.app.expected }} up</mv-badge> }
             </h3>
             @if (x.rows.length) {

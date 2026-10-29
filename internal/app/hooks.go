@@ -356,7 +356,7 @@ func (s *Service) RunHooks(ctx context.Context, universe string, ev domain.HookE
 	}
 	targets := apps
 	if len(targets) == 0 {
-		targets = append([]string{multiverseHooks}, s.Manifest.RunnableApps()...)
+		targets = append([]string{multiverseHooks}, s.withoutIdleOnDemand(ctx, st, s.Manifest.RunnableApps())...)
 	}
 	ran := false
 	for _, appKey := range targets {

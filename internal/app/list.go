@@ -62,6 +62,9 @@ type AppSummary struct {
 	Project string // the app's own compose project, e.g. acme-u3-api
 	Running int
 	URLs    []HostURL
+	// OnDemand is set for an app that does not start unless named. While nothing
+	// of it runs it expects nothing, so it is not counted as missing.
+	OnDemand bool
 
 	// Expected is how many services should be up once the app is started, so
 	// a listing can say 2/3 rather than 2. Zero unless services were asked
@@ -186,6 +189,8 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 			Path:    u.RepoDir(app.Repo),
 			Project: project,
 			Running: runningFor(containers, project),
+
+			OnDemand: app.OnDemand,
 		}
 		for _, route := range s.Routes(st, key) {
 			summary.URLs = append(summary.URLs, HostURL{
@@ -203,6 +208,13 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 		}
 		if opts.Services {
 			summary.Services = s.serviceStates(ctx, u, st, key, containers)
+			if app.OnDemand && summary.Running == 0 {
+				for i, svc := range summary.Services {
+					if svc.State == StateNotUp {
+						summary.Services[i].State, summary.Services[i].Detail = StateOff, "on demand"
+					}
+				}
+			}
 			for _, svc := range summary.Services {
 				if svc.Counted() {
 					summary.Expected++
