@@ -21,7 +21,7 @@ html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 body{margin:0;background:var(--ground);color:var(--text);font:1rem/1.65 var(--sans);
   -webkit-font-smoothing:antialiased}
-.wrap{max-width:120rem;margin:0 auto;padding:0 20px}
+.wrap{max-width:min(108rem,max(92vw,76rem));margin:0 auto;padding:0 20px}
 a{color:var(--addr);text-underline-offset:3px;text-decoration-thickness:1px}
 :focus-visible{outline:2px solid var(--addr);outline-offset:3px;border-radius:3px}
 code,pre,.mono{font-family:var(--mono)}
@@ -241,7 +241,7 @@ th{font:600 .8125rem var(--mono);color:var(--muted)}
 td code{white-space:normal;overflow-wrap:break-word}
 
 /* A row reads as a block of labelled lines when there is no room for columns.
-   The page's middle column is 650 to 1400px wide on a desktop, and a table
+   The page's middle column is 650 to 1150px wide on a desktop, and a table
    of commands spends two of its three columns on monospace, so the measure
    that matters is the table's own width rather than the window's. */
 @container (max-width:56rem){
