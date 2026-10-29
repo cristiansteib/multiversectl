@@ -87,6 +87,9 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 	if st, err = s.Resolve(in.Universe); err != nil {
 		return err
 	}
+	// First, so a repository's file that a universe without a checkout of it
+	// reads from the clone is the current one.
+	s.KeepClonesCurrent(ctx)
 	// The repositories' own files are read from this universe's worktrees.
 	if s, err = s.forUniverse(st.Name); err != nil {
 		return err
@@ -96,7 +99,6 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		return err
 	}
 	u := s.UniverseOf(st)
-	s.KeepClonesCurrent(ctx)
 	s.say(1, "universe `%s`: starting %s", st.Name, strings.Join(apps, ", "))
 
 	// Before the proxy is touched, so a missing file leaves nothing half started.

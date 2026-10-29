@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 )
 
 // forUniverse is this service as one universe sees the multiverse: the
@@ -28,6 +29,14 @@ func (s *Service) forUniverse(name string) (*Service, error) {
 	})
 	if err != nil {
 		return s, fmt.Errorf("universe %s: %w", name, err)
+	}
+	// The proxy is one for every universe of every multiverse, so what it
+	// listens on follows the shared clones. A branch that changes it would
+	// reconfigure the proxy under the other universes on each start, and back
+	// on theirs.
+	if !reflect.DeepEqual(m.Proxy, s.Manifest.Proxy) {
+		s.Out.Warn("universe %s: this branch's repository files change the shared proxy (entrypoints, TLS or certificates); the proxy follows the shared clones until the change is merged", name)
+		m.Proxy = s.Manifest.Proxy
 	}
 	scoped := *s
 	scoped.Manifest = m
