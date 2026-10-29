@@ -308,7 +308,7 @@ func (c *Catalogs) InitProject(ctx context.Context, in ProjectInput) (ProjectRes
 }
 
 // projectName is asked unless given, once the repositories are known: what
-// they share (fichero-api and fichero-ui are fichero) is the likeliest name.
+// they share (acme-api and acme-ui are acme) is the likeliest name.
 // Failing that, the directory's; one called multiverse says nothing about the
 // multiverse, so its parent's is used.
 func (c *Catalogs) projectName(given, dir string, p *picks) (string, error) {
@@ -336,7 +336,7 @@ func (c *Catalogs) projectName(given, dir string, p *picks) (string, error) {
 }
 
 // commonPrefix is the first word, up to a dash, that most of the repositories'
-// names start with (fichero-api, fichero-ui, fichero-admin): that is the likely
+// names start with (acme-api, acme-ui, acme-admin): that is the likely
 // name. A stray one such as .skills does not stop it. It needs two repositories
 // that agree, and more than half.
 func commonPrefix(p *picks) string {
@@ -371,7 +371,7 @@ var nonName = regexp.MustCompile(`[^a-zA-Z0-9-]+`)
 
 // draft names each repository. A key is the repository's name, lowercased, and
 // drops the multiverse's own name and a dash when that leaves something
-// (fichero-api in fichero is api), since it is typed often. A name given as
+// (acme-api in acme is api), since it is typed often. A name given as
 // name=url is used as it is, and a clash with another is an error.
 func (c *Catalogs) draft(project, base string, p *picks) (ProjectDraft, string, error) {
 	d := ProjectDraft{Name: project}

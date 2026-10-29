@@ -1,6 +1,6 @@
 ---
 name: multiversectl
-description: Run, inspect and work in isolated copies ("universes") of a multi-repo project with multiversectl, so several agents or branches can run side by side. Use it when the task needs a running copy of the multiverse, or when you see a multiverse multiverse root or a multiverse.yaml.
+description: Run, inspect and work in isolated copies ("universes") of a system spread over several repositories with multiversectl, so several agents or branches can run side by side. Use it when the task needs a running copy of the multiverse, or when you see a multiverse root or a multiverse.yaml.
 ---
 <!-- multiversectl-skill-version: {{version}} -->
 

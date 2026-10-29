@@ -29,7 +29,7 @@
 
 <section id="hw-hooks">
   <h2 id="hw-hooks"><a href="#hw-hooks">Run your own tools at the points of a universe's life</a></h2>
-  <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with, and an identity provider does not know the address the universe answers on. multiversectl does not know about either. It gives a project one thing, a command tied to a point in a universe's life, run in a container or on the machine, and tells it where the universe is. What the command does is the project's.</p>
+  <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with, and an identity provider does not know the address the universe answers on. multiversectl does not know about either. It gives a multiverse one thing, a command tied to a point in a universe's life, run in a container or on the machine, and tells it where the universe is. What the command does is the project's.</p>
   <div class="code"><pre><span class="c"># .multiverse.yaml, on the app</span>
 <span class="k">hooks</span>:
   <span class="k">preUp</span>:
@@ -65,7 +65,7 @@
 
 <section id="hw-render">
   <h2 id="hw-render"><a href="#hw-render">Write a config file from the universe's addresses</a></h2>
-  <p>Many apps read a file at startup, a JSON or YAML config, a <code>.env</code>, a framework's settings, and cannot take environment variables. A hook can write that file, but every project then carries its own inline script. <code>render</code> is the declarative form: a template, a path, and the universe's values.</p>
+  <p>Many apps read a file at startup, a JSON or YAML config, a <code>.env</code>, a framework's settings, and cannot take environment variables. A hook can write that file, but every app then carries its own inline script. <code>render</code> is the declarative form: a template, a path, and the universe's values.</p>
   <div class="code"><pre><span class="c"># multiverse.yaml, or .multiverse.yaml on the app</span>
 <span class="k">render</span>:
   - <span class="k">to</span>: public/config.json
@@ -116,7 +116,7 @@
 
 <section id="hw-build-secrets">
   <h2 id="hw-build-secrets"><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></h2>
-  <p>Recent buildx refuses a build whose <code>secrets: file:</code> lives outside the project (<code>~/.netrc</code>) unless it is allowed. The tool does not decide that for you; <code>spec.env</code> reaches every compose and build call, so the project says it once:</p>
+  <p>Recent buildx refuses a build whose <code>secrets: file:</code> lives outside its build context (<code>~/.netrc</code>) unless it is allowed. The tool does not decide that for you; <code>spec.env</code> reaches every compose and build call, so the multiverse says it once:</p>
   <div class="code"><pre><span class="c"># multiverse.yaml</span>
 <span class="k">env</span>:
   - <span class="k">name</span>: BUILDX_BAKE_ENTITLEMENTS_FS

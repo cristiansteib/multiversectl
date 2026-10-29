@@ -348,6 +348,13 @@ func (m *Manifest) Validate() error {
 		if app.DefaultService != "" && len(app.Services) > 0 && !slices.Contains(app.Services, app.DefaultService) {
 			errs = append(errs, fmt.Sprintf("apps.%s.defaultService: %q is not one of its services (%s)", key, app.DefaultService, strings.Join(app.Services, ", ")))
 		}
+		for _, name := range app.Secrets {
+			// Copied out of the shared clone into the universe's checkout: a path
+			// that left either would read or write files the multiverse does not own.
+			if !filepath.IsLocal(name) {
+				errs = append(errs, fmt.Sprintf("apps.%s.secrets: %q must be a path inside the repository", key, name))
+			}
+		}
 		for name, tpl := range app.SecretTemplates {
 			switch {
 			case !slices.Contains(app.Secrets, name):

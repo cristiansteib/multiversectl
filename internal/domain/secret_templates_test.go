@@ -31,3 +31,21 @@ func TestASecretTemplateMustBeInsideTheRepositoryAndForASecret(t *testing.T) {
 		}
 	}
 }
+
+// A secret is copied from the clone to the universe's checkout by the same
+// relative path, so one that leaves the repository would read and write
+// outside both.
+func TestASecretMustBeInsideTheRepository(t *testing.T) {
+	for _, secret := range []string{"../../.ssh/id_ed25519", "/etc/passwd"} {
+		m := &Manifest{Name: "acme", Domain: "example.test", Expose: ExposeLocal, Repos: map[string]Repo{"api": {URL: "x"}},
+			Apps: map[string]App{"api": {Repo: "api", Secrets: []string{secret}}}}
+		if err := m.Validate(); err == nil || !strings.Contains(err.Error(), "secrets") {
+			t.Errorf("secret %q: err = %v, want it refused", secret, err)
+		}
+	}
+	m := &Manifest{Name: "acme", Domain: "example.test", Expose: ExposeLocal, Repos: map[string]Repo{"api": {URL: "x"}},
+		Apps: map[string]App{"api": {Repo: "api", Secrets: []string{".env", "config/sa.json"}}}}
+	if err := m.Validate(); err != nil {
+		t.Errorf("secrets inside the repository were refused: %v", err)
+	}
+}

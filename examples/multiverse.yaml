@@ -1,4 +1,4 @@
-# Project manifest: the repositories a project is made of and the hostnames
+# A multiverse: the repositories that run together and the hostnames
 # its universes answer on. It does not describe containers — the repositories'
 # own compose files already do, and this asks them rather than repeating them.
 apiVersion: multiverse/v1alpha1
