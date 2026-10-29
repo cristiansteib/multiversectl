@@ -309,20 +309,21 @@ func (s *Service) checkAddresses(ctx context.Context, add addCheck, st domain.Un
 		name := "url " + appKey + "/" + strings.TrimSuffix(route.Name, "-"+st.Slug)
 		// Not every host speaks HTTP: a gRPC service answers an HTTP/1.1 request
 		// with an error that says nothing about whether it is up.
-		switch probeFor(route) {
-		case "none":
+		probe := probeFor(route)
+		if probe == "none" {
 			continue
-		case "tcp", "grpc":
-			address, err := tcpAddress(url)
-			if err == nil {
-				err = s.System.Dial(ctx, address)
+		}
+		if probe == "tcp" || probe == "grpc" {
+			if address, ok := directAddress(route); ok {
+				if err := s.System.Dial(ctx, address); err != nil {
+					add(name, StatusWarn, "%s does not accept connections: %v", address, shortError(err))
+				} else {
+					add(name, StatusOK, "%s accepts connections%s", address, map[bool]string{true: " (the gRPC health check is not run: multiversectl carries no gRPC client)", false: ""}[probe == "grpc"])
+				}
+				continue
 			}
-			if err != nil {
-				add(name, StatusWarn, "%s does not accept connections: %v", url, shortError(err))
-			} else {
-				add(name, StatusOK, "%s accepts connections%s", url, map[bool]string{true: " (the gRPC health check is not run: multiversectl carries no gRPC client)", false: ""}[probeFor(route) == "grpc"])
-			}
-			continue
+			// Only through the proxy: asked over HTTP below, since the proxy
+			// itself accepts every connection.
 		}
 		answer, err := s.System.Probe(ctx, url)
 		status := answer.Status
@@ -351,6 +352,19 @@ func probeFor(route Route) string {
 		return "tcp"
 	}
 	return "http"
+}
+
+// directAddress is where a TCP check reaches the service itself: the port it
+// is forwarded on. Through the proxy a connection is always accepted, by the
+// proxy, whether or not anything is behind it, so a host with no forwarded
+// port is asked over HTTP instead, where the proxy says 502 to 504 for a
+// service that is not there.
+func directAddress(route Route) (string, bool) {
+	if route.ForwardURL == "" {
+		return "", false
+	}
+	address, err := tcpAddress(route.ForwardURL)
+	return address, err == nil
 }
 
 // runningFor counts running containers of an app's services, relying on the

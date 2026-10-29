@@ -142,14 +142,15 @@ func (s *Service) hostAnswers(ctx context.Context, route Route) (bool, string) {
 		how = domain.ReadyTCP
 	}
 	if how == domain.ReadyTCP {
-		address, err := tcpAddress(base)
-		if err != nil {
-			return false, err.Error()
-		}
-		if err := s.System.Dial(ctx, address); err != nil {
+		address, ok := directAddress(route)
+		if !ok {
+			// The proxy accepts any connection; ask through it over HTTP.
+			how = ""
+		} else if err := s.System.Dial(ctx, address); err != nil {
 			return false, "no connection to " + address + ": " + shortError(err)
+		} else {
+			return true, ""
 		}
-		return true, ""
 	}
 	target := base
 	if strings.HasPrefix(how, "/") {

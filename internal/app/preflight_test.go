@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -23,13 +24,18 @@ func (r preflightRuntime) Version(context.Context) (string, error) {
 	return "2.29.1", nil
 }
 
+// preflightGit is asked about every repository at once, so it keeps its
+// record under a lock.
 type preflightGit struct {
 	Git
 	errs  map[string]error
+	mu    sync.Mutex
 	asked []string
 }
 
 func (g *preflightGit) LsRemote(_ context.Context, url string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.asked = append(g.asked, url)
 	return g.errs[url]
 }

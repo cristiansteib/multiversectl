@@ -125,7 +125,10 @@ func TestAHostWithReadyIsPolledUntilItAnswersBelow500(t *testing.T) {
 	}
 }
 
-func TestAReadyPathIsAskedAndAnH2cHostIsOnlyDialled(t *testing.T) {
+// An h2c host reached only through the proxy is asked over HTTP: the proxy
+// accepts any connection, so dialling it would prove nothing. (Doctor's test
+// covers the dial on a forwarded port, which both share.)
+func TestAReadyPathIsAskedAndAProxiedH2cHostIsAskedOverHTTP(t *testing.T) {
 	r, _, sys, _ := readyRig(t, "/healthz", "")
 	sys.status = func(string) int { return 200 }
 	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"}); err != nil {
@@ -137,10 +140,11 @@ func TestAReadyPathIsAskedAndAnH2cHostIsOnlyDialled(t *testing.T) {
 
 	r, _, sys, _ = readyRig(t, "true", "h2c")
 	sys.dialOK = func(string) bool { return true }
+	sys.status = func(string) int { return 415 }
 	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(sys.probes) != 0 || len(sys.dials) != 1 || sys.dials[0] != "api-u1.example.test:80" {
+	if len(sys.dials) != 0 || len(sys.probes) != 1 || sys.probes[0] != "http://api-u1.example.test" {
 		t.Errorf("probed %v, dialled %v", sys.probes, sys.dials)
 	}
 }
