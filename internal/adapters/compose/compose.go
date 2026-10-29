@@ -25,6 +25,8 @@ import (
 const (
 	projectLabel = "com.docker.compose.project"
 	serviceLabel = "com.docker.compose.service"
+	workdirLabel = "com.docker.compose.project.working_dir"
+	configLabel  = "com.docker.compose.project.config_files"
 )
 
 // Compose runs the container runtime through the docker CLI.
@@ -260,6 +262,10 @@ func (c *Compose) Containers(ctx context.Context, namePrefix string) ([]app.Cont
 			Project:   labelValue(row.Labels, projectLabel),
 			Ports:     row.Ports,
 			Published: publishedPorts(row.Ports),
+			// Several config files are joined with commas, as labels are, so
+			// what comes back is the first one: enough to say whose it is.
+			WorkingDir: labelValue(row.Labels, workdirLabel),
+			ConfigFile: labelValue(row.Labels, configLabel),
 		})
 	}
 	return containers, scanner.Err()

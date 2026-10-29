@@ -51,16 +51,39 @@ type Service struct {
 	Multiverse string
 	Manifest   *domain.Manifest
 	Version    string
+	// Install is the name this multiverse is installed under, "" when unknown
+	// (a manifest run with -f) or when it is the manifest's own.
+	Install string
 }
 
 // New builds a Service for a multiverse whose manifest is already parsed.
 func New(deps Deps, multiverse string, manifest *domain.Manifest, version string) *Service {
-	return &Service{Deps: deps, Multiverse: multiverse, Manifest: manifest, Version: version}
+	s := &Service{Deps: deps, Multiverse: multiverse, Manifest: manifest, Version: version}
+	s.Install = s.installName()
+	return s
+}
+
+// installName is the name the machine's config records for this root, when it
+// differs from the manifest's own name.
+func (s *Service) installName() string {
+	if s.Config == nil || s.Manifest == nil || s.Multiverse == "" {
+		return ""
+	}
+	cfg, err := s.Config.Load()
+	if err != nil {
+		return ""
+	}
+	for name, e := range cfg.Multiverses {
+		if e.Root != "" && filepath.Clean(e.Root) == filepath.Clean(s.Multiverse) && name != s.Manifest.Name {
+			return name
+		}
+	}
+	return ""
 }
 
 // Universe reconstructs the domain object for a universe's name.
 func (s *Service) Universe(name string) domain.Universe {
-	return domain.Universe{Name: name, Multiverse: s.Multiverse, Manifest: s.Manifest}
+	return domain.Universe{Name: name, Multiverse: s.Multiverse, Manifest: s.Manifest, Install: s.Install}
 }
 
 // Resolve finds the universe a command's argument names. The argument may be

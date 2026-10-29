@@ -138,6 +138,13 @@
   <p class="muted">Also check that the hostname is the one <code>multiversectl universe urls 3</code> prints, and that the service has the label or the single port that routes it.</p>
 </section>
 
+<section id="ts-foreign">
+  <h2 id="ts-foreign"><a href="#ts-foreign">A compose project belongs to another multiverse root</a></h2>
+  <p><code>up</code>, <code>down</code> or <code>rm</code> stops with <em>compose project acme-u1-api already has containers started from …, which is not universe 1</em>. A universe's compose project is named after its multiverse and the universe, so two roots that would give the same universe the same name share containers and volumes: starting one recreates the other's, and removing one deletes the other's data. Before it acts on a project, multiversectl checks the working directory and compose file the existing containers were started from and refuses when they are not under this universe. <code>universe rm</code> skips such a project with a warning and still removes the rest.</p>
+  <p>A multiverse installed under a name other than its manifest's (<code>start owner/repo --as copy</code>) puts that name in its compose projects (<code>acme-copy-u1-api</code>), so the clash does not arise for new installs; an install that predates this keeps the project it was created with until it is brought down and started again. An install named like its manifest keeps its project names unchanged.</p>
+  <div class="code"><pre><span class="p">$ </span>multiversectl start owner/repo --as copy</pre></div>
+</section>
+
   <nav class="pager" aria-label="Pages">
     <a class="prev" href="../reference/paths.html"><span>Previous</span>Paths and state</a>
   </nav>
@@ -151,6 +158,7 @@
       <li><a href="#ts-secret">A secret file is missing</a></li>
       <li><a href="#ts-rm">Removing a universe leaves files only root can delete</a></li>
       <li><a href="#ts-403">A dev server answers 403</a></li>
+      <li><a href="#ts-foreign">A compose project belongs to another multiverse root</a></li>
     </ul>
   </aside>
 </div>

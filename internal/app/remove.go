@@ -106,7 +106,14 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 	}
 
 	for _, appKey := range s.Manifest.RunnableApps() {
-		if err := s.Runtime.Down(ctx, s.request(u, st, appKey, nil), true); err != nil {
+		req := s.request(u, st, appKey, nil)
+		// Removing is not allowed to take another root's volumes with it: that
+		// project is skipped and said, and the rest of the universe still goes.
+		if err := s.guardProject(ctx, u, req.Project); err != nil {
+			s.Out.Warn("%s: not taking the containers and volumes down: %v", appKey, err)
+			continue
+		}
+		if err := s.Runtime.Down(ctx, req, true); err != nil {
 			s.Out.Warn("%s: down: %v", appKey, err)
 		}
 	}

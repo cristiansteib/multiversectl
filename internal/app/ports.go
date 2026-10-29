@@ -153,6 +153,11 @@ type Container struct {
 	// Published is only the host port mappings: the ones that would collide
 	// with another universe.
 	Published string
+	// WorkingDir and ConfigFile are where the runtime says the compose project
+	// was started from: the first of its compose files, and the directory it
+	// ran in. They say whose a project is when its name alone cannot.
+	WorkingDir string
+	ConfigFile string
 }
 
 // ContainerStats is one reading of a container's resource use, as the runtime

@@ -144,6 +144,9 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 				return fmt.Errorf("%s: build: %w", appKey, err)
 			}
 		}
+		if err := s.guardProject(ctx, u, req.Project); err != nil {
+			return fmt.Errorf("%s: %w", appKey, err)
+		}
 		s.say(1, "%s: starting %s", appKey, strings.Join(req.Services, ", "))
 		s.say(3, "%s: environment given to compose: %s (names only)", appKey, strings.Join(slices.Sorted(maps.Keys(req.Env)), ", "))
 		if err := s.Runtime.Up(ctx, req); err != nil {
