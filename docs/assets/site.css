@@ -1,8 +1,9 @@
 /* multiversectl docs.
    The palette is the CLI's own: amber for a universe and its branch, sky for
    an address, green for something running. What you read on this page is the
-   colour you see in the terminal. */
-:root{
+   colour you see in the terminal. Dark unless the reader picks light with the
+   button in the top bar; the choice is kept in the browser. */
+:root{color-scheme:dark;
   --ground:#11141b;--raised:#181d27;--sunk:#0d1016;--line:#262d3b;
   --text:#c7d0e0;--muted:#7c8699;--head:#edf1f8;
   --num:#f0b45f;--on-num:#1a1206;--addr:#7cc5f0;--ok:#86cf7a;--warn:#f0b45f;
@@ -10,17 +11,17 @@
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --top:3.25rem;--bar:3.25rem;
 }
-@media (prefers-color-scheme:light){:root{
+:root[data-theme=light]{color-scheme:light;
   --ground:#f5f7fa;--raised:#ffffff;--sunk:#0d1016;--line:#d6dce6;
   --text:#2a3240;--muted:#5b6678;--head:#121820;
   --num:#a8640a;--on-num:#fff8ec;--addr:#0b5f90;--ok:#2f6f2a;--warn:#a8640a;
-}}
+}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 body{margin:0;background:var(--ground);color:var(--text);font:1rem/1.65 var(--sans);
   -webkit-font-smoothing:antialiased}
-.wrap{max-width:76rem;margin:0 auto;padding:0 20px}
+.wrap{max-width:92rem;margin:0 auto;padding:0 20px}
 a{color:var(--addr);text-underline-offset:3px;text-decoration-thickness:1px}
 :focus-visible{outline:2px solid var(--addr);outline-offset:3px;border-radius:3px}
 code,pre,.mono{font-family:var(--mono)}
@@ -41,6 +42,13 @@ code,pre,.mono{font-family:var(--mono)}
 .ghlink{margin-left:auto;font-size:.875rem;text-decoration:none;color:var(--muted)}
 .ghlink:hover{color:var(--head)}
 @media (min-width:780px){.topnav{display:flex}.ghlink{margin-left:0}}
+.theme{display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--line);border-radius:6px;
+  background:none;color:var(--muted);cursor:pointer}
+.theme:hover{color:var(--head);border-color:var(--muted)}
+.theme svg{width:16px;height:16px}
+/* The button shows what a press turns the page to. */
+.theme .sun,:root[data-theme=light] .theme .moon{display:block}
+.theme .moon,:root[data-theme=light] .theme .sun{display:none}
 
 /* hero: the product doing its job, next to what it is */
 .hero{border-bottom:1px solid var(--line);padding:56px 0 52px}
@@ -89,7 +97,7 @@ code,pre,.mono{font-family:var(--mono)}
 
 /* layout */
 .layout{display:grid;grid-template-columns:minmax(0,1fr);gap:0 60px}
-main{min-width:0;max-width:47rem;padding-bottom:32px}
+main{min-width:0;padding-bottom:32px}
 .side{position:sticky;top:var(--top);z-index:20;background:var(--ground);border-bottom:1px solid var(--line);margin:0 -20px;padding:0 20px}
 .navtoggle{display:none;width:100%;height:var(--bar);align-items:center;justify-content:space-between;background:none;border:0;color:var(--head);padding:0;font:600 .875rem var(--mono);cursor:pointer}
 .navtoggle::after{content:"+";color:var(--num);font-size:1.25rem}
@@ -128,7 +136,6 @@ main{min-width:0;max-width:47rem;padding-bottom:32px}
 .toc{display:none}
 @media (min-width:1300px){
   .layout{grid-template-columns:15.5rem minmax(0,1fr) 12rem;gap:0 48px}
-  main{max-width:46rem}
   .toc{display:block;position:sticky;top:calc(var(--top) + 28px);align-self:start;
     max-height:calc(100vh - var(--top) - 56px);overflow:auto;padding:28px 0 32px}
 }
@@ -145,7 +152,7 @@ main h1{font:600 clamp(1.75rem,4vw,2.375rem)/1.15 var(--sans);color:var(--head);
 .crumb{font:.8125rem/1 var(--mono);color:var(--muted);margin:26px 0 0;display:flex;gap:8px;flex-wrap:wrap}
 .crumb a{color:var(--muted);text-decoration:none}
 .crumb a:hover{color:var(--head)}
-.lede{font-size:1.0625rem;line-height:1.6;color:var(--text);max-width:62ch;margin:0 0 4px;
+.lede{font-size:1.0625rem;line-height:1.6;color:var(--text);max-width:72ch;margin:0 0 4px;
   padding-bottom:22px;border-bottom:1px solid var(--line)}
 
 h2{font:600 1.375rem/1.3 var(--sans);color:var(--head);margin:0 0 14px;letter-spacing:-.02em}
@@ -182,7 +189,7 @@ h2 code,h3 code{font-size:.8em;font-weight:400}
 .card span{display:block;color:var(--muted);font-size:.875rem;line-height:1.5}
 @media (min-width:640px){.cards{grid-template-columns:1fr 1fr}}
 /* Prose keeps a readable measure; tables and code use the full column. */
-p,ul.t,ol.t{margin:0 0 16px;max-width:70ch}
+p,ul.t,ol.t{margin:0 0 16px;max-width:80ch}
 ul.t,ol.t{padding-left:1.25rem}
 ul.t li,ol.t li{margin-bottom:6px}
 .muted{color:var(--muted)}
@@ -204,13 +211,24 @@ pre .c{color:var(--muted)}pre .k{color:var(--addr)}pre .p{color:var(--num);user-
 /* A table a page marks as a list of entries rather than a grid of values:
    when its own column is too narrow for its columns to be read, each row
    becomes a block of labelled lines. The measure is the table's width, not the
-   window's, because this site's middle column stays about the same at every
-   desktop size. */
+   window's, because the middle column's width depends on which side columns
+   the window has room for. */
 .tw.entries{container-type:inline-size}
 /* A grid of marks, one column per tool: tighter cells and centred marks, so
-   eight columns fit the middle column without scrolling. */
-.tw.matrix th,.tw.matrix td{padding:7px 5px;font-size:.8125rem;text-align:center}
-.tw.matrix th:first-child,.tw.matrix td:first-child{text-align:left;padding-left:0}
+   eight columns fit the middle column without scrolling. Each feature is named
+   in a few words and explained in a note that opens over the row above while
+   the row is hovered or the feature focused; the note stays in the text, only
+   clipped, so a screen reader reads it with the name. The table must not clip
+   it, so it does not scroll; it fits instead. */
+.tw.matrix{overflow:visible}
+.tw.matrix th,.tw.matrix td{padding:9px 6px;font-size:.875rem;text-align:center}
+.tw.matrix th:first-child,.tw.matrix td:first-child{text-align:left;padding-left:8px;position:relative}
+.matrix tbody tr:hover td{background:var(--raised)}
+.matrix .f{cursor:help;text-decoration:underline dotted var(--muted);text-underline-offset:3px;outline-offset:2px}
+.matrix .d{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.matrix tr:hover .d,.matrix .f:focus+.d{left:0;bottom:calc(100% - 2px);z-index:5;width:min(30rem,80vw);height:auto;
+  overflow:visible;clip:auto;padding:8px 12px;background:var(--ground);border:1px solid var(--line);border-radius:6px;
+  color:var(--text);font-size:.8125rem;line-height:1.5;box-shadow:0 6px 20px rgb(0 0 0/.25)}
 table{width:100%;border-collapse:collapse;font-size:.9rem}
 th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
 th{font:600 .8125rem var(--mono);color:var(--muted)}
@@ -220,7 +238,7 @@ th{font:600 .8125rem var(--mono);color:var(--muted)}
 td code{white-space:normal;overflow-wrap:break-word}
 
 /* A row reads as a block of labelled lines when there is no room for columns.
-   The page's middle column is about 680px at every desktop size, and a table
+   The page's middle column is 650 to 900px wide on a desktop, and a table
    of commands spends two of its three columns on monospace, so the measure
    that matters is the table's own width rather than the window's. */
 @container (max-width:56rem){
@@ -238,6 +256,10 @@ td code{white-space:normal;overflow-wrap:break-word}
   tr{display:block;border-bottom:1px solid var(--line);padding:10px 0}
   td{display:block;border:0;padding:2px 0}
   td[data-l]::before{content:attr(data-l) ": ";font:600 .75rem var(--mono);color:var(--muted)}
+  /* No hover on a phone: the feature's note is a line under its name. */
+  .tw.matrix td{text-align:left;padding:2px 0}
+  .matrix .d,.matrix tr:hover .d,.matrix .f:focus+.d{position:static;display:block;width:auto;height:auto;overflow:visible;clip:auto;
+    padding:2px 0 4px;background:none;border:0;box-shadow:none;color:var(--muted)}
 }
 
 /* figure */

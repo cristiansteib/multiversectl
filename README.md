@@ -36,6 +36,10 @@ volumes have the same names, and the database holds the other branch's schema.
   publishes a port. Each universe hands its own URLs and origins to the services
   that check them (`API_URL`, `MULTIVERSE_ORIGINS`, or a label), so logins, OAuth
   callbacks and CORS work in every copy. HTTPS when you want it.
+- **Shared in one command.** Point someone at a multiverse and
+  `multiversectl start acme/platform` clones every repository it names, makes a
+  universe and runs it, with nothing set up first. A git URL or a path works
+  too, and a repository with only a compose file runs as itself.
 - **Nothing to rewrite.** It reads your compose files and describes no
   containers. A repository with one exposed port needs no configuration; labels
   say the rest and are inert when multiversectl is not driving.
@@ -54,8 +58,12 @@ Not a sandbox (universes share your kernel and daemon), not a replacement for
 compose, not a rebuild-on-save loop, not a deployment tool, and not a preview
 service on the internet. Each universe runs its own services, so the machine's
 memory is the limit on how many. The
-[comparison](https://multiversectl.dev/start/compare.html) says when Docktree,
-container-use, Tilt, Skaffold, Garden or a preview environment fits better.
+[comparison](https://multiversectl.dev/start/compare.html) says when
+[Docktree](https://docktree.dev/),
+[container-use](https://github.com/dagger/container-use),
+[Tilt](https://tilt.dev/), [Skaffold](https://skaffold.dev/),
+[Garden](https://garden.io/) or a preview environment such as
+[Preevy](https://preevy.dev/) fits better.
 
 ## Why not a VM, LXC or nested containers
 
