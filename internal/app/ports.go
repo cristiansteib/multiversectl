@@ -247,6 +247,10 @@ type ProxyRequest struct {
 	// address is what keeps universes off the network; it is not the
 	// hostnames' job.
 	Bind string
+	// TLS names the entrypoints served over https, and Certificates are what
+	// they present.
+	TLS          map[string]bool
+	Certificates []domain.Certificate
 }
 
 // ProxyStatus is what Doctor reports about the ingress.
@@ -254,6 +258,9 @@ type ProxyStatus struct {
 	Running     bool
 	Entrypoints map[string]int
 	Bind        string // the host address its ports are published on
+	TLS         map[string]bool
+	// Certificates are the certificate files it presents, on this machine.
+	Certificates []string
 }
 
 // Proxy is the ingress port.

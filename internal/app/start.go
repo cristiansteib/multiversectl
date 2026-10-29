@@ -222,10 +222,12 @@ func (s *Service) ensureProxy(ctx context.Context, dom string) error {
 		return err
 	}
 	want := ProxyRequest{
-		Domain:      dom,
-		Entrypoints: s.Manifest.Proxy.Entrypoints,
-		Network:     network,
-		Bind:        s.Manifest.BindAddress(),
+		Domain:       dom,
+		Entrypoints:  s.Manifest.Proxy.Entrypoints,
+		Network:      network,
+		Bind:         s.Manifest.BindAddress(),
+		TLS:          s.Manifest.Proxy.TLS,
+		Certificates: s.Manifest.Proxy.Certificates,
 	}
 	// One machine has one shared proxy, so a second multiverse with different
 	// entrypoints or a different exposure takes it over. Say so: the other
@@ -280,7 +282,26 @@ func proxyChange(status ProxyStatus, want ProxyRequest) string {
 		changes = append(changes, fmt.Sprintf("entrypoints %s instead of %s",
 			describePorts(want.Entrypoints), describePorts(status.Entrypoints)))
 	}
+	var certs []string
+	for _, c := range want.Certificates {
+		certs = append(certs, c.CertFile)
+	}
+	if !slices.Equal(status.Certificates, certs) {
+		changes = append(changes, fmt.Sprintf("certificates %s instead of %s", orNone(certs), orNone(status.Certificates)))
+	}
+	for _, name := range slices.Sorted(maps.Keys(want.Entrypoints)) {
+		if status.TLS[name] != want.TLS[name] && status.Entrypoints[name] != 0 {
+			changes = append(changes, fmt.Sprintf("entrypoint %s %s TLS", name, map[bool]string{true: "with", false: "without"}[want.TLS[name]]))
+		}
+	}
 	return strings.Join(changes, ", ")
+}
+
+func orNone(list []string) string {
+	if len(list) == 0 {
+		return "none"
+	}
+	return strings.Join(list, ", ")
 }
 
 func samePorts(a, b map[string]int) bool {

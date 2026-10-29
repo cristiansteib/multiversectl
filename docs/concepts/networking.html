@@ -133,8 +133,18 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
   <tr><td data-l="Setting"><code>auto</code> with <code>expose: lan</code></td><td data-l="Hostnames"><code>api-u3.192-168-1-20.traefik.me</code></td><td data-l="Resolution">A public wildcard DNS service answers with the address in the name, so any device on the network resolves it with nothing installed.</td></tr>
   <tr><td data-l="Setting"><code>auto</code> with <code>expose: local</code></td><td data-l="Hostnames"><code>api-u3.localhost</code></td><td data-l="Resolution">Browsers resolve <code>*.localhost</code> themselves. No DNS query leaves the machine.</td></tr>
   <tr><td data-l="Setting"><code>domain: none</code></td><td data-l="Hostnames">none: <code>http://192.168.1.20:41000</code></td><td data-l="Resolution">Nothing is looked up, by anyone. Every host is forwarded to a port of its own on the machine's address, so the proxy is out of the path; <code>expose</code> still decides the interface.</td></tr>
-  <tr><td data-l="Setting">A domain you own</td><td data-l="Hostnames"><code>api-u3.dev.example.com</code></td><td data-l="Resolution">Yours to point at the machine, with your own wildcard certificate.</td></tr>
+  <tr><td data-l="Setting">A domain you own</td><td data-l="Hostnames"><code>api-u3.dev.example.com</code></td><td data-l="Resolution">Yours to point at the machine, with your own wildcard certificate (below).</td></tr>
   </tbody></table></div>
+  <h3 id="tls">Serving https</h3>
+  <p>Give an entrypoint <code>tls: true</code> and the proxy serves every host on it over https. Every address handed to a service or shown (<code>&lt;NAME&gt;_URL</code>, <code>MULTIVERSE_ORIGINS</code>, <code>universe ls</code>) then says <code>https://</code>, so a framework that checks the <code>Origin</code> header sees the one the browser sends. With no certificate the proxy presents its own self-signed one; for a domain you own, name a wildcard certificate for <code>*.&lt;domain&gt;</code> and it covers every universe:</p>
+  <div class="code"><pre><span class="k">spec</span>:
+  <span class="k">domain</span>: dev.example.com
+  <span class="k">proxy</span>:
+    <span class="k">entrypoints</span>:
+      - {<span class="k">name</span>: web, <span class="k">port</span>: 443, <span class="k">tls</span>: true}
+    <span class="k">certificates</span>:
+      - {<span class="k">certFile</span>: ~/certs/wildcard.pem, <span class="k">keyFile</span>: ~/certs/wildcard-key.pem}</pre></div>
+  <p>The certificates are files on the machine, mounted into the proxy read-only; a relative path is relative to the manifest. A renewed certificate is read when the proxy next starts. A forwarded address (<code>portForward</code>) reaches the service without the proxy and stays <code>http://</code>.</p>
 </section>
 
 <section id="no-dns">

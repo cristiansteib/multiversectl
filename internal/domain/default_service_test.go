@@ -61,3 +61,38 @@ func TestABaseIsABranchNotTheRemotes(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+// An address on a TLS entrypoint says https, and leaves out 443 as an address
+// on a plain one leaves out 80.
+func TestAnOriginFollowsItsEntrypointsScheme(t *testing.T) {
+	m := &Manifest{Proxy: Proxy{Entrypoints: map[string]int{"web": 443, "devapi": 8443, "plain": 80, "alt": 8001},
+		TLS: map[string]bool{"web": true, "devapi": true}}}
+	for ep, want := range map[string]string{
+		"web": "https://api-u3.example.test", "devapi": "https://api-u3.example.test:8443",
+		"plain": "http://api-u3.example.test", "alt": "http://api-u3.example.test:8001",
+	} {
+		if got := m.Origin(ep, "api-u3.example.test"); got != want {
+			t.Errorf("%s: %s, want %s", ep, got, want)
+		}
+	}
+}
+
+// One repository's own file cannot turn an entrypoint every universe's origins
+// follow, and certificates two multiverses disagree about are a clash.
+func TestTLSIsTheMultiversesToSay(t *testing.T) {
+	m := &Manifest{Name: "acme", Domain: "example.test", Expose: ExposeLocal,
+		Proxy: Proxy{Entrypoints: map[string]int{"web": 80}, TLS: map[string]bool{}},
+		Repos: map[string]Repo{"api": {URL: "x"}}, Apps: map[string]App{}}
+	err := m.Merge("api", Part{Entrypoints: map[string]int{"web": 80}, TLS: map[string]bool{"web": true}})
+	if err == nil || !strings.Contains(err.Error(), "TLS") || m.Proxy.TLS["web"] {
+		t.Errorf("err = %v, tls = %v", err, m.Proxy.TLS)
+	}
+	if err := m.Merge("api", Part{Entrypoints: map[string]int{"rpc": 8443}, TLS: map[string]bool{"rpc": true}}); err != nil || !m.Proxy.TLS["rpc"] {
+		t.Errorf("a new entrypoint of the repository's own: %v, %v", err, m.Proxy.TLS)
+	}
+	b := *m
+	b.Proxy.Certificates = []Certificate{{CertFile: "/c.pem", KeyFile: "/k.pem"}}
+	if got := strings.Join(ProxyClashes("a", m, "b", &b), "\n"); !strings.Contains(got, "certificates") {
+		t.Errorf("clashes = %q", got)
+	}
+}

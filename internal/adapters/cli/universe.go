@@ -714,11 +714,7 @@ func (r runner) urlsCmd() *cobra.Command {
 						if route.Hostname == "" {
 							continue
 						}
-						url := "http://" + route.Hostname
-						if port := s.Manifest.Proxy.Entrypoints[route.Entrypoint]; port != 0 && port != 80 {
-							url += fmt.Sprintf(":%d", port)
-						}
-						s.Out.Plain("%s", url)
+						s.Out.Plain("%s", s.Manifest.Origin(route.Entrypoint, route.Hostname))
 					}
 				}
 				return nil

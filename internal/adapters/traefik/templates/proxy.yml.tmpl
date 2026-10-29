@@ -13,6 +13,12 @@ services:
       - --serverstransport.insecureskipverify=true
 {{- range .Entrypoints}}
       - --entrypoints.{{.Name}}.address=:{{.Port}}
+{{- if .TLS}}
+      - --entrypoints.{{.Name}}.http.tls=true
+{{- end}}
+{{- end}}
+{{- if .Certificates}}
+      - --providers.file.filename=/etc/multiversectl/tls.yml
 {{- end}}
     ports:
 {{- range $.Entrypoints}}
@@ -22,6 +28,13 @@ services:
 {{- end}}
     volumes:
       - {{.Socket}}:/var/run/docker.sock:ro
+{{- if .Certificates}}
+      - {{q (printf "%s:/etc/multiversectl/tls.yml:ro" .TLSFile)}}
+{{- range .Certificates}}
+      - {{q (printf "%s:%s:ro" .CertFile .Cert)}}
+      - {{q (printf "%s:%s:ro" .KeyFile .Key)}}
+{{- end}}
+{{- end}}
     networks: [{{.Network}}]
 networks:
   {{.Network}}:

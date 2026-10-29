@@ -71,7 +71,8 @@ type Spec struct {
 	// Wildcard domain every hostname is built under. "auto" derives
 	// it from expose: <dashed-lan-ip>.traefik.me for "lan", localhost for
 	// "local". Set it to a domain you own when you want your own
-	// certificates; expose still decides which interface answers. "none" opts
+	// certificates (proxy.certificates, and tls on an entrypoint); expose
+	// still decides which interface answers. "none" opts
 	// out of hostnames altogether: nothing is resolved, and every host is
 	// reached at this machine's address on a port of its own (portForward is
 	// implied), so a universe is just <ip>:<port>.
@@ -127,6 +128,22 @@ type Proxy struct {
 	// expects its API on a fixed port keeps working: the proxy answers there
 	// too and routes by Host header, so every universe shares the one port.
 	Entrypoints []Entrypoint `yaml:"entrypoints"`
+
+	// Certificates the TLS entrypoints present, for a domain of your own: a
+	// wildcard one for *.<domain> covers every universe. A relative path is
+	// relative to the manifest's directory, and a leading ~/ is expanded.
+	// Without any, the proxy presents its own self-signed certificate.
+	Certificates []Certificate `yaml:"certificates"`
+}
+
+type Certificate struct {
+	// The certificate, in PEM, with its chain.
+	// +required
+	CertFile string `yaml:"certFile"`
+
+	// Its private key, in PEM.
+	// +required
+	KeyFile string `yaml:"keyFile"`
 }
 
 type Entrypoint struct {
@@ -138,6 +155,11 @@ type Entrypoint struct {
 	// +max=65535
 	// +required
 	Port int `yaml:"port"`
+
+	// Serve every host on this entrypoint over https. Each address handed to a
+	// service or shown (<NAME>_URL, origins) then says https://, so a framework
+	// that checks the Origin header sees the one the browser sends.
+	TLS bool `yaml:"tls"`
 }
 
 type Repo struct {
