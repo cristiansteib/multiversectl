@@ -63,8 +63,12 @@ type UniverseState struct {
 	Note        string    `yaml:"note,omitempty"`
 	// PR is the pull or merge request the work in this universe is going to,
 	// which is what someone finding it a week later wants to open first.
-	PR       string `yaml:"pr,omitempty"`
-	Manifest string `yaml:"manifest,omitempty"`
+	PR string `yaml:"pr,omitempty"`
+	// NotesIssued counts the notes this universe's journal has ever been given,
+	// so an id is never handed out twice: taking a note out of the journal must
+	// not let the next one claim the id something already refers to.
+	NotesIssued int    `yaml:"notesIssued,omitempty"`
+	Manifest    string `yaml:"manifest,omitempty"`
 	// HooksDone are the hooks marked Once that have run in this universe (see
 	// Hook.Key), so a later start does not load the same data over whatever was
 	// changed since.

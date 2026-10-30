@@ -2,6 +2,7 @@ package server
 
 import (
 	"os"
+	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -449,4 +450,28 @@ type fleetStatRow struct {
 type fleetStatError struct {
 	Multiverse string `json:"multiverse"`
 	Error      string `json:"error"`
+}
+
+// noteView is one line of a universe's journal, as a page reads it. The time
+// is RFC 3339 in UTC, like every other time this server sends.
+type noteView struct {
+	ID   string `json:"id"`
+	At   string `json:"at"`
+	By   string `json:"by,omitempty"`
+	Text string `json:"text"`
+}
+
+func noteViewOf(n domain.Note) noteView {
+	return noteView{ID: n.ID, At: n.At.UTC().Format(time.RFC3339), By: n.By, Text: n.Text}
+}
+
+// noteRequest is what a page may ask of a journal: one line added, changed or
+// taken out. Who it is by is the page's to say; the id and the time are not.
+type noteRequest struct {
+	Multiverse string `json:"multiverse"`
+	Universe   string `json:"universe"`
+	Action     string `json:"action"`
+	ID         string `json:"id,omitempty"`
+	Text       string `json:"text,omitempty"`
+	By         string `json:"by,omitempty"`
 }

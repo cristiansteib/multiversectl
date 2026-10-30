@@ -45,6 +45,7 @@ type fake struct {
 	// hold, when set, makes Do wait on it, so an operation can be in progress.
 	hold   chan struct{}
 	config configView
+	notes  []noteView
 	// doErr is what Do returns.
 	doErr error
 	// containers, stats and logText answer the side panel; logHold keeps a log
@@ -98,6 +99,17 @@ func (f *fake) Plan(_ context.Context, path string, exclude []string) (planView,
 func (f *fake) Config(_ context.Context, ws, u string) (configView, error) {
 	f.ask("config:" + ws + ":" + u)
 	return f.config, f.err
+}
+func (f *fake) Notes(_ context.Context, ws, u string) ([]noteView, error) {
+	f.ask("notes:" + ws + ":" + u)
+	return f.notes, f.err
+}
+func (f *fake) Note(_ context.Context, r noteRequest) (noteView, error) {
+	f.ask("note:" + r.Multiverse + ":" + r.Universe + ":" + r.Action + ":" + r.ID + ":" + r.Text)
+	if f.err != nil {
+		return noteView{}, f.err
+	}
+	return noteView{ID: "n1", At: "2026-10-30T18:50:31Z", By: r.By, Text: r.Text}, nil
 }
 func (f *fake) Ignore(_ context.Context, path string, ignore bool) error {
 	f.ask("ignore:" + path + ":" + map[bool]string{true: "on", false: "off"}[ignore])
@@ -1128,5 +1140,54 @@ func TestAUniversesConfigIsReadWithWhatItWasStartedWith(t *testing.T) {
 	}
 	if rec := do(t, h, "GET", "/api/universe/config?multiverse=acme", "", nil); rec.Code != http.StatusBadRequest {
 		t.Errorf("without a universe: %d", rec.Code)
+	}
+}
+
+// A page reads a universe's journal and writes to it, and the write is a POST
+// like any other: refused on a read-only server, and only with the CSRF header.
+func TestAUniversesJournalIsReadAndAddedTo(t *testing.T) {
+	f := &fake{notes: []noteView{
+		{ID: "n1", At: "2026-10-30T18:50:31Z", By: "claude", Text: "made it, started it"},
+		{ID: "n2", At: "2026-10-30T19:02:00Z", Text: "login redirect fixed in api"},
+	}}
+	_, h := serve(t, f, Options{})
+	rec := do(t, h, "GET", "/api/universe/notes?multiverse=acme&universe=1", "", nil)
+	var got struct{ Notes []noteView }
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 || len(got.Notes) != 2 || got.Notes[0].By != "claude" {
+		t.Fatalf("notes: %d %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(f.asks(), "notes:acme:1") {
+		t.Errorf("asked %s", f.asks())
+	}
+	if rec := do(t, h, "GET", "/api/universe/notes?multiverse=acme", "", nil); rec.Code != http.StatusBadRequest {
+		t.Errorf("without a universe: %d", rec.Code)
+	}
+
+	body := `{"multiverse":"acme","universe":"1","action":"add","text":"mail still failing","by":"me"}`
+	rec = do(t, h, "POST", "/api/universe/notes", body, actionHeaders)
+	var added noteView
+	if err := json.Unmarshal(rec.Body.Bytes(), &added); err != nil || rec.Code != 200 || added.Text != "mail still failing" {
+		t.Fatalf("add: %d %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(f.asks(), "note:acme:1:add::mail still failing") {
+		t.Errorf("asked %s", f.asks())
+	}
+	// The universe may come from the query, as the GET takes it.
+	if rec := do(t, h, "POST", "/api/universe/notes?multiverse=acme&universe=1", `{"action":"rm","id":"n2"}`, actionHeaders); rec.Code != 200 {
+		t.Errorf("rm: %d %s", rec.Code, rec.Body)
+	}
+	if rec := do(t, h, "POST", "/api/universe/notes", `{"action":"add"}`, actionHeaders); rec.Code != http.StatusBadRequest {
+		t.Errorf("without a universe: %d", rec.Code)
+	}
+	if rec := do(t, h, "POST", "/api/universe/notes", body, map[string]string{"Content-Type": "application/json"}); rec.Code != http.StatusForbidden {
+		t.Errorf("without the CSRF header: %d", rec.Code)
+	}
+}
+
+func TestAReadOnlyServerWritesNoNote(t *testing.T) {
+	_, h := serve(t, &fake{}, Options{ReadOnly: true})
+	body := `{"multiverse":"acme","universe":"1","action":"add","text":"no"}`
+	if rec := do(t, h, "POST", "/api/universe/notes", body, actionHeaders); rec.Code != http.StatusForbidden {
+		t.Errorf("read-only: %d %s", rec.Code, rec.Body)
 	}
 }

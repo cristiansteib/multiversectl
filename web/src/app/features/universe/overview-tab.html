@@ -6,6 +6,34 @@
     </div>
   }
 
+  <section aria-labelledby="journal-h" class="journal">
+    <h2 id="journal-h">Journal</h2>
+    @if (notes().length) {
+      <ol class="notes">
+        @for (n of notes(); track n.id) {
+          <li>
+            <span class="at" [attr.title]="n.at">{{ when(n.at) }}</span>
+            @if (n.by) { <span class="by">{{ n.by }}</span> }
+            <span class="text">{{ n.text }}</span>
+            @if (!events.readOnly()) {
+              <button type="button" class="drop" [class.asking]="removing() === n.id" [disabled]="saving()"
+                [attr.title]="removing() === n.id ? 'Click again to remove this note' : 'Remove this note'"
+                (click)="remove(n)">{{ removing() === n.id ? 'Remove?' : '×' }}</button>
+            }
+          </li>
+        }
+      </ol>
+    } @else {
+      <p class="muted none">Nothing written here yet. Whoever works in this universe may leave an account of it, from here or with <code>multiversectl universe notes add</code>.</p>
+    }
+    @if (!events.readOnly()) {
+      <form class="add" (submit)="add($event, box)">
+        <input #box type="text" [disabled]="saving()" aria-label="What was done in this universe" placeholder="What was done in this universe" />
+        <button type="submit" class="btn" [disabled]="saving()">Add</button>
+      </form>
+    }
+  </section>
+
   <section aria-labelledby="apps-h">
     <h2 id="apps-h">Apps</h2>
     @if (!u.apps.length) {

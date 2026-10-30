@@ -672,6 +672,14 @@ type Store interface {
 	// was kept (a universe started before it was).
 	SaveConfig(id string, data []byte) error
 	LoadConfig(id string) ([]byte, error)
+	// Notes is a universe's journal, in the order it was written; a universe
+	// that has none is no error. AppendNote adds one line to the end, which is
+	// one write, so two agents writing at the same moment cannot lose or
+	// interleave a line. SaveNotes rewrites the whole journal, which is how one
+	// line is changed or taken out.
+	Notes(id string) ([]domain.Note, error)
+	AppendNote(id string, n domain.Note) error
+	SaveNotes(id string, notes []domain.Note) error
 }
 
 // Output is the presentation port; use cases never write to stdout directly.

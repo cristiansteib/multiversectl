@@ -50,6 +50,11 @@ type Backend interface {
 	// Branches lists the branches across a multiverse's repositories.
 	Branches(ctx context.Context, multiverse string) ([]branchView, error)
 	// Containers lists a universe's containers; Stats reads their resource use;
+	// Notes is a universe's journal, oldest first; Note adds a line to it, or
+	// with an id changes or removes one. The journal is what the command line
+	// writes with `universe notes`, so a page and an agent read the same thing.
+	Notes(ctx context.Context, multiverse, universe string) ([]noteView, error)
+	Note(ctx context.Context, r noteRequest) (noteView, error)
 	// Logs writes one service's log to w, until ctx ends when it follows.
 	Containers(ctx context.Context, multiverse, universe string) ([]containerView, error)
 	Stats(ctx context.Context, multiverse, universe string) ([]statView, error)
@@ -904,6 +909,44 @@ func (s Services) service(multiverse string) (*app.Service, error) {
 		return nil, err
 	}
 	return s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+}
+
+func (s Services) Notes(_ context.Context, multiverse, universe string) ([]noteView, error) {
+	svc, err := s.service(multiverse)
+	if err != nil {
+		return nil, err
+	}
+	notes, err := svc.Journal(universe)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]noteView, 0, len(notes))
+	for _, n := range notes {
+		out = append(out, noteViewOf(n))
+	}
+	return out, nil
+}
+
+func (s Services) Note(ctx context.Context, r noteRequest) (noteView, error) {
+	svc, err := s.service(r.Multiverse)
+	if err != nil {
+		return noteView{}, err
+	}
+	var n domain.Note
+	switch r.Action {
+	case "add":
+		n, err = svc.AddNote(ctx, r.Universe, r.Text, r.By)
+	case "set":
+		n, err = svc.EditNote(ctx, r.Universe, r.ID, r.Text)
+	case "rm":
+		n, err = svc.RemoveNote(ctx, r.Universe, r.ID)
+	default:
+		return noteView{}, fmt.Errorf("unknown action %q: add, set or rm", r.Action)
+	}
+	if err != nil {
+		return noteView{}, err
+	}
+	return noteViewOf(n), nil
 }
 
 func (s Services) Config(_ context.Context, multiverse, universe string) (configView, error) {

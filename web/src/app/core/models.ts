@@ -69,6 +69,9 @@ export interface OverviewView { version: string; readOnly?: boolean; status: Sta
 export interface UpdateNotice { current: string; latest: string; releases: number; fixes: number; more?: boolean; changes?: number; highlights?: string[]; url: string }
 
 export interface VersionInfo { version: string; commit?: string; date?: string; url?: string }
+/** One line of a universe's journal: what was done in it, when, and who says so. */
+export interface Note { id: string; at: string; by?: string; text: string }
+
 export interface ToolVersion { name: string; version?: string; path?: string; note?: string; ok: boolean }
 export interface SystemView {
   server: VersionInfo; tools: ToolVersion[]; latest: { version?: string; url?: string; newer?: boolean; error?: string };

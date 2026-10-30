@@ -1,8 +1,10 @@
-import { changeSize, isHttpUrl } from '../../core/util';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ago, changeSize, isHttpUrl } from '../../core/util';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Events } from '../../core/events.service';
+import { Toasts } from '../../core/toast.service';
 import { Badge } from '../../shared/ui/badge';
 import { EmptyState } from '../../shared/ui/empty-state';
-import { AppView, UrlView } from '../../core/models';
+import { AppView, Note, UrlView } from '../../core/models';
 import { Icon } from '../../shared/ui/icon';
 import { PrChip } from '../../shared/ui/pr-chip';
 import { RepoChip } from '../../shared/ui/repo-chip';
@@ -43,6 +45,45 @@ export class OverviewTab {
     return { app: a, rows: rowsOf(a), code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo), size: changeSize(row), i };
   }).sort((a, b) => b.size - a.size || a.i - b.i));
   protected readonly webUrl = isHttpUrl;
+
+  protected readonly events = inject(Events);
+  private readonly toasts = inject(Toasts);
+  /** The journal, as the store last read it. */
+  protected readonly notes = this.store.notes;
+  /** A write is in flight: the form waits rather than queueing a second one. */
+  protected readonly saving = signal(false);
+  /** The note whose removal has been asked for once, so a stray click loses nothing. */
+  protected readonly removing = signal('');
+  protected readonly when = ago;
+
+  /** Adds what the box says, and empties it only once the note is in. */
+  protected async add(e: Event, box: HTMLInputElement): Promise<void> {
+    e.preventDefault();
+    const text = box.value.trim();
+    if (!text || this.saving()) return;
+    await this.write({ action: 'add', text }, () => { box.value = ''; });
+  }
+
+  /** First click asks, second removes: a journal is somebody's account. */
+  protected async remove(n: Note): Promise<void> {
+    if (this.removing() !== n.id) {
+      this.removing.set(n.id);
+      return;
+    }
+    await this.write({ action: 'rm', id: n.id }, () => this.removing.set(''));
+  }
+
+  private async write(body: { action: 'add' | 'rm'; id?: string; text?: string }, done: () => void): Promise<void> {
+    this.saving.set(true);
+    try {
+      await this.store.writeNote(body);
+      done();
+    } catch (err) {
+      this.toasts.show((err as Error).message, 'bad');
+    } finally {
+      this.saving.set(false);
+    }
+  }
 
   protected dot = (s: string): string => SERVICE_DOT[s] ?? '';
   protected svcTitle(s: { state?: string; detail?: string; published?: string }): string {

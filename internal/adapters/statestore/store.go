@@ -1,6 +1,9 @@
 package statestore
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -141,6 +144,7 @@ func (s *Store) LoadConfig(id string) ([]byte, error) {
 
 func (s *Store) Delete(id string) error {
 	_ = os.Remove(s.configPath(id))
+	_ = os.Remove(s.notesPath(id))
 	err := os.Remove(s.path(id))
 	if errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("universe %s: %w", id, domain.ErrNotFound)
@@ -172,4 +176,80 @@ func writeAtomic(path string, data []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// notesFile is a universe's journal: one JSON object per line, in the order
+// they were written. A line is appended with one write under O_APPEND, so two
+// processes adding a note at the same moment cannot interleave or lose one —
+// which the universe lock already prevents, and this survives without it.
+const notesFile = "notes.jsonl"
+
+func (s *Store) notesPath(id string) string {
+	return filepath.Join(s.universes(), id, notesFile)
+}
+
+func (s *Store) Notes(id string) ([]domain.Note, error) {
+	path := s.notesPath(id)
+	f, err := os.Open(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil // a universe nobody has written about
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read the journal of universe %s: %w", id, err)
+	}
+	defer f.Close()
+	var out []domain.Note
+	lines := bufio.NewScanner(f)
+	// A note is prose, and prose can be long; the default is 64 KB a line.
+	lines.Buffer(make([]byte, 0, 64*1024), 1<<20)
+	for lines.Scan() {
+		line := bytes.TrimSpace(lines.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var n domain.Note
+		if err := json.Unmarshal(line, &n); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
+		}
+		out = append(out, n)
+	}
+	if err := lines.Err(); err != nil {
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	return out, nil
+}
+
+func (s *Store) AppendNote(id string, n domain.Note) error {
+	line, err := json.Marshal(n)
+	if err != nil {
+		return fmt.Errorf("encode the note: %w", err)
+	}
+	path := s.notesPath(id)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("write the journal of universe %s: %w", id, err)
+	}
+	if _, err := f.Write(append(line, '\n')); err != nil {
+		f.Close()
+		return fmt.Errorf("write the journal of universe %s: %w", id, err)
+	}
+	return f.Close()
+}
+
+func (s *Store) SaveNotes(id string, notes []domain.Note) error {
+	var buf bytes.Buffer
+	for _, n := range notes {
+		line, err := json.Marshal(n)
+		if err != nil {
+			return fmt.Errorf("encode the note: %w", err)
+		}
+		buf.Write(append(line, '\n'))
+	}
+	if err := writeAtomic(s.notesPath(id), buf.Bytes()); err != nil {
+		return fmt.Errorf("rewrite the journal of universe %s: %w", id, err)
+	}
+	return nil
 }

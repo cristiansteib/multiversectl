@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -49,6 +50,52 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, map[string]any{"stats": rows})
+}
+
+// notes is a universe's journal: a GET reads it, and a POST adds, changes or
+// removes one line. The write is the only one in the panel, and it goes
+// through the same guards as every other POST — refused on a read-only server,
+// and only with the CSRF header.
+func (s *Server) notes(w http.ResponseWriter, r *http.Request) {
+	project, universe := r.URL.Query().Get("multiverse"), r.URL.Query().Get("universe")
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	if r.Method == http.MethodPost {
+		var req noteRequest
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxReqBody)).Decode(&req); err != nil {
+			fail(w, http.StatusBadRequest, "a note to add, change or remove is required")
+			return
+		}
+		if req.Multiverse == "" {
+			req.Multiverse = project
+		}
+		if req.Universe == "" {
+			req.Universe = universe
+		}
+		if req.Multiverse == "" || req.Universe == "" {
+			fail(w, http.StatusBadRequest, "multiverse and universe are required")
+			return
+		}
+		n, err := s.b.Note(ctx, req)
+		if err != nil {
+			failErr(w, err)
+			return
+		}
+		// The page shows the journal under the note and the PR, so the fleet it
+		// reads is unchanged: only this universe's journal moved.
+		reply(w, n)
+		return
+	}
+	if project == "" || universe == "" {
+		fail(w, http.StatusBadRequest, "multiverse and universe are required")
+		return
+	}
+	notes, err := s.b.Notes(ctx, project, universe)
+	if err != nil {
+		failErr(w, err)
+		return
+	}
+	reply(w, map[string]any{"notes": notes})
 }
 
 // code is one universe's repositories. It is its own request because it costs

@@ -1,0 +1,132 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/cristiansteib/multiversectl/internal/domain"
+)
+
+// journalStore keeps a journal the way the real store does: appended to, and
+// rewritten whole when a line changes.
+type journalStore struct {
+	Store
+	state domain.UniverseState
+	notes []domain.Note
+}
+
+func (j *journalStore) Load(id string) (domain.UniverseState, error) {
+	if id == j.state.ID {
+		return j.state, nil
+	}
+	return domain.UniverseState{}, domain.ErrNotFound
+}
+func (j *journalStore) List() ([]domain.UniverseState, error) {
+	return []domain.UniverseState{j.state}, nil
+}
+func (j *journalStore) Save(st domain.UniverseState) error  { j.state = st; return nil }
+func (j *journalStore) Notes(string) ([]domain.Note, error) { return j.notes, nil }
+func (j *journalStore) AppendNote(_ string, n domain.Note) error {
+	j.notes = append(j.notes, n)
+	return nil
+}
+func (j *journalStore) SaveNotes(_ string, notes []domain.Note) error {
+	j.notes = notes
+	return nil
+}
+
+func journal(t *testing.T) (*Service, *journalStore) {
+	t.Helper()
+	store := &journalStore{state: domain.UniverseState{Name: "3", ID: "3", Slug: "u3"}}
+	return &Service{Deps: Deps{Store: store}}, store
+}
+
+// The tool fills in the id and the time: nothing writing a note has to invent
+// either, and an id is never reused even after the note before it went.
+func TestANoteGetsItsIDAndTimeFromTheTool(t *testing.T) {
+	s, _ := journal(t)
+	ctx := context.Background()
+	first, err := s.AddNote(ctx, "3", "  made it, started it  ", " claude ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID != "n1" || first.Text != "made it, started it" || first.By != "claude" {
+		t.Fatalf("got %+v", first)
+	}
+	if first.At.IsZero() || first.At.Location() != time.UTC {
+		t.Errorf("the time should be filled in, in UTC: %v", first.At)
+	}
+	second, err := s.AddNote(ctx, "3", "login redirect fixed", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID != "n2" || second.By != "" {
+		t.Fatalf("got %+v", second)
+	}
+	if _, err := s.RemoveNote(ctx, "3", "n2"); err != nil {
+		t.Fatal(err)
+	}
+	third, err := s.AddNote(ctx, "3", "and in web", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.ID != "n3" {
+		t.Errorf("an id is not reused after a removal: %s", third.ID)
+	}
+	if notes, _ := s.Journal("3"); len(notes) != 2 || notes[0].ID != "n1" || notes[1].ID != "n3" {
+		t.Errorf("the journal reads in the order it was written: %+v", notes)
+	}
+}
+
+// Editing keeps the account honest: the words change, the id and the time it
+// happened do not.
+func TestEditingKeepsTheIDAndTheTime(t *testing.T) {
+	s, _ := journal(t)
+	ctx := context.Background()
+	made, err := s.AddNote(ctx, "3", "fixed in api", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	edited, err := s.EditNote(ctx, "3", "n1", "fixed in api and in web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if edited.ID != made.ID || !edited.At.Equal(made.At) || edited.Text != "fixed in api and in web" {
+		t.Fatalf("got %+v, was %+v", edited, made)
+	}
+}
+
+func TestAJournalSaysWhatItCannotDo(t *testing.T) {
+	s, _ := journal(t)
+	ctx := context.Background()
+	if _, err := s.AddNote(ctx, "3", "   ", ""); err == nil || !strings.Contains(err.Error(), "something to say") {
+		t.Errorf("an empty note: %v", err)
+	}
+	if _, err := s.EditNote(ctx, "3", "n9", "nothing"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("an id that is not there: %v", err)
+	}
+	if _, err := s.RemoveNote(ctx, "3", "n9"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("an id that is not there: %v", err)
+	}
+	if _, err := s.Journal("nope"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("a universe that is not there: %v", err)
+	}
+}
+
+// An id is taken with or without its prefix: `rm 7` is `rm n7`.
+func TestANoteIsFoundWithOrWithoutItsPrefix(t *testing.T) {
+	s, _ := journal(t)
+	ctx := context.Background()
+	if _, err := s.AddNote(ctx, "3", "first", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.EditNote(ctx, "3", "1", "still first"); err != nil {
+		t.Fatalf("a bare number: %v", err)
+	}
+	if _, err := s.RemoveNote(ctx, "3", " n1 "); err != nil {
+		t.Fatalf("a padded id: %v", err)
+	}
+}
