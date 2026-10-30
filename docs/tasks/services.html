@@ -1,127 +1,22 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Control which services run &middot; multiversectl</title>
-<meta name="description" content="Start optional services on demand, keep a published port, and give a service its own hostname.">
-<meta name="theme-color" content="#11141b">
-<script>try{if(localStorage.getItem('theme')==='light')document.documentElement.dataset.theme='light'}catch(e){}</script>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap">
-<link rel="stylesheet" href="../assets/site.css?v=5fc1757f">
-</head>
-<body>
-<a class="skip" href="#main">Skip to content</a>
-<div class="topbar">
-  <div class="wrap">
-    <a class="brand" href="../index.html">multiverse<span>ctl</span></a>
-    <nav class="topnav" aria-label="Sections">
-      <a href="../index.html">Start</a>
-      <a href="../concepts/universes.html">Concepts</a>
-      <a href="../tasks/branches.html" aria-current="true">Tasks</a>
-      <a href="../reference/cli.html">Reference</a>
-      <a href="../reference/troubleshooting.html">Troubleshooting</a>
-    </nav>
-    <a class="ghlink" href="https://github.com/cristiansteib/multiversectl">GitHub</a>
-    <button class="theme" id="theme" type="button" aria-label="Light theme" aria-pressed="false" hidden>
-      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
-      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-    </button>
-  </div>
-</div>
-
-<div class="wrap layout">
-  <aside class="side" id="side">
-    <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">Documentation menu</button>
-    <nav id="sidenav" aria-label="Documentation">
-      <p class="nav-h">Start</p>
-      <ul>
-        <li><a href="../index.html">Overview</a></li>
-        <li><a href="../start/install.html">Install</a></li>
-        <li><a href="../start/quickstart.html">Quick start</a></li>
-        <li><a href="../start/concepts.html">Concepts at a glance</a></li>
-        <li><a href="../start/compare.html">Compared with others</a></li>
-      </ul>
-      <p class="nav-h">Concepts</p>
-      <ul>
-        <li><a href="../concepts/universes.html">Universes</a></li>
-        <li><a href="../concepts/networking.html">Networking</a></li>
-        <li><a href="../concepts/storage.html">Storage and data</a></li>
-        <li><a href="../concepts/overlays.html">Overlays and merge order</a></li>
-        <li><a href="../concepts/labels.html">Labels</a></li>
-        <li><a href="../concepts/catalogs.html">Catalogs</a></li>
-      </ul>
-      <p class="nav-h">Tasks</p>
-      <ul>
-        <li><a href="../tasks/branches.html">Work across branches</a></li>
-        <li><a href="../tasks/reach.html">Reach a universe</a></li>
-        <li><a href="../tasks/services.html" aria-current="page">Control which services run</a></li>
-        <li><a href="../tasks/catalog.html">Manage many multiverses from one index</a></li>
-        <li><a href="../tasks/server.html">Explore and run it in a browser</a></li>
-      </ul>
-      <p class="nav-h">Reference</p>
-      <ul>
-        <li><a href="../reference/cli.html">Commands</a></li>
-        <li><a href="../reference/manifest.html">Manifest</a></li>
-        <li><a href="../reference/variables.html">Variables and labels</a></li>
-        <li><a href="../reference/paths.html">Paths and state</a></li>
-      </ul>
-      <p class="nav-h">Troubleshooting</p>
-      <ul>
-        <li><a href="../reference/troubleshooting.html">Common problems</a></li>
-      </ul>
-      <p class="nav-foot">
-        <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a>
-        <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a>
-      </p>
-    </nav>
-  </aside>
-
-<main id="main">
-  <nav class="crumb" aria-label="Breadcrumb"><a href="../index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Tasks</span>
-  </nav>
-  <h1>Control which services run</h1>
-  <p class="lede">Start optional services on demand, keep a published port, and give a service its own hostname.</p>
-<section id="hw-labels">
-  <h2 id="hw-labels"><a href="#hw-labels">Let a service declare its own hostname</a></h2>
-  <p>Put a label on the service in its own compose file: the key names the host, the value is the container port.</p>
-  <div class="code"><pre><span class="k">services</span>:
+<!DOCTYPE html><html lang="en"> <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Control which services run · multiversectl</title><meta name="description" content="Start optional services on demand, keep a published port when you need one, and give a service its own hostname, one task at a time."><link rel="canonical" href="https://multiversectl.dev/tasks/services.html"><meta property="og:site_name" content="multiversectl"><meta property="og:locale" content="en_US"><meta property="og:type" content="article"><meta property="og:title" content="Control which services run · multiversectl"><meta property="og:description" content="Start optional services on demand, keep a published port when you need one, and give a service its own hostname, one task at a time."><meta property="og:url" content="https://multiversectl.dev/tasks/services.html"><meta property="og:image" content="https://multiversectl.dev/og-image.png"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="multiversectl: run your whole stack several times at once on one machine"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Control which services run · multiversectl"><meta name="twitter:description" content="Start optional services on demand, keep a published port when you need one, and give a service its own hostname, one task at a time."><meta name="twitter:image" content="https://multiversectl.dev/og-image.png"><meta name="twitter:image:alt" content="multiversectl: run your whole stack several times at once on one machine"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Documentation","item":"https://multiversectl.dev/"},{"@type":"ListItem","position":2,"name":"Tasks"}]}</script><meta name="theme-color" content="#f5f7fa"><script>
+  try {
+    if (localStorage.getItem('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  } catch (e) {}
+</script><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap"><link rel="stylesheet" href="/_astro/index.D28MCIHy.css"></head> <body> <a class="skip" href="#main">Skip to content</a> <div class="topbar"> <div class="wrap"> <a class="brand" href="/index.html">multiverse<span>ctl</span></a> <nav class="topnav" aria-label="Sections"> <a href="/index.html">Start here</a><a href="/start/concepts.html">In depth</a><a href="/tasks/branches.html" aria-current="true">Tasks</a><a href="/reference/cli.html">Reference</a><a href="/reference/troubleshooting.html">Troubleshooting</a> </nav> <a class="ghlink" href="https://github.com/cristiansteib/multiversectl"><svg class="ghmark" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"></path></svg>GitHub</a> <button class="theme" id="theme" type="button" aria-label="Dark theme" aria-pressed="false" hidden> <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg> <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg> </button> </div> </div> <div class="wrap layout"> <aside class="side" id="side"> <button class="navtoggle" id="navtoggle" type="button" aria-expanded="false" aria-controls="sidenav">
+Documentation menu
+</button> <nav id="sidenav" aria-label="Documentation">  <p class="nav-h">Start here</p> <ul> <li><a href="/index.html">Home</a></li><li><a href="/docs.html">Documentation</a></li><li><a href="/start/machine.html">On your machine</a></li><li><a href="/start/lifecycle.html">Life of a universe</a></li><li><a href="/start/install.html">Install</a></li><li><a href="/start/quickstart.html">Quick start</a></li> </ul>  <p class="nav-h">In depth</p> <ul> <li><a href="/start/concepts.html">Concepts at a glance</a></li><li><a href="/start/scope.html">What it does</a></li><li><a href="/concepts/universes.html">Universes</a></li><li><a href="/concepts/networking.html">Networking</a></li><li><a href="/concepts/storage.html">Storage and data</a></li><li><a href="/concepts/overlays.html">Overlays and merge order</a></li><li><a href="/concepts/labels.html">Labels</a></li><li><a href="/concepts/catalogs.html">Catalogs</a></li><li><a href="/start/compare.html">Compared with others</a></li> </ul>  <p class="nav-h">Tasks</p> <ul> <li><a href="/tasks/branches.html">Work across branches</a></li><li><a href="/tasks/reach.html">Reach a universe</a></li><li><a href="/tasks/services.html" aria-current="page">Control which services run</a></li><li><a href="/tasks/catalog.html">Manage many multiverses from one index</a></li><li><a href="/tasks/server.html">Explore and run it in a browser</a></li> </ul>  <p class="nav-h">Reference</p> <ul> <li><a href="/reference/cli.html">Commands</a></li><li><a href="/reference/manifest.html">Manifest</a></li><li><a href="/reference/variables.html">Variables and labels</a></li><li><a href="/reference/paths.html">Paths and state</a></li> </ul>  <p class="nav-h">Troubleshooting</p> <ul> <li><a href="/reference/troubleshooting.html">Common problems</a></li> </ul>  <p class="nav-foot"> <a href="https://github.com/cristiansteib/multiversectl/releases">Releases</a> <a href="https://github.com/cristiansteib/multiversectl/blob/main/schema/multiverse.v1alpha1.yaml">Schema</a> <a href="https://github.com/cristiansteib/multiversectl/blob/main/CONTRIBUTING.md">Contributing</a> </p> </nav> </aside> <main id="main"> <nav class="crumb" aria-label="Breadcrumb"> <a href="/index.html">Documentation</a> <span aria-hidden="true">/</span> <span>Tasks</span> </nav> <h1>Control which services run</h1> <p class="lede">Start optional services on demand, keep a published port, and give a service its own hostname.</p>  <section id="hw-labels"> <h2 id="hw-labels"><a href="#hw-labels">Let a service declare its own hostname</a></h2> <p>Put a label on the service in its own compose file: the key names the host, the value is the container port.</p> <div class="code"><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
-      <span class="k">dev.multiversectl.host.app</span>: "4200"   <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span></pre></div>
-  <p>With no labels at all, a service exposing exactly one port is already reached at the app's own name. See <a href="../concepts/labels.html">Labels and variables</a> for entrypoints and aliases.</p>
-</section>
-
-<section id="hw-publish">
-  <h2 id="hw-publish"><a href="#hw-publish">Keep a service's published port</a></h2>
-  <p>Universes drop every published host port, so two copies never collide. A service that genuinely needs one asks to keep it:</p>
-  <div class="code"><pre><span class="k">services</span>:
+      <span class="k">dev.multiversectl.host.app</span>: "4200"   <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span></pre></div> <p>With no labels at all, a service exposing exactly one port is already reached at the app's own name. See <a href="../concepts/labels.html">Labels and variables</a> for entrypoints and aliases.</p> </section> <section id="hw-publish"> <h2 id="hw-publish"><a href="#hw-publish">Keep a service's published port</a></h2> <p>Universes drop every published host port, so two copies never collide. A service that genuinely needs one asks to keep it:</p> <div class="code"><pre><span class="k">services</span>:
   <span class="k">db</span>:
     <span class="k">ports</span>: ["5432:5432"]
     <span class="k">labels</span>:
-      <span class="k">dev.multiversectl.publish</span>: "true"</pre></div>
-  <p class="muted">Or, without touching the repository, <code>publish: [db]</code> on the app in the manifest. Only one universe can hold that port at a time.</p>
-</section>
-
-<section id="hw-default-service">
-  <h2 id="hw-default-service"><a href="#hw-default-service">Choose where exec and run go</a></h2>
-  <p>An app with several services makes <code>universe exec</code> and <code>universe run</code> ask for <code>--service</code> every time. Name the one you almost always want:</p>
-  <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
-<span class="k">defaultService</span>: web</pre></div>
-  <p class="muted"><code>--service</code> still wins. When the app lists <code>services</code>, the default must be one of them.</p>
-</section>
-
-<section id="hw-hooks">
-  <h2 id="hw-hooks"><a href="#hw-hooks">Run your own tools at the points of a universe's life</a></h2>
-  <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with, and an identity provider does not know the address the universe answers on. multiversectl does not know about either. It gives a multiverse one thing, a command tied to a point in a universe's life, run in a container or on the machine, and tells it where the universe is. What the command does is up to the multiverse.</p>
-  <div class="code"><pre><span class="c"># .multiverse.yaml, on the app</span>
+      <span class="k">dev.multiversectl.publish</span>: "true"</pre></div> <p class="muted">Or, without touching the repository, <code>publish: [db]</code> on the app in the manifest. Only one universe can hold that port at a time.</p> </section> <section id="hw-default-service"> <h2 id="hw-default-service"><a href="#hw-default-service">Choose where exec and run go</a></h2> <p>An app with several services makes <code>universe exec</code> and <code>universe run</code> ask for <code>--service</code> every time. Name the one you almost always want:</p> <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
+<span class="k">defaultService</span>: web</pre></div> <p class="muted"><code>--service</code> still wins. When the app lists <code>services</code>, the default must be one of them.</p> </section> <section id="hw-hooks"> <h2 id="hw-hooks"><a href="#hw-hooks">Run your own tools at the points of a universe's life</a></h2> <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with, and an identity provider does not know the address the universe answers on. multiversectl does not know about either. It gives a multiverse one thing, a command tied to a point in a universe's life, run in a container or on the machine, and tells it where the universe is. What the command does is up to the multiverse.</p> <div class="code"><pre><span class="c"># .multiverse.yaml, on the app</span>
 <span class="k">hooks</span>:
   <span class="k">preUp</span>:
     - <span class="k">name</span>: let the build read the netrc
-      <span class="k">host</span>: {<span class="k">command</span>: [./scripts/prepare.sh], <span class="k">dir</span>: api}
+      <span class="k">host</span>: &#123;<span class="k">command</span>: [./scripts/prepare.sh], <span class="k">dir</span>: api&#125;
   <span class="k">postUp</span>:
     - <span class="k">once</span>: true
       <span class="k">container</span>:
@@ -129,173 +24,50 @@
         <span class="k">command</span>: [python, manage.py, createfixture]
     - <span class="k">host</span>:
         <span class="k">command</span>: [sh, -c, 'curl -fsS -X POST "$AUTH_URL/clients/frontend/redirects" -d "uri=$WEB_URL/*"']
-      <span class="k">retryFor</span>: 2m</pre></div>
-  <h3 id="hw-hook-events">Events</h3>
-  <div class="tw"><table>
-    <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Runs</th></tr></thead><tbody>
-    <tr><td data-l="Event"><code>postCreate</code></td><td data-l="When">the universe's worktrees exist; nothing has started</td><td data-l="Runs">on the machine</td></tr>
-    <tr><td data-l="Event"><code>preUp</code></td><td data-l="When">before the app is built and started</td><td data-l="Runs">on the machine</td></tr>
-    <tr><td data-l="Event"><code>postUp</code></td><td data-l="When">the app's services are up</td><td data-l="Runs">in a service, or on the machine</td></tr>
-    <tr><td data-l="Event"><code>preDown</code></td><td data-l="When">before the app is stopped</td><td data-l="Runs">in a service, or on the machine</td></tr>
-    <tr><td data-l="Event"><code>postDown</code></td><td data-l="When">the app is stopped</td><td data-l="Runs">on the machine</td></tr>
-    <tr><td data-l="Event"><code>preRemove</code></td><td data-l="When">before the universe is destroyed</td><td data-l="Runs">on the machine</td></tr>
-  </tbody></table></div>
-  <p class="muted"><code>spec.hooks</code> takes the same events for the multiverse as a whole, on the machine: <code>postUp</code> there runs once every app is up, which is where an address that all of them share is registered. <code>after</code> is the earlier name of <code>postUp</code>.</p>
-  <h3 id="hw-hook-env">What a command is told</h3>
-  <p>The environment has what a compose file already gets (<code>UNIVERSE</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, and <code>&lt;HOST&gt;_URL</code> for every address), plus <code>&lt;HOST&gt;_FORWARD_URL</code> for one that is also reachable by IP and port, <code>MULTIVERSE_EVENT</code> and <code>MULTIVERSE_APP</code>. A command on the machine also gets <code>MULTIVERSE_CONTEXT_FILE</code>: a JSON file with the same and more (every address with its service and port, each repository's directory, the branches), for a script that wants to build an <code>.env</code> or a redirect URI from it. The file is removed afterwards. There is no shell: say <code>sh -c</code> when one is wanted.</p>
-  <p class="muted">A hook that only writes a file from these values, a config or an <code>.env</code>, is what <a href="#hw-render"><code>render</code></a> is for: no script, and it is written before the app starts, kept out of git's sight, and only rewritten when it changes.</p>
-  <h3 id="hw-hook-skip">Only when the work is not done: skipIf</h3>
-  <p><code>once</code> remembers that a hook ran. It cannot know that what the hook produced is gone, as when the app's database volume is recreated and the seed data with it. <code>skipIf</code> asks the real state instead: a command run first, in the same place as the hook (the same service, or the same directory on the machine), and when it exits 0 the work is already done and the hook is skipped. When it is set it decides, and <code>once</code>'s marker is neither consulted nor kept; a check that fails or cannot run means the hook runs, and it is made again before each of the hook's retries, so a seed whose first try met a database still starting is not loaded twice. It is not used when the hook is run by hand with <code>universe hooks run</code>. This seeds a table only when it is empty:</p>
-  <div class="code"><pre><span class="k">hooks</span>:
+      <span class="k">retryFor</span>: 2m</pre></div> <h3 id="hw-hook-events">Events</h3> <div class="tw"><table> <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Runs</th></tr></thead><tbody> <tr><td data-l="Event"><code>postCreate</code></td><td data-l="When">the universe's worktrees exist; nothing has started</td><td data-l="Runs">on the machine</td></tr> <tr><td data-l="Event"><code>preUp</code></td><td data-l="When">before the app is built and started</td><td data-l="Runs">on the machine</td></tr> <tr><td data-l="Event"><code>postUp</code></td><td data-l="When">the app's services are up</td><td data-l="Runs">in a service, or on the machine</td></tr> <tr><td data-l="Event"><code>preDown</code></td><td data-l="When">before the app is stopped</td><td data-l="Runs">in a service, or on the machine</td></tr> <tr><td data-l="Event"><code>postDown</code></td><td data-l="When">the app is stopped</td><td data-l="Runs">on the machine</td></tr> <tr><td data-l="Event"><code>preRemove</code></td><td data-l="When">before the universe is destroyed</td><td data-l="Runs">on the machine</td></tr> </tbody></table></div> <p class="muted"><code>spec.hooks</code> takes the same events for the multiverse as a whole, on the machine: <code>postUp</code> there runs once every app is up, which is where an address that all of them share is registered. <code>after</code> is the earlier name of <code>postUp</code>.</p> <h3 id="hw-hook-env">What a command is told</h3> <p>The environment has what a compose file already gets (<code>UNIVERSE</code>, <code>UNIVERSE_DIR</code>, <code>MULTIVERSE_DOMAIN</code>, and <code>&lt;HOST&gt;_URL</code> for every address), plus <code>&lt;HOST&gt;_FORWARD_URL</code> for one that is also reachable by IP and port, <code>MULTIVERSE_EVENT</code> and <code>MULTIVERSE_APP</code>. A command on the machine also gets <code>MULTIVERSE_CONTEXT_FILE</code>: a JSON file with the same and more (every address with its service and port, each repository's directory, the branches), for a script that wants to build an <code>.env</code> or a redirect URI from it. The file is removed afterwards. There is no shell: say <code>sh -c</code> when one is wanted.</p> <p class="muted">A hook that only writes a file from these values, a config or an <code>.env</code>, is what <a href="#hw-render"><code>render</code></a> is for: no script, and it is written before the app starts, kept out of git's sight, and only rewritten when it changes.</p> <h3 id="hw-hook-skip">Only when the work is not done: skipIf</h3> <p><code>once</code> remembers that a hook ran. It cannot know that what the hook produced is gone, as when the app's database volume is recreated and the seed data with it. <code>skipIf</code> asks the real state instead: a command run first, in the same place as the hook (the same service, or the same directory on the machine), and when it exits 0 the work is already done and the hook is skipped. When it is set it decides, and <code>once</code>'s marker is neither consulted nor kept; a check that fails or cannot run means the hook runs, and it is made again before each of the hook's retries, so a seed whose first try met a database still starting is not loaded twice. It is not used when the hook is run by hand with <code>universe hooks run</code>. This seeds a table only when it is empty:</p> <div class="code"><pre><span class="k">hooks</span>:
   <span class="k">postUp</span>:
     - <span class="k">name</span>: seed the catalogue
       <span class="k">skipIf</span>: [sh, -c, 'test "$(psql -tA -c "select count(*) from items")" -gt 0']
       <span class="k">container</span>:
         <span class="k">service</span>: db
-        <span class="k">command</span>: [psql, -f, /seed/items.sql]</pre></div>
-  <p class="muted">Removing a universe (<code>universe rm</code>) takes an app's volumes with it, and forgets which once-only hooks of that app had run, so a removal that stops short of deleting the universe does not leave them marked.</p>
-  <h3 id="hw-hook-fail">When it does not succeed</h3>
-  <p>A command in a service after the app is up is tried again for a few minutes, because the service may still be starting (a database migrating under it); <code>retryFor</code> asks any command to be, and <code>timeout</code> ends a try that hangs. <code>onFailure</code> says what a failure means: <code>warn</code> says so, with how to run it by hand, and goes on, the hooks after it waiting since they may depend on it, and it is tried again next time; <code>fail</code> ends the command with an error; <code>ignore</code> goes on. A <code>preUp</code> fails by default, since what it prepares is what the start needs; the rest warn, so a hook that breaks cannot keep a universe from being stopped or removed. <code>once</code> runs a hook on the first start of each universe only; without it a hook runs every time, so it should be safe to repeat. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>.</p>
-  <h3 id="hw-hook-run">See them, and run one now</h3>
-  <p><code>multiversectl universe hooks 3</code> lists a universe's hooks with where each runs and whether a once-only one has run. <code>universe hooks run 3 postUp api</code> runs an event's hooks now, for one app or (with none named) the multiverse's and every app's: how a hook that was warned about is run again, and how one is tried before it is trusted to a start. A failure there is an error whatever <code>onFailure</code> says.</p>
-</section>
-
-<section id="hw-render">
-  <h2 id="hw-render"><a href="#hw-render">Write a config file from the universe's addresses</a></h2>
-  <p>Many apps read a file at startup, a JSON or YAML config, a <code>.env</code>, a framework's settings, and cannot take environment variables. A hook can write that file, but every app then carries its own inline script. <code>render</code> is the declarative form: a template, a path, and the universe's values.</p>
-  <div class="code"><pre><span class="c"># multiverse.yaml, or .multiverse.yaml on the app</span>
+        <span class="k">command</span>: [psql, -f, /seed/items.sql]</pre></div> <p class="muted">Removing a universe (<code>universe rm</code>) takes an app's volumes with it, and forgets which once-only hooks of that app had run, so a removal that stops short of deleting the universe does not leave them marked.</p> <h3 id="hw-hook-fail">When it does not succeed</h3> <p>A command in a service after the app is up is tried again for a few minutes, because the service may still be starting (a database migrating under it); <code>retryFor</code> asks any command to be, and <code>timeout</code> ends a try that hangs. <code>onFailure</code> says what a failure means: <code>warn</code> says so, with how to run it by hand, and goes on, the hooks after it waiting since they may depend on it, and it is tried again next time; <code>fail</code> ends the command with an error; <code>ignore</code> goes on. A <code>preUp</code> fails by default, since what it prepares is what the start needs; the rest warn, so a hook that breaks cannot keep a universe from being stopped or removed. <code>once</code> runs a hook on the first start of each universe only; without it a hook runs every time, so it should be safe to repeat. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>.</p> <h3 id="hw-hook-run">See them, and run one now</h3> <p><code>multiversectl universe hooks 3</code> lists a universe's hooks with where each runs and whether a once-only one has run. <code>universe hooks run 3 postUp api</code> runs an event's hooks now, for one app or (with none named) the multiverse's and every app's: how a hook that was warned about is run again, and how one is tried before it is trusted to a start. A failure there is an error whatever <code>onFailure</code> says.</p> </section> <section id="hw-render"> <h2 id="hw-render"><a href="#hw-render">Write a config file from the universe's addresses</a></h2> <p>Many apps read a file at startup, a JSON or YAML config, a <code>.env</code>, a framework's settings, and cannot take environment variables. A hook can write that file, but every app then carries its own inline script. <code>render</code> is the declarative form: a template, a path, and the universe's values.</p> <div class="code"><pre><span class="c"># multiverse.yaml, or .multiverse.yaml on the app</span>
 <span class="k">render</span>:
   - <span class="k">to</span>: public/config.json
     <span class="k">mode</span>: <span class="s">"0600"</span>
     <span class="k">template</span>: |
-      {
-        "apiUrl": {{ url "api" | toJson }},
-        "callback": {{ forward "api" | toJson }},
-        "allowedOrigins": {{ .Origins | toJson }},
-        "universe": {{ .Universe | toJson }}
-      }
+      &#123;
+        "apiUrl": &#123;&#123; url "api" | toJson &#125;&#125;,
+        "callback": &#123;&#123; forward "api" | toJson &#125;&#125;,
+        "allowedOrigins": &#123;&#123; .Origins | toJson &#125;&#125;,
+        "universe": &#123;&#123; .Universe | toJson &#125;&#125;
+      &#125;
   - <span class="k">to</span>: .env.universe
-    <span class="k">from</span>: <span class="s">"@templates/env.tmpl"</span>   <span class="c"># next to the manifest; a plain path is in the repository</span></pre></div>
-  <p>Each entry has <code>to</code>, a path inside the app's repository checkout in the universe (it cannot leave it, and git's own directory is refused), and either <code>template</code> or <code>from</code>. A <code>from</code> without a prefix is relative to the checkout; one starting with <code>@</code> is relative to the manifest's directory, as <code>compose</code> is. <code>mode</code> is the permission, <code>0644</code> unless said.</p>
-  <h3 id="hw-render-when">When it runs</h3>
-  <p>On every <code>universe up</code>, for each app being started, before its compose files are read and before anything starts, so the file is there when the service boots. It is not run by <code>universe new</code>: a forwarded address is chosen at the first start, and a template that needs it would fail before it exists. A file is written only when its content (or permission) changed, through a temporary file and a rename, so a file watcher is not retriggered and a service never reads half a file. <code>up</code> prints a line per file, <code>rendered</code> or <code>up to date</code>.</p>
-  <h3 id="hw-render-git">What it does to git</h3>
-  <p>The file lives in the worktree. Its path is added once to the checkout's exclude file (<code>git rev-parse --git-path info/exclude</code>), so it does not show as an untracked change, and the repository's tracked <code>.gitignore</code> is not touched. For a universe, which is a linked worktree, git keeps that file with the clone, so the entry is shared by the clone and every universe of it; it is anchored, so it matches that one path. An entry whose file git <em>tracks</em> is an error, so a template cannot overwrite source; <code>overwrite: true</code> allows it, and the change then shows in <code>git status</code> like any other. A path that would, through a symbolic link, be written outside the checkout is refused too.</p>
-  <h3 id="hw-render-values">What a template can read</h3>
-  <p>Go <a href="https://pkg.go.dev/text/template"><code>text/template</code></a> syntax, with a missing key an error rather than an empty string.</p>
-  <div class="tw"><table>
-    <thead><tr><th scope="col">Name</th><th scope="col">Value</th></tr></thead><tbody>
-    <tr><td data-l="Name"><code>.Universe</code>, <code>.Slug</code>, <code>.Number</code>, <code>.Domain</code></td><td data-l="Value">The universe's name, the slug its hostnames carry, its number (<code>0</code> for a named one), and its domain.</td></tr>
-    <tr><td data-l="Name"><code>.App</code>, <code>.Dir</code>, <code>.RepoDir</code></td><td data-l="Value">The app, the universe's directory, and the app's checkout.</td></tr>
-    <tr><td data-l="Name"><code>.Hosts</code>, <code>.Origins</code></td><td data-l="Value">Every hostname and every address as an origin, as lists in a stable order.</td></tr>
-    <tr><td data-l="Name"><code>.Env</code></td><td data-l="Value">The environment a hook receives: <code>&lt;HOST&gt;_URL</code>, <code>&lt;HOST&gt;_FORWARD_URL</code>, <code>UNIVERSE</code>, the manifest's own <code>env</code>, and so on.</td></tr>
-    <tr><td data-l="Name"><code>host "k"</code>, <code>url "k"</code>, <code>forward "k"</code></td><td data-l="Value">What the labels <code>host:k</code>, <code>url:k</code> and <code>forward:k</code> give: the hostname, the address with its port, and the address by IP and port (an error for a host with no <code>portForward</code>, or before the first start).</td></tr>
-    <tr><td data-l="Name"><code>origins</code>, <code>hosts</code></td><td data-l="Value">The labels' <code>origins</code> and <code>hosts</code> joined; give <code>"comma"</code> (the default), <code>"space"</code>, <code>"semicolon"</code> or <code>"newline"</code>: <code>{{ origins "space" }}</code>. <code>origins</code> includes the forwarded IP and port address of every host that has one.</td></tr>
-    <tr><td data-l="Name"><code>source "…"</code></td><td data-l="Value">Any source an env label can name, several joined with <code>+</code> included: <code>{{ source "forward:web+url:web:space" }}</code>.</td></tr>
-    <tr><td data-l="Name"><code>env "NAME"</code></td><td data-l="Value">A variable of <code>.Env</code>; an error when it is not set.</td></tr>
-    <tr><td data-l="Name"><code>default fallback value</code></td><td data-l="Value">The fallback when the value is empty: <code>{{ index .Env "TOKEN" | default "none" }}</code>.</td></tr>
-    <tr><td data-l="Name"><code>required "message" value</code></td><td data-l="Value">An error with that message when the value is empty.</td></tr>
-    <tr><td data-l="Name"><code>toJson value</code></td><td data-l="Value">The value as compact JSON, quoted and escaped, which is what a string in a JSON file needs.</td></tr>
-  </tbody></table></div>
-  <p>An error names the app, the file and the key, and stops the start: <code>api: render public/config.json: template: public/config.json:2:14: executing "public/config.json" at &lt;url "billing"&gt;: error calling url: no host "billing" in this multiverse (have: api, web)</code>.</p>
-  <h3 id="hw-render-run">See it, and run it now</h3>
-  <p><code>multiversectl universe render 3</code> renders a universe's files now, for the apps named or all of them, from the addresses it last started with. <code>--print</code> shows the result and writes nothing, which is how a template is tried.</p>
-</section>
-
-<section id="hw-select">
-  <h2 id="hw-select"><a href="#hw-select">Start the dev service and not the production one</a></h2>
-  <p>A compose file often defines the same app twice, a dev server and a production build, and both start by default. Say which, in the manifest, without touching the repository:</p>
-  <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
+    <span class="k">from</span>: <span class="s">"@templates/env.tmpl"</span>   <span class="c"># next to the manifest; a plain path is in the repository</span></pre></div> <p>Each entry has <code>to</code>, a path inside the app's repository checkout in the universe (it cannot leave it, and git's own directory is refused), and either <code>template</code> or <code>from</code>. A <code>from</code> without a prefix is relative to the checkout; one starting with <code>@</code> is relative to the manifest's directory, as <code>compose</code> is. <code>mode</code> is the permission, <code>0644</code> unless said.</p> <h3 id="hw-render-when">When it runs</h3> <p>On every <code>universe up</code>, for each app being started, before its compose files are read and before anything starts, so the file is there when the service boots. It is not run by <code>universe new</code>: a forwarded address is chosen at the first start, and a template that needs it would fail before it exists. A file is written only when its content (or permission) changed, through a temporary file and a rename, so a file watcher is not retriggered and a service never reads half a file. <code>up</code> prints a line per file, <code>rendered</code> or <code>up to date</code>.</p> <h3 id="hw-render-git">What it does to git</h3> <p>The file lives in the worktree. Its path is added once to the checkout's exclude file (<code>git rev-parse --git-path info/exclude</code>), so it does not show as an untracked change, and the repository's tracked <code>.gitignore</code> is not touched. For a universe, which is a linked worktree, git keeps that file with the clone, so the entry is shared by the clone and every universe of it; it is anchored, so it matches that one path. An entry whose file git <em>tracks</em> is an error, so a template cannot overwrite source; <code>overwrite: true</code> allows it, and the change then shows in <code>git status</code> like any other. A path that would, through a symbolic link, be written outside the checkout is refused too.</p> <h3 id="hw-render-values">What a template can read</h3> <p>Go <a href="https://pkg.go.dev/text/template"><code>text/template</code></a> syntax, with a missing key an error rather than an empty string.</p> <div class="tw"><table> <thead><tr><th scope="col">Name</th><th scope="col">Value</th></tr></thead><tbody> <tr><td data-l="Name"><code>.Universe</code>, <code>.Slug</code>, <code>.Number</code>, <code>.Domain</code></td><td data-l="Value">The universe's name, the slug its hostnames carry, its number (<code>0</code> for a named one), and its domain.</td></tr> <tr><td data-l="Name"><code>.App</code>, <code>.Dir</code>, <code>.RepoDir</code></td><td data-l="Value">The app, the universe's directory, and the app's checkout.</td></tr> <tr><td data-l="Name"><code>.Hosts</code>, <code>.Origins</code></td><td data-l="Value">Every hostname and every address as an origin, as lists in a stable order.</td></tr> <tr><td data-l="Name"><code>.Env</code></td><td data-l="Value">The environment a hook receives: <code>&lt;HOST&gt;_URL</code>, <code>&lt;HOST&gt;_FORWARD_URL</code>, <code>UNIVERSE</code>, the manifest's own <code>env</code>, and so on.</td></tr> <tr><td data-l="Name"><code>host "k"</code>, <code>url "k"</code>, <code>forward "k"</code></td><td data-l="Value">What the labels <code>host:k</code>, <code>url:k</code> and <code>forward:k</code> give: the hostname, the address with its port, and the address by IP and port (an error for a host with no <code>portForward</code>, or before the first start).</td></tr> <tr><td data-l="Name"><code>origins</code>, <code>hosts</code></td><td data-l="Value">The labels' <code>origins</code> and <code>hosts</code> joined; give <code>"comma"</code> (the default), <code>"space"</code>, <code>"semicolon"</code> or <code>"newline"</code>: <code>&#123;&#123; origins "space" &#125;&#125;</code>. <code>origins</code> includes the forwarded IP and port address of every host that has one.</td></tr> <tr><td data-l="Name"><code>source "…"</code></td><td data-l="Value">Any source an env label can name, several joined with <code>+</code> included: <code>&#123;&#123; source "forward:web+url:web:space" &#125;&#125;</code>.</td></tr> <tr><td data-l="Name"><code>env "NAME"</code></td><td data-l="Value">A variable of <code>.Env</code>; an error when it is not set.</td></tr> <tr><td data-l="Name"><code>default fallback value</code></td><td data-l="Value">The fallback when the value is empty: <code>&#123;&#123; index .Env "TOKEN" | default "none" &#125;&#125;</code>.</td></tr> <tr><td data-l="Name"><code>required "message" value</code></td><td data-l="Value">An error with that message when the value is empty.</td></tr> <tr><td data-l="Name"><code>toJson value</code></td><td data-l="Value">The value as compact JSON, quoted and escaped, which is what a string in a JSON file needs.</td></tr> </tbody></table></div> <p>An error names the app, the file and the key, and stops the start: <code>api: render public/config.json: template: public/config.json:2:14: executing "public/config.json" at &lt;url "billing"&gt;: error calling url: no host "billing" in this multiverse (have: api, web)</code>.</p> <h3 id="hw-render-run">See it, and run it now</h3> <p><code>multiversectl universe render 3</code> renders a universe's files now, for the apps named or all of them, from the addresses it last started with. <code>--print</code> shows the result and writes nothing, which is how a template is tried.</p> </section> <section id="hw-select"> <h2 id="hw-select"><a href="#hw-select">Start the dev service and not the production one</a></h2> <p>A compose file often defines the same app twice, a dev server and a production build, and both start by default. Say which, in the manifest, without touching the repository:</p> <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
 <span class="k">services</span>: [app-dev, api]          <span class="c"># only these start</span>
 <span class="c"># or, if the compose file marks the extra ones with profiles:</span>
-<span class="k">profiles</span>: [dev]                   <span class="c"># always on, as --profile dev</span></pre></div>
-  <p class="muted">Only the services that start are given an address and lose their published ports; the others are never created. <code>optional</code> adds groups on demand with <code>--with</code>.</p>
-</section>
-
-<section id="hw-build-secrets">
-  <h2 id="hw-build-secrets"><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></h2>
-  <p>Recent buildx refuses a build whose <code>secrets: file:</code> lives outside its build context (<code>~/.netrc</code>) unless it is allowed. The tool does not decide that for you; <code>spec.env</code> reaches every compose and build call, so the multiverse says it once:</p>
-  <div class="code"><pre><span class="c"># multiverse.yaml</span>
+<span class="k">profiles</span>: [dev]                   <span class="c"># always on, as --profile dev</span></pre></div> <p class="muted">Only the services that start are given an address and lose their published ports; the others are never created. <code>optional</code> adds groups on demand with <code>--with</code>.</p> </section> <section id="hw-build-secrets"> <h2 id="hw-build-secrets"><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></h2> <p>Recent buildx refuses a build whose <code>secrets: file:</code> lives outside its build context (<code>~/.netrc</code>) unless it is allowed. The tool does not decide that for you; <code>spec.env</code> reaches every compose and build call, so the multiverse says it once:</p> <div class="code"><pre><span class="c"># multiverse.yaml</span>
 <span class="k">env</span>:
   - <span class="k">name</span>: BUILDX_BAKE_ENTITLEMENTS_FS
-    <span class="k">value</span>: "0"</pre></div>
-  <p class="muted">Anything else a build needs from the machine is the same: an environment variable in <code>spec.env</code>, or a <code>preUp</code> hook that prepares it.</p>
-</section>
-
-<section id="hw-optional">
-  <h2 id="hw-optional"><a href="#hw-optional">Run optional services on demand</a></h2>
-  <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
+    <span class="k">value</span>: "0"</pre></div> <p class="muted">Anything else a build needs from the machine is the same: an environment variable in <code>spec.env</code>, or a <code>preUp</code> hook that prepares it.</p> </section> <section id="hw-optional"> <h2 id="hw-optional"><a href="#hw-optional">Run optional services on demand</a></h2> <div class="code"><pre><span class="c"># multiverse.yaml, on the app</span>
 <span class="k">optional</span>:
   - <span class="k">name</span>: celery
-    <span class="k">services</span>: [worker, beat]</pre></div>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe up 3 api --with celery</pre></div>
-  <p class="muted">The group name is activated as a compose profile too. Comma-separate several: <code>--with celery,mail</code>.</p>
-</section>
-
-<section id="hw-autostart">
-  <h2 id="hw-autostart"><a href="#hw-autostart">Keep an app from starting by default</a></h2>
-  <p>An app that should exist in every universe but not run unless someone wants it &mdash; a tool that needs extra setup, a code generator, a heavy optional service &mdash; says so:</p>
-  <div class="code"><pre><span class="c"># multiverse.yaml, or the repository's own .multiverse.yaml</span>
+    <span class="k">services</span>: [worker, beat]</pre></div> <div class="code"><pre><span class="p">$ </span>multiversectl universe up 3 api --with celery</pre></div> <p class="muted">The group name is activated as a compose profile too. Comma-separate several: <code>--with celery,mail</code>.</p> </section> <section id="hw-autostart"> <h2 id="hw-autostart"><a href="#hw-autostart">Keep an app from starting by default</a></h2> <p>An app that should exist in every universe but not run unless someone wants it &mdash; a tool that needs extra setup, a code generator, a heavy optional service &mdash; says so:</p> <div class="code"><pre><span class="c"># multiverse.yaml, or the repository's own .multiverse.yaml</span>
 <span class="k">apps</span>:
   - <span class="k">name</span>: codegen
-    <span class="k">autostart</span>: false</pre></div>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe up 3              <span class="c"># every app but codegen</span>
-<span class="p">$ </span>multiversectl universe up 3 codegen      <span class="c"># starts it</span></pre></div>
-  <p class="muted">An app with <code>autostart: false</code> is still checked out and has its addresses, so others can refer to it and starting it later needs nothing more. A start that names no app prints one line for each one it leaves out. <code>down</code>, <code>rm</code> and <code>hooks run</code> with no app named deal with it only while it is running; <code>doctor</code> and <code>ls</code> show it as off, on demand, not as a failure. Unlike <code>optional</code>, which adds services to an app that already starts, this decides whether the app starts at all; <code>--with</code> does not start it.</p>
-</section>
-
-<section id="hw-dynamic">
-  <h2 id="hw-dynamic"><a href="#hw-dynamic">Configure what depends on the universe</a></h2>
-  <p>A universe's hostnames do not exist until it does, so anything built from them — trusted origins, allowed hosts, CORS, a front-end's API base URL — is asked for with a label on the service that needs it:</p>
-  <div class="code"><pre><span class="k">services</span>:
+    <span class="k">autostart</span>: false</pre></div> <div class="code"><pre><span class="p">$ </span>multiversectl universe up 3              <span class="c"># every app but codegen</span>
+<span class="p">$ </span>multiversectl universe up 3 codegen      <span class="c"># starts it</span></pre></div> <p class="muted">An app with <code>autostart: false</code> is still checked out and has its addresses, so others can refer to it and starting it later needs nothing more. A start that names no app prints one line for each one it leaves out. <code>down</code>, <code>rm</code> and <code>hooks run</code> with no app named deal with it only while it is running; <code>doctor</code> and <code>ls</code> show it as off, on demand, not as a failure. Unlike <code>optional</code>, which adds services to an app that already starts, this decides whether the app starts at all; <code>--with</code> does not start it.</p> </section> <section id="hw-dynamic"> <h2 id="hw-dynamic"><a href="#hw-dynamic">Configure what depends on the universe</a></h2> <p>A universe's hostnames do not exist until it does, so anything built from them — trusted origins, allowed hosts, CORS, a front-end's API base URL — is asked for with a label on the service that needs it:</p> <div class="code"><pre><span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.env.DJANGO_ALLOWED_HOSTS</span>: hosts
       <span class="k">dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
-      <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></div>
-  <p>These win over the service's own <code>environment:</code> and over any <code>env_file:</code>, which is how a static list in a committed <code>.env</code> stops being what the universe runs with. The sources, and why it is a label rather than a variable reference, are in <a href="../concepts/labels.html">Labels and variables</a>. For a repository you cannot change, the app's inline <code>overlay:</code> does the same from the manifest:</p>
-  <div class="code"><pre><span class="k">apps</span>:
+      <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></div> <p>These win over the service's own <code>environment:</code> and over any <code>env_file:</code>, which is how a static list in a committed <code>.env</code> stops being what the universe runs with. The sources, and why it is a label rather than a variable reference, are in <a href="../concepts/labels.html">Labels and variables</a>. For a repository you cannot change, the app's inline <code>overlay:</code> does the same from the manifest:</p> <div class="code"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
     <span class="k">overlay</span>:
       <span class="k">services</span>:
         <span class="k">web</span>:
           <span class="k">environment</span>:
-            <span class="k">DJANGO_CSRF_TRUSTED_ORIGINS</span>: <span class="s">"${MULTIVERSE_ORIGINS}"</span>
-            <span class="k">DJANGO_ALLOWED_HOSTS</span>: <span class="s">"${MULTIVERSE_HOSTS}"</span></pre></div>
-  <p>When the app reads a file and not its environment, <a href="#hw-render"><code>render</code></a> writes that file from the same values.</p>
-  <p class="muted"><code>multiversectl universe env &lt;universe&gt;</code> prints every variable a universe passes.</p>
-</section>
-
-  <nav class="pager" aria-label="Pages">
-    <a class="prev" href="../tasks/reach.html"><span>Previous</span>Reach a universe</a>
-    <a class="next" href="../tasks/catalog.html"><span>Next</span>Manage many multiverses from one index</a>
-  </nav>
-</main>
-  <aside class="toc" aria-labelledby="toch">
-    <p class="toc-h" id="toch">On this page</p>
-    <ul>
-      <li><a href="#hw-labels">Let a service declare its own hostname</a></li>
-      <li><a href="#hw-publish">Keep a service&#39;s published port</a></li>
-      <li><a href="#hw-default-service">Choose where exec and run go</a></li>
-      <li><a href="#hw-hooks">Run your own tools at the points of a universe&#39;s life</a></li>
-      <li><a href="#hw-render">Write a config file from the universe&#39;s addresses</a></li>
-      <li><a href="#hw-select">Start the dev service and not the production one</a></li>
-      <li><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></li>
-      <li><a href="#hw-optional">Run optional services on demand</a></li>
-      <li><a href="#hw-autostart">Keep an app from starting by default</a></li>
-      <li><a href="#hw-dynamic">Configure what depends on the universe</a></li>
-    </ul>
-  </aside>
-</div>
-
-<footer>
-  <div class="wrap">
-    <span>Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot; <a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a></span>
-    <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a>
-  </div>
-</footer>
-<span class="sr" id="status" role="status" aria-live="polite"></span>
-<script src="../assets/site.js?v=0bae81de"></script>
-</body>
-</html>
+            <span class="k">DJANGO_CSRF_TRUSTED_ORIGINS</span>: <span class="s">"$&#123;MULTIVERSE_ORIGINS&#125;"</span>
+            <span class="k">DJANGO_ALLOWED_HOSTS</span>: <span class="s">"$&#123;MULTIVERSE_HOSTS&#125;"</span></pre></div> <p>When the app reads a file and not its environment, <a href="#hw-render"><code>render</code></a> writes that file from the same values.</p> <p class="muted"><code>multiversectl universe env &lt;universe&gt;</code> prints every variable a universe passes.</p> </section>  <nav class="pager" aria-label="Pages"> <a class="prev" href="/tasks/reach.html"><span>Previous</span>Reach a universe</a> <a class="next" href="/tasks/catalog.html"><span>Next</span>Manage many multiverses from one index</a> </nav> </main> <aside class="toc" aria-labelledby="toch"><p class="toc-h" id="toch">On this page</p><ul><li><a href="#hw-labels">Let a service declare its own hostname</a></li><li><a href="#hw-publish">Keep a service's published port</a></li><li><a href="#hw-default-service">Choose where exec and run go</a></li><li><a href="#hw-hooks">Run your own tools at the points of a universe's life</a></li><li><a href="#hw-render">Write a config file from the universe's addresses</a></li><li><a href="#hw-select">Start the dev service and not the production one</a></li><li><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></li><li><a href="#hw-optional">Run optional services on demand</a></li><li><a href="#hw-autostart">Keep an app from starting by default</a></li><li><a href="#hw-dynamic">Configure what depends on the universe</a></li></ul></aside> </div> <footer> <div class="wrap"> <span>
+Apache 2.0 &middot; &copy; 2026 Cristian Steib &middot;
+<a href="https://github.com/cristiansteib/multiversectl/blob/main/TRADEMARK.md">name &amp; marks</a> </span> <a href="https://github.com/cristiansteib/multiversectl">github.com/cristiansteib/multiversectl</a> </div> </footer> <span class="sr" id="status" role="status" aria-live="polite"></span> <script type="module" src="/_astro/Scripts.astro_astro_type_script_index_0_lang.Ccoeb8u9.js"></script> </body></html>

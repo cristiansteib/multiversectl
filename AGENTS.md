@@ -11,7 +11,7 @@ make build        # ./dist/multiversectl
 make test lint    # go test ./... ; gofmt -l + go vet
 make schema       # regenerate schema/multiverse.v1alpha1.yaml from the Go types
 make schema-check # fail if that file is stale (CI runs it)
-make docs         # regenerate docs/ from docsrc/ (sources, layout and menu)
+make docs         # build the Astro site (site/) into docs/, which Pages serves
 make ui           # build the Angular app (web/) into the server's embed dir; never committed
 make ui-dev       # ng serve with hot reload on :4200, proxied to a running multiversectl-server
 ```
@@ -28,7 +28,7 @@ or its `+markers`, and commit the result.
 | `internal/adapters/*` | One adapter per port. Only these may touch the outside world. |
 | `internal/adapters/cli` | Flags and rendering. Colour and tables live here, not in `app`. |
 | `internal/tools/schemagen` | `go/ast` generator for the CRD-style schema. |
-| `internal/tools/docgen` | Renders `docs/` from `docsrc/`; see `docsrc/README.md`. |
+| `site/` | The documentation site (Astro). `make docs` builds it into `docs/`; see `site/README.md`. |
 
 A new capability starts as a port method in `internal/app/ports.go`.
 
@@ -48,7 +48,7 @@ A new capability starts as a port method in `internal/app/ports.go`.
 - Tests cover behaviour that would otherwise be argued about; don't pad.
 - Nothing about any private project belongs in this repo — examples use
   `acme`, `example.test` and the like. That covers the screenshots too.
-- The docs carry screenshots of the web view (`docs/assets/img`). Change how it
-  looks and they go stale, so retake them: `MVCTL_DEV_UI=1 go test
-  ./internal/adapters/server -run TestDevUI -timeout 0` serves the invented
-  fleet they are taken from, in light and dark.
+- The docs carry screenshots of the web view (`site/public/assets/img`, served
+  as `/assets/img`). Change how it looks and they go stale, so retake them:
+  `MVCTL_DEV_UI=1 go test ./internal/adapters/server -run TestDevUI -timeout 0`
+  serves the invented fleet they are taken from, in light and dark.

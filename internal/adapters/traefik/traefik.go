@@ -72,6 +72,105 @@ func (t *Traefik) EnsureNetwork(ctx context.Context, name string) error {
 	return t.docker(ctx, "network", "create", name)
 }
 
+// servedByLabel names, on a routed container, the proxy that serves it. A proxy that is
+// created again joins the networks of the containers that name it, and of no others:
+// another proxy (a rehearsal under its own state directory) serves its own.
+const servedByLabel = "io.multiversectl.served-by"
+
+// capture runs docker and returns what it printed. Unlike docker(), it does not
+// stream: these are the quiet bookkeeping commands around the proxy's networks.
+func (t *Traefik) capture(ctx context.Context, args ...string) (string, error) {
+	var out, errb bytes.Buffer
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Stdout, cmd.Stderr = &out, &errb
+	done := t.trace.Begin(cmd)
+	err := cmd.Run()
+	done(err)
+	if err != nil {
+		return out.String(), fmt.Errorf("docker %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(errb.String()))
+	}
+	return out.String(), nil
+}
+
+// proxyContainer is the id of the running proxy, empty when it is not running.
+func (t *Traefik) proxyContainer(ctx context.Context) (string, error) {
+	out, err := t.capture(ctx, "ps", "--quiet",
+		"--filter", "label=com.docker.compose.project="+proxyProject(),
+		"--filter", "label=com.docker.compose.service=traefik")
+	if err != nil {
+		return "", err
+	}
+	ids := strings.Fields(out)
+	if len(ids) == 0 {
+		return "", nil
+	}
+	return ids[0], nil
+}
+
+// ConnectNetwork joins the proxy to a network; being on it already is fine. The
+// proxy keeps running: a connection is made to the container, not to its compose file.
+func (t *Traefik) ConnectNetwork(ctx context.Context, name string) error {
+	id, err := t.proxyContainer(ctx)
+	if err != nil {
+		return err
+	}
+	if id == "" {
+		return fmt.Errorf("the proxy is not running, so it cannot be connected to network %s", name)
+	}
+	if _, err := t.capture(ctx, "network", "connect", name, id); err != nil && !strings.Contains(err.Error(), "already exists") {
+		return err
+	}
+	return nil
+}
+
+// DisconnectProject takes the proxy off every network of a compose project, which
+// has to happen before the project is taken down: compose cannot remove a network
+// something is still connected to. The networks are found by compose's own label
+// rather than by an assumed name, so a compose file that names its own networks is
+// covered too. A proxy that is not running, or not on them, has nothing to leave.
+func (t *Traefik) DisconnectProject(ctx context.Context, project string) error {
+	id, err := t.proxyContainer(ctx)
+	if err != nil || id == "" {
+		return nil
+	}
+	out, err := t.capture(ctx, "network", "ls", "--quiet", "--filter", "label=com.docker.compose.project="+project)
+	if err != nil {
+		return err
+	}
+	for _, network := range strings.Fields(out) {
+		if _, err := t.capture(ctx, "network", "disconnect", network, id); err != nil {
+			msg := err.Error()
+			if strings.Contains(msg, "is not connected") || strings.Contains(msg, "not found") || strings.Contains(msg, "No such network") {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// reconnect joins a proxy that was just created to the networks its routes are on:
+// its connections are not part of its compose file, so a new container has none.
+// The networks are the ones the routed containers name in their traefik.docker.network label.
+func (t *Traefik) reconnect(ctx context.Context) error {
+	out, err := t.capture(ctx, "ps", "--all", "--filter", "label="+servedByLabel+"="+proxyProject(), "--format", `{{.Label "traefik.docker.network"}}`)
+	if err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, name := range strings.Fields(out) {
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		// A network that is gone (its app was taken down) has nothing to reach.
+		if err := t.ConnectNetwork(ctx, name); err != nil && !strings.Contains(err.Error(), "not found") && !strings.Contains(err.Error(), "No such network") {
+			return err
+		}
+	}
+	return nil
+}
+
 func (t *Traefik) EnsureUp(ctx context.Context, r app.ProxyRequest) error {
 	file, err := proxyFile()
 	if err != nil {
@@ -107,7 +206,10 @@ func (t *Traefik) EnsureUp(ctx context.Context, r app.ProxyRequest) error {
 	if err := writeIfChanged(file, content); err != nil {
 		return err
 	}
-	return t.docker(ctx, "compose", "--project-name", proxyProject(), "-f", file, "up", "-d")
+	if err := t.docker(ctx, "compose", "--project-name", proxyProject(), "-f", file, "up", "-d"); err != nil {
+		return err
+	}
+	return t.reconnect(ctx)
 }
 
 func (t *Traefik) Down(ctx context.Context) error {
@@ -290,13 +392,11 @@ type service struct {
 	Ports     []string // "bind:host:container", replacing every published port
 	Labels    []label
 	Env       []label
-	Networks  []string
 	seen      map[string]bool
 }
 
 type override struct {
 	Services []*service
-	Networks []string
 }
 
 // buildOverride groups routes by service so two routes on one service share a
@@ -316,7 +416,6 @@ func buildOverride(r app.OverrideRequest) override {
 		byName[name] = s
 		return s
 	}
-	networks := map[string]bool{}
 	for _, name := range unpublish {
 		get(name).Unpublish = true
 	}
@@ -325,14 +424,17 @@ func buildOverride(r app.OverrideRequest) override {
 		if r.HostPort > 0 {
 			s.Ports = append(s.Ports, bind+":"+strconv.Itoa(r.HostPort)+":"+strconv.Itoa(r.Port))
 		}
-		networks[r.Network] = true
-		if !s.seen[r.Network] {
-			s.seen[r.Network] = true
-			s.Networks = append(s.Networks, r.Network)
+		// Reached by IP alone: no route in the proxy, so no labels and no network
+		// shared with it (a shared network is where service names stop being private).
+		if r.ByIP {
+			continue
 		}
+		// The service stays on its app's own network, which is the one named in the
+		// label below and the one the proxy joins. Attaching it to a network shared
+		// with other universes would make its name an alias of theirs too.
 		if !s.seen["enable"] {
 			s.seen["enable"] = true
-			s.Labels = append(s.Labels, label{"traefik.enable", "true"})
+			s.Labels = append(s.Labels, label{"traefik.enable", "true"}, label{servedByLabel, proxyProject()})
 		}
 		if !s.seen["docker.network"] {
 			s.seen["docker.network"] = true
@@ -363,14 +465,9 @@ func buildOverride(r app.OverrideRequest) override {
 	}
 	out := override{}
 	for _, s := range byName {
-		sort.Strings(s.Networks)
 		out.Services = append(out.Services, s)
 	}
 	sort.Slice(out.Services, func(i, j int) bool { return out.Services[i].Name < out.Services[j].Name })
-	for n := range networks {
-		out.Networks = append(out.Networks, n)
-	}
-	sort.Strings(out.Networks)
 	return out
 }
 

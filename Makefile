@@ -46,12 +46,18 @@ schema: ## Generate $(SCHEMA) and $(CATALOG_SCHEMA) from the Go types
 	$(GO) run ./internal/tools/schemagen -kind Catalog $(CATALOG_TYPES) > $(CATALOG_SCHEMA)
 	@echo "wrote $(SCHEMA) $(CATALOG_SCHEMA)"
 
-docs: ## Render docs/ from docsrc/
-	$(GO) run ./internal/tools/docgen docsrc docs
+docs: ## Build the documentation site from site/ into docs/ (needs Node)
+	cd site && npm ci && npm run build
+	# docs/ is what GitHub Pages serves (its source is main:/docs), so it holds
+	# the built site. Emptied first, or a renamed asset would linger forever.
+	find docs -mindepth 1 -delete
+	cp -R site/dist/. docs/
+	@test -f docs/.nojekyll || { echo "docs/.nojekyll missing: Pages would not serve _astro/"; exit 1; }
+	@test -f docs/CNAME || { echo "docs/CNAME missing: Pages would drop the custom domain"; exit 1; }
 
 docs-check: docs ## Fail if the committed docs are stale
 	@git diff --exit-code -- docs \
-		|| { echo "docs/ is stale — commit the regenerated pages"; exit 1; }
+		|| { echo "docs/ is stale — run make docs and commit the result"; exit 1; }
 
 schema-check: schema ## Fail if the committed schema is stale
 	@git diff --exit-code -- $(SCHEMA) $(CATALOG_SCHEMA) \

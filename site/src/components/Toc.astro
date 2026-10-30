@@ -1,0 +1,25 @@
+---
+// The "on this page" column: one entry per <h2 id> of the page.
+import type { Heading } from '../lib/headings';
+
+interface Props {
+  headings: Heading[];
+}
+
+const { headings } = Astro.props;
+---
+
+{
+  headings.length > 0 && (
+    <aside class="toc" aria-labelledby="toch">
+      <p class="toc-h" id="toch">On this page</p>
+      <ul>
+        {headings.map((h) => (
+          <li>
+            <a href={`#${h.id}`} set:html={h.label} />
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )
+}

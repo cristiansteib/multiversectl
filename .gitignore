@@ -19,3 +19,8 @@ coverage.*
 # Angular
 /web/node_modules/
 /web/.angular/
+
+# Astro site (site/): the sources are committed, the build output is not.
+/site/node_modules/
+/site/dist/
+/site/.astro/

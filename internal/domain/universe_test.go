@@ -139,3 +139,29 @@ func TestAnExistingUniverseKeepsItsRecordedProject(t *testing.T) {
 		t.Errorf("ProjectFor = %q, want the recorded acme-u1-api", got)
 	}
 }
+
+// The proxy reaches an app on the app's own default network, which is private to
+// that app of that universe, so two universes never share a network on which service
+// names are aliases.
+func TestTheProxyReachesAnAppOnItsOwnNetwork(t *testing.T) {
+	m := &Manifest{Name: "acme"}
+	three := Universe{Manifest: m, Name: "3"}
+	four := Universe{Manifest: m, Name: "4"}
+	if got := three.ProxyNetwork("web"); got != "acme-u3-web_default" {
+		t.Fatalf("ProxyNetwork = %q, want acme-u3-web_default", got)
+	}
+	if three.ProxyNetwork("web") == four.ProxyNetwork("web") {
+		t.Fatalf("two universes share a network: %q", three.ProxyNetwork("web"))
+	}
+	if three.ProxyNetwork("web") == three.ProxyNetwork("api") {
+		t.Fatalf("two apps of one universe share a network: %q", three.ProxyNetwork("web"))
+	}
+	alias := Universe{Manifest: m, Name: "3", Install: "acme-copy"}
+	if alias.ProxyNetwork("web") == three.ProxyNetwork("web") {
+		t.Fatalf("an install under another name shares the network %q", alias.ProxyNetwork("web"))
+	}
+	recorded := Universe{Manifest: m, Name: "3", Recorded: "acme-old-u3"}
+	if got := recorded.ProxyNetwork("web"); got != "acme-old-u3-web_default" {
+		t.Fatalf("recorded ProxyNetwork = %q", got)
+	}
+}

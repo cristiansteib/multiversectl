@@ -24,13 +24,5 @@ services:
 {{- range .Labels}}
       {{.Key}}: {{q .Value}}
 {{- end}}
-    networks: [default{{range .Networks}}, {{.}}{{end}}]
-{{- end}}
-{{- end}}
-{{- if .Networks}}
-networks:
-{{- range .Networks}}
-  {{.}}:
-    external: true
 {{- end}}
 {{- end}}

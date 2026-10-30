@@ -1,0 +1,13 @@
+---
+// Two steps, as the generated site had: the documentation root, then the group
+// this page belongs to.
+interface Props {
+  section: string;
+}
+
+const { section } = Astro.props;
+---
+
+<nav class="crumb" aria-label="Breadcrumb">
+  <a href="/index.html">Documentation</a> <span aria-hidden="true">/</span> <span>{section}</span>
+</nav>

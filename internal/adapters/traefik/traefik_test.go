@@ -13,8 +13,8 @@ import (
 
 func TestOverride(t *testing.T) {
 	routes := []app.Route{
-		{Name: "api-u1", Hostname: "api-u1.example.test", Service: "web", Port: 8001, Entrypoint: "web", Project: "acme-u1", Network: "multiversenet"},
-		{Name: "devapi-u1", Hostname: "devapi-u1.example.test", Aliases: []string{"app-u1.example.test", "adm-u1.example.test"}, Service: "web", Port: 8001, Entrypoint: "devapi", Project: "acme-u1", Network: "multiversenet"},
+		{Name: "api-u1", Hostname: "api-u1.example.test", Service: "web", Port: 8001, Entrypoint: "web", Project: "acme-u1", Network: "acme-u1-web_default"},
+		{Name: "devapi-u1", Hostname: "devapi-u1.example.test", Aliases: []string{"app-u1.example.test", "adm-u1.example.test"}, Service: "web", Port: 8001, Entrypoint: "devapi", Project: "acme-u1", Network: "acme-u1-web_default"},
 	}
 	tests := []struct {
 		name      string
@@ -35,7 +35,8 @@ services:
     ports: !reset []
     labels:
       traefik.enable: "true"
-      traefik.docker.network: "multiversenet"
+      io.multiversectl.served-by: "multiverse-proxy"
+      traefik.docker.network: "acme-u1-web_default"
       traefik.http.services.api-u1.loadbalancer.server.port: "8001"
       traefik.http.routers.api-u1.rule: "Host(` + "`api-u1.example.test`" + `)"
       traefik.http.routers.api-u1.entrypoints: "web"
@@ -44,10 +45,6 @@ services:
       traefik.http.routers.devapi-u1.rule: "Host(` + "`devapi-u1.example.test`) || Host(`app-u1.example.test`) || Host(`adm-u1.example.test`" + `)"
       traefik.http.routers.devapi-u1.entrypoints: "devapi"
       traefik.http.routers.devapi-u1.service: "devapi-u1"
-    networks: [default, multiversenet]
-networks:
-  multiversenet:
-    external: true
 `,
 		},
 		{
@@ -206,5 +203,52 @@ func TestProxyTemplateServesTLSWithTheGivenCertificates(t *testing.T) {
 	}
 	if _, err := mountCertificates([]domain.Certificate{{CertFile: filepath.Join(dir, "missing.pem"), KeyFile: key}}); err == nil {
 		t.Error("a missing certificate must be refused: docker would mount an empty directory in its place")
+	}
+}
+
+// A routed service stays on its app's own network: it is attached to no network
+// shared with other universes, and the label names the network the proxy reaches it
+// on. A host reached by IP alone gets its published port and nothing of the proxy's.
+func TestARoutedServiceJoinsNoSharedNetwork(t *testing.T) {
+	out := buildOverride(app.OverrideRequest{
+		Bind: "0.0.0.0",
+		Routes: []app.Route{
+			{Name: "web-u3", Hostname: "web-u3.example.test", Service: "web", Port: 80, Entrypoint: "web", Network: "acme-u3-web_default"},
+			{Name: "api-u3", Hostname: "api-u3.example.test", Service: "api", Port: 8000, Entrypoint: "web",
+				HostPort: 41000, ByIP: true},
+		},
+	})
+	byName := map[string]*service{}
+	for _, s := range out.Services {
+		byName[s.Name] = s
+	}
+	web, api := byName["web"], byName["api"]
+	if web == nil {
+		t.Fatalf("the routed service has no entry in %+v", out.Services)
+	}
+	var named string
+	for _, l := range web.Labels {
+		if l.Key == "traefik.docker.network" {
+			named = l.Value
+		}
+	}
+	if named != "acme-u3-web_default" {
+		t.Errorf("the label names network %q, want the app's own acme-u3-web_default", named)
+	}
+	if api == nil {
+		t.Fatalf("the service reached by IP has no entry: its published port is lost")
+	}
+	if len(api.Ports) != 1 || api.Ports[0] != "0.0.0.0:41000:8000" {
+		t.Errorf("api ports = %v, want 0.0.0.0:41000:8000", api.Ports)
+	}
+	if len(api.Labels) != 0 {
+		t.Errorf("a service reached by IP alone carries labels %v, want none", api.Labels)
+	}
+	text, err := render("routes.yml.tmpl", out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(text), "multiversenet") || strings.Contains(string(text), "external: true") {
+		t.Errorf("a shared or external network is still in the fragment:\n%s", text)
 	}
 }

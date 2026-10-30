@@ -1,0 +1,39 @@
+---
+// Published as /404.html, which GitHub Pages serves for any address that does
+// not exist. It can be served from any depth, so every link is root-absolute
+// (the chrome's already are). Kept out of the sitemap and out of search results.
+import BaseHead from '../components/BaseHead.astro';
+import Footer from '../components/Footer.astro';
+import Scripts from '../components/Scripts.astro';
+import TopBar from '../components/TopBar.astro';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead
+      title="Page not found · multiversectl"
+      description="This page does not exist on the multiversectl documentation site. It may have moved; start from the documentation home or the install guide."
+      noindex
+    />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+    <TopBar path="" />
+    <div class="wrap layout wide">
+      <main id="main">
+        <h1>Page not found</h1>
+        <p class="lede">There is nothing at this address. The page may have moved, or the link may have a typo.</p>
+        <ul>
+          <li><a href="/docs.html">The documentation</a>: how a universe is put together, and where everything else is.</li>
+          <li><a href="/start/install.html">Install</a>: one binary for Linux and macOS.</li>
+          <li><a href="/start/quickstart.html">Quick start</a>: from nothing to two running copies of your stack.</li>
+          <li><a href="/reference/cli.html">Commands</a>: every command and what it takes.</li>
+          <li><a href="/index.html">Home</a></li>
+        </ul>
+      </main>
+    </div>
+    <Footer />
+    <Scripts />
+  </body>
+</html>

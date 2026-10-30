@@ -1,0 +1,73 @@
+---
+// The <head> every page shares. The stylesheet is imported here, once, so
+// Astro bundles it under a content hash — what docgen's ?v= query did by hand.
+import '../styles/site.css';
+
+interface Props {
+  /** The whole <title>, already composed by the layout. */
+  title: string;
+  /** Meta description and og:description: a page's `description` from
+   *  src/data/nav.ts, or its `summary` when it has none. */
+  description: string;
+  /** The page's address without an extension ("start/install"), or "index".
+   *  Drives the canonical and og:url. */
+  path?: string;
+  /** JSON-LD objects to emit, each as its own <script type="application/ld+json">. */
+  jsonLd?: Record<string, unknown>[];
+  /** Keep the page out of search results (the 404). No canonical is emitted. */
+  noindex?: boolean;
+}
+
+const { title, description, path, jsonLd = [], noindex = false } = Astro.props;
+
+// Canonicals keep the .html the site is published under (build.format 'file',
+// GitHub Pages). The home is the site root, which is the address people link.
+const origin = (Astro.site ?? new URL('https://multiversectl.dev')).origin;
+const url = path === undefined ? undefined : path === 'index' ? `${origin}/` : `${origin}/${path}.html`;
+const image = `${origin}/og-image.png`;
+const imageAlt = 'multiversectl: run your whole stack several times at once on one machine';
+const isHome = path === 'index';
+// "multiversectl · title" pages are articles of a site; the home is the site.
+const ogTitle = title;
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>{title}</title>
+<meta name="description" content={description} />
+{noindex && <meta name="robots" content="noindex" />}
+{url && <link rel="canonical" href={url} />}
+<meta property="og:site_name" content="multiversectl" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content={isHome ? 'website' : 'article'} />
+<meta property="og:title" content={ogTitle} />
+<meta property="og:description" content={description} />
+{url && <meta property="og:url" content={url} />}
+<meta property="og:image" content={image} />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content={imageAlt} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={ogTitle} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={image} />
+<meta name="twitter:image:alt" content={imageAlt} />
+{jsonLd.map((o) => <script type="application/ld+json" set:html={JSON.stringify(o).replace(/</g, '\\u003c')} />)}
+<meta name="theme-color" content="#f5f7fa" />
+{/* Applies a stored dark choice before the first paint, so the page never
+    flashes light. It must stay inline and unbundled to run this early. */}
+<script is:inline>
+  try {
+    if (localStorage.getItem('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  } catch (e) {}
+</script>
+<link
+  rel="icon"
+  href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311141b'/%3E%3Ccircle cx='16' cy='16' r='3.5' fill='%23f0b45f'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%23f0b45f' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%237cc5f0' stroke-width='1.4' stroke-opacity='.65'/%3E%3C/svg%3E"
+/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&display=swap"
+/>
