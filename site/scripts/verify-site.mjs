@@ -97,6 +97,67 @@ function checkAnchors(pages) {
   }
 }
 
+/** Every .code block of a page, with its nested markup intact. A shell block
+ *  holds a <div> of its own for the window frame, so the closing tag cannot be
+ *  found by a non-greedy match — it has to be counted. */
+function codeBlocks(html) {
+  const out = [];
+  const open = /<div class="code (code-\w+)"([^>]*)>/g;
+  let m;
+  while ((m = open.exec(html))) {
+    const from = open.lastIndex;
+    let depth = 1, i = from;
+    const tag = /<(\/?)div\b[^>]*>/g;
+    tag.lastIndex = from;
+    let t;
+    while (depth > 0 && (t = tag.exec(html))) {
+      depth += t[1] ? -1 : 1;
+      i = t.index;
+    }
+    out.push({cls: m[1], attrs: m[2], body: html.slice(from, i)});
+  }
+  return out;
+}
+
+function checkCodeBlocks(pages) {
+  // A code block says what it holds, and that decides what Copy gives: a shell
+  // gives the commands, a file gives the whole thing, and output alone gives
+  // no button at all. The classification is per block and easy to get wrong on
+  // a new one, so it is checked rather than trusted.
+  let shells = 0, files = 0, outputs = 0;
+  for (const url of pages) {
+    const {html} = seen.get(url);
+    const where = url.replace(base, '') || '/';
+    for (const m of codeBlocks(html)) {
+      const cls = m.cls, rest = m.attrs, body = m.body;
+      const kind = (cls.match(/^code-(shell|file|output)$/) || [])[1];
+      const copy = (rest.match(/data-copy="(\w+)"/) || [])[1];
+      if (!kind) { problems.push(`a code block says no kind  ${where}`); continue; }
+      if (kind === 'shell') {
+        shells++;
+        if (copy !== 'input') problems.push(`shell block copies "${copy}", want input  ${where}`);
+        if (!/<span class="in">/.test(body))
+          problems.push(`shell block has no marked input, so Copy would give nothing  ${where}`);
+        if (!/class="code-bar"/.test(body))
+          problems.push(`shell block has no window frame  ${where}`);
+        if (!/aria-hidden="true"/.test(body))
+          problems.push(`shell block's window lights are not hidden from a screen reader  ${where}`);
+      } else if (kind === 'file') {
+        files++;
+        if (copy !== 'all') problems.push(`file block copies "${copy}", want all  ${where}`);
+        if (/<span class="in">/.test(body))
+          problems.push(`file block marks input, which only a shell has  ${where}`);
+      } else {
+        outputs++;
+        if (copy) problems.push(`output-only block offers Copy ("${copy}")  ${where}`);
+        if (/class="code-bar"/.test(body))
+          problems.push(`output-only block is framed as a terminal window  ${where}`);
+      }
+    }
+  }
+  say(`  code blocks: ${shells} shell, ${files} file, ${outputs} output`);
+}
+
 function checkSeo(pages) {
   const titles = new Map(), descs = new Map();
   for (const url of pages) {
@@ -248,6 +309,7 @@ const pages = await crawl();
 say(`${base}\n  ${pages.length} pages reached`);
 checkAnchors(pages);
 checkSeo(pages);
+checkCodeBlocks(pages);
 await checkFiles(pages);
 await checkRedirects(pages);
 

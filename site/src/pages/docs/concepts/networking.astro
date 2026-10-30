@@ -12,7 +12,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="proxy">
   <h2 id="proxy"><a href="#proxy">The shared proxy</a></h2>
   <p>One Traefik container for the machine, in its own compose project <code>multiverse-proxy</code>. The first <code>up</code> starts it. It discovers routes from the container runtime, so starting a universe is all the configuration it needs; multiversectl writes the labels into a generated fragment, one per app, which is why your own compose files say nothing about Traefik:</p>
-  <Terminal><pre><span class="c"># universes/3/.multiverse-routes-api.yml, rewritten on every up</span>
+  <Terminal kind="file"><pre><span class="c"># universes/3/.multiverse-routes-api.yml, rewritten on every up</span>
 <span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">ports</span>: !reset []
@@ -31,7 +31,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="entrypoints">
   <h2 id="entrypoints"><a href="#entrypoints">Entrypoints</a></h2>
   <p>An entrypoint is a named port the proxy listens on, shared by every universe.</p>
-  <Terminal><pre><span class="k">spec</span>:
+  <Terminal kind="file"><pre><span class="k">spec</span>:
   <span class="k">proxy</span>:
     <span class="k">entrypoints</span>:
       - <span class="k">name</span>: web
@@ -44,7 +44,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="hostnames">
   <h2 id="hostnames"><a href="#hostnames">Hostnames</a></h2>
   <p>Every address is <code>&lt;host-key&gt;-&lt;slug&gt;.&lt;domain&gt;</code> — the host key names the address, the slug names the universe:</p>
-  <Terminal><pre>api-u3.example.test         <span class="c"># host api, universe 3</span>
+  <Terminal kind="output"><pre>api-u3.example.test         <span class="c"># host api, universe 3</span>
 adm-u3.example.test         <span class="c"># host adm, universe 3</span>
 api-fix-login.example.test  <span class="c"># host api, universe fix/login</span></pre></Terminal>
   <p>Flat rather than nested, on purpose: <code>api-u3.example.test</code> is one label under the domain, so a single wildcard certificate for <code>*.example.test</code> covers every address of every universe. <code>api.u3.example.test</code> would need one per universe, because a wildcard matches one label.</p>
@@ -63,7 +63,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
   </tbody></table></div>
   <h3 id="tls">Serving https</h3>
   <p>Give an entrypoint <code>tls: true</code> and the proxy serves every host on it over https. Every address handed to a service or shown (<code>&lt;NAME&gt;_URL</code>, <code>MULTIVERSE_ORIGINS</code>, <code>universe ls</code>) then says <code>https://</code>, so a framework that checks the <code>Origin</code> header sees the one the browser sends. With no certificate the proxy presents its own self-signed one; for a domain you own, name a wildcard certificate for <code>*.&lt;domain&gt;</code> and it covers every universe:</p>
-  <Terminal><pre><span class="k">spec</span>:
+  <Terminal kind="file"><pre><span class="k">spec</span>:
   <span class="k">domain</span>: dev.example.com
   <span class="k">proxy</span>:
     <span class="k">entrypoints</span>:
@@ -76,7 +76,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
 <section id="no-dns">
   <h2 id="no-dns"><a href="#no-dns">Without any DNS name</a></h2>
   <p>The default <code>lan</code> setting builds names under a public wildcard service, which puts your machine's address in a stranger's DNS logs and needs a resolver that answers it. <code>domain: none</code> opts out entirely:</p>
-  <Terminal><pre><span class="k">spec</span>:
+  <Terminal kind="file"><pre><span class="k">spec</span>:
   <span class="k">expose</span>: lan       <span class="c"># 0.0.0.0, so another device can reach it</span>
   <span class="k">domain</span>: none      <span class="c"># and no name anywhere</span></pre></Terminal>
   <p>Each host is published on a free port of its own on the machine's address (the <a href="/docs/concepts/labels/#host-forward">portForward</a> mechanism, applied to every host), and that <code>http://&lt;ip&gt;:&lt;port&gt;</code> is what <code>ls</code>, the web view, <code>&lt;HOST&gt;_URL</code> and <code>origins</code> show. The port is chosen once and kept for the life of the universe. With <code>expose: local</code> it is <code>127.0.0.1</code>. The cost is the one a name was hiding: a front-end built to call its API on a fixed port (an entrypoint with <code>alsoMatch</code>) cannot be given that port by every universe, so such an app needs the address from <code>&lt;HOST&gt;_URL</code> instead.</p>
@@ -84,7 +84,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
 
 <section id="expose">
   <h2 id="expose"><a href="#expose">Who can reach a universe</a></h2>
-  <Terminal><pre><span class="k">spec</span>:
+  <Terminal kind="file"><pre><span class="k">spec</span>:
   <span class="k">expose</span>: lan     <span class="c"># default</span>
   <span class="c"># expose: local</span></pre></Terminal>
   <p><code>lan</code> publishes the proxy's ports on every interface and derives a publicly resolvable domain, so a phone or a colleague on the same network opens a universe with nothing to install. <code>local</code> publishes on <code>127.0.0.1</code> only and derives <code>localhost</code>: nothing is looked up anywhere and nothing off the machine can connect.</p>
@@ -97,7 +97,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
 <section id="ports">
   <h2 id="ports"><a href="#ports">Why nothing publishes a port</a></h2>
   <p>Separate multiverse names, networks and volumes count for nothing while two universes map the same host port. So published ports are dropped — the <code>ports: !reset []</code> above — and a universe is reached through the proxy. A service that genuinely needs its port back asks for it, in the manifest's <code>publish:</code> list or with a label:</p>
-  <Terminal><pre><span class="k">services</span>:
+  <Terminal kind="file"><pre><span class="k">services</span>:
   <span class="k">db</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.publish</span>: <span class="s">"true"</span></pre></Terminal>
@@ -113,7 +113,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
 <section id="shared">
   <h2 id="shared"><a href="#shared">One proxy, several multiverses</a></h2>
   <p>The proxy belongs to the machine, so two multiverses wanting different entrypoints or a different <code>expose</code> compete for it: starting a universe in the second reconfigures it, and the first multiverse's universes stop answering until something is started there again. Starting says so:</p>
-  <Terminal><pre>! the shared proxy is being reconfigured: published on 127.0.0.1 instead of
+  <Terminal kind="output"><pre>! the shared proxy is being reconfigured: published on 127.0.0.1 instead of
   0.0.0.0, entrypoints web:80 instead of devapi:8001 web:80 — universes of any
   other multiverse on this machine stop answering until it is started from
   there again</pre></Terminal>

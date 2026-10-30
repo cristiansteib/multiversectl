@@ -278,9 +278,9 @@ import Terminal from '../components/Terminal.astro';
 <section id="ready">
   <h2 id="ready"><a href="#ready">Agent-ready out of the box</a></h2>
   <p>No server and no protocol: an agent runs the command line, and one flag makes every command machine-readable &mdash; including its own help, so it can find its way without being told.</p>
-  <Terminal><pre><span class="p">$ </span>multiversectl --help --json          <span class="c"># every command and flag, as a document</span>
-<span class="p">$ </span>multiversectl universe ls -o json    <span class="c"># the whole fleet, in few tokens</span>
-<span class="p">$ </span>multiversectl agents skill install   <span class="c"># the skill, written for Claude Code</span></pre></Terminal>
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl --help --json</span>          <span class="c"># every command and flag, as a document</span>
+<span class="p">$ </span><span class="in">multiversectl universe ls -o json</span>    <span class="c"># the whole fleet, in few tokens</span>
+<span class="p">$ </span><span class="in">multiversectl agents skill install</span>   <span class="c"># the skill, written for Claude Code</span></pre></Terminal>
   <Cards>
   <Card href="/docs/reference/cli/" icon="i-code">
     <Fragment slot="title">JSON on every command</Fragment>

@@ -45,7 +45,7 @@ components, so there is one definition of each instead of one per use.
 
 | Component | Replaces | Uses |
 |---|---|---|
-| `Terminal` | `<div class="code"><pre>…</pre></div>` | 101 |
+| `Terminal` | `<div class="code"><pre>…</pre></div>` | 101 (55 shell, 38 file, 8 output) |
 | `Figure` | `<figure class="fig wide">` + `<figcaption>` | 7 |
 | `Card` in `Cards` | `<a class="card">` with its `<strong>`/`<span>` | 15 in 3 |
 | `Shot` | `<figure class="shot">` with its `<picture>` | 3 |
@@ -82,24 +82,52 @@ the early, specific failure and the verifier is the backstop.
 
 ### What is deliberately not a component
 
-- **The Copy button.** `Terminal` does not render one. `src/scripts/copy.ts`
-  adds a button to every `.code` at runtime, so a reader with no JavaScript is
-  never shown a button that cannot work. The markup and the behaviour are
-  owned in those two places; keep them in step.
+- **The Copy button.** `Terminal` does not render one; it only says, through
+  `data-copy`, whether a block gets one and what it would copy.
+  `src/scripts/copy.ts` adds the button at runtime, so a reader with no
+  JavaScript is never shown a button that cannot work.
 - **The walkthrough's shell and scene** on `start/lifecycle`. The three `<pre>`
   elements there are written by a script, and the `<figure>` around the scene
   has page-specific CSS. One use, not a pattern.
 
-### The vocabulary inside a `Terminal`
+### What a `Terminal` holds, and what Copy gives
 
-Four classes, and nothing else in a code block is coloured:
+Every block says which of three things it is, because that decides how it is
+framed and what the Copy button puts on the clipboard:
 
-| Class | Means |
-|---|---|
-| `p` | the prompt. Unselectable, and the copy button strips it, so the clipboard gets the command without the `$ `. |
-| `c` | a comment. |
-| `k` | the thing to notice in the output. |
-| `s` | a quoted string. |
+| `kind` | Framed as | Copy gives |
+|---|---|---|
+| `shell` | a terminal window, with the three lights | **only what the user typed** — the `.in` spans, one command per line |
+| `file` | nothing; a YAML file is not a terminal | the whole thing, which is what you would paste into an editor |
+| `output` | nothing | **no button at all** — there is nothing here anyone would paste |
+
+So copying a shell example gives you the commands and nothing else: not the
+`$ ` the shell drew, not what the command printed, not the comments the page
+added. Paste it into a shell and it runs what the example ran.
+
+The window lights are an illustration of a window, not controls. They are
+inert, so they are `<i>` elements behind `aria-hidden` rather than buttons that
+would do nothing when pressed.
+
+The vocabulary inside, which is what makes the above possible:
+
+| Class | Is | Copied |
+|---|---|---|
+| `p` | the prompt — the shell drew it, so it is neither input nor output | never (also unselectable) |
+| `in` | what the user typed | **this is what Copy gives** |
+| `err` | a line the command sent to stderr | never |
+| `c` | a comment | never |
+| `k` | the thing to notice in the output | never |
+| `s` | a quoted string | never |
+
+Anything in a shell block carrying none of these is stdout, which is the common
+case and so needs no class.
+
+`Terminal.astro` owns the markup and the `data-copy` attribute; `src/scripts/copy.ts`
+owns the copying and reads that attribute. Keep the two in step.
+`verify-site.mjs` checks every block on every page: that it declares a kind,
+that a shell has marked input and a frame, that a file copies everything, and
+that an output-only block offers no button.
 
 ## URLs
 

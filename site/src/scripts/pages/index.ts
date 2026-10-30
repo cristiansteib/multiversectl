@@ -64,12 +64,11 @@ import gsap from 'gsap';
   gsap.to(fig.querySelectorAll('.ag-wire'),
     {attr: {'stroke-dashoffset': -15}, duration: 0.9, repeat: -1, ease: 'none'});
 
-  // Nothing runs while the figure is off screen.
-  if (window.IntersectionObserver) {
-    new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        tls.forEach(function (t) { if (e.isIntersecting) { t.play(); } else { t.pause(); } });
-      });
-    }, {threshold: 0.05}).observe(fig);
-  }
+  // The lanes run without stopping, on screen or off. They used to pause when
+  // the figure scrolled out of view, which saved a little work and meant a
+  // reader who scrolled back found the scene mid-stride at whatever point they
+  // had left it. Running throughout costs three short GSAP timelines over an
+  // SVG — no layout, no network — and the scene is always where it would have
+  // been. A reader who asks for less motion still gets none of it: that case
+  // returns above, before a timeline is ever built.
 })();

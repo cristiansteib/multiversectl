@@ -132,7 +132,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="data">
   <h2 id="data"><a href="#data">Data: whose is whose</a></h2>
   <p>Volumes are namespaced by compose project, so a database volume declared once in your compose file becomes a different volume in every universe, with no change to the file:</p>
-  <Terminal><pre><span class="p">$ </span>docker volume ls | grep acme
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">docker volume ls | grep acme</span>
 acme-u3-api_postgres_data          <span class="c"># universe 3's database</span>
 acme-u3-web_node_modules
 acme-fix-login-api_postgres_data   <span class="c"># a different database entirely</span>
@@ -145,7 +145,7 @@ acme-fix-login-web_node_modules</pre></Terminal>
 <section id="runtime">
   <h2 id="runtime"><a href="#runtime">What is actually running</a></h2>
   <p>One container per service per app per universe, plus one proxy for the machine. Nothing else: multiversectl has no daemon or agent of its own, and nothing of it is running between commands.</p>
-  <Terminal><pre><span class="p">$ </span>docker ps --format '&#123;&#123;.Names&#125;&#125;'
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">docker ps --format '&#123;&#123;.Names&#125;&#125;'</span>
 multiverse-proxy-traefik-1   <span class="c"># one for the machine</span>
 acme-u3-api-web-1            <span class="c"># universe 3, app api, service web</span>
 acme-u3-api-db-1

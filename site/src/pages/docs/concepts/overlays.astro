@@ -7,7 +7,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="order">
   <h2 id="order"><a href="#order">Merge order</a></h2>
   <p>An app is a list of compose files, merged left to right with the last word winning. multiversectl adds two of its own at the end:</p>
-  <Terminal><pre>1. docker-compose.yml          <span class="c"># the repository's own, unchanged</span>
+  <Terminal kind="output"><pre>1. docker-compose.yml          <span class="c"># the repository's own, unchanged</span>
 2. overlays/&lt;app&gt;.yml          <span class="c"># beside the manifest, if present</span>
 3. .multiverse-overlay-&lt;app&gt;.yml  <span class="c"># the manifest's inline overlay:</span>
 4. .multiverse-routes-&lt;app&gt;.yml   <span class="c"># generated: routing, ports, labels</span></pre></Terminal>
@@ -35,7 +35,7 @@ import Terminal from '../../../components/Terminal.astro';
     <li><code>overlays/&lt;app&gt;.yml</code> beside the manifest — or <code>&lt;manifest-name&gt;/&lt;app&gt;.yml</code>, for a directory of several manifests.</li>
   </ul>
   <p>So an app that follows the convention needs no <code>compose:</code> line, and a repository no <code>apps:</code> entry names gets an app of its own name on the same terms. When you do name files, a plain path is relative to the repository's checkout and one starting with <code>@</code> to the manifest's directory:</p>
-  <Terminal><pre><span class="k">apps</span>:
+  <Terminal kind="file"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
     <span class="k">compose</span>: [docker-compose.yml, docker-compose.dev.yml, <span class="s">"@acme/api.yml"</span>]</pre></Terminal>
@@ -44,7 +44,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="inline">
   <h2 id="inline"><a href="#inline">The inline overlay</a></h2>
   <p><code>overlay:</code> is a compose fragment written straight into the manifest, kept verbatim and merged third. It is compose syntax, so it can use any of the <a href="/docs/reference/variables/">variables a universe passes</a>:</p>
-  <Terminal><pre><span class="k">apps</span>:
+  <Terminal kind="file"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: web
     <span class="k">repo</span>: web
     <span class="k">profiles</span>: [dev]
@@ -55,7 +55,7 @@ import Terminal from '../../../components/Terminal.astro';
           <span class="c"># and this universe's hostname is not in its config.</span>
           <span class="k">command</span>: sh -c <span class="s">"npm start -- --allowed-hosts=$&#123;APP_HOST&#125;"</span></pre></Terminal>
   <p>It is also the whole service definition for a repository with no compose file of its own:</p>
-  <Terminal><pre><span class="k">apps</span>:
+  <Terminal kind="file"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: docs
     <span class="k">repo</span>: docs
     <span class="k">overlay</span>:
@@ -86,14 +86,14 @@ import Terminal from '../../../components/Terminal.astro';
   <tr><td data-l="Field"><code>services</code></td><td data-l="Meaning">The services to start. Omit it and every service defined for the active profiles starts, as <code>docker compose up</code> would. Name them only when a file holds services a universe should not run.</td></tr>
   <tr><td data-l="Field"><code>optional</code></td><td data-l="Meaning">Named groups started with <code>--with &lt;name&gt;</code>. The name is activated as a profile too, so a service can join a group by either route.</td></tr>
   </tbody></table></div>
-  <Terminal><pre><span class="k">apps</span>:
+  <Terminal kind="file"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
     <span class="k">services</span>: [web, db]
     <span class="k">optional</span>:
       - <span class="k">name</span>: workers
         <span class="k">services</span>: [worker, scheduler]</pre></Terminal>
-  <Terminal><pre><span class="p">$ </span>multiversectl universe up 3 api --with workers</pre></Terminal>
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl universe up 3 api --with workers</span></pre></Terminal>
   <p><code>ls -o wide</code> shows every service with its state, including the ones that are off and the flag that would start them.</p>
 </section>
 </Page>

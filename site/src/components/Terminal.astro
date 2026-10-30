@@ -1,33 +1,59 @@
 ---
-// A command example: a shell session, a config file, or a block of output.
+// A code block. What it holds decides how it is framed and what Copy gives
+// you, so every one of them says which of the three it is.
 //
-//   <Terminal><pre><span class="p">$ </span>multiversectl universe ls
+//   kind="shell"   a shell: commands, and whatever they printed. Framed as a
+//                  terminal window. Copy gives the commands and nothing else.
+//   kind="file"    the contents of a file. Framed with its name, when it has
+//                  one. Copy gives the whole thing, because the whole thing is
+//                  what you would paste.
+//   kind="output"  output alone, with no command above it. No frame and no
+//                  Copy button: there is nothing here anyone would paste.
+//
+//   <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl universe ls</span>
 //   <span class="k">universe 3</span>  ·  acme-u3  ·  6 running</pre></Terminal>
 //
-// The <pre> belongs to the page and not to this component, which looks
-// redundant and is not. Astro drops whitespace-only text nodes from a
-// component's children, so a newline sitting between two elements —
-// `</span>\n<span>`, which is most lines of most of these blocks — is gone
-// before the component ever runs, and every command ends up on one line. The
-// whitespace in a <pre> is the content; keeping the element in the page keeps
-// it somewhere the compiler preserves it, and keeps that fact visible to
-// whoever writes the next one.
+// The vocabulary inside, which is what makes the above possible:
 //
-// The body is written with the vocabulary the stylesheet defines. Nothing else
-// in a code block is coloured:
-//
-//   <span class="p">$ </span>   the prompt. Coloured, and never copied: the
-//                               stylesheet makes it unselectable and the copy
-//                               button strips it, so what lands on the
-//                               clipboard is the command without the prompt.
-//   <span class="c">…</span>    a comment, muted.
+//   <span class="p">$ </span>   the prompt. Not input and not output — the
+//                               shell drew it. Unselectable, never copied.
+//   <span class="in">…</span>   what the user typed. This is what Copy gives.
+//   <span class="err">…</span>  a line the command sent to stderr.
+//   <span class="c">…</span>    a comment.
 //   <span class="k">…</span>    the thing to notice in the output.
-//   <span class="s">…</span>    a quoted string, in a config file or a command.
+//   <span class="s">…</span>    a quoted string.
 //
-// The Copy button is deliberately not rendered here. src/scripts/copy.ts adds
-// one to every .code at runtime, so a reader with no JavaScript is never shown
-// a button that cannot do anything. Keep the two in step: this component owns
-// the markup, that script owns the behaviour.
+// Anything in a shell block that is none of these is stdout, which is the
+// common case and so carries no class at all.
+//
+// The <pre> belongs to the page, not to this component, which looks redundant
+// and is not: Astro drops whitespace-only text nodes from a component's
+// children, so a newline between two elements would be gone before this ran
+// and every command would end up on one line. The whitespace in a <pre> *is*
+// the content; inside an element the compiler keeps it.
+//
+// The Copy button is not rendered here. src/scripts/copy.ts adds one at
+// runtime to every .code that asks for it, so a reader with no JavaScript is
+// never shown a button that cannot work. This component decides *whether* a
+// block gets one and *what* it copies, through data-copy; that script does the
+// copying. Keep the two in step.
+interface Props {
+  kind: 'shell' | 'file' | 'output';
+}
+
+const { kind } = Astro.props;
+if (!['shell', 'file', 'output'].includes(kind))
+  throw new Error(`<Terminal kind="${kind}">: must be shell, file or output`);
+
+// What Copy puts on the clipboard, or nothing at all.
+const copy = kind === 'shell' ? 'input' : kind === 'file' ? 'all' : null;
 ---
 
-<div class="code"><slot /></div>
+<div class:list={['code', `code-${kind}`]} data-copy={copy}>
+  {kind === 'shell' && (
+    <div class="code-bar" aria-hidden="true">
+      <i class="wb wb-close"></i><i class="wb wb-min"></i><i class="wb wb-max"></i>
+    </div>
+  )}
+  <slot />
+</div>

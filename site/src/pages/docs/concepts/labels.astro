@@ -13,7 +13,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="host">
   <h2 id="host"><a href="#host">Addresses: <code>dev.multiversectl.host.*</code></a></h2>
   <p>The key names the host, the value is the container port:</p>
-  <Terminal><pre><span class="k">services</span>:
+  <Terminal kind="file"><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.host.app</span>: <span class="s">"4200"</span>              <span class="c"># app-u3.&lt;domain&gt; → 4200</span>
@@ -38,14 +38,14 @@ import Terminal from '../../../components/Terminal.astro';
   <p><code>doctor</code> asks each address of a running app over HTTP, and any answer below 500 proves the route and the service. A host that does not speak HTTP is checked the way it does: an <code>h2c</code> host is asked whether it accepts a TCP connection, and <code>dev.multiversectl.host.rpc.probe</code> (<code>probe</code> on a manifest host) says it outright: <code>http</code>, <code>tcp</code>, <code>grpc</code> or <code>none</code> to leave the host out. A connection that works is a success. The connection goes to the port the host is forwarded on (<code>portForward</code>); a host reached only through the proxy is asked over HTTP instead, where the proxy answers 502 to 504 when nothing is behind it, because the proxy itself accepts every connection. <code>grpc</code> is a TCP connection too: multiversectl carries no gRPC client, so the standard gRPC health check is not run, and the report says so.</p>
   <h3 id="host-none">With no labels at all</h3>
   <p>A service exposing exactly one port is reached at the app's own name, so the common case needs nothing. Anything ambiguous is an error naming the label to add, not a guess:</p>
-  <Terminal><pre>api: services "web" and "worker" both expose a port — label the one that
+  <Terminal kind="output"><pre>api: services "web" and "worker" both expose a port — label the one that
 should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></Terminal>
   <p>Hosts declared in the manifest's <code>hosts:</code> win over labels, and exist for repositories you cannot change.</p>
 </section>
 
 <section id="publish">
   <h2 id="publish"><a href="#publish">Ports: <code>dev.multiversectl.publish</code></a></h2>
-  <Terminal><pre><span class="k">services</span>:
+  <Terminal kind="file"><pre><span class="k">services</span>:
   <span class="k">db</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.publish</span>: <span class="s">"true"</span></pre></Terminal>
@@ -55,7 +55,7 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></Terminal>
 <section id="env">
   <h2 id="env"><a href="#env">Values: <code>dev.multiversectl.env.*</code></a></h2>
   <p>The key names an environment variable, the value names what to put in it:</p>
-  <Terminal><pre><span class="k">services</span>:
+  <Terminal kind="file"><pre><span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.env.DJANGO_ALLOWED_HOSTS</span>: hosts

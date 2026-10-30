@@ -8,7 +8,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="hw-server">
   <h2 id="hw-server"><a href="#hw-server">See the whole setup in a page</a></h2>
   <p>One command opens a page that shows every universe on the machine, what is running in it, and what its code has become. It is live: start a universe in a terminal and the page knows.</p>
-  <Terminal><pre><span class="p">$ </span>multiversectl server start --open
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl server start --open</span>
 ✓ serving http://127.0.0.1:7777/?t=… in the background (pid 4242); stop it with: multiversectl server stop</pre></Terminal>
   <Shot src="/assets/img/fleet-dark.png" light="/assets/img/fleet-light.png"
       alt="The fleet: three universes of a multiverse side by side, each with its branch, its apps and services, its addresses, and the pull requests open for its code."
@@ -61,7 +61,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="hw-elsewhere">
   <h2 id="hw-elsewhere"><a href="#hw-elsewhere">Open it on another machine</a></h2>
   <p>Start it with <code>--expose</code> and it listens on every interface, so a laptop on the same network can watch what the desktop is running. The link is 192 bits of base64, which nobody is going to read across a desk, so ask the running server for a code instead:</p>
-  <Terminal><pre><span class="p">$ </span>multiversectl server pair
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl server pair</span>
 ✓ code 418 902 — type it into the page on the other machine
   open http://192.168.1.23:7777/
 ℹ it opens one machine, once, and runs out in 5 minutes</pre></Terminal>
@@ -72,7 +72,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="hw-agents">
   <h2 id="hw-agents"><a href="#hw-agents">Let a coding agent work with it</a></h2>
   <p>An agent needs no server and no protocol: it runs the command line, and <code>-o json</code> gives it what it needs in few tokens. Each universe is its own folder and its own set of containers, so several agents can each work in one at the same time.</p>
-  <Terminal><pre><span class="p">$ </span>multiversectl universe ls -o json
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl universe ls -o json</span>
 &#123;"multiverse":&#123;"name":"acme","root":"/home/me/acme","manifest":"…/multiverse.yaml","universesDir":"…/universes","clones":&#123;"api":"…/api"&#125;&#125;,
  "universes":[&#123;"name":"3","state":"running","up":"3/3","dir":"…/universes/3",
    "checkout":&#123;"api":"…/universes/3/api"&#125;,"branch":&#123;"api":"u3"&#125;,"urls":&#123;"api/api":"https://api-3.example.test"&#125;,

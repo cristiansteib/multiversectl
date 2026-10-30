@@ -8,7 +8,7 @@ import Note from '../../../components/Note.astro';
 <section id="labels">
   <h2 id="all"><a href="#all">What a universe passes</a></h2>
   <p>A compose file describes how it is reached with labels, read with <code>docker compose config</code>. The key names the host, the value is the container port:</p>
-  <Terminal><pre><span class="k">services</span>:
+  <Terminal kind="file"><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.host.app</span>: "4200"              <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span>

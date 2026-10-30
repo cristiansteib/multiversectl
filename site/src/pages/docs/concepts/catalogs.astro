@@ -14,7 +14,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="kinds">
   <h2 id="kinds"><a href="#kinds">What a catalog lists</a></h2>
   <p>An entry is a multiverse or another catalog. They are two lists because the file has to say which is which: drawing the tree would otherwise mean cloning every entry to find out. Everything else treats them alike, so <code>catalog add</code> and <code>catalog rm</code> take either.</p>
-  <Terminal><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
+  <Terminal kind="file"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
 <span class="k">kind</span>: Catalog
 <span class="k">metadata</span>:
   <span class="k">name</span>: me
@@ -51,7 +51,7 @@ import Terminal from '../../../components/Terminal.astro';
     </tbody>
   </table></div>
   <p>A branch, tag or commit follows as <code>@ref</code>, and self-hosted servers keep their host: <code>gitlab:gitlab.example.test/acme/api</code>. The tree says what each node is, whether each multiverse is installed, how many are installed under each catalog, and the file inside a repository when two catalogs share one:</p>
-  <Terminal><pre><span class="p">$ </span>multiversectl catalog
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl catalog</span>
 index     <span class="c">root</span>       github:me/index                              1/2 installed
 ├─ personal  <span class="c">catalog</span>    github:me/index <span class="c">catalogs/personal.yaml</span>  0/1 installed
 │  └─ notes     <span class="c">multiverse</span> file:~/notes/multiverse.yaml           ○ not installed

@@ -7,7 +7,7 @@
 :root{color-scheme:light;
   --ground:#f5f7fa;--raised:#ffffff;--sunk:#0d1016;--line:#d6dce6;
   --text:#2a3240;--muted:#5b6678;--head:#121820;
-  --num:#8f5407;--on-num:#fff8ec;--addr:#0b5f90;--ok:#2f6f2a;--warn:#8f5407;
+  --num:#8f5407;--on-num:#fff8ec;--addr:#0b5f90;--ok:#2f6f2a;--warn:#8f5407;--bad:#a3301c;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --top:3.25rem;--bar:3.25rem;
@@ -15,7 +15,7 @@
 :root[data-theme=dark]{color-scheme:dark;
   --ground:#11141b;--raised:#181d27;--sunk:#0d1016;--line:#262d3b;
   --text:#c7d0e0;--muted:#7c8699;--head:#edf1f8;
-  --num:#f0b45f;--on-num:#1a1206;--addr:#7cc5f0;--ok:#86cf7a;--warn:#f0b45f;
+  --num:#f0b45f;--on-num:#1a1206;--addr:#7cc5f0;--ok:#86cf7a;--warn:#f0b45f;--bad:#f0877a;
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
@@ -231,9 +231,30 @@ em{font-style:italic}
 pre{margin:0;padding:16px;background:var(--raised);border:1px solid var(--line);border-radius:8px;overflow-x:auto;font-size:.8125rem;line-height:1.65;color:var(--text);tab-size:2}
 .code{position:relative;margin:0 0 16px}
 .code pre{padding-right:76px}
+
+/* A shell example is framed as what it is: a terminal window someone opened.
+   The three lights are an illustration of one, not controls — they are inert,
+   so they are <i> elements behind aria-hidden rather than buttons that would
+   do nothing when pressed. */
+.code-bar{display:flex;align-items:center;gap:7px;padding:8px 14px;
+  border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;
+  background:var(--ground);font:600 .75rem var(--mono);color:var(--muted)}
+.code-bar .wb{width:10px;height:10px;border-radius:50%;display:block;flex:none}
+.wb-close{background:#e5695b}
+.wb-min{background:#e0b152}
+.wb-max{background:#64b95f}
+/* The frame and the block are one object, so the seam between them is closed. */
+.code-bar + pre{border-radius:0 0 8px 8px}
+/* The button sits over the block, so a framed one has to clear the bar. */
+.code-bar ~ .copy,.code:has(.code-bar) .copy{top:calc(8px + 2.05rem)}
 .copy{position:absolute;top:8px;right:8px;border:1px solid var(--line);background:var(--ground);color:var(--muted);padding:3px 10px;border-radius:5px;font:600 .75rem var(--mono);cursor:pointer;min-height:28px}
 .copy:hover{border-color:var(--num);color:var(--num)}
 pre .c{color:var(--muted)}pre .k{color:var(--addr)}pre .p{color:var(--num);user-select:none}
+/* What the user typed, as against what the shell drew and what the command
+   printed. The copy button gives these and nothing else. */
+pre .in{color:var(--head);font-weight:600}
+/* stderr. Not input, not stdout — and never copied. */
+pre .err{color:var(--bad)}
 /* A quoted string in a command or a config file. The markup has always said
    .s and nothing ever coloured it, so strings read as body text. */
 pre .s{color:var(--ok)}
