@@ -27,7 +27,7 @@ npm run sync     # copy install.sh and the screenshots into public/ (build does 
 | `src/data/nav.ts` | **The menu and the page order.** Ported from `docsrc/nav.yaml`: same groups, same order, same titles, nav labels, summaries and `hero`/`notoc` flags. The sidenav, the top bar's section links, the breadcrumb and previous/next all derive from it. |
 | `src/layouts/Page.astro` | The chrome of an ordinary page: top bar, menu, breadcrumb, h1, lede, content, pager, contents column, footer. |
 | `src/layouts/Home.astro` | The hero variant: landing header, no menu, no breadcrumb, no contents column. |
-| `src/components/` | The pieces of the chrome: `BaseHead`, `TopBar`, `SideNav`, `Breadcrumbs`, `Toc`, `Pager`, `Hero`, `Footer`, `Scripts`. |
+| `src/components/` | **The chrome**: `BaseHead`, `TopBar`, `SideNav`, `Breadcrumbs`, `Toc`, `Pager`, `Hero`, `Footer`, `Scripts`. **The content**: `Terminal`, `Figure`, `Shot`, `Note`, `Cards`/`Card` — see below. |
 | `src/lib/headings.ts` | Reads a page's `<h2 id>`s for its contents column. |
 | `src/styles/site.css` | The design system, ported byte for byte from `docs/assets/site.css`. Every class name is unchanged. |
 | `src/scripts/` | `site.ts` and the modules it imports: the copy buttons, the install tabs, the sidenav drawer, the theme button, the comparison notes, the contents column's scroll-spy. One bundle, shared by both layouts. |
@@ -36,6 +36,69 @@ npm run sync     # copy install.sh and the screenshots into public/ (build does 
 | `public/` | Served at the site root. `brands/` is committed; `install.sh` and `assets/img/` are copied in by `npm run sync` and gitignored. |
 | `scripts/port-fragment.mjs` | Turns a `docsrc/` fragment into a page here. See below. |
 | `scripts/sync-public.mjs` | Copies `install.sh` and `docs/assets/img` into `public/`, so each has one source of truth. |
+
+## The content components
+
+A page's prose is ordinary markup, but the five patterns that repeat are
+components, so there is one definition of each instead of one per use.
+
+| Component | Replaces | Uses |
+|---|---|---|
+| `Terminal` | `<div class="code"><pre>…</pre></div>` | 101 |
+| `Figure` | `<figure class="fig wide">` + `<figcaption>` | 7 |
+| `Card` in `Cards` | `<a class="card">` with its `<strong>`/`<span>` | 15 in 3 |
+| `Shot` | `<figure class="shot">` with its `<picture>` | 3 |
+| `Note` | `<div class="note">` | 3 |
+
+```astro
+<Terminal>
+<span class="p">$ </span>multiversectl universe ls
+<span class="k">universe 3</span>  ·  acme-u3  ·  6 running
+</Terminal>
+
+<Figure id="ag">
+  <svg viewBox="0 0 720 520" role="img" aria-labelledby="pt pd">
+    <title id="pt">The claim this picture makes</title>
+    <desc id="pd">What someone who cannot see it needs told.</desc>
+    …
+  </svg>
+  <Fragment slot="caption">The same claim, visibly, with <a href="x.html">a link</a>.</Fragment>
+</Figure>
+```
+
+Two of them **fail the build** rather than let a page ship something broken,
+which is the point of having them at all:
+
+- **`Figure`** requires `role="img"` and a label on the SVG, a `<title>` when
+  the label is an `aria-labelledby`, and a non-empty caption. A diagram without
+  them is announced to a screen reader as nothing whatsoever — easy to leave
+  out, impossible to see you have.
+- **`Shot`** requires `width`, `height` and an `alt` that says what the picture
+  shows. Without the dimensions the page reflows when the image arrives.
+
+`verify-site.mjs` checks the same things on the built HTML, so the component is
+the early, specific failure and the verifier is the backstop.
+
+### What is deliberately not a component
+
+- **The Copy button.** `Terminal` does not render one. `src/scripts/copy.ts`
+  adds a button to every `.code` at runtime, so a reader with no JavaScript is
+  never shown a button that cannot work. The markup and the behaviour are
+  owned in those two places; keep them in step.
+- **The walkthrough's shell and scene** on `start/lifecycle`. The three `<pre>`
+  elements there are written by a script, and the `<figure>` around the scene
+  has page-specific CSS. One use, not a pattern.
+
+### The vocabulary inside a `Terminal`
+
+Four classes, and nothing else in a code block is coloured:
+
+| Class | Means |
+|---|---|
+| `p` | the prompt. Unselectable, and the copy button strips it, so the clipboard gets the command without the `$ `. |
+| `c` | a comment. |
+| `k` | the thing to notice in the output. |
+| `s` | a quoted string. |
 
 ## URLs: unchanged, and no redirects needed
 

@@ -1,5 +1,6 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Terminal from '../../components/Terminal.astro';
 ---
 
 <Page path="concepts/catalogs">
@@ -13,7 +14,7 @@ import Page from '../../layouts/Page.astro';
 <section id="kinds">
   <h2 id="kinds"><a href="#kinds">What a catalog lists</a></h2>
   <p>An entry is a multiverse or another catalog. They are two lists because the file has to say which is which: drawing the tree would otherwise mean cloning every entry to find out. Everything else treats them alike, so <code>catalog add</code> and <code>catalog rm</code> take either.</p>
-  <div class="code"><pre><span class="k">apiVersion</span>: multiverse/v1alpha1
+  <Terminal><span class="k">apiVersion</span>: multiverse/v1alpha1
 <span class="k">kind</span>: Catalog
 <span class="k">metadata</span>:
   <span class="k">name</span>: me
@@ -25,7 +26,7 @@ import Page from '../../layouts/Page.astro';
       <span class="k">source</span>: &#123;<span class="k">path</span>: catalogs/personal.yaml&#125;
   <span class="k">multiverses</span>:                     <span class="c"># a Multiverse, a leaf</span>
     - <span class="k">name</span>: notes
-      <span class="k">source</span>: &#123;<span class="k">repo</span>: git@example.test:me/notes-multiverse.git&#125;</pre></div>
+      <span class="k">source</span>: &#123;<span class="k">repo</span>: git@example.test:me/notes-multiverse.git&#125;</Terminal>
   <table>
     <thead><tr><th scope="col">Field</th><th scope="col">Meaning</th></tr></thead>
     <tbody>
@@ -50,12 +51,12 @@ import Page from '../../layouts/Page.astro';
     </tbody>
   </table></div>
   <p>A branch, tag or commit follows as <code>@ref</code>, and self-hosted servers keep their host: <code>gitlab:gitlab.example.test/acme/api</code>. The tree says what each node is, whether each multiverse is installed, how many are installed under each catalog, and the file inside a repository when two catalogs share one:</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl catalog
+  <Terminal><span class="p">$ </span>multiversectl catalog
 index     <span class="c">root</span>       github:me/index                              1/2 installed
 ├─ personal  <span class="c">catalog</span>    github:me/index <span class="c">catalogs/personal.yaml</span>  0/1 installed
 │  └─ notes     <span class="c">multiverse</span> file:~/notes/multiverse.yaml           ○ not installed
 └─ acme      <span class="c">catalog</span>    gitlab:acme/index                            1/1 installed
-   └─ billing  <span class="c">multiverse</span> gitlab:acme/billing                        ✓ installed as billing</pre></div>
+   └─ billing  <span class="c">multiverse</span> gitlab:acme/billing                        ✓ installed as billing</Terminal>
   <p>The web page draws the same, with each platform's mark and a badge for <em>root</em>, <em>catalog</em> or <em>multiverse</em>.</p>
 </section>
 

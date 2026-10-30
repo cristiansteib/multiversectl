@@ -1,13 +1,14 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Terminal from '../../components/Terminal.astro';
 ---
 
 <Page path="tasks/reach">
 <section id="hw-network">
   <h2 id="hw-network"><a href="#hw-network">Reach a universe from your phone</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe urls 3
+  <Terminal><span class="p">$ </span>multiversectl universe urls 3
 http://app-u3.192-168-1-20.traefik.me
-http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
+http://api-u3.192-168-1-20.traefik.me:8001</Terminal>
   <p>Open a printed URL on any device on the same network. With <code>expose: lan</code> (the default) and <code>domain: auto</code> the hostnames are <code>&lt;host&gt;-u3.&lt;dashed-lan-ip&gt;.traefik.me</code>, a public wildcard DNS name that resolves to this machine, so nothing is installed on the device. If a name does not resolve, see <a href="../reference/troubleshooting.html#ts-dns">Troubleshooting</a>.</p>
   <p>To keep a multiverse on your machine instead, set <code>expose: local</code>: the proxy then publishes on <code>127.0.0.1</code> only, so nothing off the box can connect, and <code>domain: auto</code> becomes <code>&lt;host&gt;-u3.localhost</code>, which browsers resolve themselves without asking any DNS server. Worth preferring unless another device has to open a universe — a dev stack's mail catcher, debug pages and seeded data are otherwise readable by anyone on the network.</p>
 </section>
@@ -15,19 +16,19 @@ http://api-u3.192-168-1-20.traefik.me:8001</pre></div>
 <section id="hw-domain">
   <h2 id="hw-domain"><a href="#hw-domain">Point a multiverse at a domain you own</a></h2>
   <p>Create a wildcard DNS record, <code>*.dev.example.test</code>, pointing at this machine, then replace <code>domain: auto</code>:</p>
-  <div class="code"><pre><span class="c"># multiverse.yaml</span>
+  <Terminal><span class="c"># multiverse.yaml</span>
 <span class="k">spec</span>:
-  <span class="k">domain</span>: dev.example.test   <span class="c"># app-u3.dev.example.test</span></pre></div>
+  <span class="k">domain</span>: dev.example.test   <span class="c"># app-u3.dev.example.test</span></Terminal>
   <p class="muted">The domain is stored in a universe when it is created: recreate existing universes (<code>rm</code>, <code>new</code>) to pick up a change.</p>
 </section>
 
 <section id="hw-db">
   <h2 id="hw-db"><a href="#hw-db">Reach a universe's database</a></h2>
   <p>No universe publishes a host port, so reach the database inside its own container. <code>exec</code> lands in the running one and streams straight to your terminal:</p>
-  <div class="code"><pre><span class="c"># a client in universe 3's api database</span>
+  <Terminal><span class="c"># a client in universe 3's api database</span>
 <span class="p">$ </span>multiversectl universe exec 3 api --service db -- psql -U postgres
 <span class="c"># a one-off container instead, when the app itself need not be up</span>
-<span class="p">$ </span>multiversectl universe run 3 api -- python manage.py migrate</pre></div>
+<span class="p">$ </span>multiversectl universe run 3 api -- python manage.py migrate</Terminal>
   <p class="muted">Each app is its own compose project, named <code>&lt;project&gt;-u&lt;universe&gt;-&lt;app&gt;</code>, so <code>docker compose -p acme-u3-api ps</code> works too.</p>
   <p class="muted">Need a host port anyway? See <a href="services.html#hw-publish">Keep a service's published port</a>.</p>
 </section>

@@ -1,0 +1,35 @@
+---
+// A screenshot, in whichever theme the reader is in. The dark image is the one
+// the <img> loads; src/scripts/theme.ts flips the media query on the
+// [data-light] <source> when the light theme is chosen, so only one of the two
+// is ever fetched.
+//
+// width, height and alt are required rather than optional: without the first
+// two the page reflows when the image arrives, and alt is what a reader who
+// cannot see it gets instead. verify-site.mjs fails the build for any of them.
+interface Props {
+  /** The dark-theme image, relative to the page. */
+  src: string;
+  /** The light-theme image. */
+  light: string;
+  /** What the screenshot shows, as a sentence — not what it is called. */
+  alt: string;
+  width: number;
+  height: number;
+}
+
+const { src, light, alt, width, height } = Astro.props;
+const caption = Astro.slots.has('caption') ? await Astro.slots.render('caption') : '';
+if (alt.trim().length < 20)
+  throw new Error(`<Shot src="${src}">: alt has to say what the picture shows`);
+if (!caption.trim())
+  throw new Error(`<Shot src="${src}">: needs a caption`);
+---
+
+<figure class="shot">
+  <picture>
+    <source data-light media="not all" srcset={light} />
+    <img src={src} alt={alt} width={width} height={height} loading="lazy" />
+  </picture>
+  <figcaption set:html={caption} />
+</figure>

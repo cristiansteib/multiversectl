@@ -1,5 +1,6 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Terminal from '../../components/Terminal.astro';
 ---
 
 <Page path="concepts/labels">
@@ -12,7 +13,7 @@ import Page from '../../layouts/Page.astro';
 <section id="host">
   <h2 id="host"><a href="#host">Addresses: <code>dev.multiversectl.host.*</code></a></h2>
   <p>The key names the host, the value is the container port:</p>
-  <div class="code"><pre><span class="k">services</span>:
+  <Terminal><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.host.app</span>: <span class="s">"4200"</span>              <span class="c"># app-u3.&lt;domain&gt; → 4200</span>
@@ -22,7 +23,7 @@ import Page from '../../layouts/Page.astro';
       <span class="k">dev.multiversectl.host.api.portForward</span>: auto    <span class="c"># also at &lt;ip&gt;:&lt;free port&gt;</span>
       <span class="k">dev.multiversectl.host.rpc.scheme</span>: h2c          <span class="c"># a gRPC service</span>
       <span class="k">dev.multiversectl.host.api.ready</span>: /healthz      <span class="c"># up waits until this answers</span>
-      <span class="k">dev.multiversectl.host.rpc.probe</span>: tcp          <span class="c"># doctor connects instead of asking over HTTP</span></pre></div>
+      <span class="k">dev.multiversectl.host.rpc.probe</span>: tcp          <span class="c"># doctor connects instead of asking over HTTP</span></Terminal>
   <h3 id="host-forward">By IP and port: <code>portForward</code></h3>
   <p>Some clients refuse plain http to a hostname: an iPhone app's transport security allows an IP address but not <code>api-u3.&lt;domain&gt;</code>. <code>dev.multiversectl.host.api.portForward: auto</code> also publishes that service on a free host port, so it answers at <code>http://&lt;this machine's address&gt;:&lt;port&gt;</code> next to its hostname. The kernel picks the port once, it is kept in the universe's state (so the address you gave a phone survives restarts) and no other universe is given it. It is bound like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>.</p>
   <p><code>aliases</code> is how one API answers under each front-end's own hostname on a second entrypoint, which makes a hard-coded <code>:8001</code> work in every universe.</p>
@@ -37,30 +38,30 @@ import Page from '../../layouts/Page.astro';
   <p><code>doctor</code> asks each address of a running app over HTTP, and any answer below 500 proves the route and the service. A host that does not speak HTTP is checked the way it does: an <code>h2c</code> host is asked whether it accepts a TCP connection, and <code>dev.multiversectl.host.rpc.probe</code> (<code>probe</code> on a manifest host) says it outright: <code>http</code>, <code>tcp</code>, <code>grpc</code> or <code>none</code> to leave the host out. A connection that works is a success. The connection goes to the port the host is forwarded on (<code>portForward</code>); a host reached only through the proxy is asked over HTTP instead, where the proxy answers 502 to 504 when nothing is behind it, because the proxy itself accepts every connection. <code>grpc</code> is a TCP connection too: multiversectl carries no gRPC client, so the standard gRPC health check is not run, and the report says so.</p>
   <h3 id="host-none">With no labels at all</h3>
   <p>A service exposing exactly one port is reached at the app's own name, so the common case needs nothing. Anything ambiguous is an error naming the label to add, not a guess:</p>
-  <div class="code"><pre>api: services "web" and "worker" both expose a port — label the one that
-should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></div>
+  <Terminal>api: services "web" and "worker" both expose a port — label the one that
+should answer: dev.multiversectl.host.api: "&lt;port&gt;"</Terminal>
   <p>Hosts declared in the manifest's <code>hosts:</code> win over labels, and exist for repositories you cannot change.</p>
 </section>
 
 <section id="publish">
   <h2 id="publish"><a href="#publish">Ports: <code>dev.multiversectl.publish</code></a></h2>
-  <div class="code"><pre><span class="k">services</span>:
+  <Terminal><span class="k">services</span>:
   <span class="k">db</span>:
     <span class="k">labels</span>:
-      <span class="k">dev.multiversectl.publish</span>: <span class="s">"true"</span></pre></div>
+      <span class="k">dev.multiversectl.publish</span>: <span class="s">"true"</span></Terminal>
   <p>Keeps this service's published host ports instead of dropping them. Only one universe can hold a host port at a time, so a service that asks for this is one only a single universe can run — usually worth it for a database you point a GUI at, rarely for anything else. The manifest's <code>publish:</code> list does the same from outside.</p>
 </section>
 
 <section id="env">
   <h2 id="env"><a href="#env">Values: <code>dev.multiversectl.env.*</code></a></h2>
   <p>The key names an environment variable, the value names what to put in it:</p>
-  <div class="code"><pre><span class="k">services</span>:
+  <Terminal><span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.env.DJANGO_ALLOWED_HOSTS</span>: hosts
       <span class="k">dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
       <span class="k">dev.multiversectl.env.DJANGO_CORS_ALLOWED_ORIGINS</span>: origins:space
-      <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></div>
+      <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</Terminal>
   <div class="tw"><table>
   <thead><tr><th scope="col">Source</th><th scope="col">Value</th></tr></thead><tbody>
   <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port, and the address by IP and port of every host that is forwarded (<code>portForward</code>), once its port is chosen. <code>hosts</code> stays hostnames only.</td></tr>

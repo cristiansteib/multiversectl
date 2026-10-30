@@ -1,15 +1,16 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Terminal from '../../components/Terminal.astro';
 ---
 
 <Page path="concepts/overlays">
 <section id="order">
   <h2 id="order"><a href="#order">Merge order</a></h2>
   <p>An app is a list of compose files, merged left to right with the last word winning. multiversectl adds two of its own at the end:</p>
-  <div class="code"><pre>1. docker-compose.yml          <span class="c"># the repository's own, unchanged</span>
+  <Terminal>1. docker-compose.yml          <span class="c"># the repository's own, unchanged</span>
 2. overlays/&lt;app&gt;.yml          <span class="c"># beside the manifest, if present</span>
 3. .multiverse-overlay-&lt;app&gt;.yml  <span class="c"># the manifest's inline overlay:</span>
-4. .multiverse-routes-&lt;app&gt;.yml   <span class="c"># generated: routing, ports, labels</span></pre></div>
+4. .multiverse-routes-&lt;app&gt;.yml   <span class="c"># generated: routing, ports, labels</span></Terminal>
   <p>Everything before the generated files is yours. Nothing rewrites your compose file, and removing multiversectl leaves a repository that still runs with plain <code>docker compose up</code>.</p>
   <p>Compose's merge rules decide the rest: mappings merge key by key, so a later <code>environment:</code> entry replaces just that variable, while sequences are replaced whole, so a later <code>command:</code> or <code>ports:</code> supersedes the earlier one entirely.</p>
 </section>
@@ -34,16 +35,16 @@ import Page from '../../layouts/Page.astro';
     <li><code>overlays/&lt;app&gt;.yml</code> beside the manifest — or <code>&lt;manifest-name&gt;/&lt;app&gt;.yml</code>, for a directory of several manifests.</li>
   </ul>
   <p>So an app that follows the convention needs no <code>compose:</code> line, and a repository no <code>apps:</code> entry names gets an app of its own name on the same terms. When you do name files, a plain path is relative to the repository's checkout and one starting with <code>@</code> to the manifest's directory:</p>
-  <div class="code"><pre><span class="k">apps</span>:
+  <Terminal><span class="k">apps</span>:
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
-    <span class="k">compose</span>: [docker-compose.yml, docker-compose.dev.yml, <span class="s">"@acme/api.yml"</span>]</pre></div>
+    <span class="k">compose</span>: [docker-compose.yml, docker-compose.dev.yml, <span class="s">"@acme/api.yml"</span>]</Terminal>
 </section>
 
 <section id="inline">
   <h2 id="inline"><a href="#inline">The inline overlay</a></h2>
   <p><code>overlay:</code> is a compose fragment written straight into the manifest, kept verbatim and merged third. It is compose syntax, so it can use any of the <a href="../reference/variables.html">variables a universe passes</a>:</p>
-  <div class="code"><pre><span class="k">apps</span>:
+  <Terminal><span class="k">apps</span>:
   - <span class="k">name</span>: web
     <span class="k">repo</span>: web
     <span class="k">profiles</span>: [dev]
@@ -52,9 +53,9 @@ import Page from '../../layouts/Page.astro';
         <span class="k">app-dev</span>:
           <span class="c"># The dev server rejects Host headers it does not know,</span>
           <span class="c"># and this universe's hostname is not in its config.</span>
-          <span class="k">command</span>: sh -c <span class="s">"npm start -- --allowed-hosts=$&#123;APP_HOST&#125;"</span></pre></div>
+          <span class="k">command</span>: sh -c <span class="s">"npm start -- --allowed-hosts=$&#123;APP_HOST&#125;"</span></Terminal>
   <p>It is also the whole service definition for a repository with no compose file of its own:</p>
-  <div class="code"><pre><span class="k">apps</span>:
+  <Terminal><span class="k">apps</span>:
   - <span class="k">name</span>: docs
     <span class="k">repo</span>: docs
     <span class="k">overlay</span>:
@@ -63,7 +64,7 @@ import Page from '../../layouts/Page.astro';
           <span class="k">image</span>: nginx:alpine
           <span class="k">volumes</span>: [<span class="s">"$&#123;DOCS_DIR&#125;:/usr/share/nginx/html:ro"</span>]
           <span class="k">labels</span>:
-            <span class="k">dev.multiversectl.host.docs</span>: <span class="s">"80"</span></pre></div>
+            <span class="k">dev.multiversectl.host.docs</span>: <span class="s">"80"</span></Terminal>
 </section>
 
 <section id="generated">
@@ -85,14 +86,14 @@ import Page from '../../layouts/Page.astro';
   <tr><td data-l="Field"><code>services</code></td><td data-l="Meaning">The services to start. Omit it and every service defined for the active profiles starts, as <code>docker compose up</code> would. Name them only when a file holds services a universe should not run.</td></tr>
   <tr><td data-l="Field"><code>optional</code></td><td data-l="Meaning">Named groups started with <code>--with &lt;name&gt;</code>. The name is activated as a profile too, so a service can join a group by either route.</td></tr>
   </tbody></table></div>
-  <div class="code"><pre><span class="k">apps</span>:
+  <Terminal><span class="k">apps</span>:
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
     <span class="k">services</span>: [web, db]
     <span class="k">optional</span>:
       - <span class="k">name</span>: workers
-        <span class="k">services</span>: [worker, scheduler]</pre></div>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe up 3 api --with workers</pre></div>
+        <span class="k">services</span>: [worker, scheduler]</Terminal>
+  <Terminal><span class="p">$ </span>multiversectl universe up 3 api --with workers</Terminal>
   <p><code>ls -o wide</code> shows every service with its state, including the ones that are off and the flag that would start them.</p>
 </section>
 </Page>

@@ -1,23 +1,24 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Terminal from '../../components/Terminal.astro';
 ---
 
 <Page path="tasks/catalog">
 <section id="hw-first">
   <h2 id="hw-first"><a href="#hw-first">Use a multiverse someone points you at</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl start acme/multiverse</pre></div>
+  <Terminal><span class="p">$ </span>multiversectl start acme/multiverse</Terminal>
   <p>That is the whole of it on a machine with nothing set up: it installs the multiverse, makes universe 1 and starts it. The source can be <code>owner/repo</code> (GitHub), any git URL, or a path. A repository holding a <code>catalog.yaml</code> is read as a catalog; otherwise it is read for the multiverses it defines (every <code>.yaml</code> or <code>.yml</code> file in it that says <code>kind: Multiverse</code>, whatever it is called and wherever it is), and <code>start</code> says which it took. When a repository defines several, name the one you want, <code>start billing acme/platform</code> or <code>acme/platform:billing</code>; without a name you are asked, and in a script the error lists the names.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl start billing acme/platform</pre></div>
+  <Terminal><span class="p">$ </span>multiversectl start billing acme/platform</Terminal>
 </section>
 
 <section id="hw-init">
   <h2 id="hw-init"><a href="#hw-init">Keep your own index</a></h2>
-  <div class="code"><pre><span class="c"># searches GitHub and GitLab for your root, or asks</span>
+  <Terminal><span class="c"># searches GitHub and GitLab for your root, or asks</span>
 <span class="p">$ </span>multiversectl init
 <span class="c"># or say where it goes</span>
 <span class="p">$ </span>multiversectl init --create multiverse-index
 <span class="p">$ </span>multiversectl init me/multiverse-index
-<span class="p">$ </span>multiversectl init --local ~/multiverse-index</pre></div>
+<span class="p">$ </span>multiversectl init --local ~/multiverse-index</Terminal>
   <p><code>--create</code> makes the repository through <code>gh</code>, <strong>private</strong> unless you add <code>--public</code>. Without <code>gh</code>, make it yourself and pass it. A repository that already holds a <code>catalog.yaml</code> is used as it is. Creating and pushing ask first; <code>--yes</code> accepts for scripts. A root that lives only here works, and <code>status</code> keeps saying nobody else can use it.</p>
   <p>On a fresh machine <code>init</code> looks for a repository tagged <code>multiversectl-catalog</code> on the services you are signed in to and offers those first. On a machine already set up it says what the root is and what is installed from it.</p>
   <p>Moving to another root is refused while multiverses from the current one are installed. <code>multiversectl system reset</code> forgets the root and the installed multiverses without deleting a file, checkout or universe; <code>system prune</code> first if you want those gone too.</p>
@@ -25,15 +26,15 @@ import Page from '../../layouts/Page.astro';
 
 <section id="hw-restore">
   <h2 id="hw-restore"><a href="#hw-restore">Start again on a new machine</a></h2>
-  <div class="code"><pre><span class="p">$ </span>gh auth login                      <span class="c"># or let init sign you in</span>
+  <Terminal><span class="p">$ </span>gh auth login                      <span class="c"># or let init sign you in</span>
 <span class="p">$ </span>multiversectl init                  <span class="c"># finds your root</span>
-<span class="p">$ </span>multiversectl start                 <span class="c"># pick what this machine needs</span></pre></div>
+<span class="p">$ </span>multiversectl start                 <span class="c"># pick what this machine needs</span></Terminal>
   <p>That restores what git holds: the multiverses, their manifests and every repository. It does not restore what git never had — the files a multiverse keeps out of it (<code>.env</code>, service-account keys, listed under <code>secrets</code> and copied from its clones), uncommitted work, unpushed branches and database volumes. Keep those somewhere of your own before wiping a machine.</p>
 </section>
 
 <section id="hw-add">
   <h2 id="hw-add"><a href="#hw-add">Put a multiverse in the right place</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl catalog add acme/billing
+  <Terminal><span class="p">$ </span>multiversectl catalog add acme/billing
 › acme/billing holds a multiverse manifest (billing)
 ┃ Where should it go?
 ┃   index (root)         writes to github:me/multiverse-index
@@ -42,47 +43,47 @@ import Page from '../../layouts/Page.astro';
 ┃ ❯    ├─ backend        writes to github:acme/index · another repository
 ┃      └─ frontend       writes to github:acme/index · another repository
 ┃      secret-team       no access or not found: github:acme/secret-index
-↑ up • ↓ down • / filter • enter submit</pre></div>
+↑ up • ↓ down • / filter • enter submit</Terminal>
   <p>Anything a command needs and was not given is asked for like this: <kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Space</kbd> to tick, <kbd>/</kbd> to filter, <kbd>Enter</kbd> to accept, <kbd>Esc</kbd> to stop. <code>universe up</code> offers your universes, <code>system forget</code> your multiverses, <code>universe new</code> the next free number. Without a terminal nothing is asked and the command says what it wanted.</p>
   <p>The default place is the deepest catalog in a repository with the same owner as the multiverse, otherwise the root. <code>--at &lt;path&gt;</code> names it (<code>/</code> is the root); with <code>--yes</code> and no <code>--at</code> the entry goes to the root, never into a repository nobody named. A <code>--at</code> that names no catalog lists the places instead.</p>
   <p>The source can be a repository, a local checkout (added by its <code>origin</code>, so other machines can fetch it), or a manifest file. A file has no repository, so it needs one — a copy in the catalog's own, or one of its own:</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl catalog add ./acme.yaml --new-repo acme-org/multiverse</pre></div>
+  <Terminal><span class="p">$ </span>multiversectl catalog add ./acme.yaml --new-repo acme-org/multiverse</Terminal>
   <p>Writes go to the file that owns the place you chose, are committed, and are pushed after one confirmation, taken before anything is written. A rejected push is reported and leaves your copy clean. <code>catalog new --type catalog</code> makes an empty catalog to group under.</p>
   <p><code>catalog rm &lt;path&gt;</code> removes an entry and touches nothing it pointed at, but it is a commit on a branch other people update from, so it says what will happen before it asks, and a bare Enter is <em>no</em>:</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl catalog rm acme/backend
+  <Terminal><span class="p">$ </span>multiversectl catalog rm acme/backend
 › remove acme/backend from the catalog
 ›   removes: the entry acme/backend (a catalog), and with it everything listed under it — 3 multiverses: acme/backend/billing, acme/backend/auth, acme/backend/mail
 ›   leaves alone: the catalog file and the repositories it points at; only the link to them goes
 ›   installed here from it, and staying installed: billing
 ›   it is committed and pushed straight to main of github:acme/index, not through a pull request, so everyone who updates their catalog sees it gone; `git revert` on that commit brings it back
-? remove acme/backend from the catalog: commit and push to github:acme/index (main)? (y/N)</pre></div>
+? remove acme/backend from the catalog: commit and push to github:acme/index (main)? (y/N)</Terminal>
   <p>Where nothing can bring it back — a catalog file that is not in a git repository — it says that instead of promising a revert. Without a terminal it stops after saying so, until <code>--yes</code>.</p>
 </section>
 
 <section id="hw-install">
   <h2 id="hw-install"><a href="#hw-install">Start what this machine needs</a></h2>
-  <div class="code"><pre><span class="c"># a multiverse, or everything under a catalog</span>
+  <Terminal><span class="c"># a multiverse, or everything under a catalog</span>
 <span class="p">$ </span>multiversectl start acme/backend/billing
 <span class="c"># no source: the one you are in, or pick from your catalog</span>
 <span class="p">$ </span>multiversectl start
-<span class="p">$ </span>multiversectl status</pre></div>
+<span class="p">$ </span>multiversectl status</Terminal>
   <p>A multiverse goes in <code>~/multiverse/&lt;name&gt;</code>, offered prefilled so Enter accepts it. <code>--root</code> (that folder), <code>--base</code> (the folder above it), <code>$MULTIVERSECTL_ROOT</code> or <code>--yes</code> settle it without asking, and a <code>--root</code> that already holds the checkouts reuses them. There is no "current" multiverse to switch: a command acts on the one named with <code>-m</code>, else the one whose folder you are in, else the only one installed, and says which when it cannot tell. Installing never writes to a catalog.</p>
 </section>
 
 <section id="hw-update">
   <h2 id="hw-update"><a href="#hw-update">Keep installed multiverses current</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl status --fetch
+  <Terminal><span class="p">$ </span>multiversectl status --fetch
 MULTIVERSE  FROM             STATE
 acme        acme/multiverse  manifest behind 1 · billing-api not cloned
 › next: multiversectl catalog update acme
 <span class="p">$ </span>multiversectl catalog update
 ✓ billing-api: cloned
-✓ acme: manifest moved forward 1 · billing-api cloned</pre></div>
+✓ acme: manifest moved forward 1 · billing-api cloned</Terminal>
   <p><code>status</code> compares each multiverse with where it came from, offline unless you pass <code>--fetch</code>. <code>catalog update</code> fetches, moves each manifest forward and clones what the new one lists; it refuses a manifest with local changes and leaves a pinned one alone. <code>system forget &lt;name&gt;</code> stops tracking a multiverse and leaves its files.</p>
   <h3 id="hw-news">Hearing about changes while you work</h3>
   <p>Nothing updates by itself; you are told. Every command under <code>universe</code> opens with a line when the manifest has moved upstream, as does <code>status</code>. To have that news be current, a command looks at the remote when the last look is over six hours old, for at most four seconds, silently if it fails. <code>MULTIVERSECTL_NO_FETCH=1</code> turns it off.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe ls
-! acme: 2 upstream changes to its manifest: multiversectl catalog update acme</pre></div>
+  <Terminal><span class="p">$ </span>multiversectl universe ls
+! acme: 2 upstream changes to its manifest: multiversectl catalog update acme</Terminal>
   <h3 id="hw-edit">Editing the manifest here</h3>
   <p>A manifest installed from a repository is a checkout under <code>&lt;root&gt;/.multiverse/source</code>. Edit it there and keep working: <code>catalog update</code> never overwrites an edit, and <code>status</code> says what it found.</p>
   <ul class="t">
@@ -95,8 +96,8 @@ acme        acme/multiverse  manifest behind 1 · billing-api not cloned
 
 <section id="hw-share">
   <h2 id="hw-share"><a href="#hw-share">Make a multiverse others can join</a></h2>
-  <div class="code"><pre><span class="c"># in an empty directory, or a checkout of the repository you made for it</span>
-<span class="p">$ </span>multiversectl catalog new</pre></div>
+  <Terminal><span class="c"># in an empty directory, or a checkout of the repository you made for it</span>
+<span class="p">$ </span>multiversectl catalog new</Terminal>
   <p>It first asks what to make: a <strong>multiverse</strong>, or a <strong>catalog</strong> to group them (<code>--type</code> skips the question). For a multiverse the guide asks in turn and shows the plan before creating or pushing anything:</p>
   <ul class="t">
     <li><strong>Its repositories.</strong> The checkouts already beside the directory (each <code>origin</code> becomes its URL), a search through your repositories on GitHub or GitLab, or URLs you paste. Mix them as you like.</li>
@@ -105,9 +106,9 @@ acme        acme/multiverse  manifest behind 1 · billing-api not cloned
     <li><strong>Where to list it</strong> in your root catalog, and whether to <strong>start it</strong> here so the next command can be <code>universe new 1</code>.</li>
   </ul>
   <p>It writes <code>multiverse.yaml</code> and a short <code>AGENTS.md</code>, commits and pushes. That <code>AGENTS.md</code> tells a person or a coding agent what the repository is and how to run universes of it; one already there is left alone. A repository with a <code>docker-compose.yml</code> becomes an app of the same name; one without is only checked out.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl catalog new ~/acme/multiverse --scan --create acme-org/multiverse --yes
+  <Terminal><span class="p">$ </span>multiversectl catalog new ~/acme/multiverse --scan --create acme-org/multiverse --yes
 <span class="p">$ </span>multiversectl catalog new --name acme --repo acme-org/api --repo https://gitlab.com/acme/web.git --local
-<span class="p">$ </span>multiversectl catalog new backend --type catalog --same-repo --at /</pre></div>
+<span class="p">$ </span>multiversectl catalog new backend --type catalog --same-repo --at /</Terminal>
   <p>The repository it makes holds only the definition. Nothing needs to list it for others to use it: anyone can run <code>multiversectl start acme-org/multiverse</code>, and a catalog entry is only a shortcut to it. Leave machine-specific lines such as an absolute <code>spec.root</code> out of a manifest you share: <code>start</code> picks where it goes.</p>
 </section>
 </Page>

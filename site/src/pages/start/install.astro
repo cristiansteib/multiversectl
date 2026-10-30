@@ -1,5 +1,6 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Terminal from '../../components/Terminal.astro';
 ---
 
 <Page path="start/install">
@@ -11,25 +12,25 @@ import Page from '../../layouts/Page.astro';
     <button role="tab" id="t-mise" aria-selected="false" aria-controls="p-mise" tabindex="-1" type="button">mise</button>
     <button role="tab" id="t-deb" aria-selected="false" aria-controls="p-deb" tabindex="-1" type="button">.deb</button>
   </div>
-  <div role="tabpanel" id="p-curl" aria-labelledby="t-curl" tabindex="0"><div class="code"><pre><span class="p">$ </span>curl -fsSL https://multiversectl.dev/install.sh | sh
-<span class="c"># linux/darwin, amd64/arm64; set MULTIVERSECTL_VERSION to pin a release</span></pre></div></div>
-  <div role="tabpanel" id="p-brew" aria-labelledby="t-brew" tabindex="0" hidden><div class="code"><pre><span class="p">$ </span>brew install cristiansteib/tap/multiversectl</pre></div><p class="muted">Or <code>brew tap cristiansteib/tap</code> once, then <code>brew install multiversectl</code>.</p></div>
-  <div role="tabpanel" id="p-mise" aria-labelledby="t-mise" tabindex="0" hidden><div class="code"><pre><span class="p">$ </span>mise use -g ubi:cristiansteib/multiversectl</pre></div></div>
-  <div role="tabpanel" id="p-deb" aria-labelledby="t-deb" tabindex="0" hidden><p class="muted">Download the <code>.deb</code> from the <a href="https://github.com/cristiansteib/multiversectl/releases">releases page</a>, then:</p><div class="code"><pre><span class="p">$ </span>sudo dpkg -i multiversectl_*.deb</pre></div></div>
+  <div role="tabpanel" id="p-curl" aria-labelledby="t-curl" tabindex="0"><Terminal><span class="p">$ </span>curl -fsSL https://multiversectl.dev/install.sh | sh
+<span class="c"># linux/darwin, amd64/arm64; set MULTIVERSECTL_VERSION to pin a release</span></Terminal></div>
+  <div role="tabpanel" id="p-brew" aria-labelledby="t-brew" tabindex="0" hidden><Terminal><span class="p">$ </span>brew install cristiansteib/tap/multiversectl</Terminal><p class="muted">Or <code>brew tap cristiansteib/tap</code> once, then <code>brew install multiversectl</code>.</p></div>
+  <div role="tabpanel" id="p-mise" aria-labelledby="t-mise" tabindex="0" hidden><Terminal><span class="p">$ </span>mise use -g ubi:cristiansteib/multiversectl</Terminal></div>
+  <div role="tabpanel" id="p-deb" aria-labelledby="t-deb" tabindex="0" hidden><p class="muted">Download the <code>.deb</code> from the <a href="https://github.com/cristiansteib/multiversectl/releases">releases page</a>, then:</p><Terminal><span class="p">$ </span>sudo dpkg -i multiversectl_*.deb</Terminal></div>
   <p>The script, Homebrew and the <code>.deb</code> also install the alias <code>mvctl</code> and the <a href="../tasks/server.html">web view</a>, <code>multiversectl-server</code>, beside the command. <code>mise</code> installs the command line only, so <code>multiversectl server</code> then needs the other program on the <code>PATH</code>. <code>multiversectl self-update</code> replaces both with the latest release.</p>
 </section>
 
 <section id="build">
   <h2 id="build"><a href="#build">From source</a></h2>
   <p>Go 1.27 or newer:</p>
-  <div class="code"><pre><span class="p">$ </span>git clone https://github.com/cristiansteib/multiversectl
-<span class="p">$ </span>cd multiversectl &amp;&amp; make install   <span class="c"># builds into ~/.local/bin</span></pre></div>
+  <Terminal><span class="p">$ </span>git clone https://github.com/cristiansteib/multiversectl
+<span class="p">$ </span>cd multiversectl &amp;&amp; make install   <span class="c"># builds into ~/.local/bin</span></Terminal>
   <p><code>make install</code> honours <code>PREFIX</code>, so <code>make install PREFIX=/usr/local/bin</code> puts it on the system path instead.</p>
 </section>
 
 <section id="remove">
   <h2 id="remove"><a href="#remove">Remove it, completely</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl system footprint</pre></div>
+  <Terminal><span class="p">$ </span>multiversectl system footprint</Terminal>
   <p>It lists everything multiversectl has put on the machine — the server and proxy if running, every universe with its containers, volumes and worktrees, the clones, branches left behind, the configuration, caches, completions and the programs — and removes none of it. Each item has its size and its removal command, and anything that would lose work existing nowhere else is marked. The commands come last, in a safe order; <code>--script</code> prints only those.</p>
   <p>Run it before <code>system reset</code>: once a multiverse is forgotten the tool no longer knows its folder. The root catalog's repository is not touched.</p>
 </section>
@@ -38,16 +39,16 @@ import Page from '../../layouts/Page.astro';
   <h2 id="verify"><a href="#verify">Checking what you downloaded</a></h2>
   <p>Every release publishes <code>checksums.txt</code>, and <code>self-update</code> verifies each file against it before replacing anything: a download that does not match is not installed, and a release without the list is not installed from either.</p>
   <p>The list itself is signed, with a short-lived certificate tied to the workflow that built the release rather than to a key anyone could take, so you can check it yourself:</p>
-  <div class="code"><pre><span class="p">$ </span>cosign verify-blob checksums.txt \
+  <Terminal><span class="p">$ </span>cosign verify-blob checksums.txt \
     --signature checksums.txt.sig --certificate checksums.txt.pem \
     --certificate-identity-regexp <span class="s">'^https://github.com/cristiansteib/multiversectl/'</span> \
     --certificate-oidc-issuer https://token.actions.githubusercontent.com
-<span class="p">$ </span>sha256sum -c checksums.txt --ignore-missing</pre></div>
+<span class="p">$ </span>sha256sum -c checksums.txt --ignore-missing</Terminal>
 </section>
 
 <section id="completion">
   <h2 id="completion"><a href="#completion">Shell completions</a></h2>
-  <div class="code"><pre><span class="p">$ </span>multiversectl completion</pre></div>
+  <Terminal><span class="p">$ </span>multiversectl completion</Terminal>
   <p>It finds your shell from <code>$SHELL</code>, says which files it will write, and asks. <code>--yes</code> answers for you, which is what a setup script wants. Everything goes under your home directory; nothing needs root.</p>
   <ul class="t">
     <li><strong>bash</strong>: <code>~/.local/share/bash-completion/completions/multiversectl</code>, loaded on demand by the bash-completion package.</li>

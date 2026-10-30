@@ -1,12 +1,14 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Figure from '../../components/Figure.astro';
+import Terminal from '../../components/Terminal.astro';
 ---
 
 <Page path="start/machine">
 <section id="layers">
   <h2 id="layers"><a href="#layers">Three kinds of thing</a></h2>
   <p>Everything multiversectl touches is one of three things: something the machine keeps and every universe shares, something one universe owns, or something written again from scratch on every start. Tell them apart and the rest of the tool follows.</p>
-  <figure class="fig wide">
+  <Figure>
     <svg viewBox="0 0 720 636" role="img" aria-labelledby="lt ld">
       <title id="lt">Three bands: what the machine keeps, what a universe owns, what is rewritten on every start</title>
       <desc id="ld">A top band holds the things there is one of per machine: the docker daemon, the image cache, the one proxy, the clones with their git objects, and the configuration directory. A middle band holds what each universe owns: worktrees, containers, app networks, volumes, its state file and its hostnames. A bottom band, drawn dashed, holds what is rewritten on every start: the routes fragment, the overlay fragment and the proxy labels.</desc>
@@ -52,8 +54,8 @@ import Page from '../../layouts/Page.astro';
       <text class="d-t" x="590" y="581" text-anchor="middle">proxy labels</text>
     </svg>
     <p class="legend"><span><span class="sw sw-addr" aria-hidden="true"></span> the machine's, shared</span><span><span class="sw sw-num" aria-hidden="true"></span> one universe's own</span><span><span class="sw sw-off" aria-hidden="true"></span> generated, transient</span></p>
-    <figcaption>A universe is cheap because the expensive things are in the top band. What collides when you run a stack twice is in the middle one.</figcaption>
-  </figure>
+  <Fragment slot="caption">A universe is cheap because the expensive things are in the top band. What collides when you run a stack twice is in the middle one.</Fragment>
+</Figure>
 </section>
 
 <section id="lasts">
@@ -78,7 +80,7 @@ import Page from '../../layouts/Page.astro';
 <section id="net">
   <h2 id="net"><a href="#net">Networking, in one picture</a></h2>
   <p>No universe publishes a host port — two copies of one stack cannot both have port 8000, and the first collision would make all the other namespacing pointless. Instead one proxy holds one set of ports for the whole machine and tells the universes apart by the hostname in the request.</p>
-  <figure class="fig wide">
+  <Figure>
     <svg viewBox="0 0 720 628" role="img" aria-labelledby="nt nd">
       <title id="nt">The path of a request from a browser through the shared proxy into one app's own network</title>
       <desc id="nd">A browser sends api-u3.example.test to the one shared proxy. The proxy is connected to the private network of each app: universe 3's api app on acme-u3-api_default, holding the services web and db, and universe 4's api app on acme-u4-api_default, holding its own web and db. The request lands in universe 3. No network is shared between the two, so each db is its own.</desc>
@@ -121,8 +123,8 @@ import Page from '../../layouts/Page.astro';
       <text class="d-m" x="360" y="574" text-anchor="middle">nothing is shared between them:</text>
       <text class="d-m" x="360" y="602" text-anchor="middle">universe 3's db is not universe 4's</text>
     </svg>
-    <figcaption>One set of ports for the machine, a private network per app, and a hostname that says which universe a request is for.</figcaption>
-  </figure>
+  <Fragment slot="caption">One set of ports for the machine, a private network per app, and a hostname that says which universe a request is for.</Fragment>
+</Figure>
   <p>Inside one app, services reach each other by their compose service name — <code>db</code>, <code>redis</code>, <code>mailpit</code> — exactly as they would without multiversectl, because that network belongs to that app of that universe alone. That is why the names do not clash: universe 4's <code>db</code> is on a different network, and neither app can see it.</p>
   <p>Between apps of one universe, call them by their hostnames through the proxy. The whole story — entrypoints, domains, who can reach a universe, and serving https — is in <a href="../concepts/networking.html">Networking</a>.</p>
 </section>
@@ -130,11 +132,11 @@ import Page from '../../layouts/Page.astro';
 <section id="data">
   <h2 id="data"><a href="#data">Data: whose is whose</a></h2>
   <p>Volumes are namespaced by compose project, so a database volume declared once in your compose file becomes a different volume in every universe, with no change to the file:</p>
-  <div class="code"><pre><span class="p">$ </span>docker volume ls | grep acme
+  <Terminal><span class="p">$ </span>docker volume ls | grep acme
 acme-u3-api_postgres_data          <span class="c"># universe 3's database</span>
 acme-u3-web_node_modules
 acme-fix-login-api_postgres_data   <span class="c"># a different database entirely</span>
-acme-fix-login-web_node_modules</pre></div>
+acme-fix-login-web_node_modules</Terminal>
   <p>That is the main reason to run a second universe: a destructive migration on a review branch cannot reach what you were working on this morning. Images are the deliberate exception — they are expensive and usually identical, so universes share them and the layer cache.</p>
   <p>Your code works the same way: one clone per repository holds the history, and each universe gets a <code>git worktree</code> of it on its own branch. A large history is stored once however many universes exist, and one <code>fetch</code> updates every universe's view of the remote.</p>
   <p><a href="../concepts/storage.html">Storage and data</a> covers secrets, the generated files and exactly what <code>rm</code> destroys.</p>
@@ -143,14 +145,14 @@ acme-fix-login-web_node_modules</pre></div>
 <section id="runtime">
   <h2 id="runtime"><a href="#runtime">What is actually running</a></h2>
   <p>One container per service per app per universe, plus one proxy for the machine. Nothing else: multiversectl has no daemon or agent of its own, and nothing of it is running between commands.</p>
-  <div class="code"><pre><span class="p">$ </span>docker ps --format '&#123;&#123;.Names&#125;&#125;'
+  <Terminal><span class="p">$ </span>docker ps --format '&#123;&#123;.Names&#125;&#125;'
 multiverse-proxy-traefik-1   <span class="c"># one for the machine</span>
 acme-u3-api-web-1            <span class="c"># universe 3, app api, service web</span>
 acme-u3-api-db-1
 acme-u3-web-app-dev-1
 acme-u4-api-web-1            <span class="c"># universe 4, the same services again</span>
 acme-u4-api-db-1
-acme-u4-web-app-dev-1</pre></div>
+acme-u4-web-app-dev-1</Terminal>
   <p>The name is the whole hierarchy: multiverse, universe, app, service. It is what keeps two repositories that both call a service <code>app</code> from meeting, and it is how every command finds what belongs to what.</p>
   <p>The cost of a universe is therefore the cost of its containers' memory. That is the real limit on how many you run at once, and it is why <code>down</code> exists: a universe that is down costs disk, not memory, and comes back where it left off.</p>
 </section>

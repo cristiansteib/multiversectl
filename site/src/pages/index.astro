@@ -1,5 +1,9 @@
 ---
 import Home from '../layouts/Home.astro';
+import Figure from '../components/Figure.astro';
+import Cards from '../components/Cards.astro';
+import Card from '../components/Card.astro';
+import Terminal from '../components/Terminal.astro';
 ---
 
 <Home path="index">
@@ -27,7 +31,7 @@ import Home from '../layouts/Home.astro';
 <section id="parallel">
   <h2 id="parallel"><a href="#parallel">Run your system several times at once</a></h2>
   <p>A <strong>universe</strong> is one running copy of your whole system: a git worktree of every repository, containers of its own, volumes of its own, hostnames of its own. Have as many as you like.</p>
-  <figure class="fig wide">
+  <Figure>
     <svg viewBox="0 0 720 520" role="img" aria-labelledby="pt pd">
       <title id="pt">One checkout runs one branch at a time; multiversectl runs three universes side by side</title>
       <desc id="pd">The usual way, drawn greyed out: one checkout per repository, on branch feat/login, with one stack running, while every other branch — main, fix/cart, spike/redis — waits its turn. With multiversectl, three universes side by side, each in colour: universe 1 on feat/login, universe 2 on fix/cart, universe 3 on main. Each holds the same two apps, api and web, and answers on its own two hostnames: api-u1 and app-u1, api-u2 and app-u2, api-u3 and app-u3.</desc>
@@ -94,8 +98,8 @@ import Home from '../layouts/Home.astro';
         <text class="d-ad" x="532" y="484">app-u3</text>
       </g>
     </svg>
-    <figcaption>Three branches up at the same time, on the daemon and the image cache you already have.</figcaption>
-  </figure>
+  <Fragment slot="caption">Three branches up at the same time, on the daemon and the image cache you already have.</Fragment>
+</Figure>
 </section>
 
 <style is:global>
@@ -129,7 +133,7 @@ import Home from '../layouts/Home.astro';
 <section id="agents">
   <h2 id="agents"><a href="#agents">One universe per agent, on one machine</a></h2>
   <p>Give each coding agent a universe of its own and they work different branches, and different pull requests, at the same time &mdash; on the machine you already have. No second machine, no virtual machine, no cloud environment each: one Docker daemon, one image cache, one pool of CPU and memory, shared between them. It does not run the agents &mdash; it gives each one somewhere to run.</p>
-  <figure class="fig wide" id="ag">
+  <Figure id="ag">
     <svg viewBox="0 0 720 500" role="img" aria-labelledby="gt gd">
       <title id="gt">Three coding agents on one machine, each committing to its own branch and checking its own running copy</title>
       <desc id="gd">One box labelled "your machine" holds three lanes side by side, one per agent: Claude on universe 1, branch feat/login; Codex on universe 2, branch fix/cart; OpenCode on universe 3, branch spike/redis. Each lane repeats the same cycle, staggered so all three are at a different point of it at once: the agent thinks, a commit travels down the wire into its universe, that universe's api, database and web services come up, its hostname answers, and 200 OK travels back up to the agent. Dashed walls stand between the lanes, because they share no network, no data and no ports. Along the bottom of the machine, a bar names what all three do share: one Docker daemon, one image cache, and the machine's CPU and memory.</desc>
@@ -265,8 +269,8 @@ import Home from '../layouts/Home.astro';
       <svg class="ico" x="470" y="448" width="24" height="24" viewBox="0 0 16 16"><use href="#i-chip"/></svg>
       <text class="d-m" x="502" y="466">one CPU and RAM</text>
     </svg>
-    <figcaption>All three at once, each on its own containers, its own data and its own hostnames &mdash; and none of them waiting for a port.</figcaption>
-  </figure>
+  <Fragment slot="caption">All three at once, each on its own containers, its own data and its own hostnames &mdash; and none of them waiting for a port.</Fragment>
+</Figure>
 
 
 </section>
@@ -274,29 +278,30 @@ import Home from '../layouts/Home.astro';
 <section id="ready">
   <h2 id="ready"><a href="#ready">Agent-ready out of the box</a></h2>
   <p>No server and no protocol: an agent runs the command line, and one flag makes every command machine-readable &mdash; including its own help, so it can find its way without being told.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl --help --json          <span class="c"># every command and flag, as a document</span>
+  <Terminal><span class="p">$ </span>multiversectl --help --json          <span class="c"># every command and flag, as a document</span>
 <span class="p">$ </span>multiversectl universe ls -o json    <span class="c"># the whole fleet, in few tokens</span>
-<span class="p">$ </span>multiversectl agents skill install   <span class="c"># the skill, written for Claude Code</span></pre></div>
-  <div class="cards">
-    <a class="card" href="reference/cli.html">
-      <strong><svg class="ico ci" aria-hidden="true" viewBox="0 0 16 16"><use href="#i-code"/></svg>JSON on every command</strong>
-      <span><code>--json</code> anywhere, <code>--less</code> for only what an agent must have.</span>
-    </a>
-    <a class="card" href="tasks/server.html#hw-agents">
-      <strong><svg class="ico ci" aria-hidden="true" viewBox="0 0 16 16"><use href="#i-bot"/></svg>A skill, installed for you</strong>
-      <span>How to work in a universe of its own, and what never to do without asking.</span>
-    </a>
-    <a class="card" href="tasks/catalog.html">
-      <strong><svg class="ico ci" aria-hidden="true" viewBox="0 0 16 16"><use href="#i-doc"/></svg>An <code>AGENTS.md</code> of its own</strong>
-      <span>Written into your multiverse's repository, saying what it is and how to run it.</span>
-    </a>
-  </div>
+<span class="p">$ </span>multiversectl agents skill install   <span class="c"># the skill, written for Claude Code</span></Terminal>
+  <Cards>
+  <Card href="reference/cli.html" icon="i-code">
+    <Fragment slot="title">JSON on every command</Fragment>
+    <code>--json</code> anywhere, <code>--less</code> for only what an agent must have.
+  </Card>
+  <Card href="tasks/server.html#hw-agents" icon="i-bot">
+    <Fragment slot="title">A skill, installed for you</Fragment>
+    How to work in a universe of its own, and what never to do without asking.
+  </Card>
+  <Card href="tasks/catalog.html" icon="i-doc">
+    <Fragment slot="title">An <code>AGENTS.md</code> of its own</Fragment>
+    Written into your multiverse's repository, saying what it is and how to run it.
+  </Card>
+  
+</Cards>
 </section>
 
 <section id="see">
   <h2 id="see"><a href="#see">And one page that shows them all</a></h2>
   <p>Work spread across several universes is work you cannot see. The web view lists every one of them live, with buttons for the same operations the CLI has.</p>
-  <figure class="fig wide">
+  <Figure>
     <svg viewBox="0 0 720 440" role="img" aria-labelledby="st sd">
       <title id="st">The web view: one row per universe, with its branch, addresses, pull request and buttons</title>
       <desc id="sd">A browser window titled "multiversectl — acme" holding three rows, one per universe. Universe 1 is up, on feat/login, answering on api-u1 and app-u1, with pull request 212 and five containers up; buttons to open it and to take it down. Universe 2 is up, on fix/cart, on api-u2 and app-u2, pull request 214, five up. Universe 3 is greyed out and stopped, on main, with no pull request and nothing up; buttons to bring it up and to remove it.</desc>
@@ -366,30 +371,31 @@ import Home from '../layouts/Home.astro';
         <text class="d-m" x="643" y="354" text-anchor="middle">rm</text>
       </g>
     </svg>
-    <figcaption>From a browser or a phone. <a href="tasks/server.html">Explore and run it in a browser</a> has the rest.</figcaption>
-  </figure>
+  <Fragment slot="caption">From a browser or a phone. <a href="tasks/server.html">Explore and run it in a browser</a> has the rest.</Fragment>
+</Figure>
 </section>
 
 <section id="next">
   <h2 id="next"><a href="#next">Where to start</a></h2>
-  <div class="cards">
-    <a class="card" href="start/install.html">
-      <strong>Install</strong>
-      <span>One binary for Linux and macOS.</span>
-    </a>
-    <a class="card" href="start/quickstart.html">
-      <strong>Quick start</strong>
-      <span>From nothing to a universe you can open.</span>
-    </a>
-    <a class="card" href="docs.html">
-      <strong>Documentation</strong>
-      <span>How it is put together, and every command.</span>
-    </a>
-    <a class="card" href="start/scope.html">
-      <strong>What it is not</strong>
-      <span>Where it stops, and what to use instead.</span>
-    </a>
-  </div>
+  <Cards>
+  <Card href="start/install.html">
+    <Fragment slot="title">Install</Fragment>
+    One binary for Linux and macOS.
+  </Card>
+  <Card href="start/quickstart.html">
+    <Fragment slot="title">Quick start</Fragment>
+    From nothing to a universe you can open.
+  </Card>
+  <Card href="docs.html">
+    <Fragment slot="title">Documentation</Fragment>
+    How it is put together, and every command.
+  </Card>
+  <Card href="start/scope.html">
+    <Fragment slot="title">What it is not</Fragment>
+    Where it stops, and what to use instead.
+  </Card>
+  
+</Cards>
 </section>
 
 <script>

@@ -216,6 +216,9 @@ pre{margin:0;padding:16px;background:var(--raised);border:1px solid var(--line);
 .copy{position:absolute;top:8px;right:8px;border:1px solid var(--line);background:var(--ground);color:var(--muted);padding:3px 10px;border-radius:5px;font:600 .75rem var(--mono);cursor:pointer;min-height:28px}
 .copy:hover{border-color:var(--num);color:var(--num)}
 pre .c{color:var(--muted)}pre .k{color:var(--addr)}pre .p{color:var(--num);user-select:none}
+/* A quoted string in a command or a config file. The markup has always said
+   .s and nothing ever coloured it, so strings read as body text. */
+pre .s{color:var(--ok)}
 :not(pre)>code{font-size:.875em;background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:1px 6px;overflow-wrap:anywhere}
 
 /* tables */

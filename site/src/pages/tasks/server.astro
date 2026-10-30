@@ -1,20 +1,20 @@
 ---
 import Page from '../../layouts/Page.astro';
+import Shot from '../../components/Shot.astro';
+import Terminal from '../../components/Terminal.astro';
 ---
 
 <Page path="tasks/server">
 <section id="hw-server">
   <h2 id="hw-server"><a href="#hw-server">See the whole setup in a page</a></h2>
   <p>One command opens a page that shows every universe on the machine, what is running in it, and what its code has become. It is live: start a universe in a terminal and the page knows.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl server start --open
-✓ serving http://127.0.0.1:7777/?t=… in the background (pid 4242); stop it with: multiversectl server stop</pre></div>
-  <figure class="shot">
-    <picture>
-      <source data-light media="not all" srcset="../assets/img/fleet-light.png">
-      <img src="../assets/img/fleet-dark.png" alt="The fleet: three universes of a multiverse side by side, each with its branch, its apps and services, its addresses, and the pull requests open for its code." width="1280" height="800" loading="lazy">
-    </picture>
-    <figcaption>Every universe of every installed multiverse, at a glance.</figcaption>
-  </figure>
+  <Terminal><span class="p">$ </span>multiversectl server start --open
+✓ serving http://127.0.0.1:7777/?t=… in the background (pid 4242); stop it with: multiversectl server stop</Terminal>
+  <Shot src="../assets/img/fleet-dark.png" light="../assets/img/fleet-light.png"
+      alt="The fleet: three universes of a multiverse side by side, each with its branch, its apps and services, its addresses, and the pull requests open for its code."
+      width={1280} height={800}>
+  <Fragment slot="caption">Every universe of every installed multiverse, at a glance.</Fragment>
+</Shot>
   <ul class="t">
     <li><strong>One card per universe</strong>: its branch, its apps, the state of every service, and its addresses as links you can open.</li>
     <li><strong>What the code has become</strong>: for each repository, what its branch adds to the one it is to be merged into — <code>12 files changed against main +248 &#8722;96</code> — what is not pushed, not committed or behind, and its pull or merge request with GitHub's mark for open, draft, merged or closed. A universe in view is read again every minute, and its remotes are asked every five (never with a prompt: a remote that wants a password is skipped); <em>Reread</em> asks them at once, and the card says how long ago they were asked.</li>
@@ -27,26 +27,22 @@ import Page from '../../layouts/Page.astro';
 <section id="hw-panel">
   <h2 id="hw-panel"><a href="#hw-panel">Open one up</a></h2>
   <p><em>Details</em> opens a panel on a universe: every container, what it is using, and the address that reaches it. <em>Logs</em> reads a service's log as <code>docker logs</code> would — following as it arrives, filtered to the lines you are after, errors and warnings marked. Colours a program wrote come through, so its output reads as it does in a terminal. <em>Wide</em> gives it the whole window.</p>
-  <figure class="shot">
-    <picture>
-      <source data-light media="not all" srcset="../assets/img/logs-light.png">
-      <img src="../assets/img/logs-dark.png" alt="The log of one service, filling the window: a request log in colour, with a warning and an error marked." width="1280" height="800" loading="lazy">
-    </picture>
-    <figcaption>One service's log, followed live.</figcaption>
-  </figure>
+  <Shot src="../assets/img/logs-dark.png" light="../assets/img/logs-light.png"
+      alt="The log of one service, filling the window: a request log in colour, with a warning and an error marked."
+      width={1280} height={800}>
+  <Fragment slot="caption">One service's log, followed live.</Fragment>
+</Shot>
   <p><em>Restart</em> restarts a service in place, after a second press to confirm. Everything else in the panel only reads.</p>
 </section>
 
 <section id="hw-stats">
   <h2 id="hw-stats"><a href="#hw-stats">Watch what it is using</a></h2>
   <p><em>Stats</em> draws processor time and memory for every running container, by universe, by app or one line each — which is how you find the universe that is eating the laptop. Pick the universes to draw, or slow the reading down. The history is the page's own: it starts when you open it.</p>
-  <figure class="shot">
-    <picture>
-      <source data-light media="not all" srcset="../assets/img/stats-light.png">
-      <img src="../assets/img/stats-dark.png" alt="Stats: tiles counting containers, processor time and memory, above a line chart per universe." width="1280" height="800" loading="lazy">
-    </picture>
-    <figcaption>Processor time and memory, per universe, as they happen.</figcaption>
-  </figure>
+  <Shot src="../assets/img/stats-dark.png" light="../assets/img/stats-light.png"
+      alt="Stats: tiles counting containers, processor time and memory, above a line chart per universe."
+      width={1280} height={800}>
+  <Fragment slot="caption">Processor time and memory, per universe, as they happen.</Fragment>
+</Shot>
 </section>
 
 <section id="hw-act">
@@ -65,10 +61,10 @@ import Page from '../../layouts/Page.astro';
 <section id="hw-elsewhere">
   <h2 id="hw-elsewhere"><a href="#hw-elsewhere">Open it on another machine</a></h2>
   <p>Start it with <code>--expose</code> and it listens on every interface, so a laptop on the same network can watch what the desktop is running. The link is 192 bits of base64, which nobody is going to read across a desk, so ask the running server for a code instead:</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl server pair
+  <Terminal><span class="p">$ </span>multiversectl server pair
 ✓ code 418 902 — type it into the page on the other machine
   open http://192.168.1.23:7777/
-ℹ it opens one machine, once, and runs out in 5 minutes</pre></div>
+ℹ it opens one machine, once, and runs out in 5 minutes</Terminal>
   <p>The other machine opens that address, types the code, and has what this machine has. The code opens one machine, is spent by the first use, dies after five wrong guesses and is forgotten after five minutes — and nothing hands one out but a request that already has the link. An agent asked for access runs the same command and reads out what it printed.</p>
   <p>The page is served over plain HTTP, so keep <code>--expose</code> to a network you trust; <code>--read-only</code> is there for a machine you only want to be watched from.</p>
 </section>
@@ -76,11 +72,11 @@ import Page from '../../layouts/Page.astro';
 <section id="hw-agents">
   <h2 id="hw-agents"><a href="#hw-agents">Let a coding agent work with it</a></h2>
   <p>An agent needs no server and no protocol: it runs the command line, and <code>-o json</code> gives it what it needs in few tokens. Each universe is its own folder and its own set of containers, so several agents can each work in one at the same time.</p>
-  <div class="code"><pre><span class="p">$ </span>multiversectl universe ls -o json
+  <Terminal><span class="p">$ </span>multiversectl universe ls -o json
 &#123;"multiverse":&#123;"name":"acme","root":"/home/me/acme","manifest":"…/multiverse.yaml","universesDir":"…/universes","clones":&#123;"api":"…/api"&#125;&#125;,
  "universes":[&#123;"name":"3","state":"running","up":"3/3","dir":"…/universes/3",
    "checkout":&#123;"api":"…/universes/3/api"&#125;,"branch":&#123;"api":"u3"&#125;,"urls":&#123;"api/api":"https://api-3.example.test"&#125;,
-   "containers":&#123;"api/web":"acme-u3-api-web-1"&#125;&#125;]&#125;</pre></div>
+   "containers":&#123;"api/web":"acme-u3-api-web-1"&#125;&#125;]&#125;</Terminal>
   <p>One line, and only what an agent acts on: where the multiverse and its clones are, and per universe whether it runs, every repository's folder, the branches, the addresses under <code>urls</code> named by app and host, and under <code>containers</code> the running container of each service. Services that should be up and are not are listed under <code>down</code>.</p>
   <p><code>--json</code> works on every command, <code>-o json,less</code> is the least per universe and <code>-o json,wide</code> everything. <code>multiversectl agents skill install</code> teaches Claude Code all of it once.</p>
 </section>
