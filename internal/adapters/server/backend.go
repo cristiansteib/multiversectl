@@ -409,6 +409,19 @@ func (s Services) Diff(ctx context.Context, multiverse, universe, repo, scope, b
 	for _, f := range files {
 		v.Files = append(v.Files, fileView{Path: f.Path, OldPath: f.OldPath, Status: f.Status, Added: f.Added, Removed: f.Removed, Binary: f.Binary})
 	}
+	if scope == app.ScopeBranch {
+		// The commits are of the same change, against the same base. A log that
+		// cannot be read leaves the files to be shown on their own.
+		if commits, err := svc.UniverseCommits(ctx, universe, repo, base); err == nil {
+			for _, c := range commits {
+				cv := commitView{SHA: c.SHA, Author: c.Author, Subject: c.Subject, Body: c.Body}
+				if !c.At.IsZero() {
+					cv.At = c.At.Format(time.RFC3339)
+				}
+				v.Commits = append(v.Commits, cv)
+			}
+		}
+	}
 	return v, nil
 }
 

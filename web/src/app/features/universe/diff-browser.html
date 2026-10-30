@@ -2,7 +2,27 @@
   <mv-error [message]="e" />
 } @else if (files() === null) {
   <div class="stack"><mv-skeleton height="2.2rem" /><mv-skeleton height="2.2rem" /><mv-skeleton width="60%" height="2.2rem" /></div>
-} @else if (!files()!.length) {
+} @else {
+@if (commits().length) {
+  <section class="commits" aria-label="Commits on this branch">
+    <h3 class="small muted">{{ commits().length }} commit{{ commits().length === 1 ? '' : 's' }} on this branch</h3>
+    <ol>
+      @for (c of commits(); track c.sha) {
+        <li>
+          @if (c.body) {
+            <details>
+              <summary title="Show the whole message"><mv-icon class="chev" name="chevron" /><span class="sha mono" [title]="c.sha">{{ c.sha.slice(0, 7) }}</span><span class="subject">{{ c.subject }}</span><span class="who muted small">{{ c.author }} · {{ c.at | ago }}</span></summary>
+              <pre class="body">{{ c.body }}</pre>
+            </details>
+          } @else {
+            <div class="line"><span class="chev-pad"></span><span class="sha mono" [title]="c.sha">{{ c.sha.slice(0, 7) }}</span><span class="subject">{{ c.subject }}</span><span class="who muted small">{{ c.author }} · {{ c.at | ago }}</span></div>
+          }
+        </li>
+      }
+    </ol>
+  </section>
+}
+@if (!files()!.length) {
   <p class="muted">Nothing changed.</p>
 } @else {
   <div class="layout" [class.single]="!navigable()">
@@ -53,4 +73,5 @@
       </ul>
     </div>
   </div>
+}
 }

@@ -125,12 +125,13 @@ func demoFleet() *fake {
 		return noteView{ID: fmt.Sprintf("n%d", n), At: now.Add(-ago).Format(time.RFC3339), By: by, Text: text}
 	}
 	return &fake{
-		// The invented fleet has a journal too, or the Journal section is a
-		// permanent empty state in the one place the documentation looks.
+		// The invented fleet has notes too, or the Notes section is a permanent
+		// empty state in the one place the documentation looks. They read as
+		// notes should: what the next reader needs, not what the commits say.
 		notes: []noteView{
-			stamped(50*time.Hour, "", "made it for the invoice tax column", 1),
-			stamped(27*time.Hour, "claude", "tax column added in api; the ui still rounds twice", 2),
-			stamped(3*time.Hour, "claude", "rounding fixed, and the fixture updated to match", 3),
+			stamped(50*time.Hour, "", "for the invoice tax column; robin reviews", 1),
+			stamped(27*time.Hour, "claude", "blocked: the ui needs the rounding rule — half up or banker's?", 2),
+			stamped(3*time.Hour, "robin", "half up. api is ready for review; ui waits on #148", 3),
 		},
 		fleet: fleetView{Multiverses: []fleetMultiverse{{Name: "acme", Root: "/home/me/acme", Universes: []universeView{
 			{Name: "3", Slug: "u3", Project: "acme-u3", Domain: "example.test", Dir: "/home/me/acme/universes/3",
@@ -186,6 +187,11 @@ func demoFleet() *fake {
 			{Path: "api/invoices/old_tax.py", Status: "deleted", Removed: 58},
 			{Path: "api/tests/test_tax.py", OldPath: "api/tests/test_vat.py", Status: "renamed", Added: 11, Removed: 9},
 			{Path: "api/static/logo.png", Status: "modified", Binary: true},
+		}, Commits: []commitView{
+			{SHA: "9b7d0e4c1a2f3e4d5c6b7a8998877665544332211", Author: "robin", At: now.Add(-40 * time.Minute).Format(time.RFC3339),
+				Subject: "fix: invoices keep net and tax apart", Body: "total is now net + tax, computed, so an old invoice\nreads the same and a new one can say its tax."},
+			{SHA: "3f1c2a1b0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b", Author: "robin", At: now.Add(-3 * time.Hour).Format(time.RFC3339),
+				Subject: "chore: rename the VAT tests to tax"},
 		}},
 		patch:   patchView{Path: "api/invoices/models.py", Patch: "diff --git a/api/invoices/models.py b/api/invoices/models.py\nindex 3f1c2a1..9b7d0e4 100644\n--- a/api/invoices/models.py\n+++ b/api/invoices/models.py\n@@ -18,7 +18,9 @@ class Invoice(models.Model):\n     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)\n     issued = models.DateField()\n-    total = models.DecimalField(max_digits=10, decimal_places=2)\n+    net = models.DecimalField(max_digits=10, decimal_places=2)\n+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)\n \n+    @property\n+    def total(self):\n+        return self.net + self.tax\n"},
 		logHold: true,

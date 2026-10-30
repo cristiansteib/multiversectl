@@ -227,6 +227,16 @@ type configRecordView struct {
 type diffFilesView struct {
 	Base  string     `json:"base,omitempty"`
 	Files []fileView `json:"files"`
+	// Commits are the branch's own, newest first; only for the branch scope.
+	Commits []commitView `json:"commits,omitempty"`
+}
+
+type commitView struct {
+	SHA     string `json:"sha"`
+	Author  string `json:"author,omitempty"`
+	At      string `json:"at,omitempty"`
+	Subject string `json:"subject"`
+	Body    string `json:"body,omitempty"`
 }
 
 type fileView struct {

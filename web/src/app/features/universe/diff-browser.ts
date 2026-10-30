@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Api } from '../../core/api.service';
-import { DiffFilesView, FileView, PatchView } from '../../core/models';
+import { CommitView, DiffFilesView, FileView, PatchView } from '../../core/models';
+import { AgoPipe } from '../../shared/ui/ago.pipe';
 import { ErrorBox } from '../../shared/ui/error-box';
 import { Icon } from '../../shared/ui/icon';
 import { Skeleton } from '../../shared/ui/skeleton';
@@ -18,7 +19,7 @@ type Loaded = PatchView | { error: string };
  */
 @Component({
   selector: 'mv-diff-browser',
-  imports: [Icon, ErrorBox, Skeleton, PatchViewer],
+  imports: [Icon, ErrorBox, Skeleton, PatchViewer, AgoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './diff-browser.html',
   styleUrl: './diff-browser.css',
@@ -36,6 +37,8 @@ export class DiffBrowser {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly files = signal<FileView[] | null>(null);
+  /** The branch's commits, newest first: what the work says of itself. */
+  protected readonly commits = signal<CommitView[]>([]);
   protected readonly error = signal<string | null>(null);
   protected readonly open = signal<ReadonlySet<string>>(new Set());
   protected readonly pinned = signal<ReadonlySet<string>>(new Set());
@@ -57,7 +60,7 @@ export class DiffBrowser {
     effect(() => {
       this.repo(); this.scope();
       untracked(() => {
-        this.files.set(null); this.error.set(null); this.sig = '';
+        this.files.set(null); this.commits.set([]); this.error.set(null); this.sig = '';
         this.open.set(new Set()); this.pinned.set(new Set()); this.collapsed.set(new Set());
         this.patches.set({}); this.active.set(null); this.filter.set('');
         void this.load();
@@ -96,6 +99,7 @@ export class DiffBrowser {
       this.sig = sig;
       const files = d.files ?? [];
       this.files.set(files);
+      this.commits.set(d.commits ?? []);
       this.error.set(null);
       const paths = new Set(files.map((f) => f.path));
       this.open.update((o) => new Set([...o].filter((p) => paths.has(p))));

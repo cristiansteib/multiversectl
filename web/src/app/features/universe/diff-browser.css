@@ -23,3 +23,18 @@
 .file-head { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; padding: 9px 12px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer }
 .file-head:hover { background: var(--sunk) }
 .fpath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+/* The branch's commits, above its files: what the work says of itself. */
+.commits { margin: 0 0 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 8px 12px }
+.commits h3 { margin: 2px 0 6px; font-weight: 600 }
+.commits ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.commits li + li { border-top: 1px solid var(--line) }
+.commits .line, .commits summary { display: flex; align-items: baseline; gap: 10px; padding: 5px 0; min-width: 0 }
+.commits summary { cursor: pointer }
+.commits .sha { color: var(--muted); font-size: .8rem; flex: none }
+.commits .subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.commits .who { flex: none; white-space: nowrap }
+.commits .body { margin: 0 0 8px 0; padding: 8px 10px; background: var(--sunk); border-radius: var(--r-sm); font: 400 .82rem var(--mono); white-space: pre-wrap; overflow-wrap: anywhere }
+.commits summary { list-style: none } .commits summary::-webkit-details-marker { display: none }
+.commits .chev, .commits .chev-pad { flex: none; width: 14px; color: var(--muted); transition: transform .12s }
+.commits details[open] .chev { transform: rotate(90deg) }
+.commits summary:hover .subject { text-decoration: underline }

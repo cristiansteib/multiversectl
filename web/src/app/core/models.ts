@@ -31,7 +31,8 @@ export interface CodeRow {
 }
 export interface CodeView { rows: CodeRow[]; fetched?: string }
 export interface FileView { path: string; oldPath?: string; status: string; added: number; removed: number; binary?: boolean }
-export interface DiffFilesView { base?: string; files: FileView[] }
+export interface CommitView { sha: string; author?: string; at?: string; subject: string; body?: string }
+export interface DiffFilesView { base?: string; files: FileView[]; commits?: CommitView[] }
 export interface PatchView { path: string; patch: string; truncated?: boolean }
 
 export interface RepoView { key: string; clone?: string; loc?: LocView; url: string; dir: string; cloned: boolean; follows?: string; behind?: number; ahead?: number; dirty?: boolean }

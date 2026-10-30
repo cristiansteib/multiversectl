@@ -57,6 +57,7 @@ func (g *codeGit) DiffStat(_ context.Context, dir, ref string) (DiffStat, error)
 	return g.diffs[ref], g.diffErr[ref]
 }
 func (g *codeGit) DiffFiles(context.Context, string, string) ([]FileChange, error) { return nil, nil }
+func (g *codeGit) Commits(context.Context, string, string, int) ([]Commit, error)  { return nil, nil }
 
 type codeHost struct {
 	RepoHost
