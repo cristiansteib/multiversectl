@@ -336,15 +336,7 @@ spec:
                           universe, the way Skaffold runs lifecycle hooks:
                           in one of its services, or on this machine. The
                           tool knows nothing of what they do; it gives them
-                          the universe's addresses. Hooks tie commands to
-                          the points of a universe's life. Each event lists
-                          hooks, run in order; every command gets the
-                          universe's name, directory and addresses as
-                          environment variables (the ones a compose file can
-                          use, plus MULTIVERSE_EVENT, MULTIVERSE_APP and, on
-                          the machine, MULTIVERSE_CONTEXT_FILE: a JSON file
-                          with the same and more). Under spec, they run on
-                          the machine only.
+                          the universe's addresses.
                         properties:
                           postCreate:
                             type: array
@@ -356,7 +348,13 @@ spec:
                               description: >-
                                 Hook is one command: give it container, to
                                 run it in a service, or host, to run it on
-                                this machine.
+                                this machine. Every command gets the
+                                universe's name, directory and addresses as
+                                environment variables (the ones a compose
+                                file can use, plus MULTIVERSE_EVENT,
+                                MULTIVERSE_APP and, on the machine,
+                                MULTIVERSE_CONTEXT_FILE: a JSON file with
+                                the same and more).
                               properties:
                                 name:
                                   type: string
@@ -368,8 +366,6 @@ spec:
                                   description: >-
                                     Run in a running service, with no
                                     terminal. For postUp and preDown.
-                                    ContainerHook is a command run in a
-                                    running service.
                                   required: [command]
                                   properties:
                                     service:
@@ -391,9 +387,7 @@ spec:
                                   type: object
                                   description: >-
                                     Run on this machine, in any event. No
-                                    shell: to use one, say it. HostHook is a
-                                    command run on the machine that runs
-                                    multiversectl.
+                                    shell: to use one, say it.
                                   required: [command]
                                   properties:
                                     command:
@@ -475,7 +469,13 @@ spec:
                               description: >-
                                 Hook is one command: give it container, to
                                 run it in a service, or host, to run it on
-                                this machine.
+                                this machine. Every command gets the
+                                universe's name, directory and addresses as
+                                environment variables (the ones a compose
+                                file can use, plus MULTIVERSE_EVENT,
+                                MULTIVERSE_APP and, on the machine,
+                                MULTIVERSE_CONTEXT_FILE: a JSON file with
+                                the same and more).
                               properties:
                                 name:
                                   type: string
@@ -487,8 +487,6 @@ spec:
                                   description: >-
                                     Run in a running service, with no
                                     terminal. For postUp and preDown.
-                                    ContainerHook is a command run in a
-                                    running service.
                                   required: [command]
                                   properties:
                                     service:
@@ -510,9 +508,7 @@ spec:
                                   type: object
                                   description: >-
                                     Run on this machine, in any event. No
-                                    shell: to use one, say it. HostHook is a
-                                    command run on the machine that runs
-                                    multiversectl.
+                                    shell: to use one, say it.
                                   required: [command]
                                   properties:
                                     command:
@@ -596,7 +592,13 @@ spec:
                               description: >-
                                 Hook is one command: give it container, to
                                 run it in a service, or host, to run it on
-                                this machine.
+                                this machine. Every command gets the
+                                universe's name, directory and addresses as
+                                environment variables (the ones a compose
+                                file can use, plus MULTIVERSE_EVENT,
+                                MULTIVERSE_APP and, on the machine,
+                                MULTIVERSE_CONTEXT_FILE: a JSON file with
+                                the same and more).
                               properties:
                                 name:
                                   type: string
@@ -608,8 +610,6 @@ spec:
                                   description: >-
                                     Run in a running service, with no
                                     terminal. For postUp and preDown.
-                                    ContainerHook is a command run in a
-                                    running service.
                                   required: [command]
                                   properties:
                                     service:
@@ -631,9 +631,7 @@ spec:
                                   type: object
                                   description: >-
                                     Run on this machine, in any event. No
-                                    shell: to use one, say it. HostHook is a
-                                    command run on the machine that runs
-                                    multiversectl.
+                                    shell: to use one, say it.
                                   required: [command]
                                   properties:
                                     command:
@@ -714,7 +712,13 @@ spec:
                               description: >-
                                 Hook is one command: give it container, to
                                 run it in a service, or host, to run it on
-                                this machine.
+                                this machine. Every command gets the
+                                universe's name, directory and addresses as
+                                environment variables (the ones a compose
+                                file can use, plus MULTIVERSE_EVENT,
+                                MULTIVERSE_APP and, on the machine,
+                                MULTIVERSE_CONTEXT_FILE: a JSON file with
+                                the same and more).
                               properties:
                                 name:
                                   type: string
@@ -726,8 +730,6 @@ spec:
                                   description: >-
                                     Run in a running service, with no
                                     terminal. For postUp and preDown.
-                                    ContainerHook is a command run in a
-                                    running service.
                                   required: [command]
                                   properties:
                                     service:
@@ -749,9 +751,7 @@ spec:
                                   type: object
                                   description: >-
                                     Run on this machine, in any event. No
-                                    shell: to use one, say it. HostHook is a
-                                    command run on the machine that runs
-                                    multiversectl.
+                                    shell: to use one, say it.
                                   required: [command]
                                   properties:
                                     command:
@@ -831,7 +831,13 @@ spec:
                               description: >-
                                 Hook is one command: give it container, to
                                 run it in a service, or host, to run it on
-                                this machine.
+                                this machine. Every command gets the
+                                universe's name, directory and addresses as
+                                environment variables (the ones a compose
+                                file can use, plus MULTIVERSE_EVENT,
+                                MULTIVERSE_APP and, on the machine,
+                                MULTIVERSE_CONTEXT_FILE: a JSON file with
+                                the same and more).
                               properties:
                                 name:
                                   type: string
@@ -843,8 +849,6 @@ spec:
                                   description: >-
                                     Run in a running service, with no
                                     terminal. For postUp and preDown.
-                                    ContainerHook is a command run in a
-                                    running service.
                                   required: [command]
                                   properties:
                                     service:
@@ -866,9 +870,7 @@ spec:
                                   type: object
                                   description: >-
                                     Run on this machine, in any event. No
-                                    shell: to use one, say it. HostHook is a
-                                    command run on the machine that runs
-                                    multiversectl.
+                                    shell: to use one, say it.
                                   required: [command]
                                   properties:
                                     command:
@@ -950,7 +952,13 @@ spec:
                               description: >-
                                 Hook is one command: give it container, to
                                 run it in a service, or host, to run it on
-                                this machine.
+                                this machine. Every command gets the
+                                universe's name, directory and addresses as
+                                environment variables (the ones a compose
+                                file can use, plus MULTIVERSE_EVENT,
+                                MULTIVERSE_APP and, on the machine,
+                                MULTIVERSE_CONTEXT_FILE: a JSON file with
+                                the same and more).
                               properties:
                                 name:
                                   type: string
@@ -962,8 +970,6 @@ spec:
                                   description: >-
                                     Run in a running service, with no
                                     terminal. For postUp and preDown.
-                                    ContainerHook is a command run in a
-                                    running service.
                                   required: [command]
                                   properties:
                                     service:
@@ -985,9 +991,7 @@ spec:
                                   type: object
                                   description: >-
                                     Run on this machine, in any event. No
-                                    shell: to use one, say it. HostHook is a
-                                    command run on the machine that runs
-                                    multiversectl.
+                                    shell: to use one, say it.
                                   required: [command]
                                   properties:
                                     command:
@@ -1067,7 +1071,13 @@ spec:
                               description: >-
                                 Hook is one command: give it container, to
                                 run it in a service, or host, to run it on
-                                this machine.
+                                this machine. Every command gets the
+                                universe's name, directory and addresses as
+                                environment variables (the ones a compose
+                                file can use, plus MULTIVERSE_EVENT,
+                                MULTIVERSE_APP and, on the machine,
+                                MULTIVERSE_CONTEXT_FILE: a JSON file with
+                                the same and more).
                               properties:
                                 name:
                                   type: string
@@ -1079,8 +1089,6 @@ spec:
                                   description: >-
                                     Run in a running service, with no
                                     terminal. For postUp and preDown.
-                                    ContainerHook is a command run in a
-                                    running service.
                                   required: [command]
                                   properties:
                                     service:
@@ -1102,9 +1110,7 @@ spec:
                                   type: object
                                   description: >-
                                     Run on this machine, in any event. No
-                                    shell: to use one, say it. HostHook is a
-                                    command run on the machine that runs
-                                    multiversectl.
+                                    shell: to use one, say it.
                                   required: [command]
                                   properties:
                                     command:
@@ -1392,14 +1398,7 @@ spec:
                   description: >-
                     Commands around what the whole multiverse does, on the
                     machine: after every app is up, say, to register the
-                    universe's address in a service all of them share. Hooks
-                    tie commands to the points of a universe's life. Each
-                    event lists hooks, run in order; every command gets the
-                    universe's name, directory and addresses as environment
-                    variables (the ones a compose file can use, plus
-                    MULTIVERSE_EVENT, MULTIVERSE_APP and, on the machine,
-                    MULTIVERSE_CONTEXT_FILE: a JSON file with the same and
-                    more). Under spec, they run on the machine only.
+                    universe's address in a service all of them share.
                   properties:
                     postCreate:
                       type: array
@@ -1411,6 +1410,12 @@ spec:
                         description: >-
                           Hook is one command: give it container, to run it
                           in a service, or host, to run it on this machine.
+                          Every command gets the universe's name, directory
+                          and addresses as environment variables (the ones a
+                          compose file can use, plus MULTIVERSE_EVENT,
+                          MULTIVERSE_APP and, on the machine,
+                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
+                          and more).
                         properties:
                           name:
                             type: string
@@ -1420,8 +1425,7 @@ spec:
                             type: object
                             description: >-
                               Run in a running service, with no terminal.
-                              For postUp and preDown. ContainerHook is a
-                              command run in a running service.
+                              For postUp and preDown.
                             required: [command]
                             properties:
                               service:
@@ -1442,8 +1446,7 @@ spec:
                             type: object
                             description: >-
                               Run on this machine, in any event. No shell:
-                              to use one, say it. HostHook is a command run
-                              on the machine that runs multiversectl.
+                              to use one, say it.
                             required: [command]
                             properties:
                               command:
@@ -1520,6 +1523,12 @@ spec:
                         description: >-
                           Hook is one command: give it container, to run it
                           in a service, or host, to run it on this machine.
+                          Every command gets the universe's name, directory
+                          and addresses as environment variables (the ones a
+                          compose file can use, plus MULTIVERSE_EVENT,
+                          MULTIVERSE_APP and, on the machine,
+                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
+                          and more).
                         properties:
                           name:
                             type: string
@@ -1529,8 +1538,7 @@ spec:
                             type: object
                             description: >-
                               Run in a running service, with no terminal.
-                              For postUp and preDown. ContainerHook is a
-                              command run in a running service.
+                              For postUp and preDown.
                             required: [command]
                             properties:
                               service:
@@ -1551,8 +1559,7 @@ spec:
                             type: object
                             description: >-
                               Run on this machine, in any event. No shell:
-                              to use one, say it. HostHook is a command run
-                              on the machine that runs multiversectl.
+                              to use one, say it.
                             required: [command]
                             properties:
                               command:
@@ -1631,6 +1638,12 @@ spec:
                         description: >-
                           Hook is one command: give it container, to run it
                           in a service, or host, to run it on this machine.
+                          Every command gets the universe's name, directory
+                          and addresses as environment variables (the ones a
+                          compose file can use, plus MULTIVERSE_EVENT,
+                          MULTIVERSE_APP and, on the machine,
+                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
+                          and more).
                         properties:
                           name:
                             type: string
@@ -1640,8 +1653,7 @@ spec:
                             type: object
                             description: >-
                               Run in a running service, with no terminal.
-                              For postUp and preDown. ContainerHook is a
-                              command run in a running service.
+                              For postUp and preDown.
                             required: [command]
                             properties:
                               service:
@@ -1662,8 +1674,7 @@ spec:
                             type: object
                             description: >-
                               Run on this machine, in any event. No shell:
-                              to use one, say it. HostHook is a command run
-                              on the machine that runs multiversectl.
+                              to use one, say it.
                             required: [command]
                             properties:
                               command:
@@ -1739,6 +1750,12 @@ spec:
                         description: >-
                           Hook is one command: give it container, to run it
                           in a service, or host, to run it on this machine.
+                          Every command gets the universe's name, directory
+                          and addresses as environment variables (the ones a
+                          compose file can use, plus MULTIVERSE_EVENT,
+                          MULTIVERSE_APP and, on the machine,
+                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
+                          and more).
                         properties:
                           name:
                             type: string
@@ -1748,8 +1765,7 @@ spec:
                             type: object
                             description: >-
                               Run in a running service, with no terminal.
-                              For postUp and preDown. ContainerHook is a
-                              command run in a running service.
+                              For postUp and preDown.
                             required: [command]
                             properties:
                               service:
@@ -1770,8 +1786,7 @@ spec:
                             type: object
                             description: >-
                               Run on this machine, in any event. No shell:
-                              to use one, say it. HostHook is a command run
-                              on the machine that runs multiversectl.
+                              to use one, say it.
                             required: [command]
                             properties:
                               command:
@@ -1846,6 +1861,12 @@ spec:
                         description: >-
                           Hook is one command: give it container, to run it
                           in a service, or host, to run it on this machine.
+                          Every command gets the universe's name, directory
+                          and addresses as environment variables (the ones a
+                          compose file can use, plus MULTIVERSE_EVENT,
+                          MULTIVERSE_APP and, on the machine,
+                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
+                          and more).
                         properties:
                           name:
                             type: string
@@ -1855,8 +1876,7 @@ spec:
                             type: object
                             description: >-
                               Run in a running service, with no terminal.
-                              For postUp and preDown. ContainerHook is a
-                              command run in a running service.
+                              For postUp and preDown.
                             required: [command]
                             properties:
                               service:
@@ -1877,8 +1897,7 @@ spec:
                             type: object
                             description: >-
                               Run on this machine, in any event. No shell:
-                              to use one, say it. HostHook is a command run
-                              on the machine that runs multiversectl.
+                              to use one, say it.
                             required: [command]
                             properties:
                               command:
@@ -1954,6 +1973,12 @@ spec:
                         description: >-
                           Hook is one command: give it container, to run it
                           in a service, or host, to run it on this machine.
+                          Every command gets the universe's name, directory
+                          and addresses as environment variables (the ones a
+                          compose file can use, plus MULTIVERSE_EVENT,
+                          MULTIVERSE_APP and, on the machine,
+                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
+                          and more).
                         properties:
                           name:
                             type: string
@@ -1963,8 +1988,7 @@ spec:
                             type: object
                             description: >-
                               Run in a running service, with no terminal.
-                              For postUp and preDown. ContainerHook is a
-                              command run in a running service.
+                              For postUp and preDown.
                             required: [command]
                             properties:
                               service:
@@ -1985,8 +2009,7 @@ spec:
                             type: object
                             description: >-
                               Run on this machine, in any event. No shell:
-                              to use one, say it. HostHook is a command run
-                              on the machine that runs multiversectl.
+                              to use one, say it.
                             required: [command]
                             properties:
                               command:
@@ -2061,6 +2084,12 @@ spec:
                         description: >-
                           Hook is one command: give it container, to run it
                           in a service, or host, to run it on this machine.
+                          Every command gets the universe's name, directory
+                          and addresses as environment variables (the ones a
+                          compose file can use, plus MULTIVERSE_EVENT,
+                          MULTIVERSE_APP and, on the machine,
+                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
+                          and more).
                         properties:
                           name:
                             type: string
@@ -2070,8 +2099,7 @@ spec:
                             type: object
                             description: >-
                               Run in a running service, with no terminal.
-                              For postUp and preDown. ContainerHook is a
-                              command run in a running service.
+                              For postUp and preDown.
                             required: [command]
                             properties:
                               service:
@@ -2092,8 +2120,7 @@ spec:
                             type: object
                             description: >-
                               Run on this machine, in any event. No shell:
-                              to use one, say it. HostHook is a command run
-                              on the machine that runs multiversectl.
+                              to use one, say it.
                             required: [command]
                             properties:
                               command:

@@ -261,14 +261,13 @@ func (w *writer) overrideKind(named, kind string) bool {
 }
 
 // object writes a struct as an object. doc is the words of the field that
-// holds it, which say what it is for here; the type's own say what it is. Both
-// go into the one description, specific first: two description keys would make
-// the file invalid YAML, and a strict reader drops one of them.
+// holds it: the more specific of the two, so it wins, and the type's own are
+// what a field with none falls back to. One description, written before the
+// fields — two keys in one mapping would be invalid YAML, and a strict reader
+// drops one of them. It is the rule the array branch of field already follows.
 func (w *writer) object(indent int, s strukt, doc string) {
 	w.line(indent, "type: object")
-	if doc != "" && s.Doc != "" {
-		doc += " " + s.Doc
-	} else if doc == "" {
+	if doc == "" {
 		doc = s.Doc
 	}
 	if doc != "" {
