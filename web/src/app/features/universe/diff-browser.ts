@@ -119,16 +119,39 @@ export class DiffBrowser {
     if (repo === this.repo() && scope === this.scope()) this.patches.update((p) => ({ ...p, [path]: got }));
   }
 
+  /**
+   * Open a file, and move the page once rather than three times.
+   *
+   * Opening used to collapse every unpinned file, then smooth-scroll to the
+   * one clicked, then load its patch. Each of those changes the height of the
+   * list: the collapse pulls the target upwards while the scroll is animating
+   * towards where it used to be, and the patch then expands under it. One
+   * click, three movements, none of them where the eye was going.
+   *
+   * Now the patch is fetched first and the list is scrolled once, after the
+   * content that decides the geometry is in. The jump is immediate rather than
+   * smooth, because a smooth scroll to a position that is still settling is
+   * what produced the drift; `scroll-margin-top` keeps the heading clear of the
+   * sticky bar.
+   */
   protected async show(path: string, scroll: boolean): Promise<void> {
     this.active.set(path);
+    const already = this.patches()[path];
+    // Fetch before anything moves, so the file opens at its full height.
+    if (!already) await this.fetchPatch(path);
+    if (path !== this.active()) return;   // something else was clicked meanwhile
     if (!this.open().has(path)) {
       const pinned = this.pinned();
       this.open.set(new Set([...this.open()].filter((p) => pinned.has(p)).concat(path)));
     }
     if (scroll) {
-      requestAnimationFrame(() => this.host.nativeElement.querySelector(`[data-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+      // One frame for the open file to render at its real height, then go.
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        this.host.nativeElement
+          .querySelector(`[data-path="${CSS.escape(path)}"]`)
+          ?.scrollIntoView({ block: 'start', behavior: 'auto' });
+      }));
     }
-    if (!this.patches()[path]) await this.fetchPatch(path);
   }
 
   protected async toggle(path: string): Promise<void> {

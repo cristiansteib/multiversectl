@@ -20,6 +20,9 @@
 .reset:hover { color: var(--text); border-color: var(--muted) }
 @media (prefers-reduced-motion: reduce) { .tab.dragging { opacity: .6 } }
 .add { color: var(--ok); font-weight: 500 } .del { color: var(--bad); font-weight: 500 }
+/* A dot while the stats are still being read, so the tab does not change width
+   when they land and the row of tabs does not reflow under the pointer. */
+.pending { color: var(--muted); font-weight: 600 }
 .small { font-size: .82rem }
 .head { gap: 8px 10px; margin-bottom: 14px }
 .chip { display: inline-flex; align-items: center; gap: 5px; font: 500 .8rem var(--mono); padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel) }

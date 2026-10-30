@@ -17,7 +17,8 @@
 .add { color: var(--ok); font-weight: 500 } .del { color: var(--bad); font-weight: 500 }
 .tip { margin: 0 0 8px } .small { font-size: .82rem }
 .files ul { display: flex; flex-direction: column; gap: 8px }
-.file { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden }
+/* A file scrolled to stops below the sticky top bar instead of under it. */
+.file { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; scroll-margin-top: calc(var(--top) + 12px) }
 .file-row { display: flex; align-items: center; gap: 6px; padding-right: 8px }
 .file-head { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; padding: 9px 12px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer }
 .file-head:hover { background: var(--sunk) }

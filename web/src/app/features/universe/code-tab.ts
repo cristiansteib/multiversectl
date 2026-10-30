@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { Api } from '../../core/api.service';
-import { CodeRow, CodeView } from '../../core/models';
+import { CodeRow, CodeView, DiffView } from '../../core/models';
 import { Ops } from '../../core/ops.service';
 import { ago, plural } from '../../core/util';
 import { Badge } from '../../shared/ui/badge';
@@ -107,6 +107,77 @@ export class CodeTab {
     const want = this.scope() as Scope | undefined;
     return r && want && this.scopes().includes(want) ? want : r ? firstScope(r) : 'branch';
   });
+  /**
+   * The counter a tab carries. A repository can have moved in two ways and the
+   * tab only ever showed one of them: `change` is what the branch amounts to
+   * against what it will be merged into, and it is absent whenever there is no
+   * base to measure against — a branch with nothing committed yet, a clone with
+   * no usable origin, a repository whose review could not be asked. Those
+   * repositories were showing no counter at all despite being edited, which is
+   * exactly the case someone is looking for.
+   *
+   * So: what the branch amounts to when that is known, and what is edited and
+   * not committed when it is not. The two are told apart by weight in the tab
+   * and named for a screen reader, because +12 −3 of committed work and +12 −3
+   * of unsaved edits are not the same claim.
+   */
+  protected stat(r: CodeRow): DiffView | null { return r.change ?? r.uncommitted ?? null; }
+
+  /** Whether the rows have been read, as against shown from what was kept. */
+  protected readonly loaded = signal(false);
+
+  /**
+   * The best rows available without asking, in order of how much they know:
+   *
+   *  1. what the store already read for this universe — the same rows, complete;
+   *  2. what the last visit left behind, kept for the session;
+   *  3. the universe's own checkouts, which the fleet already carries.
+   *
+   * The third is the one that matters on a first visit. A checkout names the
+   * repository, the branch it is on, and whether it is ahead, behind or edited
+   * — everything except the diff stats, which are what the reading is slow for.
+   * The fleet is on the page before the code is asked for, so the tabs can be
+   * there and clickable from the start and the counters can land into them.
+   *
+   * Null only when even the names are unknown, which is the one case left that
+   * earns a skeleton.
+   */
+  private known(q: { multiverse: string; universe: string }): CodeRow[] | null {
+    const fromStore = [...this.store.code().values()];
+    if (fromStore.length) return fromStore;
+    const kept = this.readKept(q);
+    if (kept?.length) return kept;
+    const checkouts = this.store.universe()?.checkouts ?? [];
+    return checkouts.length
+      ? checkouts.map((c) => ({ repo: c.repo, branch: c.branch, follows: c.follows,
+                                behind: c.behind, ahead: c.ahead, dirty: c.dirty }))
+      : null;
+  }
+
+  private keptKey(q: { multiverse: string; universe: string }): string {
+    return `code-tab-rows:${q.multiverse}:${q.universe}`;
+  }
+
+  /** The rows from the last visit to this universe, for the first paint only. */
+  private readKept(q: { multiverse: string; universe: string }): CodeRow[] | null {
+    try {
+      const raw = sessionStorage.getItem(this.keptKey(q));
+      const v = raw ? (JSON.parse(raw) as unknown) : null;
+      return Array.isArray(v) && v.every((r) => r && typeof (r as CodeRow).repo === 'string')
+        ? (v as CodeRow[]) : null;
+    } catch { return null; /* private mode, or something else wrote the key */ }
+  }
+
+  /**
+   * Keep the rows for the next visit. sessionStorage and not localStorage on
+   * purpose: these are a snapshot of a working tree, true for minutes at most,
+   * and a counter from last week shown as though it were current would be worse
+   * than a skeleton. A session is about as long as it stays plausible.
+   */
+  private keep(q: { multiverse: string; universe: string }, rows: CodeRow[]): void {
+    try { sessionStorage.setItem(this.keptKey(q), JSON.stringify(rows)); } catch { /* private mode */ }
+  }
+
   protected readonly facts = computed<Fact[]>(() => { const r = this.row(); return r ? factsOf(r) : []; });
   protected readonly age = computed(() => (this.loading() ? 'reading…' : this.fetched() ? `remotes read ${ago(this.fetched())}` : ''));
   protected readonly plural = plural;
@@ -120,11 +191,37 @@ export class CodeTab {
     effect(() => {
       const q = this.store.query();
       if (q.multiverse && q.universe) untracked(() => {
-        this.rows.set(null);
+        // Show what is already known before asking for it again. Reading a
+        // universe's code costs a handful of git calls per repository and, for
+        // each, a question to GitHub or GitLab; clearing the rows first meant
+        // every visit began with a skeleton and nothing to click for as long as
+        // that took. See known() for what is shown instead. The read then
+        // replaces it, and `loaded` says which of the two is on screen, so a
+        // counter kept from before is never mistaken for a fresh one.
+        this.loaded.set(false);
+        this.rows.set(this.known(q));
         // The order is saved per multiverse, so it is read again when that
         // changes and not merely once when the tab is first built.
         this.loadOrder();
         void this.load(false);
+      });
+    });
+    // The fleet and the store's own read arrive on their own schedule. Until
+    // this tab's read lands, take whichever of them says more: the tabs appear
+    // as soon as the universe is known and gain their counters when the stats
+    // are, rather than waiting for one request to answer both questions.
+    effect(() => {
+      const fromStore = this.store.code();
+      const better = this.known(this.store.query());
+      if (this.loaded() || !better?.length) return;
+      untracked(() => {
+        this.rows.set(better);
+        // The store reads the same endpoint, so when its rows are in, the stats
+        // are in: a repository showing no counter from here on is a repository
+        // with nothing changed, not one still being read. Without this the
+        // "still reading" dot stayed on the quiet repositories until this tab's
+        // own duplicate read answered, saying the wrong thing for seconds.
+        if (fromStore.size) this.loaded.set(true);
       });
     });
     const timer = setInterval(() => { if (!document.hidden) void this.load(Date.now() - this.lastFetch > FETCH_EVERY_MS); }, EVERY_MS);
@@ -283,7 +380,10 @@ export class CodeTab {
     try {
       const d = await this.api.get<CodeView>('universe/code', { ...q, fetch });
       if (!this.store.isCurrent(q)) return;
-      this.rows.set(d.rows ?? []);
+      const rows = d.rows ?? [];
+      this.rows.set(rows);
+      this.loaded.set(true);
+      this.keep(q, rows);
       this.fetched.set(d.fetched);
       this.error.set(null);
       if (fetch) this.lastFetch = Date.now();
