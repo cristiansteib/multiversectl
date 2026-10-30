@@ -1,14 +1,35 @@
 <div class="bar">
   @if (rows(); as list) {
     <div class="tabs repos" role="tablist" aria-label="Repositories" (keydown)="arrows($event, list.length, pickRepo.bind(this), repoIndex())">
-      @for (r of list; track r.repo) {
-        <button type="button" role="tab" class="tab" [class.on]="r.repo === row()?.repo" [attr.aria-selected]="r.repo === row()?.repo" [attr.tabindex]="r.repo === row()?.repo ? 0 : -1" (click)="select(r.repo)">
+      @for (r of ordered(); track r.repo) {
+        <button
+          type="button" role="tab" class="tab"
+          [class.on]="r.repo === row()?.repo"
+          [class.dragging]="dragging() === r.repo"
+          [class.over]="over() === r.repo"
+          [class.after]="over() === r.repo && dropsAfter(r.repo)"
+          [attr.aria-selected]="r.repo === row()?.repo"
+          [attr.tabindex]="r.repo === row()?.repo ? 0 : -1"
+          draggable="true"
+          [attr.aria-describedby]="'reorder-hint'"
+          (click)="select(r.repo)"
+          (keydown)="reorder($event, r.repo)"
+          (dragstart)="dragStart($event, r.repo)"
+          (dragover)="dragOver($event, r.repo)"
+          (drop)="drop($event, r.repo)"
+          (dragend)="dragEnd()"
+          (dragleave)="over.set(null)">
           @if (r.review) { <mv-pr-icon [state]="r.review.state" /> }
           {{ r.repo }}
           @if (r.change) { <b class="add">+{{ r.change.added }}</b><b class="del">−{{ r.change.removed }}</b> }
         </button>
       }
+      @if (manual()) {
+        <button type="button" class="reset" (click)="resetOrder()" title="Put the tabs back in order: the repositories with changes first">Reset order</button>
+      }
     </div>
+    <p class="sr-only" id="reorder-hint">Drag a tab to move it, or hold Alt and press the left or right arrow.</p>
+    <p class="sr-only" role="status" aria-live="polite">{{ moved() }}</p>
   } @else if (error(); as e) {
     <mv-error [message]="e" />
   } @else {

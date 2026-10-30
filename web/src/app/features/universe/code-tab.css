@@ -5,6 +5,20 @@
 .tab:hover { color: var(--text); background: var(--sunk) }
 .tab.on { color: var(--text); background: var(--accent-soft); border-color: transparent }
 .tab b { font-size: .8rem }
+
+/* Arranging the tabs by hand. The grab cursor is the affordance; the tab being
+   dragged fades so the gap it leaves is visible, and the one it would land on
+   carries a line on the edge the tab is coming from. */
+.tab { cursor: grab }
+.tab:active { cursor: grabbing }
+.tab.dragging { opacity: .4 }
+/* The line marks the gap the tab would drop into: before the tab it is over
+   when dragged leftwards, after it when dragged rightwards. */
+.tab.over { box-shadow: inset 2px 0 0 var(--accent) }
+.tab.over.after { box-shadow: inset -2px 0 0 var(--accent) }
+.reset { font: 500 .8rem var(--sans); color: var(--muted); background: none; border: 1px solid var(--line); border-radius: var(--r-md); padding: 4px 10px; cursor: pointer; margin-left: 4px }
+.reset:hover { color: var(--text); border-color: var(--muted) }
+@media (prefers-reduced-motion: reduce) { .tab.dragging { opacity: .6 } }
 .add { color: var(--ok); font-weight: 500 } .del { color: var(--bad); font-weight: 500 }
 .small { font-size: .82rem }
 .head { gap: 8px 10px; margin-bottom: 14px }
