@@ -64,7 +64,7 @@
   </section>
 
   <section aria-labelledby="journal-h" class="journal">
-    <h2 id="journal-h">Journal</h2>
+    <h2 id="journal-h">Notes</h2>
     @if (notes().length) {
       <ol class="notes">
         @for (n of notes(); track n.id) {
@@ -81,11 +81,11 @@
         }
       </ol>
     } @else {
-      <p class="muted none">Nothing written here yet. Whoever works in this universe may leave an account of it, from here or with <code>multiversectl universe notes add</code>.</p>
+      <p class="muted none">No notes yet. Leave one for whoever works here next — what is blocked, what you need, where things stand — from here or with <code>multiversectl universe notes add</code>.</p>
     }
     @if (!events.readOnly()) {
       <form class="add" (submit)="add($event, box)">
-        <input #box type="text" [disabled]="saving()" aria-label="What was done in this universe" placeholder="What was done in this universe" />
+        <input #box type="text" [disabled]="saving()" aria-label="A note for whoever works here next" placeholder="A note for whoever works here next" />
         <button type="submit" class="btn" [disabled]="saving()">Add</button>
       </form>
     }

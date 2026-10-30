@@ -13,21 +13,22 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// notesCmd is a universe's journal: a place to say what has been done in it,
-// in the order it happened. `note` is the one line saying what the universe is
-// for; this is the account underneath it. Nothing is obliged to write here.
+// notesCmd is a universe's notes: short messages, in order, from whoever works
+// in it to the user and to other agents. `note` is the one line saying what the
+// universe is for; these are what the next reader needs to know.
 func (r runner) notesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "notes <universe>",
 		Aliases: []string{"journal"},
-		Short:   "The journal of a universe: what was done in it, in the order it happened",
-		Long: "Every note with its id, when it was added and who by. A note is appended and\n" +
-			"never rewritten by another, so the journal is an account of the work rather\n" +
-			"than a single line that the next writer overwrites — which is what `universe\n" +
-			"note` is for. Writing here is nobody's duty: a universe with an empty journal\n" +
-			"is a universe nobody wrote about. The web page shows the same journal.",
+		Short:   "Short messages left in a universe for the user and other agents",
+		Long: "Every note with its id, when it was added and who by. A note is a line or two\n" +
+			"the next reader needs — what is blocked, what is asked of someone, a decision,\n" +
+			"where things stand — not an account of the work, which the commits already\n" +
+			"are. Read them before working in a universe; add one to another universe to\n" +
+			"reach whoever works there. `universe note` is the single line saying what the\n" +
+			"universe is for. The web page shows the same notes.",
 		Example: "  multiversectl universe notes 3\n" +
-			"  multiversectl universe notes add 3 \"login redirect fixed in api\"\n" +
+			"  multiversectl universe notes add 3 \"api redirect fixed; web still wrong\"\n" +
 			"  multiversectl universe notes add 3 --by claude -\n" +
 			"  multiversectl universe notes set 3 n2 \"and in web\"\n" +
 			"  multiversectl universe notes rm 3 n2",
@@ -45,7 +46,7 @@ func (r runner) notesCmd() *cobra.Command {
 				return writeCompactJSON(cmd.OutOrStdout(), map[string]any{"notes": notes})
 			}
 			if len(notes) == 0 {
-				r.out.Info("no notes on %s: `multiversectl universe notes add %s \"<what you did>\"`", args[0], args[0])
+				r.out.Info("no notes on %s: `multiversectl universe notes add %s \"<what the next reader needs>\"`", args[0], args[0])
 				return nil
 			}
 			r.out.Plain("%s", journalLines(notes))
@@ -60,11 +61,11 @@ func (r runner) notesAddCmd() *cobra.Command {
 	var by string
 	cmd := &cobra.Command{
 		Use:   "add <universe> <text>",
-		Short: "Add a note to a universe's journal",
+		Short: "Leave a note in a universe for the user or another agent",
 		Long: "The id and the time are the tool's to fill in. `-` as the text reads it from\n" +
 			"standard input, for a note longer than a command line wants.",
 		Example: "  multiversectl universe notes add 3 \"migrations run, mail still failing\"\n" +
-			"  multiversectl universe notes add 3 --by claude \"started on the redirect\"",
+			"  multiversectl universe notes add 3 --by claude \"blocked: needs SMTP creds in .env\"",
 		Args: cobra.MinimumNArgs(2),
 	}
 	cmd.Flags().StringVar(&by, "by", "", "who is saying it: an agent's name, a person's (default: nobody)")
@@ -113,7 +114,7 @@ func (r runner) notesSetCmd() *cobra.Command {
 func (r runner) notesRmCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "rm <universe> <id>",
-		Short:             "Take one note out of a journal",
+		Short:             "Take one note out",
 		Example:           "  multiversectl universe notes rm 3 n2",
 		Args:              cobra.ExactArgs(2),
 		ValidArgsFunction: r.completeNoteIDs,
