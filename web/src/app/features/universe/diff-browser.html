@@ -47,7 +47,7 @@
                 </button>
               }
             </div>
-            @if (open().has(f.path)) { <mv-patch-view [patch]="patches()[f.path]" /> }
+            @if (open().has(f.path)) { <mv-patch-view [patch]="patches()[f.path]" [path]="f.path" /> }
           </li>
         }
       </ul>

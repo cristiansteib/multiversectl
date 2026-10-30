@@ -21,7 +21,12 @@
           (dragleave)="over.set(null)">
           @if (r.review) { <mv-pr-icon [state]="r.review.state" /> }
           {{ r.repo }}
-          @if (r.change) { <b class="add">+{{ r.change.added }}</b><b class="del">−{{ r.change.removed }}</b> }
+          @if (stat(r); as d) {
+            <b class="add">+{{ d.added }}</b><b class="del">−{{ d.removed }}</b>
+            @if (!r.change) { <span class="sr-only">uncommitted</span> }
+          } @else if (!loaded()) {
+            <span class="pending" aria-hidden="true">·</span>
+          }
         </button>
       }
       @if (manual()) {

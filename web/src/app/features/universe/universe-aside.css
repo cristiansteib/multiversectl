@@ -3,6 +3,14 @@
 h3 { margin: 0 0 8px; font-size: .86rem; font-weight: 600; color: var(--muted) }
 ul { list-style: none; margin: 0; padding: 0 }
 .links li, .plain li { display: flex; flex-direction: column; gap: 3px; padding: 7px 0; border-top: 1px solid var(--line-soft) }
+/* A repository is one row, not two. The panel is narrow, so stacking the name
+   above its state spent a whole line on each and made a list of six repositories
+   twelve rows of mostly empty space. Name and branch on the left, what is true
+   of it on the right, and the line only breaks when there is genuinely no room:
+   the common case — a repository in step — is then one short line. */
+.repos .repo-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 6px 10px; flex-wrap: wrap }
+.repos .who { min-width: 0; flex: 1 1 auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
+.repos .state { flex: 0 0 auto; justify-content: flex-end }
 .links li:first-child, .plain li:first-child { border-top: 0; padding-top: 0 }
 .links a { font: .86rem/1.4 var(--mono); overflow-wrap: anywhere; text-decoration: none }
 .links a .u { text-decoration: underline; text-underline-offset: 3px }

@@ -33,12 +33,14 @@
         <h3 id="repos-h">Repositories</h3>
         <ul class="plain repos">
           @for (r of repos(); track r.c.path) {
-            <li>
-              <mv-repo-chip [loc]="r.loc" [name]="r.c.repo" />
-              <span class="state">
+            <li class="repo-row">
+              <span class="who">
+                <mv-repo-chip [loc]="r.loc" [name]="r.c.repo" />
                 @if (r.c.branch) { <mv-repo-chip [loc]="r.loc" [name]="r.c.repo" [branch]="r.c.branch" /> }
-                @if (r.c.behind) { <mv-badge tone="warn" [hint]="'Behind ' + (r.c.follows || 'its branch')">{{ r.c.behind }} behind</mv-badge> }
-                @if (r.c.ahead) { <mv-badge tone="info" [hint]="'Ahead of ' + (r.c.follows || 'its branch')">{{ r.c.ahead }} ahead</mv-badge> }
+              </span>
+              <span class="state">
+                @if (r.c.behind) { <mv-badge tone="warn" [hint]="'Behind ' + (r.c.follows || 'its branch')">{{ r.c.behind }}&#8595;</mv-badge> }
+                @if (r.c.ahead) { <mv-badge tone="info" [hint]="'Ahead of ' + (r.c.follows || 'its branch')">{{ r.c.ahead }}&#8593;</mv-badge> }
                 @if (r.c.dirty) { <mv-badge tone="warn" hint="Uncommitted changes in its worktree">edited</mv-badge> }
                 @if (!r.c.behind && !r.c.ahead && !r.c.dirty) { <span class="muted clean">in step</span> }
               </span>
