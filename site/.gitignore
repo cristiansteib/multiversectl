@@ -2,3 +2,12 @@
 # scripts/sync-public.mjs, so there is one of it. The screenshots under
 # public/assets/img/ are committed here: this is their home.
 public/install.sh
+
+# The redirect stubs at the site's old addresses are generated from
+# src/data/nav.ts by scripts/redirects.mjs on every build, so the nav is their
+# single source and a stale one cannot linger here.
+/public/*.html
+/public/start/
+/public/concepts/
+/public/tasks/
+/public/reference/

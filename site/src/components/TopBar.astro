@@ -15,7 +15,7 @@ const current = (g: NavGroup) => g.pages.some((p) => p.path === path);
 
 <div class="topbar">
   <div class="wrap">
-    <a class="brand" href="/index.html">multiverse<span>ctl</span></a>
+    <a class="brand" href="/">multiverse<span>ctl</span></a>
     <nav class="topnav" aria-label="Sections">
       {groups.map((g) => <a href={first(g)} aria-current={current(g) ? 'true' : undefined}>{g.title}</a>)}
     </nav>

@@ -24,37 +24,158 @@ npm run sync     # copy install.sh and the screenshots into public/ (build does 
 
 | Path | What it is |
 |---|---|
-| `src/data/nav.ts` | **The menu and the page order.** Ported from `docsrc/nav.yaml`: same groups, same order, same titles, nav labels, summaries and `hero`/`notoc` flags. The sidenav, the top bar's section links, the breadcrumb and previous/next all derive from it. |
+| `src/data/nav.ts` | **The menu, the page order and every address.** Groups, titles, nav labels, summaries, descriptions and the `hero`/`notoc` flags. The sidenav, the top bar's section links, the breadcrumb, previous/next, the hero's buttons and the redirect stubs all derive from it. |
 | `src/layouts/Page.astro` | The chrome of an ordinary page: top bar, menu, breadcrumb, h1, lede, content, pager, contents column, footer. |
 | `src/layouts/Home.astro` | The hero variant: landing header, no menu, no breadcrumb, no contents column. |
-| `src/components/` | The pieces of the chrome: `BaseHead`, `TopBar`, `SideNav`, `Breadcrumbs`, `Toc`, `Pager`, `Hero`, `Footer`, `Scripts`. |
+| `src/components/` | **The chrome**: `BaseHead`, `TopBar`, `SideNav`, `Breadcrumbs`, `Toc`, `Pager`, `Hero`, `Footer`, `Scripts`. **The content**: `Terminal`, `Figure`, `Shot`, `Note`, `Cards`/`Card` — see below. |
 | `src/lib/headings.ts` | Reads a page's `<h2 id>`s for its contents column. |
 | `src/styles/site.css` | The design system, ported byte for byte from `docs/assets/site.css`. Every class name is unchanged. |
 | `src/scripts/` | `site.ts` and the modules it imports: the copy buttons, the install tabs, the sidenav drawer, the theme button, the comparison notes, the contents column's scroll-spy. One bundle, shared by both layouts. |
 | `src/scripts/pages/` | A page's own behaviour, one module per page. `index.ts` is the agent animation. |
 | `src/pages/` | One `.astro` file per page, at the path it is published under. |
 | `public/` | Served at the site root. `brands/` is committed; `install.sh` and `assets/img/` are copied in by `npm run sync` and gitignored. |
-| `scripts/port-fragment.mjs` | Turns a `docsrc/` fragment into a page here. See below. |
-| `scripts/sync-public.mjs` | Copies `install.sh` and `docs/assets/img` into `public/`, so each has one source of truth. |
+| `scripts/sync-public.mjs` | Copies the repository's `install.sh` into `public/`, so there is one of it. |
+| `scripts/redirects.mjs` | Writes a stub at every address the site used to publish, from `src/data/nav.ts`. See **URLs**. |
+| `scripts/verify-site.mjs` | Checks a built or deployed site: every page answers, every link and anchor resolves, the metadata is complete. CI runs it. |
 
-## URLs: unchanged, and no redirects needed
+## The content components
 
-`build.format: 'file'`, so a page is published at exactly the path it had
-before: `/index.html`, `/docs.html`, `/start/install.html`,
-`/concepts/networking.html`. **There is no old → new mapping, because nothing
-moved.** The relative links inside the content (`../tasks/server.html`) keep
-resolving for the same reason, which is why the content can be pasted in as it
-is.
+A page's prose is ordinary markup, but the five patterns that repeat are
+components, so there is one definition of each instead of one per use.
 
-One thing to settle in hosting: `firebase.json` currently sets
-`"cleanUrls": true`, which makes Firebase redirect `/start/install.html` to
-`/start/install` (301) and serve the file there. Nothing breaks — no URL 404s
-— but every published link then costs a redirect hop and the canonical URL
-changes. **Set `"cleanUrls": false`** to keep the published URLs byte for byte
-what they have always been. If you would rather have clean URLs, that is a
-deliberate change of address for 25 pages: say so, and the chrome's links in
-`src/data/nav.ts` (`href()`) and the relative links in the content both need
-rewriting.
+| Component | Replaces | Uses |
+|---|---|---|
+| `Terminal` | `<div class="code"><pre>…</pre></div>` | 101 (55 shell, 38 file, 8 output) |
+| `Figure` | `<figure class="fig wide">` + `<figcaption>` | 7 |
+| `Card` in `Cards` | `<a class="card">` with its `<strong>`/`<span>` | 15 in 3 |
+| `Shot` | `<figure class="shot">` with its `<picture>` | 3 |
+| `Note` | `<div class="note">` | 3 |
+
+```astro
+<Terminal>
+<span class="p">$ </span>multiversectl universe ls
+<span class="k">universe 3</span>  ·  acme-u3  ·  6 running
+</Terminal>
+
+<Figure id="ag">
+  <svg viewBox="0 0 720 520" role="img" aria-labelledby="pt pd">
+    <title id="pt">The claim this picture makes</title>
+    <desc id="pd">What someone who cannot see it needs told.</desc>
+    …
+  </svg>
+  <Fragment slot="caption">The same claim, visibly, with <a href="x.html">a link</a>.</Fragment>
+</Figure>
+```
+
+Two of them **fail the build** rather than let a page ship something broken,
+which is the point of having them at all:
+
+- **`Figure`** requires `role="img"` and a label on the SVG, a `<title>` when
+  the label is an `aria-labelledby`, and a non-empty caption. A diagram without
+  them is announced to a screen reader as nothing whatsoever — easy to leave
+  out, impossible to see you have.
+- **`Shot`** requires `width`, `height` and an `alt` that says what the picture
+  shows. Without the dimensions the page reflows when the image arrives.
+
+`verify-site.mjs` checks the same things on the built HTML, so the component is
+the early, specific failure and the verifier is the backstop.
+
+### What is deliberately not a component
+
+- **The Copy button.** `Terminal` does not render one; it only says, through
+  `data-copy`, whether a block gets one and what it would copy.
+  `src/scripts/copy.ts` adds the button at runtime, so a reader with no
+  JavaScript is never shown a button that cannot work.
+- **The walkthrough's shell and scene** on `start/lifecycle`. The three `<pre>`
+  elements there are written by a script, and the `<figure>` around the scene
+  has page-specific CSS. One use, not a pattern.
+
+### What a `Terminal` holds, and what Copy gives
+
+Every block says which of three things it is, because that decides how it is
+framed and what the Copy button puts on the clipboard:
+
+| `kind` | Framed as | Copy gives |
+|---|---|---|
+| `shell` | a terminal window, with the three lights | **only what the user typed** — the `.in` spans, one command per line |
+| `file` | nothing; a YAML file is not a terminal | the whole thing, which is what you would paste into an editor |
+| `output` | nothing | **no button at all** — there is nothing here anyone would paste |
+
+So copying a shell example gives you the commands and nothing else: not the
+`$ ` the shell drew, not what the command printed, not the comments the page
+added. Paste it into a shell and it runs what the example ran.
+
+The window lights are an illustration of a window, not controls. They are
+inert, so they are `<i>` elements behind `aria-hidden` rather than buttons that
+would do nothing when pressed.
+
+The vocabulary inside, which is what makes the above possible:
+
+| Class | Is | Copied |
+|---|---|---|
+| `p` | the prompt — the shell drew it, so it is neither input nor output | never (also unselectable) |
+| `in` | what the user typed | **this is what Copy gives** |
+| `err` | a line the command sent to stderr | never |
+| `c` | a comment | never |
+| `k` | the thing to notice in the output | never |
+| `s` | a quoted string | never |
+
+Anything in a shell block carrying none of these is stdout, which is the common
+case and so needs no class.
+
+`Terminal.astro` owns the markup and the `data-copy` attribute; `src/scripts/copy.ts`
+owns the copying and reads that attribute. Keep the two in step.
+`verify-site.mjs` checks every block on every page: that it declares a kind,
+that a shell has marked input and a frame, that a file copies everything, and
+that an output-only block offers no button.
+
+## URLs
+
+The landing page is the site root. Everything else lives under `/docs/` and
+every address is extensionless, with a trailing slash:
+
+| Page | URL |
+|---|---|
+| landing | `/` |
+| documentation index | `/docs/` |
+| a page | `/docs/start/install/`, `/docs/concepts/networking/` |
+
+`build.format: 'directory'` writes each page as `<path>/index.html`, which is
+what lets GitHub Pages serve a path with no extension, and `trailingSlash:
+'always'` matches. Ask for `/docs/start/install` without the slash and Pages
+answers 301 to the slashed form, so the canonical, the sitemap and every link
+on the site all name the slashed form and nothing pays for the hop.
+
+**One rule decides every link in the chrome:** `href()` in `src/data/nav.ts`.
+The sidenav, the top bar, the breadcrumb, the pager and the hero's buttons all
+go through it. The canonical and `og:url` are built the same way in
+`BaseHead.astro`, which cannot use `href()` only because the 404 is not in the
+nav. Change the shape of an address in those two places and nowhere else.
+
+**Links inside the content are absolute** (`/docs/tasks/server/`), not
+relative. Under `build.format: 'file'` a page at `/concepts/networking.html`
+sat in `/concepts/`, so `../tasks/server.html` resolved; under `directory` the
+page is at `/docs/concepts/networking/`, so the same relative link would
+resolve to `/docs/concepts/tasks/server/` instead. Absolute paths do not care
+how deep a page is.
+
+### The addresses this replaces
+
+The site used to publish `/start/install.html`, `/concepts/networking.html` and
+22 more, and those are out there — indexed, linked, bookmarked. GitHub Pages
+serves static files and cannot answer with a 301, so `scripts/redirects.mjs`
+writes a stub at every one of them, generated from `src/data/nav.ts` on every
+build (`npm run sync`) into `public/` and gitignored, so the nav is their only
+source and a stale one cannot linger. Each stub names its replacement three
+ways: a canonical link for a crawler, a meta refresh for a browser, and a
+visible link for anyone with neither.
+
+They are stubs and not pages: nothing on the site links to one, they are
+`noindex, follow`, and they are not in the sitemap. `verify-site.mjs` checks
+every one of them still lands a reader on the page that replaced it.
+
+The landing page has no stub — it did not move, and `/index.html` is still the
+file the build writes at the root.
 
 ## The contents column ("On this page")
 
@@ -63,7 +184,7 @@ for `<h2 id="...">`, exactly as `docgen` scanned the fragments. So:
 
 - **A heading is in the contents column when, and only when, it carries an id.**
   Leaving the id off is how a heading is deliberately not a landmark — the same
-  rule `docsrc/README.md` states.
+  rule the old generator used.
 - There is nothing to keep in step: a page declares its headings by having
   them. Do not list them anywhere.
 - A page that needs to override the list can pass `headings={[{id, label}]}` to
@@ -80,48 +201,33 @@ already uses, on one line:
 ## Adding a page
 
 1. Add it to `src/data/nav.ts`, in the group and the position it belongs in.
-   Nothing else decides the menu, the breadcrumb or the pager.
-2. Port the content:
+   Nothing else decides the menu, the breadcrumb, the pager or its address.
+2. Write `src/pages/docs/<path>.astro`:
 
-   ```sh
-   node scripts/port-fragment.mjs concepts/networking
-   node scripts/port-fragment.mjs index --layout home   # only the home
+   ```astro
+   ---
+   import Page from '../../../layouts/Page.astro';
+   ---
+
+   <Page path="concepts/networking">
+     <section id="entrypoints">
+       <h2 id="entrypoints"><a href="#entrypoints">Entrypoints</a></h2>
+       …
+     </section>
+   </Page>
    ```
 
-   It writes `src/pages/<path>.astro` and refuses to overwrite a page that is
-   already there (`--force` overrides). The content is carried over verbatim
-   bar three mechanical changes, because an `.astro` file is not quite HTML:
+   `Page` takes the title, the lede, the breadcrumb, the current menu entry and
+   previous/next from `path`. `title`, `summary`, `section` and `notoc` exist as
+   props too, but only as overrides: `src/data/nav.ts` is the source.
 
-   - `{` and `}` become `&#123;` / `&#125;`. A brace starts an expression in an
-     Astro template; the entities render identically. Braces inside `<style>`
-     and `<script>` are left alone.
-   - `<style>` becomes `<style is:global>`. Astro scopes styles to the
-     component by default, and these select ids and classes in hand-written
-     SVG.
-   - every inline `<script>` moves to `src/scripts/pages/<slug>.ts`, which the
-     page imports. A `<script src="https://cdnjs…gsap…">` tag is dropped and
-     `import gsap from 'gsap'` put at the top of that module instead.
+   Links to other pages are absolute (`/docs/tasks/server/`), and the patterns
+   that repeat are the components above, not hand-written markup.
+3. `npm run check && npm run build`, then `node scripts/verify-site.mjs` against
+   the result.
 
-3. `npm run check && npm run build`.
-
-A page written by hand instead looks like this, and that is all it needs:
-
-```astro
----
-import Page from '../layouts/Page.astro';
----
-
-<Page path="concepts/networking">
-  <section id="entrypoints">
-    <h2 id="entrypoints"><a href="#entrypoints">Entrypoints</a></h2>
-    …
-  </section>
-</Page>
-```
-
-`Page` takes the title, the lede, the breadcrumb, the current menu entry and
-previous/next from `path`. `title`, `summary`, `section` and `notoc` exist as
-props too, but only as overrides: `src/data/nav.ts` is the source.
+A page added here gets a redirect stub only if it had an old address; a new
+page never does.
 
 ## No CDN
 
@@ -148,21 +254,26 @@ hidden. It no longer can.)
 
 ## Notes for whoever builds on this
 
-- **Content.** 25 pages are in `src/data/nav.ts`; three are ported
-  (`index`, `docs`, `start/install`). The rest are one
-  `scripts/port-fragment.mjs` run each. `docsrc/start/lifecycle.html` also
-  loads GSAP from a CDN and is `notoc`; the tool handles both.
+- **Content.** 25 pages, all listed in `src/data/nav.ts`, which is the only
+  place that decides the menu, the order, the breadcrumb, the pager and each
+  page's address.
 - **Islands.** Drop a component anywhere in a page's content — the content is
   ordinary Astro markup, not an opaque string. Page behaviour belongs in
-  `src/scripts/pages/<slug>.ts`; the ported modules carry `@ts-nocheck` because
-  they are the old hand-written JS as it was, and dropping that line is the
+  `src/scripts/pages/<slug>.ts`; the modules carried over from the old
+  hand-written JS still have `@ts-nocheck`, and dropping that line is the
   measure of having rewritten one properly.
-- **SEO.** `site` is set to `https://multiversectl.dev`, so `@astrojs/sitemap`
-  and canonical URLs need no further configuration. There is no `robots.txt`,
-  no sitemap and no Open Graph or JSON-LD yet; `BaseHead.astro` is where the
-  tags belong, and it is the only place to add them. Note that with
-  `build.format: 'file'` a canonical URL ends in `.html` unless the hosting
-  decision above changes.
+- **SEO.** `site` is `https://multiversectl.dev`, so `@astrojs/sitemap` and the
+  canonical URLs follow from it. `BaseHead.astro` holds every tag — canonical,
+  Open Graph, Twitter card, JSON-LD — and is the only place to add one.
+  `public/robots.txt` points at the sitemap. `scripts/verify-site.mjs` is what
+  keeps all of it honest, and CI fails on it.
+- **Widths.** Two containers, both in `src/styles/site.css`. `.wrap` is the
+  documentation's, and it is deliberately wide — the menu and the contents
+  column are navigation, so the middle column gets what is left, which is what
+  the code blocks and diagrams need. `.landing .wrap` caps the landing page
+  instead, and `.landing main > section` caps each section just past the widest
+  diagram, so the heading, the prose and the picture share one left edge
+  however wide the window is.
 - **Deployment.** GitHub Pages, from `main:/docs`. Two files in `public/` are
   what make that work and are easy to lose: `CNAME`, which names the domain,
   and `.nojekyll` — without it Pages applies Jekyll's rule that paths beginning

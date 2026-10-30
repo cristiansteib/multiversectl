@@ -1,0 +1,17 @@
+---
+// One link in a <Cards> row: where it goes, and what the reader will find.
+// The heading is a slot because some of them carry <code>.
+interface Props {
+  href: string;
+  /** An id in the icon sprite, without the #, drawn before the heading. */
+  icon?: string;
+}
+
+const { href, icon } = Astro.props;
+const title = await Astro.slots.render('title');
+---
+
+<a class="card" href={href}>
+  <strong>{icon && <svg class="ico ci" aria-hidden="true" viewBox="0 0 16 16"><use href={`#${icon}`} /></svg>}<Fragment set:html={title} /></strong>
+  <span><slot /></span>
+</a>

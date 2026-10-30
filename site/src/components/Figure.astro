@@ -1,0 +1,38 @@
+---
+// A diagram: hand-authored inline SVG with the claim it makes attached twice —
+// once visibly, as the caption, and once for a reader who cannot see it.
+//
+// The SVG goes in the default slot so it stays readable in the page it belongs
+// to, and the caption in a slot of its own because captions carry links and
+// <code>. What is checked here rather than trusted to each page is the
+// accessibility contract: a diagram with no role and no label is announced as
+// nothing at all, which is easy to leave out and impossible to notice. The
+// build fails instead of shipping one.
+interface Props {
+  /** Takes the width of the contents column too. True for every diagram so far. */
+  wide?: boolean;
+  /** An id on the <figure>, when a script or a stylesheet has to find it. */
+  id?: string;
+}
+
+const { wide = true, id } = Astro.props;
+const body = await Astro.slots.render('default');
+const caption = Astro.slots.has('caption') ? await Astro.slots.render('caption') : '';
+
+const complain = (why: string) => {
+  const near = body.replace(/\s+/g, ' ').slice(0, 60);
+  return new Error(`<Figure> near "${near}…": ${why}`);
+};
+if (!/<svg[\s>]/.test(body)) throw complain('has no <svg>');
+if (!/role="img"/.test(body)) throw complain('its <svg> needs role="img"');
+if (!/aria-label(ledby)?=/.test(body))
+  throw complain('its <svg> needs aria-label, or aria-labelledby naming a <title>');
+if (/aria-labelledby=/.test(body) && !/<title[\s>]/.test(body))
+  throw complain('aria-labelledby names a <title> the SVG does not have');
+if (!caption.trim()) throw complain('needs a caption: <Fragment slot="caption">…</Fragment>');
+---
+
+<figure class:list={['fig', { wide }]} id={id}>
+  <Fragment set:html={body} />
+  <figcaption set:html={caption} />
+</figure>

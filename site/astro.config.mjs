@@ -2,17 +2,21 @@
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 
-// The site this replaces is a folder of plain .html files, and its URLs are
-// already published: /start/install.html, /concepts/networking.html. build
-// format "file" keeps exactly those paths, so nothing needs a redirect and the
-// relative links written inside the content ("../tasks/server.html") keep
-// resolving the way they always did.
+// The documentation lives under /docs/ and every address is extensionless:
+// /docs/start/install/, /docs/concepts/networking/. The landing page keeps the
+// root. build format "directory" writes each page as <path>/index.html, which
+// is what lets GitHub Pages serve a path with no extension.
+//
+// The addresses this replaces (/start/install.html and the rest) are published
+// and indexed, so scripts/redirects.mjs writes a stub at every one of them
+// pointing here. Nothing links to a stub; they exist for what is already out
+// there.
 export default defineConfig({
   site: 'https://multiversectl.dev',
   output: 'static',
-  trailingSlash: 'never',
+  trailingSlash: 'always',
   build: {
-    format: 'file',
+    format: 'directory',
     // One stylesheet for the whole site, under a content hash, which is what
     // docgen's ?v= query did by hand.
     inlineStylesheets: 'never',
@@ -20,13 +24,13 @@ export default defineConfig({
   integrations: [
     sitemap({
       // The 404 is not a page to index.
-      filter: (url) => !/\/404(\.html)?$/.test(url),
-      // The integration lists pages as clean paths; this site publishes them
-      // under build.format 'file', so each address gets its .html back (the
-      // root stays the root).
+      filter: (url) => !/\/404\/?$/.test(url),
+      // Every address ends in a slash, which is what the canonical says and
+      // what GitHub Pages serves; without this the sitemap would list the
+      // extensionless form that only 301s to it.
       serialize: (item) => {
         const u = new URL(item.url);
-        if (u.pathname !== '/' && !u.pathname.endsWith('.html')) u.pathname += '.html';
+        if (!u.pathname.endsWith('/')) u.pathname += '/';
         return { ...item, url: u.href };
       },
     }),

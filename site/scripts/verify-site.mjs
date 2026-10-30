@@ -21,9 +21,12 @@ const say = (...a) => console.log(...a);
 const norm = (u) => {
   const x = new URL(u, base);
   x.hash = '';
-  // /index.html and / are the same page (the canonical is the root).
+  // /index.html and / are the same page (the canonical is the root). The
+  // trailing slash is kept: every page is published at <path>/, and dropping it
+  // would make each check fetch the extensionless form and follow a 301 to get
+  // back here.
   x.pathname = x.pathname.replace(/\/index\.html$/, '/');
-  return x.href.replace(/\/$/, '') || base;
+  return x.href;
 };
 
 async function get(url) {
@@ -94,6 +97,67 @@ function checkAnchors(pages) {
   }
 }
 
+/** Every .code block of a page, with its nested markup intact. A shell block
+ *  holds a <div> of its own for the window frame, so the closing tag cannot be
+ *  found by a non-greedy match — it has to be counted. */
+function codeBlocks(html) {
+  const out = [];
+  const open = /<div class="code (code-\w+)"([^>]*)>/g;
+  let m;
+  while ((m = open.exec(html))) {
+    const from = open.lastIndex;
+    let depth = 1, i = from;
+    const tag = /<(\/?)div\b[^>]*>/g;
+    tag.lastIndex = from;
+    let t;
+    while (depth > 0 && (t = tag.exec(html))) {
+      depth += t[1] ? -1 : 1;
+      i = t.index;
+    }
+    out.push({cls: m[1], attrs: m[2], body: html.slice(from, i)});
+  }
+  return out;
+}
+
+function checkCodeBlocks(pages) {
+  // A code block says what it holds, and that decides what Copy gives: a shell
+  // gives the commands, a file gives the whole thing, and output alone gives
+  // no button at all. The classification is per block and easy to get wrong on
+  // a new one, so it is checked rather than trusted.
+  let shells = 0, files = 0, outputs = 0;
+  for (const url of pages) {
+    const {html} = seen.get(url);
+    const where = url.replace(base, '') || '/';
+    for (const m of codeBlocks(html)) {
+      const cls = m.cls, rest = m.attrs, body = m.body;
+      const kind = (cls.match(/^code-(shell|file|output)$/) || [])[1];
+      const copy = (rest.match(/data-copy="(\w+)"/) || [])[1];
+      if (!kind) { problems.push(`a code block says no kind  ${where}`); continue; }
+      if (kind === 'shell') {
+        shells++;
+        if (copy !== 'input') problems.push(`shell block copies "${copy}", want input  ${where}`);
+        if (!/<span class="in">/.test(body))
+          problems.push(`shell block has no marked input, so Copy would give nothing  ${where}`);
+        if (!/class="code-bar"/.test(body))
+          problems.push(`shell block has no window frame  ${where}`);
+        if (!/aria-hidden="true"/.test(body))
+          problems.push(`shell block's window lights are not hidden from a screen reader  ${where}`);
+      } else if (kind === 'file') {
+        files++;
+        if (copy !== 'all') problems.push(`file block copies "${copy}", want all  ${where}`);
+        if (/<span class="in">/.test(body))
+          problems.push(`file block marks input, which only a shell has  ${where}`);
+      } else {
+        outputs++;
+        if (copy) problems.push(`output-only block offers Copy ("${copy}")  ${where}`);
+        if (/class="code-bar"/.test(body))
+          problems.push(`output-only block is framed as a terminal window  ${where}`);
+      }
+    }
+  }
+  say(`  code blocks: ${shells} shell, ${files} file, ${outputs} output`);
+}
+
 function checkSeo(pages) {
   const titles = new Map(), descs = new Map();
   for (const url of pages) {
@@ -129,7 +193,8 @@ function checkSeo(pages) {
       const c = new URL(canon, url);
       if (c.origin !== PROD) problems.push(`canonical not on ${PROD}  ${where}  ->  ${canon}`);
       else if (norm(local(canon)) !== url) problems.push(`canonical points elsewhere  ${where}  ->  ${canon}`);
-      if (c.pathname !== '/' && !c.pathname.endsWith('.html')) problems.push(`canonical is a clean URL, not .html  ${where}  ->  ${canon}`);
+      if (!c.pathname.endsWith('/')) problems.push(`canonical does not end in a slash  ${where}  ->  ${canon}`);
+      if (/\.html$/.test(c.pathname)) problems.push(`canonical still names a .html file  ${where}  ->  ${canon}`);
     }
 
     for (const p of ['og:title', 'og:description', 'og:type', 'og:url', 'og:image', 'og:site_name', 'og:locale']) {
@@ -209,11 +274,44 @@ async function checkFiles(pages) {
   say(`  sitemap lists ${urls.length} urls`);
 }
 
+async function checkRedirects(pages) {
+  // The documentation moved from /start/install.html to /docs/start/install/.
+  // Every one of those old addresses is published, so every one of them has to
+  // still land a reader on the page that replaced it. Nothing links to them,
+  // so the crawl above cannot have covered them.
+  const olds = pages
+    .map((u) => new URL(u).pathname)
+    .filter((pa) => pa.startsWith('/docs/') || pa === '/docs/')
+    .map((pa) => {
+      const stem = pa.slice('/docs/'.length).replace(/\/$/, '');
+      return [stem ? `/${stem}.html` : '/docs.html', pa];
+    });
+  let ok = 0;
+  for (const [from, to] of olds) {
+    const r = await get(base + from);
+    if (r.status !== 200) { problems.push(`old address ${from} answers ${r.status || 'ERR'}`); continue; }
+    const canon = tags(r.html, /<link\s[^>]*>/gi)
+      .map((t) => (attr(t, 'rel') === 'canonical' ? attr(t, 'href') : null)).find(Boolean);
+    if (!canon || new URL(canon).pathname !== to)
+      problems.push(`old address ${from} has canonical ${canon || 'none'}, want ${to}`);
+    const refresh = tags(r.html, /<meta\s[^>]*>/gi)
+      .map((t) => (/refresh/i.test(attr(t, 'http-equiv') || '') ? attr(t, 'content') : null)).find(Boolean);
+    if (!refresh || !refresh.includes(to))
+      problems.push(`old address ${from} has no meta refresh to ${to}`);
+    if (!new RegExp(`href="${to}"`).test(r.html))
+      problems.push(`old address ${from} has no visible link to ${to}`);
+    ok++;
+  }
+  say(`  ${ok} old addresses still reach their page`);
+}
+
 const pages = await crawl();
 say(`${base}\n  ${pages.length} pages reached`);
 checkAnchors(pages);
 checkSeo(pages);
+checkCodeBlocks(pages);
 await checkFiles(pages);
+await checkRedirects(pages);
 
 if (problems.length) {
   say(`\n${problems.length} problem(s):`);
