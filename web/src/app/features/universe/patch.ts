@@ -1,5 +1,9 @@
-// A diff is text, drawn line by line with the mark it starts with, never as
-// markup: it is a stranger's code.
+// A diff is read line by line, and what each line is comes from the mark it
+// starts with. The text of a line is somebody's code, so it is never trusted:
+// the mark is split from it for drawing (see patch-view), the code is coloured
+// by highlight.js, which escapes what it emits, and Angular sanitises the
+// result again on its way into the DOM. Two passes, because one of them is a
+// dependency's promise and the other is not.
 
 export type PatchKind = 'hunk' | 'meta' | 'ins' | 'rem' | '';
 export interface PatchLine { kind: PatchKind; text: string }
