@@ -65,7 +65,7 @@ Creating a repository or pushing to a catalog is visible to other people. Ask th
 
 ### What the manifest has, and what it lacks
 
-The new `multiverse.yaml` only lists the repositories. `universe up` starts every repository that has a `docker-compose.yml` as an app of its own name, with the hosts its compose labels give; one without a compose file is only checked out. To say more (hosts and ports, secrets, optional services, compose files, profiles) add `spec.apps` to the manifest, in the multiverse's own repository: edit, commit, push, then `multiversectl catalog update`. Each app takes `repo`, `hosts` (`name`, `service`, `port`), `secrets`, `compose`, `profiles`; the full reference is https://multiversectl.dev/reference/manifest.html. The manifest is the user's to change: propose the edit unless asked to make it.
+The new `multiverse.yaml` only lists the repositories. `universe up` starts every repository that has a `docker-compose.yml` as an app of its own name, with the hosts its compose labels give; one without a compose file is only checked out. To say more (hosts and ports, secrets, optional services, compose files, profiles) add `spec.apps` to the manifest, in the multiverse's own repository: edit, commit, push, then `multiversectl catalog update`. Each app takes `repo`, `hosts` (`name`, `service`, `port`), `secrets`, `compose`, `profiles`; the full reference is https://multiversectl.dev/docs/reference/manifest/. The manifest is the user's to change: propose the edit unless asked to make it.
 
 ## Web view
 

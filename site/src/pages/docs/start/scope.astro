@@ -1,0 +1,45 @@
+---
+import Page from '../../../layouts/Page.astro';
+---
+
+<Page path="start/scope">
+<section id="features">
+  <h2 id="features"><a href="#features">What it does</a></h2>
+  <div class="tw plain"><table>
+  <thead><tr><th scope="col">Feature</th><th scope="col">What you get</th><th scope="col">Read more</th></tr></thead><tbody>
+  <tr><td data-l="Feature"><strong>The whole system per copy</strong></td><td data-l="What you get">Every repository on its own branch, every app running, handled as one.</td><td data-l="Read more"><a href="/docs/tasks/branches/">Work across branches</a></td></tr>
+  <tr><td data-l="Feature"><strong>Shared in one command</strong></td><td data-l="What you get">Start a whole system someone shares with one command, nothing to set up.</td><td data-l="Read more"><a href="/docs/start/quickstart/">Quick start</a></td></tr>
+  <tr><td data-l="Feature"><strong>Hostnames, not ports</strong></td><td data-l="What you get">Each copy gets its own addresses, so nothing collides.</td><td data-l="Read more"><a href="/docs/concepts/networking/">Networking</a></td></tr>
+  <tr><td data-l="Feature"><strong>Open from any device</strong></td><td data-l="What you get">Open any copy from your phone or another computer on your network.</td><td data-l="Read more"><a href="/docs/tasks/reach/">Reach a universe</a></td></tr>
+  <tr><td data-l="Feature"><strong>Logins that work</strong></td><td data-l="What you get">Each copy tells its apps their own addresses, so logins and CORS work.</td><td data-l="Read more"><a href="/docs/concepts/labels/#env">Labels</a></td></tr>
+  <tr><td data-l="Feature"><strong>HTTPS</strong></td><td data-l="What you get">Serve any copy over HTTPS, with your own certificate.</td><td data-l="Read more"><a href="/docs/concepts/networking/#tls">Serving https</a></td></tr>
+  <tr><td data-l="Feature"><strong>Your compose files</strong></td><td data-l="What you get">Runs the compose files you already have, unchanged.</td><td data-l="Read more"><a href="/docs/concepts/labels/">Labels</a></td></tr>
+  <tr><td data-l="Feature"><strong>A database per copy</strong></td><td data-l="What you get">Each copy has its own data. One branch never touches another's.</td><td data-l="Read more"><a href="/docs/concepts/storage/">Storage and data</a></td></tr>
+  <tr><td data-l="Feature"><strong>Hooks</strong></td><td data-l="What you get">Seed data and set things up when a copy starts; clean up when it goes.</td><td data-l="Read more"><a href="/docs/tasks/services/#hw-hooks">Hooks</a></td></tr>
+  <tr><td data-l="Feature"><strong>Config per copy</strong></td><td data-l="What you get">Config files written with each copy's own values.</td><td data-l="Read more"><a href="/docs/tasks/services/#hw-render">Render</a></td></tr>
+  <tr><td data-l="Feature"><strong>Secrets</strong></td><td data-l="What you get">Your local secret files, in every copy.</td><td data-l="Read more"><a href="/docs/concepts/storage/#secrets">Secrets</a></td></tr>
+  <tr><td data-l="Feature"><strong>Start only what you need</strong></td><td data-l="What you get">Extra services and apps run only when you ask for them.</td><td data-l="Read more"><a href="/docs/tasks/services/#hw-optional">Optional</a></td></tr>
+  <tr><td data-l="Feature"><strong>Branches kept current</strong></td><td data-l="What you get">Bring every copy up to date with its branch in one step.</td><td data-l="Read more"><a href="/docs/tasks/branches/">Work across branches</a></td></tr>
+  <tr><td data-l="Feature"><strong>Health checks</strong></td><td data-l="What you get">Check the machine and every address, and say what is wrong.</td><td data-l="Read more"><a href="/docs/reference/troubleshooting/">Troubleshooting</a></td></tr>
+  <tr><td data-l="Feature"><strong>A web view</strong></td><td data-l="What you get">See and control every copy from a browser, a phone included.</td><td data-l="Read more"><a href="/docs/tasks/server/">In a browser</a></td></tr>
+  <tr><td data-l="Feature"><strong>Catalogs</strong></td><td data-l="What you get">A shared list of systems your team can install.</td><td data-l="Read more"><a href="/docs/concepts/catalogs/">Catalogs</a></td></tr>
+  <tr><td data-l="Feature"><strong>Made for agents too</strong></td><td data-l="What you get">Give a coding agent a whole copy of its own.</td><td data-l="Read more"><a href="/docs/tasks/server/#hw-agents">Agents</a></td></tr>
+  </tbody></table></div>
+</section>
+
+<section id="not">
+  <h2 id="not"><a href="#not">What it is not</a></h2>
+  <p>Knowing where it stops saves trying it for the wrong job.</p>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">It is not</th><th scope="col">Because</th><th scope="col">For that, use</th></tr></thead><tbody>
+  <tr><td data-l="It is not">A sandbox or a VM</td><td data-l="Because">Universes share your kernel, daemon and user: one can fill the disk or reach another's containers through the runtime. They are copies you trust, not a boundary.</td><td data-l="Use">A VM, or a container sandbox for untrusted code</td></tr>
+  <tr><td data-l="It is not">A replacement for docker compose</td><td data-l="Because">It describes no containers. It reads your compose files and adds only routing and names, so they keep working without it.</td><td data-l="Use">The compose files you have</td></tr>
+  <tr><td data-l="It is not">A rebuild-on-save loop</td><td data-l="Because">What reloads in a universe is what your compose files already do: a bind mount and a dev server.</td><td data-l="Use">Your dev server; <a href="https://tilt.dev/">Tilt</a> or <a href="https://skaffold.dev/">Skaffold</a> on Kubernetes</td></tr>
+  <tr><td data-l="It is not">A deployment or production tool</td><td data-l="Because">It runs on one machine, for development. Nothing it does belongs on a server others depend on.</td><td data-l="Use">Your deployment pipeline</td></tr>
+  <tr><td data-l="It is not">A preview service on the internet</td><td data-l="Because">A universe answers on this machine or its network, not to the outside world, and is made by you, not by CI.</td><td data-l="Use">A preview-environment service</td></tr>
+  <tr><td data-l="It is not">An agent runner</td><td data-l="Because">It gives an agent a whole environment to work in; it does not start, prompt or supervise the agent.</td><td data-l="Use">Your agent, or a worktree manager, pointed at a universe</td></tr>
+  <tr><td data-l="It is not">A way to share one database among copies</td><td data-l="Because">Each universe runs its own services, data included. That keeps branches apart, and it is what the machine's memory has to hold.</td><td data-l="Use">Fewer universes, or lighter services in an overlay</td></tr>
+  </tbody></table></div>
+  <p><a href="/docs/start/compare/">Compared with other tools</a> puts it next to its neighbours, feature by feature, and says when each is the better choice.</p>
+</section>
+</Page>

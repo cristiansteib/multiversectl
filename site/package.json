@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sync": "node scripts/sync-public.mjs",
+    "sync": "node scripts/sync-public.mjs && node scripts/redirects.mjs",
     "dev": "npm run sync && astro dev",
     "start": "npm run dev",
     "prebuild": "npm run sync",

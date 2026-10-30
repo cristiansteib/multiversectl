@@ -225,9 +225,16 @@ const sectionByPath = new Map(
   groups.flatMap((g) => g.pages.map((p) => [p.path, g.title] as const)),
 );
 
-/** The URL of a page. Paths keep the .html the published site already uses. */
+/**
+ * The URL of a page. The documentation lives under /docs/ and every address
+ * ends in a slash: the build writes <path>/index.html, and that trailing slash
+ * is the address GitHub Pages serves without a redirect. The documentation
+ * index is /docs/ itself, and the landing page — which is in the nav, because
+ * the pager reads the order from there — is the site root.
+ */
 export function href(path: string): string {
-  return `/${path}.html`;
+  if (path === 'index') return '/';
+  return path === 'docs' ? '/docs/' : `/docs/${path}/`;
 }
 
 /** The label a page carries in the menu. */

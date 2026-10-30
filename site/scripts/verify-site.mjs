@@ -21,9 +21,12 @@ const say = (...a) => console.log(...a);
 const norm = (u) => {
   const x = new URL(u, base);
   x.hash = '';
-  // /index.html and / are the same page (the canonical is the root).
+  // /index.html and / are the same page (the canonical is the root). The
+  // trailing slash is kept: every page is published at <path>/, and dropping it
+  // would make each check fetch the extensionless form and follow a 301 to get
+  // back here.
   x.pathname = x.pathname.replace(/\/index\.html$/, '/');
-  return x.href.replace(/\/$/, '') || base;
+  return x.href;
 };
 
 async function get(url) {
@@ -129,7 +132,8 @@ function checkSeo(pages) {
       const c = new URL(canon, url);
       if (c.origin !== PROD) problems.push(`canonical not on ${PROD}  ${where}  ->  ${canon}`);
       else if (norm(local(canon)) !== url) problems.push(`canonical points elsewhere  ${where}  ->  ${canon}`);
-      if (c.pathname !== '/' && !c.pathname.endsWith('.html')) problems.push(`canonical is a clean URL, not .html  ${where}  ->  ${canon}`);
+      if (!c.pathname.endsWith('/')) problems.push(`canonical does not end in a slash  ${where}  ->  ${canon}`);
+      if (/\.html$/.test(c.pathname)) problems.push(`canonical still names a .html file  ${where}  ->  ${canon}`);
     }
 
     for (const p of ['og:title', 'og:description', 'og:type', 'og:url', 'og:image', 'og:site_name', 'og:locale']) {
@@ -209,11 +213,43 @@ async function checkFiles(pages) {
   say(`  sitemap lists ${urls.length} urls`);
 }
 
+async function checkRedirects(pages) {
+  // The documentation moved from /start/install.html to /docs/start/install/.
+  // Every one of those old addresses is published, so every one of them has to
+  // still land a reader on the page that replaced it. Nothing links to them,
+  // so the crawl above cannot have covered them.
+  const olds = pages
+    .map((u) => new URL(u).pathname)
+    .filter((pa) => pa.startsWith('/docs/') || pa === '/docs/')
+    .map((pa) => {
+      const stem = pa.slice('/docs/'.length).replace(/\/$/, '');
+      return [stem ? `/${stem}.html` : '/docs.html', pa];
+    });
+  let ok = 0;
+  for (const [from, to] of olds) {
+    const r = await get(base + from);
+    if (r.status !== 200) { problems.push(`old address ${from} answers ${r.status || 'ERR'}`); continue; }
+    const canon = tags(r.html, /<link\s[^>]*>/gi)
+      .map((t) => (attr(t, 'rel') === 'canonical' ? attr(t, 'href') : null)).find(Boolean);
+    if (!canon || new URL(canon).pathname !== to)
+      problems.push(`old address ${from} has canonical ${canon || 'none'}, want ${to}`);
+    const refresh = tags(r.html, /<meta\s[^>]*>/gi)
+      .map((t) => (/refresh/i.test(attr(t, 'http-equiv') || '') ? attr(t, 'content') : null)).find(Boolean);
+    if (!refresh || !refresh.includes(to))
+      problems.push(`old address ${from} has no meta refresh to ${to}`);
+    if (!new RegExp(`href="${to}"`).test(r.html))
+      problems.push(`old address ${from} has no visible link to ${to}`);
+    ok++;
+  }
+  say(`  ${ok} old addresses still reach their page`);
+}
+
 const pages = await crawl();
 say(`${base}\n  ${pages.length} pages reached`);
 checkAnchors(pages);
 checkSeo(pages);
 await checkFiles(pages);
+await checkRedirects(pages);
 
 if (problems.length) {
   say(`\n${problems.length} problem(s):`);

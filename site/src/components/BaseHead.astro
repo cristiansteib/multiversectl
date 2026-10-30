@@ -23,7 +23,15 @@ const { title, description, path, jsonLd = [], noindex = false } = Astro.props;
 // Canonicals keep the .html the site is published under (build.format 'file',
 // GitHub Pages). The home is the site root, which is the address people link.
 const origin = (Astro.site ?? new URL('https://multiversectl.dev')).origin;
-const url = path === undefined ? undefined : path === 'index' ? `${origin}/` : `${origin}/${path}.html`;
+// The address this page is published at, which is the one the canonical and
+// og:url have to name: the landing page is the root, and everything else is
+// under /docs/ with a trailing slash. href() in src/data/nav.ts says the same
+// thing for the chrome's links; this cannot use it because the 404 is not in
+// the nav.
+const url = path === undefined ? undefined
+  : path === 'index' ? `${origin}/`
+  : path === 'docs' ? `${origin}/docs/`
+  : `${origin}/docs/${path}/`;
 const image = `${origin}/og-image.png`;
 const imageAlt = 'multiversectl: run your whole stack several times at once on one machine';
 const isHome = path === 'index';

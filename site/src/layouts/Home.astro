@@ -7,7 +7,7 @@ import Footer from '../components/Footer.astro';
 import Scripts from '../components/Scripts.astro';
 import Hero from '../components/Hero.astro';
 import TopBar from '../components/TopBar.astro';
-import { page } from '../data/nav';
+import { page, href } from '../data/nav';
 
 interface Props {
   /** The page's path in src/data/nav.ts. Only "index" is a hero today. */
@@ -31,8 +31,8 @@ const software = {
   applicationSubCategory: 'Local development environments',
   operatingSystem: 'Linux, macOS',
   license: 'https://www.apache.org/licenses/LICENSE-2.0',
-  downloadUrl: `${site}/start/install.html`,
-  installUrl: `${site}/start/install.html`,
+  downloadUrl: `${site}${href('start/install')}`,
+  installUrl: `${site}${href('start/install')}`,
   image: `${site}/og-image.png`,
   sameAs: ['https://github.com/cristiansteib/multiversectl'],
   author: { '@type': 'Person', name: 'Cristian Steib' },
@@ -45,7 +45,7 @@ const software = {
   <head>
     <BaseHead title={title} description={description} path={path} jsonLd={[software]} />
   </head>
-  <body>
+  <body class="landing">
     <a class="skip" href="#main">Skip to content</a>
     <TopBar path={path} />
     <Hero />

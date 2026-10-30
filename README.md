@@ -10,10 +10,10 @@ containers and data, and hostnames that open from any device on your network, a
 phone included.
 
 **[Documentation](https://multiversectl.dev/)** ·
-[Quick start](https://multiversectl.dev/start/quickstart.html) ·
-[Compared with other tools](https://multiversectl.dev/start/compare.html) ·
-[Manifest reference](https://multiversectl.dev/reference/manifest.html) ·
-[Commands](https://multiversectl.dev/reference/cli.html)
+[Quick start](https://multiversectl.dev/docs/start/quickstart/) ·
+[Compared with other tools](https://multiversectl.dev/docs/start/compare/) ·
+[Manifest reference](https://multiversectl.dev/docs/reference/manifest/) ·
+[Commands](https://multiversectl.dev/docs/reference/cli/)
 
 ```sh
 multiversectl universe new fix/login   # every repository on branch fix/login
@@ -58,7 +58,7 @@ Not a sandbox (universes share your kernel and daemon), not a replacement for
 compose, not a rebuild-on-save loop, not a deployment tool, and not a preview
 service on the internet. Each universe runs its own services, so the machine's
 memory is the limit on how many. The
-[comparison](https://multiversectl.dev/start/compare.html) says when
+[comparison](https://multiversectl.dev/docs/start/compare/) says when
 [Docktree](https://docktree.dev/),
 [container-use](https://github.com/dagger/container-use),
 [Tilt](https://tilt.dev/), [Skaffold](https://skaffold.dev/),
@@ -95,7 +95,7 @@ mise use -g ubi:cristiansteib/multiversectl
 A `.deb` is on the [releases page](https://github.com/cristiansteib/multiversectl/releases),
 and `make install` builds from source into `~/.local/bin`. The script and the
 `.deb` also provide the alias `mvctl`; `multiversectl self-update` replaces the
-binary later. [Install](https://multiversectl.dev/start/install.html) lists what
+binary later. [Install](https://multiversectl.dev/docs/start/install/) lists what
 the machine needs.
 
 ## Multiverses and catalogs
@@ -119,7 +119,7 @@ multiversectl status                    # what is installed here, and what has d
 multiversectl catalog update            # catch up: manifests and new repositories
 ```
 
-See [Catalogs](https://multiversectl.dev/concepts/catalogs.html).
+See [Catalogs](https://multiversectl.dev/docs/concepts/catalogs/).
 
 All of it is also a live page — the tree, every universe and what runs in it —
 with buttons for the same operations:
@@ -153,7 +153,7 @@ multiversectl universe doctor           # check prerequisites and common problem
 multiversectl universe rm fix/login     # stop and delete it
 ```
 
-The [quick start](https://multiversectl.dev/start/quickstart.html)
+The [quick start](https://multiversectl.dev/docs/start/quickstart/)
 walks through the same thing with a manifest to copy.
 
 ## Manifest
@@ -182,7 +182,7 @@ That is a working multiverse: each repository gets an app of its own name, its
 compose files are found by convention, and its addresses come from their labels.
 [examples/multiverse.yaml](examples/multiverse.yaml) is a commented example with
 the rest, and every field is documented in the
-[manifest reference](https://multiversectl.dev/reference/manifest.html)
+[manifest reference](https://multiversectl.dev/docs/reference/manifest/)
 and in the generated [schema](schema/multiverse.v1alpha1.yaml).
 
 ## How it works
@@ -194,10 +194,10 @@ so your compose files stay the ones you already run. The proxy joins each app's
 own network, so no universe sees another's services by name.
 
 The documentation goes into
-[networking](https://multiversectl.dev/concepts/networking.html),
-[storage and data](https://multiversectl.dev/concepts/storage.html),
-[overlays and merge order](https://multiversectl.dev/concepts/overlays.html)
-and [labels](https://multiversectl.dev/concepts/labels.html).
+[networking](https://multiversectl.dev/docs/concepts/networking/),
+[storage and data](https://multiversectl.dev/docs/concepts/storage/),
+[overlays and merge order](https://multiversectl.dev/docs/concepts/overlays/)
+and [labels](https://multiversectl.dev/docs/concepts/labels/).
 
 ## Contributing
 
