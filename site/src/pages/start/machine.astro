@@ -132,11 +132,11 @@ import Terminal from '../../components/Terminal.astro';
 <section id="data">
   <h2 id="data"><a href="#data">Data: whose is whose</a></h2>
   <p>Volumes are namespaced by compose project, so a database volume declared once in your compose file becomes a different volume in every universe, with no change to the file:</p>
-  <Terminal><span class="p">$ </span>docker volume ls | grep acme
+  <Terminal><pre><span class="p">$ </span>docker volume ls | grep acme
 acme-u3-api_postgres_data          <span class="c"># universe 3's database</span>
 acme-u3-web_node_modules
 acme-fix-login-api_postgres_data   <span class="c"># a different database entirely</span>
-acme-fix-login-web_node_modules</Terminal>
+acme-fix-login-web_node_modules</pre></Terminal>
   <p>That is the main reason to run a second universe: a destructive migration on a review branch cannot reach what you were working on this morning. Images are the deliberate exception — they are expensive and usually identical, so universes share them and the layer cache.</p>
   <p>Your code works the same way: one clone per repository holds the history, and each universe gets a <code>git worktree</code> of it on its own branch. A large history is stored once however many universes exist, and one <code>fetch</code> updates every universe's view of the remote.</p>
   <p><a href="../concepts/storage.html">Storage and data</a> covers secrets, the generated files and exactly what <code>rm</code> destroys.</p>
@@ -145,14 +145,14 @@ acme-fix-login-web_node_modules</Terminal>
 <section id="runtime">
   <h2 id="runtime"><a href="#runtime">What is actually running</a></h2>
   <p>One container per service per app per universe, plus one proxy for the machine. Nothing else: multiversectl has no daemon or agent of its own, and nothing of it is running between commands.</p>
-  <Terminal><span class="p">$ </span>docker ps --format '&#123;&#123;.Names&#125;&#125;'
+  <Terminal><pre><span class="p">$ </span>docker ps --format '&#123;&#123;.Names&#125;&#125;'
 multiverse-proxy-traefik-1   <span class="c"># one for the machine</span>
 acme-u3-api-web-1            <span class="c"># universe 3, app api, service web</span>
 acme-u3-api-db-1
 acme-u3-web-app-dev-1
 acme-u4-api-web-1            <span class="c"># universe 4, the same services again</span>
 acme-u4-api-db-1
-acme-u4-web-app-dev-1</Terminal>
+acme-u4-web-app-dev-1</pre></Terminal>
   <p>The name is the whole hierarchy: multiverse, universe, app, service. It is what keeps two repositories that both call a service <code>app</code> from meeting, and it is how every command finds what belongs to what.</p>
   <p>The cost of a universe is therefore the cost of its containers' memory. That is the real limit on how many you run at once, and it is why <code>down</code> exists: a universe that is down costs disk, not memory, and comes back where it left off.</p>
 </section>

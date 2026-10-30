@@ -15,7 +15,9 @@
     <span class="k">overlay</span>:
       <span class="k">services</span>:
         <span class="k">app-dev</span>:
-          <span class="c"># The dev server rejects Host headers it does not know,</span><span class="c"># and this universe's hostname is not in its config.</span><span class="k">command</span>: sh -c <span class="s">"npm start -- --allowed-hosts=$&#123;APP_HOST&#125;"</span></pre></div><p>It is also the whole service definition for a repository with no compose file of its own:</p><div class="code"><pre><span class="k">apps</span>:
+          <span class="c"># The dev server rejects Host headers it does not know,</span>
+          <span class="c"># and this universe's hostname is not in its config.</span>
+          <span class="k">command</span>: sh -c <span class="s">"npm start -- --allowed-hosts=$&#123;APP_HOST&#125;"</span></pre></div><p>It is also the whole service definition for a repository with no compose file of its own:</p><div class="code"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: docs
     <span class="k">repo</span>: docs
     <span class="k">overlay</span>:

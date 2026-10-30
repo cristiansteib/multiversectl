@@ -8,7 +8,7 @@ import Note from '../../components/Note.astro';
 <section id="labels">
   <h2 id="all"><a href="#all">What a universe passes</a></h2>
   <p>A compose file describes how it is reached with labels, read with <code>docker compose config</code>. The key names the host, the value is the container port:</p>
-  <Terminal><span class="k">services</span>:
+  <Terminal><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.host.app</span>: "4200"              <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span>
@@ -16,7 +16,7 @@ import Note from '../../components/Note.astro';
       <span class="k">dev.multiversectl.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
       <span class="k">dev.multiversectl.host.api.aliases</span>: app,adm     <span class="c"># same service, other hostnames</span>
       <span class="k">dev.multiversectl.host.api.portForward</span>: auto    <span class="c"># also at &lt;ip&gt;:&lt;free port&gt;</span>
-      <span class="k">dev.multiversectl.publish</span>: "true"               <span class="c"># keep my published ports</span></Terminal>
+      <span class="k">dev.multiversectl.publish</span>: "true"               <span class="c"># keep my published ports</span></pre></Terminal>
   <Note><p><strong>No labels needed in the common case.</strong> A service that exposes exactly one port is reached at the app's own name: app <code>ui</code> becomes <code>ui-u3.&lt;domain&gt;</code>. Ambiguity (several services with ports, or one service with several ports) is an error that names the exact label to add.</p></Note>
   <p>Order of precedence, per app: <code>hosts:</code> in the manifest, then <code>dev.multiversectl.host.*</code> labels, then the single exposed port.</p>
   <h4>Variables</h4>

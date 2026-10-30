@@ -22,7 +22,7 @@ import Note from '../../components/Note.astro';
 <section id="worktrees">
   <h2 id="worktrees"><a href="#worktrees">Code: one clone, many worktrees</a></h2>
   <p>Each repository is cloned once under the multiverse root, and every universe gets a <code>git worktree</code> of that clone:</p>
-  <Terminal>~/acme/
+  <Terminal><pre>~/acme/
 ├── api/                  <span class="c"># the clone: history, remotes, objects</span>
 ├── web/
 └── universes/
@@ -31,7 +31,7 @@ import Note from '../../components/Note.astro';
     │   └── web/
     └── fix-login/
         ├── api/          <span class="c"># a worktree on branch fix/login</span>
-        └── web/</Terminal>
+        └── web/</pre></Terminal>
   <p>A worktree is a full checkout with its own index and branch, sharing the clone's objects: one fetch updates every universe's view of the remote, and a large history is stored once however many universes exist. They are ordinary directories — open one in your editor, commit and push from it.</p>
   <Note>
     <p><strong>Two worktrees cannot hold the same branch.</strong> That is git's rule. If <code>--branch repo=main</code> fails with <em>"<code>main</code> is already used by worktree at …"</em>, the clone itself has <code>main</code> checked out. Pick another branch, or point that repository at a copy.</p>
@@ -41,19 +41,19 @@ import Note from '../../components/Note.astro';
 <section id="volumes">
   <h2 id="volumes"><a href="#volumes">Data: a volume per app, per universe</a></h2>
   <p>Volumes are namespaced by compose project, and each app of each universe has its own. A database volume declared once becomes a different volume in every universe, with no change to the file:</p>
-  <Terminal><span class="p">$ </span>docker volume ls | grep acme-u3
+  <Terminal><pre><span class="p">$ </span>docker volume ls | grep acme-u3
 acme-u3-api_postgres_data
 acme-u3-web_node_modules
 <span class="p">$ </span>docker volume ls | grep acme-fix-login
 acme-fix-login-api_postgres_data   <span class="c"># a different database entirely</span>
-acme-fix-login-web_node_modules</Terminal>
+acme-fix-login-web_node_modules</pre></Terminal>
   <p>Universe 3 can be migrated, seeded or dropped without touching <code>fix/login</code>. That is the main reason to run a second universe: a destructive migration on a review branch cannot reach what you were working on this morning. <code>ls -o wide</code> names the volumes, so you can check rather than trust:</p>
-  <Terminal><span class="p">$ </span>multiversectl universe ls -o wide
+  <Terminal><pre><span class="p">$ </span>multiversectl universe ls -o wide
 <span class="c">...</span>
 <span class="c">on disk</span>
 <span class="c">REPO  WORKTREE                    PROJECT      VOLUMES</span>
 api   ~/acme/universes/3/api      acme-u3-api  acme-u3-api_postgres_data
-web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</Terminal>
+web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</pre></Terminal>
 </section>
 
 <section id="images">
@@ -65,17 +65,17 @@ web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</Termina
 <section id="secrets">
   <h2 id="secrets"><a href="#secrets">Secrets</a></h2>
   <p>Some files are deliberately not in git — a local <code>.env</code>, a service account key — so a worktree lacks them and the app half-starts with a confusing error. Name them and they are copied from the clone into every universe:</p>
-  <Terminal><span class="k">apps</span>:
+  <Terminal><pre><span class="k">apps</span>:
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
-    <span class="k">secrets</span>: [.env, service-account.json]</Terminal>
+    <span class="k">secrets</span>: [.env, service-account.json]</pre></Terminal>
   <p>The clone is the source of truth: put the file there once and every universe gets it. An existing file in a universe is never overwritten, so one can diverge on purpose, and <code>doctor</code> fails when a file is missing from the clone.</p>
   <p><strong>When the repository ships a template, nothing has to be done.</strong> If the clone has no <code>.env</code> but a tracked <code>.env.example</code>, multiversectl does what a first run does: makes <code>.env</code> from the example, says so, and copies it in. Put your credentials in the clone's file once. <code>universe up</code> checks again before touching the proxy, so a file added later is picked up on the next start; one that is nowhere, with no example, stops the start and names each file and where it belongs.</p>
   <p><strong>The template is configurable.</strong> By default it is the secret's own name with <code>.example</code> added. Name another file, in the repository, with <code>secretTemplates</code>, or give <code>""</code> to never make one, for a file that must come from somewhere else and should stop the start when it is missing:</p>
-  <Terminal><span class="k">secrets</span>: [.env, service-account.json]
+  <Terminal><pre><span class="k">secrets</span>: [.env, service-account.json]
 <span class="k">secretTemplates</span>:
   .env: env.local                <span class="c"># made from env.local instead of .env.example</span>
-  service-account.json: ""       <span class="c"># never made: put the real one in the clone</span></Terminal>
+  service-account.json: ""       <span class="c"># never made: put the real one in the clone</span></pre></Terminal>
   <p>Each key must be one of the app's <code>secrets</code>, and a template is a path inside the repository: the manifest is refused otherwise. Run with <code>-v</code> to see which file a secret was made from.</p>
   <Note>
     <p><strong>A copied file cannot see a universe's variables.</strong> A static list of origins in a committed <code>.env</code> is the same everywhere. For anything that depends on the universe — allowed hosts, trusted origins, CORS — use the <a href="labels.html"><code>dev.multiversectl.env.*</code> labels</a>, which win over <code>env_file:</code>.</p>

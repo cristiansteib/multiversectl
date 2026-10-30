@@ -7,36 +7,36 @@ import Terminal from '../../components/Terminal.astro';
 <section id="hw-labels">
   <h2 id="hw-labels"><a href="#hw-labels">Let a service declare its own hostname</a></h2>
   <p>Put a label on the service in its own compose file: the key names the host, the value is the container port.</p>
-  <Terminal><span class="k">services</span>:
+  <Terminal><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
-      <span class="k">dev.multiversectl.host.app</span>: "4200"   <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span></Terminal>
+      <span class="k">dev.multiversectl.host.app</span>: "4200"   <span class="c"># app-u3.&lt;domain&gt; -> port 4200</span></pre></Terminal>
   <p>With no labels at all, a service exposing exactly one port is already reached at the app's own name. See <a href="../concepts/labels.html">Labels and variables</a> for entrypoints and aliases.</p>
 </section>
 
 <section id="hw-publish">
   <h2 id="hw-publish"><a href="#hw-publish">Keep a service's published port</a></h2>
   <p>Universes drop every published host port, so two copies never collide. A service that genuinely needs one asks to keep it:</p>
-  <Terminal><span class="k">services</span>:
+  <Terminal><pre><span class="k">services</span>:
   <span class="k">db</span>:
     <span class="k">ports</span>: ["5432:5432"]
     <span class="k">labels</span>:
-      <span class="k">dev.multiversectl.publish</span>: "true"</Terminal>
+      <span class="k">dev.multiversectl.publish</span>: "true"</pre></Terminal>
   <p class="muted">Or, without touching the repository, <code>publish: [db]</code> on the app in the manifest. Only one universe can hold that port at a time.</p>
 </section>
 
 <section id="hw-default-service">
   <h2 id="hw-default-service"><a href="#hw-default-service">Choose where exec and run go</a></h2>
   <p>An app with several services makes <code>universe exec</code> and <code>universe run</code> ask for <code>--service</code> every time. Name the one you almost always want:</p>
-  <Terminal><span class="c"># multiverse.yaml, on the app</span>
-<span class="k">defaultService</span>: web</Terminal>
+  <Terminal><pre><span class="c"># multiverse.yaml, on the app</span>
+<span class="k">defaultService</span>: web</pre></Terminal>
   <p class="muted"><code>--service</code> still wins. When the app lists <code>services</code>, the default must be one of them.</p>
 </section>
 
 <section id="hw-hooks">
   <h2 id="hw-hooks"><a href="#hw-hooks">Run your own tools at the points of a universe's life</a></h2>
   <p>A universe that is up is not always one a person can use: a fresh database has no user to log in with, and an identity provider does not know the address the universe answers on. multiversectl does not know about either. It gives a multiverse one thing, a command tied to a point in a universe's life, run in a container or on the machine, and tells it where the universe is. What the command does is up to the multiverse.</p>
-  <Terminal><span class="c"># .multiverse.yaml, on the app</span>
+  <Terminal><pre><span class="c"># .multiverse.yaml, on the app</span>
 <span class="k">hooks</span>:
   <span class="k">preUp</span>:
     - <span class="k">name</span>: let the build read the netrc
@@ -48,7 +48,7 @@ import Terminal from '../../components/Terminal.astro';
         <span class="k">command</span>: [python, manage.py, createfixture]
     - <span class="k">host</span>:
         <span class="k">command</span>: [sh, -c, 'curl -fsS -X POST "$AUTH_URL/clients/frontend/redirects" -d "uri=$WEB_URL/*"']
-      <span class="k">retryFor</span>: 2m</Terminal>
+      <span class="k">retryFor</span>: 2m</pre></Terminal>
   <h3 id="hw-hook-events">Events</h3>
   <div class="tw"><table>
     <thead><tr><th scope="col">Event</th><th scope="col">When</th><th scope="col">Runs</th></tr></thead><tbody>
@@ -65,13 +65,13 @@ import Terminal from '../../components/Terminal.astro';
   <p class="muted">A hook that only writes a file from these values, a config or an <code>.env</code>, is what <a href="#hw-render"><code>render</code></a> is for: no script, and it is written before the app starts, kept out of git's sight, and only rewritten when it changes.</p>
   <h3 id="hw-hook-skip">Only when the work is not done: skipIf</h3>
   <p><code>once</code> remembers that a hook ran. It cannot know that what the hook produced is gone, as when the app's database volume is recreated and the seed data with it. <code>skipIf</code> asks the real state instead: a command run first, in the same place as the hook (the same service, or the same directory on the machine), and when it exits 0 the work is already done and the hook is skipped. When it is set it decides, and <code>once</code>'s marker is neither consulted nor kept; a check that fails or cannot run means the hook runs, and it is made again before each of the hook's retries, so a seed whose first try met a database still starting is not loaded twice. It is not used when the hook is run by hand with <code>universe hooks run</code>. This seeds a table only when it is empty:</p>
-  <Terminal><span class="k">hooks</span>:
+  <Terminal><pre><span class="k">hooks</span>:
   <span class="k">postUp</span>:
     - <span class="k">name</span>: seed the catalogue
       <span class="k">skipIf</span>: [sh, -c, 'test "$(psql -tA -c "select count(*) from items")" -gt 0']
       <span class="k">container</span>:
         <span class="k">service</span>: db
-        <span class="k">command</span>: [psql, -f, /seed/items.sql]</Terminal>
+        <span class="k">command</span>: [psql, -f, /seed/items.sql]</pre></Terminal>
   <p class="muted">Removing a universe (<code>universe rm</code>) takes an app's volumes with it, and forgets which once-only hooks of that app had run, so a removal that stops short of deleting the universe does not leave them marked.</p>
   <h3 id="hw-hook-fail">When it does not succeed</h3>
   <p>A command in a service after the app is up is tried again for a few minutes, because the service may still be starting (a database migrating under it); <code>retryFor</code> asks any command to be, and <code>timeout</code> ends a try that hangs. <code>onFailure</code> says what a failure means: <code>warn</code> says so, with how to run it by hand, and goes on, the hooks after it waiting since they may depend on it, and it is tried again next time; <code>fail</code> ends the command with an error; <code>ignore</code> goes on. A <code>preUp</code> fails by default, since what it prepares is what the start needs; the rest warn, so a hook that breaks cannot keep a universe from being stopped or removed. <code>once</code> runs a hook on the first start of each universe only; without it a hook runs every time, so it should be safe to repeat. <code>service</code> can be left out when the app has one service or a <code>defaultService</code>.</p>
@@ -82,7 +82,7 @@ import Terminal from '../../components/Terminal.astro';
 <section id="hw-render">
   <h2 id="hw-render"><a href="#hw-render">Write a config file from the universe's addresses</a></h2>
   <p>Many apps read a file at startup, a JSON or YAML config, a <code>.env</code>, a framework's settings, and cannot take environment variables. A hook can write that file, but every app then carries its own inline script. <code>render</code> is the declarative form: a template, a path, and the universe's values.</p>
-  <Terminal><span class="c"># multiverse.yaml, or .multiverse.yaml on the app</span>
+  <Terminal><pre><span class="c"># multiverse.yaml, or .multiverse.yaml on the app</span>
 <span class="k">render</span>:
   - <span class="k">to</span>: public/config.json
     <span class="k">mode</span>: <span class="s">"0600"</span>
@@ -94,7 +94,7 @@ import Terminal from '../../components/Terminal.astro';
         "universe": &#123;&#123; .Universe | toJson &#125;&#125;
       &#125;
   - <span class="k">to</span>: .env.universe
-    <span class="k">from</span>: <span class="s">"@templates/env.tmpl"</span>   <span class="c"># next to the manifest; a plain path is in the repository</span></Terminal>
+    <span class="k">from</span>: <span class="s">"@templates/env.tmpl"</span>   <span class="c"># next to the manifest; a plain path is in the repository</span></pre></Terminal>
   <p>Each entry has <code>to</code>, a path inside the app's repository checkout in the universe (it cannot leave it, and git's own directory is refused), and either <code>template</code> or <code>from</code>. A <code>from</code> without a prefix is relative to the checkout; one starting with <code>@</code> is relative to the manifest's directory, as <code>compose</code> is. <code>mode</code> is the permission, <code>0644</code> unless said.</p>
   <h3 id="hw-render-when">When it runs</h3>
   <p>On every <code>universe up</code>, for each app being started, before its compose files are read and before anything starts, so the file is there when the service boots. It is not run by <code>universe new</code>: a forwarded address is chosen at the first start, and a template that needs it would fail before it exists. A file is written only when its content (or permission) changed, through a temporary file and a rename, so a file watcher is not retriggered and a service never reads half a file. <code>up</code> prints a line per file, <code>rendered</code> or <code>up to date</code>.</p>
@@ -124,56 +124,56 @@ import Terminal from '../../components/Terminal.astro';
 <section id="hw-select">
   <h2 id="hw-select"><a href="#hw-select">Start the dev service and not the production one</a></h2>
   <p>A compose file often defines the same app twice, a dev server and a production build, and both start by default. Say which, in the manifest, without touching the repository:</p>
-  <Terminal><span class="c"># multiverse.yaml, on the app</span>
+  <Terminal><pre><span class="c"># multiverse.yaml, on the app</span>
 <span class="k">services</span>: [app-dev, api]          <span class="c"># only these start</span>
 <span class="c"># or, if the compose file marks the extra ones with profiles:</span>
-<span class="k">profiles</span>: [dev]                   <span class="c"># always on, as --profile dev</span></Terminal>
+<span class="k">profiles</span>: [dev]                   <span class="c"># always on, as --profile dev</span></pre></Terminal>
   <p class="muted">Only the services that start are given an address and lose their published ports; the others are never created. <code>optional</code> adds groups on demand with <code>--with</code>.</p>
 </section>
 
 <section id="hw-build-secrets">
   <h2 id="hw-build-secrets"><a href="#hw-build-secrets">Build with a secret file, such as ~/.netrc</a></h2>
   <p>Recent buildx refuses a build whose <code>secrets: file:</code> lives outside its build context (<code>~/.netrc</code>) unless it is allowed. The tool does not decide that for you; <code>spec.env</code> reaches every compose and build call, so the multiverse says it once:</p>
-  <Terminal><span class="c"># multiverse.yaml</span>
+  <Terminal><pre><span class="c"># multiverse.yaml</span>
 <span class="k">env</span>:
   - <span class="k">name</span>: BUILDX_BAKE_ENTITLEMENTS_FS
-    <span class="k">value</span>: "0"</Terminal>
+    <span class="k">value</span>: "0"</pre></Terminal>
   <p class="muted">Anything else a build needs from the machine is the same: an environment variable in <code>spec.env</code>, or a <code>preUp</code> hook that prepares it.</p>
 </section>
 
 <section id="hw-optional">
   <h2 id="hw-optional"><a href="#hw-optional">Run optional services on demand</a></h2>
-  <Terminal><span class="c"># multiverse.yaml, on the app</span>
+  <Terminal><pre><span class="c"># multiverse.yaml, on the app</span>
 <span class="k">optional</span>:
   - <span class="k">name</span>: celery
-    <span class="k">services</span>: [worker, beat]</Terminal>
-  <Terminal><span class="p">$ </span>multiversectl universe up 3 api --with celery</Terminal>
+    <span class="k">services</span>: [worker, beat]</pre></Terminal>
+  <Terminal><pre><span class="p">$ </span>multiversectl universe up 3 api --with celery</pre></Terminal>
   <p class="muted">The group name is activated as a compose profile too. Comma-separate several: <code>--with celery,mail</code>.</p>
 </section>
 
 <section id="hw-autostart">
   <h2 id="hw-autostart"><a href="#hw-autostart">Keep an app from starting by default</a></h2>
   <p>An app that should exist in every universe but not run unless someone wants it &mdash; a tool that needs extra setup, a code generator, a heavy optional service &mdash; says so:</p>
-  <Terminal><span class="c"># multiverse.yaml, or the repository's own .multiverse.yaml</span>
+  <Terminal><pre><span class="c"># multiverse.yaml, or the repository's own .multiverse.yaml</span>
 <span class="k">apps</span>:
   - <span class="k">name</span>: codegen
-    <span class="k">autostart</span>: false</Terminal>
-  <Terminal><span class="p">$ </span>multiversectl universe up 3              <span class="c"># every app but codegen</span>
-<span class="p">$ </span>multiversectl universe up 3 codegen      <span class="c"># starts it</span></Terminal>
+    <span class="k">autostart</span>: false</pre></Terminal>
+  <Terminal><pre><span class="p">$ </span>multiversectl universe up 3              <span class="c"># every app but codegen</span>
+<span class="p">$ </span>multiversectl universe up 3 codegen      <span class="c"># starts it</span></pre></Terminal>
   <p class="muted">An app with <code>autostart: false</code> is still checked out and has its addresses, so others can refer to it and starting it later needs nothing more. A start that names no app prints one line for each one it leaves out. <code>down</code>, <code>rm</code> and <code>hooks run</code> with no app named deal with it only while it is running; <code>doctor</code> and <code>ls</code> show it as off, on demand, not as a failure. Unlike <code>optional</code>, which adds services to an app that already starts, this decides whether the app starts at all; <code>--with</code> does not start it.</p>
 </section>
 
 <section id="hw-dynamic">
   <h2 id="hw-dynamic"><a href="#hw-dynamic">Configure what depends on the universe</a></h2>
   <p>A universe's hostnames do not exist until it does, so anything built from them — trusted origins, allowed hosts, CORS, a front-end's API base URL — is asked for with a label on the service that needs it:</p>
-  <Terminal><span class="k">services</span>:
+  <Terminal><pre><span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">labels</span>:
       <span class="k">dev.multiversectl.env.DJANGO_ALLOWED_HOSTS</span>: hosts
       <span class="k">dev.multiversectl.env.DJANGO_CSRF_TRUSTED_ORIGINS</span>: origins
-      <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</Terminal>
+      <span class="k">dev.multiversectl.env.API_BASE_URL</span>: url:devapi</pre></Terminal>
   <p>These win over the service's own <code>environment:</code> and over any <code>env_file:</code>, which is how a static list in a committed <code>.env</code> stops being what the universe runs with. The sources, and why it is a label rather than a variable reference, are in <a href="../concepts/labels.html">Labels and variables</a>. For a repository you cannot change, the app's inline <code>overlay:</code> does the same from the manifest:</p>
-  <Terminal><span class="k">apps</span>:
+  <Terminal><pre><span class="k">apps</span>:
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
     <span class="k">overlay</span>:
@@ -181,7 +181,7 @@ import Terminal from '../../components/Terminal.astro';
         <span class="k">web</span>:
           <span class="k">environment</span>:
             <span class="k">DJANGO_CSRF_TRUSTED_ORIGINS</span>: <span class="s">"$&#123;MULTIVERSE_ORIGINS&#125;"</span>
-            <span class="k">DJANGO_ALLOWED_HOSTS</span>: <span class="s">"$&#123;MULTIVERSE_HOSTS&#125;"</span></Terminal>
+            <span class="k">DJANGO_ALLOWED_HOSTS</span>: <span class="s">"$&#123;MULTIVERSE_HOSTS&#125;"</span></pre></Terminal>
   <p>When the app reads a file and not its environment, <a href="#hw-render"><code>render</code></a> writes that file from the same values.</p>
   <p class="muted"><code>multiversectl universe env &lt;universe&gt;</code> prints every variable a universe passes.</p>
 </section>

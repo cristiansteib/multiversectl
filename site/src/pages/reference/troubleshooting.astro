@@ -7,58 +7,58 @@ import Terminal from '../../components/Terminal.astro';
 <section id="ts-old">
   <h2 id="ts-old"><a href="#ts-old">A universe runs old code, or a label that exists is not found</a></h2>
   <p><code>up</code> says <em>service "mailpit" exposes 2 ports, so which one serves api is a guess — add a label</em>, yet the compose file on <code>main</code> has that label. A universe's checkouts keep the commit they were made from and do not follow <code>main</code>. When that may be the cause, the error ends with <em>this universe's code is out of date</em> and names the repositories and how far behind they are.</p>
-  <Terminal><span class="p">$ </span>multiversectl universe sync 1
-<span class="p">$ </span>multiversectl universe up 1</Terminal>
+  <Terminal><pre><span class="p">$ </span>multiversectl universe sync 1
+<span class="p">$ </span>multiversectl universe up 1</pre></Terminal>
   <p><code>sync</code> never touches uncommitted changes, and leaves the universe's own commits alone unless <code>--merge</code>. <code>universe status</code> and the web page warn when a universe is behind; <code>catalog update</code> keeps the clones current.</p>
 </section>
 
 <section id="ts-dns">
   <h2 id="ts-dns"><a href="#ts-dns">Hostnames do not resolve</a></h2>
   <p><code>doctor</code> warns: <em>does not resolve; a router or local DNS server may be stripping private-IP answers</em>. Some routers and resolvers drop DNS answers that point to private addresses. Compare your resolver with a public one:</p>
-  <Terminal><span class="p">$ </span>dig +short app-u3.192-168-1-20.traefik.me
-<span class="p">$ </span>dig +short app-u3.192-168-1-20.traefik.me @1.1.1.1</Terminal>
+  <Terminal><pre><span class="p">$ </span>dig +short app-u3.192-168-1-20.traefik.me
+<span class="p">$ </span>dig +short app-u3.192-168-1-20.traefik.me @1.1.1.1</pre></Terminal>
   <p>Empty from the first and an address from the second means your resolver strips it. Allow private answers for that domain (often called DNS rebinding protection), point the device at another resolver, or use <a href="../tasks/reach.html#hw-domain">a domain you own</a>.</p>
 </section>
 
 <section id="ts-ports">
   <h2 id="ts-ports"><a href="#ts-ports">Port 80 or 8001 is already in use</a></h2>
   <p><code>doctor</code> fails with <em>entrypoint web needs port 80, which is taken by another process</em> when the proxy is not running yet. Find the owner and stop it:</p>
-  <Terminal><span class="p">$ </span>ss -ltnp 'sport = :80'
-<span class="p">$ </span>multiversectl universe doctor</Terminal>
+  <Terminal><pre><span class="p">$ </span>ss -ltnp 'sport = :80'
+<span class="p">$ </span>multiversectl universe doctor</pre></Terminal>
   <p>Or move the entrypoint in the manifest (<code>spec.proxy.entrypoints</code>); <code>urls</code> then prints the port.</p>
 </section>
 
 <section id="ts-secret">
   <h2 id="ts-secret"><a href="#ts-secret">A secret file is missing</a></h2>
   <p><code>up</code> stops and names each missing file and where it belongs; <code>doctor 3</code> fails with <em>secret &lt;app&gt;: missing &lt;path&gt;</em>. Files under an app's <code>secrets:</code> are copied from the clone into each universe, and a tracked <code>.env.example</code> (or the file the app's <code>secretTemplates</code> names; <code>""</code> turns this off) is used when the clone has none. Otherwise put the file in the clone and start again:</p>
-  <Terminal><span class="p">$ </span>cp .env ~/acme/api/.env
+  <Terminal><pre><span class="p">$ </span>cp .env ~/acme/api/.env
 <span class="p">$ </span>multiversectl universe up 3
-<span class="p">$ </span>multiversectl universe doctor 3</Terminal>
+<span class="p">$ </span>multiversectl universe doctor 3</pre></Terminal>
 </section>
 
 <section id="ts-rm">
   <h2 id="ts-rm"><a href="#ts-rm">Removing a universe leaves files only root can delete</a></h2>
   <p>A container that runs as root writes into the worktree it mounts — a <code>node_modules</code>, a build cache, sometimes a file in the source tree — and those files belong to root. Nothing you run as yourself can delete them, so <code>universe rm</code> asks a throwaway container, which is root, to remove them (<code>alpine</code>, pulled the first time, no network, nothing mounted but the universe's folder). You need nothing to do.</p>
   <p>Only when that cannot run either, Docker being unreachable or the image not pullable, does it fall back to leaving the universe listed, and saying what is left:</p>
-  <Terminal>error: universe 2: its containers and volumes are gone, but this is still on disk:
+  <Terminal><pre>error: universe 2: its containers and volumes are gone, but this is still on disk:
     ~/acme/universes/2/admin: unlinkat …/.angular/cache/…/.tsbuildinfo: permission denied
   Files owned by another user, which a container that runs as root leaves behind. Remove them with:
     sudo rm -rf ~/acme/universes/2/admin
-  Then run `multiversectl universe rm 2` again to finish.</Terminal>
+  Then run `multiversectl universe rm 2` again to finish.</pre></Terminal>
   <p>Do that and the second <code>rm</code> finishes the job. To stop the files being made at all, have the service run as you — most images take a <code>user:</code>, and <code>$&#123;HOST_UID&#125;:$&#123;HOST_GID&#125;</code> are passed to every compose file for exactly this.</p>
 </section>
 
 <section id="ts-403">
   <h2 id="ts-403"><a href="#ts-403">A dev server answers 403</a></h2>
   <p>Many dev servers reject Host headers they do not know, and a universe answers on <code>app-u3.&lt;domain&gt;</code>. Allow it with the variable the manifest passes in, through an inline overlay — the variable name is whatever your server reads:</p>
-  <Terminal><span class="k">apps</span>:
+  <Terminal><pre><span class="k">apps</span>:
   - <span class="k">name</span>: web
     <span class="k">repo</span>: web
     <span class="k">overlay</span>:
       <span class="k">services</span>:
         <span class="k">app-dev</span>:
           <span class="k">environment</span>:
-            ALLOWED_HOSTS: "$&#123;APP_HOST&#125;"</Terminal>
+            ALLOWED_HOSTS: "$&#123;APP_HOST&#125;"</pre></Terminal>
   <p class="muted">Also check that the hostname is the one <code>multiversectl universe urls 3</code> prints, and that the service has the label or the single port that routes it.</p>
 </section>
 
@@ -66,7 +66,7 @@ import Terminal from '../../components/Terminal.astro';
   <h2 id="ts-foreign"><a href="#ts-foreign">A compose project belongs to another multiverse root</a></h2>
   <p><code>up</code>, <code>down</code> or <code>rm</code> stops with <em>compose project acme-u1-api already has containers started from …, which is not universe 1</em>. A universe's compose project is named after its multiverse and the universe, so two roots that would give the same universe the same name share containers and volumes: starting one recreates the other's, and removing one deletes the other's data. Before it acts on a project, multiversectl checks the working directory and compose file the existing containers were started from and refuses when they are not under this universe. <code>universe rm</code> skips such a project with a warning and still removes the rest.</p>
   <p>A multiverse installed under a name other than its manifest's (<code>start owner/repo --as copy</code>) puts that name in its compose projects (<code>acme-copy-u1-api</code>), so the clash does not arise for new installs; an install that predates this keeps the project it was created with until it is brought down and started again. An install named like its manifest keeps its project names unchanged.</p>
-  <Terminal><span class="p">$ </span>multiversectl start owner/repo --as copy</Terminal>
+  <Terminal><pre><span class="p">$ </span>multiversectl start owner/repo --as copy</pre></Terminal>
 </section>
 
 <section id="ts-network-mode">
@@ -77,8 +77,8 @@ import Terminal from '../../components/Terminal.astro';
 <section id="ts-rebind">
   <h2 id="ts-rebind"><a href="#ts-rebind">Starting a universe would reconfigure the shared proxy for other multiverses</a></h2>
   <p>One machine has one shared proxy. A multiverse whose <code>expose</code>, proxy entrypoints or TLS differ from the running proxy's would rebind it, and every universe of any other multiverse served through it would stop answering. When another multiverse has containers running, <code>up</code> refuses, says what would change and who would be affected, and changes nothing:</p>
-  <Terminal>error: this multiverse needs the shared proxy published on 127.0.0.1 instead of 0.0.0.0, which would stop
-universes of beta from answering: nothing was changed. …</Terminal>
+  <Terminal><pre>error: this multiverse needs the shared proxy published on 127.0.0.1 instead of 0.0.0.0, which would stop
+universes of beta from answering: nothing was changed. …</pre></Terminal>
   <p>Match the settings (the multiverse's <code>expose</code>, entrypoints and certificates), stop the other universes first, or pass <code>--rebind-proxy</code> (on <code>universe up</code>, <code>start</code> and <code>system proxy up</code>) to reconfigure it anyway; the others answer again when started from their own multiverse. With nothing else running the proxy is rebound with a warning, as before.</p>
 </section>
 </Page>

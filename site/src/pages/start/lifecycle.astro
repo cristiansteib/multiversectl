@@ -690,11 +690,11 @@ import Terminal from '../../components/Terminal.astro';
 <section id="many">
   <h2 id="many"><a href="#many">Living with several</a></h2>
   <p>The cost of a running universe is its containers' memory, so the usual rhythm is a handful created and one or two up. <code>universe status</code> is one line each; <code>universe ls</code> is every address.</p>
-  <Terminal><span class="p">$ </span>multiversectl universe status
+  <Terminal><pre><span class="p">$ </span>multiversectl universe status
 <span class="c">UNIVERSE    STATE     SERVICES  LAST STARTED  BRANCHES</span>
 1           running   5/5       2 hours ago   feat/login
 2           stopped   0/5       yesterday     main
-fix/cart    created   0/5       never         fix/cart</Terminal>
+fix/cart    created   0/5       never         fix/cart</pre></Terminal>
   <p>A universe you are done with goes away with <code>rm</code>; <code>system prune</code> does the same across every multiverse on the machine, listing what it will remove and keeping back anything holding work that exists nowhere else. <a href="machine.html">What's on your machine</a> shows where all of it lives.</p>
 </section>
 

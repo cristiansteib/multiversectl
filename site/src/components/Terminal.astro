@@ -1,13 +1,25 @@
 ---
 // A command example: a shell session, a config file, or a block of output.
 //
-// The body is the block's text, written with the vocabulary the stylesheet
-// defines. Nothing else in a code block is coloured:
+//   <Terminal><pre><span class="p">$ </span>multiversectl universe ls
+//   <span class="k">universe 3</span>  ·  acme-u3  ·  6 running</pre></Terminal>
+//
+// The <pre> belongs to the page and not to this component, which looks
+// redundant and is not. Astro drops whitespace-only text nodes from a
+// component's children, so a newline sitting between two elements —
+// `</span>\n<span>`, which is most lines of most of these blocks — is gone
+// before the component ever runs, and every command ends up on one line. The
+// whitespace in a <pre> is the content; keeping the element in the page keeps
+// it somewhere the compiler preserves it, and keeps that fact visible to
+// whoever writes the next one.
+//
+// The body is written with the vocabulary the stylesheet defines. Nothing else
+// in a code block is coloured:
 //
 //   <span class="p">$ </span>   the prompt. Coloured, and never copied: the
 //                               stylesheet makes it unselectable and the copy
 //                               button strips it, so what lands on the
-//                               clipboard is the command and not the prompt.
+//                               clipboard is the command without the prompt.
 //   <span class="c">…</span>    a comment, muted.
 //   <span class="k">…</span>    the thing to notice in the output.
 //   <span class="s">…</span>    a quoted string, in a config file or a command.
@@ -16,10 +28,6 @@
 // one to every .code at runtime, so a reader with no JavaScript is never shown
 // a button that cannot do anything. Keep the two in step: this component owns
 // the markup, that script owns the behaviour.
-const body = await Astro.slots.render('default');
-// <pre> keeps whitespace, so the newlines that make the tag readable in the
-// page would otherwise become a blank first and last line.
-const text = body.replace(/^\r?\n|\s+$/g, '');
 ---
 
-<div class="code"><pre set:html={text} /></div>
+<div class="code"><slot /></div>

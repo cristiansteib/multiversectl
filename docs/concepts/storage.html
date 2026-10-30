@@ -17,7 +17,9 @@ acme-u3-web_node_modules
 <span class="p">$ </span>docker volume ls | grep acme-fix-login
 acme-fix-login-api_postgres_data   <span class="c"># a different database entirely</span>
 acme-fix-login-web_node_modules</pre></div><p>Universe 3 can be migrated, seeded or dropped without touching <code>fix/login</code>. That is the main reason to run a second universe: a destructive migration on a review branch cannot reach what you were working on this morning. <code>ls -o wide</code> names the volumes, so you can check rather than trust:</p><div class="code"><pre><span class="p">$ </span>multiversectl universe ls -o wide
-<span class="c">...</span><span class="c">on disk</span><span class="c">REPO  WORKTREE                    PROJECT      VOLUMES</span>
+<span class="c">...</span>
+<span class="c">on disk</span>
+<span class="c">REPO  WORKTREE                    PROJECT      VOLUMES</span>
 api   ~/acme/universes/3/api      acme-u3-api  acme-u3-api_postgres_data
 web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</pre></div></section><section id="images"><h2 id="images"><a href="#images">Images and build cache</a></h2><p>Images are not namespaced, deliberately: they are expensive to build and usually identical across universes, so two universes building the same Dockerfile reuse the layer cache.</p><p>The other side of that: an image tag is shared, so if two universes build the same tag from different code, the last build wins for whatever starts afterwards. Compose gives each multiverse its own build, so this bites mainly when a compose file pins an explicit <code>image:</code> name that it also builds — give such a service a tag containing <code>$&#123;UNIVERSE_SLUG&#125;</code>.</p></section><section id="secrets"><h2 id="secrets"><a href="#secrets">Secrets</a></h2><p>Some files are deliberately not in git — a local <code>.env</code>, a service account key — so a worktree lacks them and the app half-starts with a confusing error. Name them and they are copied from the clone into every universe:</p><div class="code"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: api
