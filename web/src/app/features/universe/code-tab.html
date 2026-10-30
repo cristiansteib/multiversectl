@@ -68,7 +68,7 @@
           </button>
         }
       </div>
-      <mv-diff-browser [multiverse]="store.multiverse()" [universe]="store.name()" [repo]="r.repo" [scope]="activeScope()" [base]="r.base ?? ''" [tick]="tick()" />
+      <mv-diff-browser [multiverse]="store.multiverse()" [universe]="store.name()" [repo]="r.repo" [scope]="activeScope()" [base]="r.base ?? ''" [root]="r.path ?? ''" [tick]="tick()" />
     } @else {
       <p class="muted">Nothing changed in {{ r.repo }}{{ r.base ? ' against ' + r.base : '' }}.</p>
     }

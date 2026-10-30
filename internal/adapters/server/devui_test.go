@@ -166,10 +166,10 @@ func demoFleet() *fake {
 					{Repo: "ui", Branch: "u7", Path: "/home/me/acme/universes/7/ui", App: "ui"}}},
 		}}}},
 		code: codeView{Rows: []codeRow{
-			{Repo: "api", Branch: "u3", Follows: "u3", Base: "main",
+			{Repo: "api", Branch: "u3", Path: "/home/me/acme/universes/3/api", Follows: "u3", Base: "main",
 				Change: &diffView{Files: 12, Added: 248, Removed: 96},
 				Review: &reviewView{Number: 142, Mark: "#", State: "open", Title: "Invoices keep the tax column", URL: "https://example.test/acme/api/pull/142", Author: "robin", Updated: now.Add(-2 * time.Hour).Format(time.RFC3339)}},
-			{Repo: "ui", Branch: "u3", Follows: "u3", Base: "main", Ahead: 2,
+			{Repo: "ui", Branch: "u3", Path: "/home/me/acme/universes/3/ui", Follows: "u3", Base: "main", Ahead: 2,
 				Work: &diffView{Files: 1, Added: 6, Removed: 1}, Dirty: true,
 				Change:      &diffView{Files: 3, Added: 31, Removed: 4},
 				Uncommitted: &diffView{Files: 1, Added: 14, Removed: 2},

@@ -1,9 +1,13 @@
-:host { display: block }
+:host { display: block; container-type: inline-size }
 .layout { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 16px; align-items: start }
 .layout.single { grid-template-columns: minmax(0, 1fr) }
-@media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr) } }
+/* Too narrow for both side by side: the tree goes above, short, and scrolls. */
+@container (max-width: 720px) {
+  .layout { grid-template-columns: minmax(0, 1fr) }
+  .tree { position: static; max-height: 14rem }
+}
+.tree ul { list-style: none; margin: 0; padding: 0 }
 .tree { position: sticky; top: calc(var(--top) + 12px); max-height: calc(100vh - var(--top) - 40px); overflow: auto; display: flex; flex-direction: column; gap: 8px }
-.tree ul, .files ul { list-style: none; margin: 0; padding: 0 }
 .tree li.d1 { padding-left: 12px } .tree li.d2 { padding-left: 24px } .tree li.d3 { padding-left: 36px }
 .tree li.d4 { padding-left: 48px } .tree li.d5 { padding-left: 60px } .tree li.d6 { padding-left: 72px }
 .dir, .node { display: flex; align-items: center; gap: 6px; width: 100%; padding: 3px 6px; border: 0; background: none; color: var(--text); font: 400 .86rem var(--sans); text-align: left; cursor: pointer; border-radius: var(--r-sm) }
@@ -15,26 +19,31 @@
 .mark.added, .mark.untracked { background: var(--ok-bg); color: var(--ok) } .mark.deleted { background: var(--bad-bg); color: var(--bad) }
 .mark.modified { background: var(--info-bg); color: var(--info) } .mark.renamed { background: var(--warn-bg); color: var(--warn) }
 .add { color: var(--ok); font-weight: 500 } .del { color: var(--bad); font-weight: 500 }
-.tip { margin: 0 0 8px } .small { font-size: .82rem }
-.files ul { display: flex; flex-direction: column; gap: 8px }
-/* A file scrolled to stops below the sticky top bar instead of under it. */
-.file { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; scroll-margin-top: calc(var(--top) + 12px) }
-.file-row { display: flex; align-items: center; gap: 6px; padding-right: 8px }
-.file-head { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; padding: 9px 12px; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer }
-.file-head:hover { background: var(--sunk) }
-.fpath { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-/* The branch's commits, above its files: what the work says of itself. */
-.commits { margin: 0 0 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 8px 12px }
-.commits h3 { margin: 2px 0 6px; font-weight: 600 }
-.commits ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.small { font-size: .82rem } .grow { flex: 1 }
+
+/* Commits | Files changed, as a review shows them. */
+.views { display: flex; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--line) }
+.view { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font: 500 .88rem var(--sans); cursor: pointer }
+.view:hover { color: var(--text) }
+.view.on { color: var(--text); border-bottom-color: var(--accent) }
+.count { padding: 0 7px; border-radius: 99px; background: var(--sunk); font-size: .76rem; color: var(--muted) }
+
+/* One diff at a time, under a bar that stays in sight while it is read. */
+.pane { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); scroll-margin-top: calc(var(--top) - 1px) }
+.filebar { position: sticky; top: var(--top); z-index: 1; display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 12px; background: var(--panel); border-bottom: 1px solid var(--line); border-radius: var(--r-lg) var(--r-lg) 0 0 }
+.filebar.loading .fpath { opacity: .55 }
+.fpath { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; font-weight: 600 }
+.steps { display: inline-flex; align-items: center; gap: 2px }
+
+.commits { list-style: none; margin: 0; padding: 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg) }
 .commits li + li { border-top: 1px solid var(--line) }
-.commits .line, .commits summary { display: flex; align-items: baseline; gap: 10px; padding: 5px 0; min-width: 0 }
-.commits summary { cursor: pointer }
-.commits .sha { color: var(--muted); font-size: .8rem; flex: none }
+.commits .line, .commits summary { display: flex; align-items: center; gap: 10px; padding: 8px 0; min-width: 0 }
+.commits summary { cursor: pointer; list-style: none } .commits summary::-webkit-details-marker { display: none }
 .commits .subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .commits .who { flex: none; white-space: nowrap }
-.commits .body { margin: 0 0 8px 0; padding: 8px 10px; background: var(--sunk); border-radius: var(--r-sm); font: 400 .82rem var(--mono); white-space: pre-wrap; overflow-wrap: anywhere }
-.commits summary { list-style: none } .commits summary::-webkit-details-marker { display: none }
+.commits .sha { flex: none; font-size: .78rem }
+.commits .body { margin: 0 0 10px 24px; padding: 8px 10px; background: var(--sunk); border-radius: var(--r-sm); font: 400 .82rem var(--mono); white-space: pre-wrap; overflow-wrap: anywhere }
 .commits .chev, .commits .chev-pad { flex: none; width: 14px; color: var(--muted); transition: transform .12s }
 .commits details[open] .chev { transform: rotate(90deg) }
 .commits summary:hover .subject { text-decoration: underline }
+@media (prefers-reduced-motion: reduce) { .commits .chev { transition: none } }

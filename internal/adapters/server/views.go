@@ -162,6 +162,8 @@ type codeView struct {
 type codeRow struct {
 	Repo   string `json:"repo"`
 	Branch string `json:"branch,omitempty"`
+	// Path is the checkout's folder, which a file's full path starts with.
+	Path string `json:"path,omitempty"`
 	// Follows is the branch of origin this one is measured against.
 	Follows string    `json:"follows,omitempty"`
 	Behind  int       `json:"behind,omitempty"`

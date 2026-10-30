@@ -379,7 +379,7 @@ func (s Services) Code(ctx context.Context, multiverse, universe string, fetch b
 	v := codeView{Rows: []codeRow{}}
 	var oldest time.Time
 	for _, r := range rows {
-		row := codeRow{Repo: r.Repo, Branch: r.Branch, Follows: r.Follows,
+		row := codeRow{Repo: r.Repo, Branch: r.Branch, Path: r.Path, Follows: r.Follows,
 			Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError,
 			Work: diffOf(r.Work), Base: r.Base, BaseUnknown: r.BaseUnknown, Change: diffOf(r.Change), Uncommitted: diffOf(r.Uncommitted)}
 		if r.Review != nil {
