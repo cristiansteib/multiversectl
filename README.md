@@ -183,7 +183,9 @@ compose files are found by convention, and its addresses come from their labels.
 [examples/multiverse.yaml](examples/multiverse.yaml) is a commented example with
 the rest, and every field is documented in the
 [manifest reference](https://multiversectl.dev/docs/reference/manifest/)
-and in the generated [schema](schema/multiverse.v1alpha1.yaml).
+and in the generated [schema](schema/multiverse.v1alpha1.yaml), which the binary
+carries: `multiversectl schema spec.apps` prints one field and what it takes,
+without the repository or a network.
 
 ## How it works
 

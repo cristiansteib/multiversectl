@@ -320,10 +320,7 @@ type Render struct {
 }
 
 // Hooks tie commands to the points of a universe's life. Each event lists
-// hooks, run in order; every command gets the universe's name, directory and
-// addresses as environment variables (the ones a compose file can use, plus
-// MULTIVERSE_EVENT, MULTIVERSE_APP and, on the machine, MULTIVERSE_CONTEXT_FILE:
-// a JSON file with the same and more). Under spec, they run on the machine only.
+// hooks, run in order.
 type Hooks struct {
 	// Once the universe's worktrees exist, before anything starts. On the machine.
 	PostCreate []Hook `yaml:"postCreate"`
@@ -353,7 +350,10 @@ type Hooks struct {
 }
 
 // Hook is one command: give it container, to run it in a service, or host, to
-// run it on this machine.
+// run it on this machine. Every command gets the universe's name, directory and
+// addresses as environment variables (the ones a compose file can use, plus
+// MULTIVERSE_EVENT, MULTIVERSE_APP and, on the machine, MULTIVERSE_CONTEXT_FILE:
+// a JSON file with the same and more).
 type Hook struct {
 	// Name says which hook it is in the output.
 	Name string `yaml:"name"`

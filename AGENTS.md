@@ -28,6 +28,7 @@ or its `+markers`, and commit the result.
 | `internal/adapters/*` | One adapter per port. Only these may touch the outside world. |
 | `internal/adapters/cli` | Flags and rendering. Colour and tables live here, not in `app`. |
 | `internal/tools/schemagen` | `go/ast` generator for the CRD-style schema. |
+| `schema/` | The generated field reference, and the package that embeds and reads it: the CRD shape is known here, not by its callers. Generated: `make schema`. |
 | `site/` | The documentation site (Astro). `make docs` builds it into `docs/`; see `site/README.md`. |
 
 A new capability starts as a port method in `internal/app/ports.go`.
