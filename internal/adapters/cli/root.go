@@ -105,7 +105,7 @@ func New(f Factory) (*cobra.Command, *Globals) {
 	help.GroupID = groupSetup
 	root.SetHelpCommand(help)
 	root.AddCommand(
-		run.startCmd(), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.initCmd(), run.systemCmd(), run.completionCmd(root), run.agentsCmd(),
+		run.startCmd(), run.universeCmd(), run.machineStatusCmd(), run.serverCmd(), run.catalogCmd(), run.initCmd(), run.systemCmd(), run.schemaCmd(), run.completionCmd(root), run.agentsCmd(),
 		run.selfUpdateCmd(), run.versionCmd(), run.updateLookCmd(),
 	)
 	_ = root.RegisterFlagCompletionFunc("multiverse", run.completeMultiverses)
