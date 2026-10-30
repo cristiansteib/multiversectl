@@ -217,7 +217,7 @@ func render(structs map[string]strukt, t target) ([]byte, error) {
 	w.line(3, "storage: true")
 	w.line(3, "schema:")
 	w.line(4, "openAPIV3Schema:")
-	w.object(5, root)
+	w.object(5, root, "")
 	w.buf.WriteString(t.footer)
 	return w.buf.Bytes(), nil
 }
@@ -260,10 +260,19 @@ func (w *writer) overrideKind(named, kind string) bool {
 	return false
 }
 
-func (w *writer) object(indent int, s strukt) {
+// object writes a struct as an object. doc is the words of the field that
+// holds it, which say what it is for here; the type's own say what it is. Both
+// go into the one description, specific first: two description keys would make
+// the file invalid YAML, and a strict reader drops one of them.
+func (w *writer) object(indent int, s strukt, doc string) {
 	w.line(indent, "type: object")
-	if s.Doc != "" {
-		w.describe(indent, s.Doc)
+	if doc != "" && s.Doc != "" {
+		doc += " " + s.Doc
+	} else if doc == "" {
+		doc = s.Doc
+	}
+	if doc != "" {
+		w.describe(indent, doc)
 	}
 	fields := w.flatten(s)
 	var required []string
@@ -312,7 +321,7 @@ func (w *writer) field(indent int, f field) {
 		}
 		w.line(indent, "items:")
 		if nested, ok := w.structs[elem]; ok {
-			w.object(indent+1, nested)
+			w.object(indent+1, nested, "")
 			return
 		}
 		w.line(indent+1, "type: %s", openAPIType(elem))
@@ -322,10 +331,7 @@ func (w *writer) field(indent int, f field) {
 		w.describeField(indent, f)
 	default:
 		if nested, ok := w.structs[elem]; ok {
-			w.object(indent, nested)
-			if f.Doc != "" {
-				w.describe(indent, f.Doc)
-			}
+			w.object(indent, nested, f.Doc)
 			return
 		}
 		w.line(indent, "type: %s", openAPIType(f.GoType))

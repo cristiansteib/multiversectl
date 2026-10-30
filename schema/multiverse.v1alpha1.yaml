@@ -104,6 +104,8 @@ spec:
                   default: u{{universe}}
                 proxy:
                   type: object
+                  description: >-
+                    The shared ingress every universe is reached through.
                   properties:
                     kind:
                       type: string
@@ -164,8 +166,6 @@ spec:
                             type: string
                             description: >-
                               Its private key, in PEM.
-                  description: >-
-                    The shared ingress every universe is reached through.
                 repos:
                   type: array
                   description: >-
@@ -332,15 +332,19 @@ spec:
                       hooks:
                         type: object
                         description: >-
-                          Hooks tie commands to the points of a universe's
-                          life. Each event lists hooks, run in order; every
-                          command gets the universe's name, directory and
-                          addresses as environment variables (the ones a
-                          compose file can use, plus MULTIVERSE_EVENT,
-                          MULTIVERSE_APP and, on the machine,
-                          MULTIVERSE_CONTEXT_FILE: a JSON file with the same
-                          and more). Under spec, they run on the machine
-                          only.
+                          Commands run at points of this app's life in a
+                          universe, the way Skaffold runs lifecycle hooks:
+                          in one of its services, or on this machine. The
+                          tool knows nothing of what they do; it gives them
+                          the universe's addresses. Hooks tie commands to
+                          the points of a universe's life. Each event lists
+                          hooks, run in order; every command gets the
+                          universe's name, directory and addresses as
+                          environment variables (the ones a compose file can
+                          use, plus MULTIVERSE_EVENT, MULTIVERSE_APP and, on
+                          the machine, MULTIVERSE_CONTEXT_FILE: a JSON file
+                          with the same and more). Under spec, they run on
+                          the machine only.
                         properties:
                           postCreate:
                             type: array
@@ -362,6 +366,8 @@ spec:
                                 container:
                                   type: object
                                   description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
                                     ContainerHook is a command run in a
                                     running service.
                                   required: [command]
@@ -381,14 +387,13 @@ spec:
                                         "loaddata"].
                                       items:
                                         type: string
-                                  description: >-
-                                    Run in a running service, with no
-                                    terminal. For postUp and preDown.
                                 host:
                                   type: object
                                   description: >-
-                                    HostHook is a command run on the machine
-                                    that runs multiversectl.
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it. HostHook is a
+                                    command run on the machine that runs
+                                    multiversectl.
                                   required: [command]
                                   properties:
                                     command:
@@ -406,9 +411,6 @@ spec:
                                         universe's directory: "api" is that
                                         repository's checkout. By default
                                         the universe's directory.
-                                  description: >-
-                                    Run on this machine, in any event. No
-                                    shell: to use one, say it.
                                 once:
                                   type: boolean
                                   description: >-
@@ -483,6 +485,8 @@ spec:
                                 container:
                                   type: object
                                   description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
                                     ContainerHook is a command run in a
                                     running service.
                                   required: [command]
@@ -502,14 +506,13 @@ spec:
                                         "loaddata"].
                                       items:
                                         type: string
-                                  description: >-
-                                    Run in a running service, with no
-                                    terminal. For postUp and preDown.
                                 host:
                                   type: object
                                   description: >-
-                                    HostHook is a command run on the machine
-                                    that runs multiversectl.
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it. HostHook is a
+                                    command run on the machine that runs
+                                    multiversectl.
                                   required: [command]
                                   properties:
                                     command:
@@ -527,9 +530,6 @@ spec:
                                         universe's directory: "api" is that
                                         repository's checkout. By default
                                         the universe's directory.
-                                  description: >-
-                                    Run on this machine, in any event. No
-                                    shell: to use one, say it.
                                 once:
                                   type: boolean
                                   description: >-
@@ -606,6 +606,8 @@ spec:
                                 container:
                                   type: object
                                   description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
                                     ContainerHook is a command run in a
                                     running service.
                                   required: [command]
@@ -625,14 +627,13 @@ spec:
                                         "loaddata"].
                                       items:
                                         type: string
-                                  description: >-
-                                    Run in a running service, with no
-                                    terminal. For postUp and preDown.
                                 host:
                                   type: object
                                   description: >-
-                                    HostHook is a command run on the machine
-                                    that runs multiversectl.
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it. HostHook is a
+                                    command run on the machine that runs
+                                    multiversectl.
                                   required: [command]
                                   properties:
                                     command:
@@ -650,9 +651,6 @@ spec:
                                         universe's directory: "api" is that
                                         repository's checkout. By default
                                         the universe's directory.
-                                  description: >-
-                                    Run on this machine, in any event. No
-                                    shell: to use one, say it.
                                 once:
                                   type: boolean
                                   description: >-
@@ -726,6 +724,8 @@ spec:
                                 container:
                                   type: object
                                   description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
                                     ContainerHook is a command run in a
                                     running service.
                                   required: [command]
@@ -745,14 +745,13 @@ spec:
                                         "loaddata"].
                                       items:
                                         type: string
-                                  description: >-
-                                    Run in a running service, with no
-                                    terminal. For postUp and preDown.
                                 host:
                                   type: object
                                   description: >-
-                                    HostHook is a command run on the machine
-                                    that runs multiversectl.
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it. HostHook is a
+                                    command run on the machine that runs
+                                    multiversectl.
                                   required: [command]
                                   properties:
                                     command:
@@ -770,9 +769,6 @@ spec:
                                         universe's directory: "api" is that
                                         repository's checkout. By default
                                         the universe's directory.
-                                  description: >-
-                                    Run on this machine, in any event. No
-                                    shell: to use one, say it.
                                 once:
                                   type: boolean
                                   description: >-
@@ -845,6 +841,8 @@ spec:
                                 container:
                                   type: object
                                   description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
                                     ContainerHook is a command run in a
                                     running service.
                                   required: [command]
@@ -864,14 +862,13 @@ spec:
                                         "loaddata"].
                                       items:
                                         type: string
-                                  description: >-
-                                    Run in a running service, with no
-                                    terminal. For postUp and preDown.
                                 host:
                                   type: object
                                   description: >-
-                                    HostHook is a command run on the machine
-                                    that runs multiversectl.
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it. HostHook is a
+                                    command run on the machine that runs
+                                    multiversectl.
                                   required: [command]
                                   properties:
                                     command:
@@ -889,9 +886,6 @@ spec:
                                         universe's directory: "api" is that
                                         repository's checkout. By default
                                         the universe's directory.
-                                  description: >-
-                                    Run on this machine, in any event. No
-                                    shell: to use one, say it.
                                 once:
                                   type: boolean
                                   description: >-
@@ -966,6 +960,8 @@ spec:
                                 container:
                                   type: object
                                   description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
                                     ContainerHook is a command run in a
                                     running service.
                                   required: [command]
@@ -985,14 +981,13 @@ spec:
                                         "loaddata"].
                                       items:
                                         type: string
-                                  description: >-
-                                    Run in a running service, with no
-                                    terminal. For postUp and preDown.
                                 host:
                                   type: object
                                   description: >-
-                                    HostHook is a command run on the machine
-                                    that runs multiversectl.
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it. HostHook is a
+                                    command run on the machine that runs
+                                    multiversectl.
                                   required: [command]
                                   properties:
                                     command:
@@ -1010,9 +1005,6 @@ spec:
                                         universe's directory: "api" is that
                                         repository's checkout. By default
                                         the universe's directory.
-                                  description: >-
-                                    Run on this machine, in any event. No
-                                    shell: to use one, say it.
                                 once:
                                   type: boolean
                                   description: >-
@@ -1085,6 +1077,8 @@ spec:
                                 container:
                                   type: object
                                   description: >-
+                                    Run in a running service, with no
+                                    terminal. For postUp and preDown.
                                     ContainerHook is a command run in a
                                     running service.
                                   required: [command]
@@ -1104,14 +1098,13 @@ spec:
                                         "loaddata"].
                                       items:
                                         type: string
-                                  description: >-
-                                    Run in a running service, with no
-                                    terminal. For postUp and preDown.
                                 host:
                                   type: object
                                   description: >-
-                                    HostHook is a command run on the machine
-                                    that runs multiversectl.
+                                    Run on this machine, in any event. No
+                                    shell: to use one, say it. HostHook is a
+                                    command run on the machine that runs
+                                    multiversectl.
                                   required: [command]
                                   properties:
                                     command:
@@ -1129,9 +1122,6 @@ spec:
                                         universe's directory: "api" is that
                                         repository's checkout. By default
                                         the universe's directory.
-                                  description: >-
-                                    Run on this machine, in any event. No
-                                    shell: to use one, say it.
                                 once:
                                   type: boolean
                                   description: >-
@@ -1185,12 +1175,6 @@ spec:
                                   description: >-
                                     End one try that takes longer, as a
                                     duration. By default none does.
-                        description: >-
-                          Commands run at points of this app's life in a
-                          universe, the way Skaffold runs lifecycle hooks:
-                          in one of its services, or on this machine. The
-                          tool knows nothing of what they do; it gives them
-                          the universe's addresses.
                       render:
                         type: array
                         description: >-
@@ -1406,14 +1390,16 @@ spec:
                 hooks:
                   type: object
                   description: >-
-                    Hooks tie commands to the points of a universe's life.
-                    Each event lists hooks, run in order; every command gets
-                    the universe's name, directory and addresses as
-                    environment variables (the ones a compose file can use,
-                    plus MULTIVERSE_EVENT, MULTIVERSE_APP and, on the
-                    machine, MULTIVERSE_CONTEXT_FILE: a JSON file with the
-                    same and more). Under spec, they run on the machine
-                    only.
+                    Commands around what the whole multiverse does, on the
+                    machine: after every app is up, say, to register the
+                    universe's address in a service all of them share. Hooks
+                    tie commands to the points of a universe's life. Each
+                    event lists hooks, run in order; every command gets the
+                    universe's name, directory and addresses as environment
+                    variables (the ones a compose file can use, plus
+                    MULTIVERSE_EVENT, MULTIVERSE_APP and, on the machine,
+                    MULTIVERSE_CONTEXT_FILE: a JSON file with the same and
+                    more). Under spec, they run on the machine only.
                   properties:
                     postCreate:
                       type: array
@@ -1433,8 +1419,9 @@ spec:
                           container:
                             type: object
                             description: >-
-                              ContainerHook is a command run in a running
-                              service.
+                              Run in a running service, with no terminal.
+                              For postUp and preDown. ContainerHook is a
+                              command run in a running service.
                             required: [command]
                             properties:
                               service:
@@ -1451,14 +1438,12 @@ spec:
                                   ["python", "manage.py", "loaddata"].
                                 items:
                                   type: string
-                            description: >-
-                              Run in a running service, with no terminal.
-                              For postUp and preDown.
                           host:
                             type: object
                             description: >-
-                              HostHook is a command run on the machine that
-                              runs multiversectl.
+                              Run on this machine, in any event. No shell:
+                              to use one, say it. HostHook is a command run
+                              on the machine that runs multiversectl.
                             required: [command]
                             properties:
                               command:
@@ -1476,9 +1461,6 @@ spec:
                                   directory: "api" is that repository's
                                   checkout. By default the universe's
                                   directory.
-                            description: >-
-                              Run on this machine, in any event. No shell:
-                              to use one, say it.
                           once:
                             type: boolean
                             description: >-
@@ -1546,8 +1528,9 @@ spec:
                           container:
                             type: object
                             description: >-
-                              ContainerHook is a command run in a running
-                              service.
+                              Run in a running service, with no terminal.
+                              For postUp and preDown. ContainerHook is a
+                              command run in a running service.
                             required: [command]
                             properties:
                               service:
@@ -1564,14 +1547,12 @@ spec:
                                   ["python", "manage.py", "loaddata"].
                                 items:
                                   type: string
-                            description: >-
-                              Run in a running service, with no terminal.
-                              For postUp and preDown.
                           host:
                             type: object
                             description: >-
-                              HostHook is a command run on the machine that
-                              runs multiversectl.
+                              Run on this machine, in any event. No shell:
+                              to use one, say it. HostHook is a command run
+                              on the machine that runs multiversectl.
                             required: [command]
                             properties:
                               command:
@@ -1589,9 +1570,6 @@ spec:
                                   directory: "api" is that repository's
                                   checkout. By default the universe's
                                   directory.
-                            description: >-
-                              Run on this machine, in any event. No shell:
-                              to use one, say it.
                           once:
                             type: boolean
                             description: >-
@@ -1661,8 +1639,9 @@ spec:
                           container:
                             type: object
                             description: >-
-                              ContainerHook is a command run in a running
-                              service.
+                              Run in a running service, with no terminal.
+                              For postUp and preDown. ContainerHook is a
+                              command run in a running service.
                             required: [command]
                             properties:
                               service:
@@ -1679,14 +1658,12 @@ spec:
                                   ["python", "manage.py", "loaddata"].
                                 items:
                                   type: string
-                            description: >-
-                              Run in a running service, with no terminal.
-                              For postUp and preDown.
                           host:
                             type: object
                             description: >-
-                              HostHook is a command run on the machine that
-                              runs multiversectl.
+                              Run on this machine, in any event. No shell:
+                              to use one, say it. HostHook is a command run
+                              on the machine that runs multiversectl.
                             required: [command]
                             properties:
                               command:
@@ -1704,9 +1681,6 @@ spec:
                                   directory: "api" is that repository's
                                   checkout. By default the universe's
                                   directory.
-                            description: >-
-                              Run on this machine, in any event. No shell:
-                              to use one, say it.
                           once:
                             type: boolean
                             description: >-
@@ -1773,8 +1747,9 @@ spec:
                           container:
                             type: object
                             description: >-
-                              ContainerHook is a command run in a running
-                              service.
+                              Run in a running service, with no terminal.
+                              For postUp and preDown. ContainerHook is a
+                              command run in a running service.
                             required: [command]
                             properties:
                               service:
@@ -1791,14 +1766,12 @@ spec:
                                   ["python", "manage.py", "loaddata"].
                                 items:
                                   type: string
-                            description: >-
-                              Run in a running service, with no terminal.
-                              For postUp and preDown.
                           host:
                             type: object
                             description: >-
-                              HostHook is a command run on the machine that
-                              runs multiversectl.
+                              Run on this machine, in any event. No shell:
+                              to use one, say it. HostHook is a command run
+                              on the machine that runs multiversectl.
                             required: [command]
                             properties:
                               command:
@@ -1816,9 +1789,6 @@ spec:
                                   directory: "api" is that repository's
                                   checkout. By default the universe's
                                   directory.
-                            description: >-
-                              Run on this machine, in any event. No shell:
-                              to use one, say it.
                           once:
                             type: boolean
                             description: >-
@@ -1884,8 +1854,9 @@ spec:
                           container:
                             type: object
                             description: >-
-                              ContainerHook is a command run in a running
-                              service.
+                              Run in a running service, with no terminal.
+                              For postUp and preDown. ContainerHook is a
+                              command run in a running service.
                             required: [command]
                             properties:
                               service:
@@ -1902,14 +1873,12 @@ spec:
                                   ["python", "manage.py", "loaddata"].
                                 items:
                                   type: string
-                            description: >-
-                              Run in a running service, with no terminal.
-                              For postUp and preDown.
                           host:
                             type: object
                             description: >-
-                              HostHook is a command run on the machine that
-                              runs multiversectl.
+                              Run on this machine, in any event. No shell:
+                              to use one, say it. HostHook is a command run
+                              on the machine that runs multiversectl.
                             required: [command]
                             properties:
                               command:
@@ -1927,9 +1896,6 @@ spec:
                                   directory: "api" is that repository's
                                   checkout. By default the universe's
                                   directory.
-                            description: >-
-                              Run on this machine, in any event. No shell:
-                              to use one, say it.
                           once:
                             type: boolean
                             description: >-
@@ -1996,8 +1962,9 @@ spec:
                           container:
                             type: object
                             description: >-
-                              ContainerHook is a command run in a running
-                              service.
+                              Run in a running service, with no terminal.
+                              For postUp and preDown. ContainerHook is a
+                              command run in a running service.
                             required: [command]
                             properties:
                               service:
@@ -2014,14 +1981,12 @@ spec:
                                   ["python", "manage.py", "loaddata"].
                                 items:
                                   type: string
-                            description: >-
-                              Run in a running service, with no terminal.
-                              For postUp and preDown.
                           host:
                             type: object
                             description: >-
-                              HostHook is a command run on the machine that
-                              runs multiversectl.
+                              Run on this machine, in any event. No shell:
+                              to use one, say it. HostHook is a command run
+                              on the machine that runs multiversectl.
                             required: [command]
                             properties:
                               command:
@@ -2039,9 +2004,6 @@ spec:
                                   directory: "api" is that repository's
                                   checkout. By default the universe's
                                   directory.
-                            description: >-
-                              Run on this machine, in any event. No shell:
-                              to use one, say it.
                           once:
                             type: boolean
                             description: >-
@@ -2107,8 +2069,9 @@ spec:
                           container:
                             type: object
                             description: >-
-                              ContainerHook is a command run in a running
-                              service.
+                              Run in a running service, with no terminal.
+                              For postUp and preDown. ContainerHook is a
+                              command run in a running service.
                             required: [command]
                             properties:
                               service:
@@ -2125,14 +2088,12 @@ spec:
                                   ["python", "manage.py", "loaddata"].
                                 items:
                                   type: string
-                            description: >-
-                              Run in a running service, with no terminal.
-                              For postUp and preDown.
                           host:
                             type: object
                             description: >-
-                              HostHook is a command run on the machine that
-                              runs multiversectl.
+                              Run on this machine, in any event. No shell:
+                              to use one, say it. HostHook is a command run
+                              on the machine that runs multiversectl.
                             required: [command]
                             properties:
                               command:
@@ -2150,9 +2111,6 @@ spec:
                                   directory: "api" is that repository's
                                   checkout. By default the universe's
                                   directory.
-                            description: >-
-                              Run on this machine, in any event. No shell:
-                              to use one, say it.
                           once:
                             type: boolean
                             description: >-
@@ -2201,10 +2159,6 @@ spec:
                             description: >-
                               End one try that takes longer, as a duration.
                               By default none does.
-                  description: >-
-                    Commands around what the whole multiverse does, on the
-                    machine: after every app is up, say, to register the
-                    universe's address in a service all of them share.
                 env:
                   type: array
                   description: >-
