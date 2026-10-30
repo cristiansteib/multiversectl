@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -192,31 +193,27 @@ func (s *Store) Notes(id string) ([]domain.Note, error) {
 	path := s.notesPath(id)
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, nil // a universe nobody has written about
+		return nil, nil // a universe nobody wrote about
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read the journal of universe %s: %w", id, err)
 	}
 	defer f.Close()
+	// A decoder, not a line reader: a note long enough to outgrow any line
+	// buffer would otherwise make the whole journal unreadable, and the note
+	// that could be taken out to repair it is the one that cannot be read.
 	var out []domain.Note
-	lines := bufio.NewScanner(f)
-	// A note is prose, and prose can be long; the default is 64 KB a line.
-	lines.Buffer(make([]byte, 0, 64*1024), 1<<20)
-	for lines.Scan() {
-		line := bytes.TrimSpace(lines.Bytes())
-		if len(line) == 0 {
-			continue
-		}
+	notes := json.NewDecoder(bufio.NewReader(f))
+	for {
 		var n domain.Note
-		if err := json.Unmarshal(line, &n); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", path, err)
+		switch err := notes.Decode(&n); {
+		case errors.Is(err, io.EOF):
+			return out, nil
+		case err != nil:
+			return nil, fmt.Errorf("parse %s at byte %d: %w", path, notes.InputOffset(), err)
 		}
 		out = append(out, n)
 	}
-	if err := lines.Err(); err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
-	}
-	return out, nil
 }
 
 func (s *Store) AppendNote(id string, n domain.Note) error {
@@ -241,12 +238,11 @@ func (s *Store) AppendNote(id string, n domain.Note) error {
 
 func (s *Store) SaveNotes(id string, notes []domain.Note) error {
 	var buf bytes.Buffer
+	journal := json.NewEncoder(&buf)
 	for _, n := range notes {
-		line, err := json.Marshal(n)
-		if err != nil {
+		if err := journal.Encode(n); err != nil {
 			return fmt.Errorf("encode the note: %w", err)
 		}
-		buf.Write(append(line, '\n'))
 	}
 	if err := writeAtomic(s.notesPath(id), buf.Bytes()); err != nil {
 		return fmt.Errorf("rewrite the journal of universe %s: %w", id, err)

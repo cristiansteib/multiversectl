@@ -2,7 +2,6 @@ package server
 
 import (
 	"os"
-	"time"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -462,7 +461,7 @@ type noteView struct {
 }
 
 func noteViewOf(n domain.Note) noteView {
-	return noteView{ID: n.ID, At: n.At.UTC().Format(time.RFC3339), By: n.By, Text: n.Text}
+	return noteView{ID: n.ID, At: stamp(n.At), By: n.By, Text: n.Text}
 }
 
 // noteRequest is what a page may ask of a journal: one line added, changed or

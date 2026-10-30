@@ -16,15 +16,23 @@ type journalStore struct {
 	Store
 	state domain.UniverseState
 	notes []domain.Note
+	loads int
+	// gone is a universe removed while this command waited for its lock: it is
+	// there when the command starts and not there when the lock is in hand.
+	gone bool
 }
 
 func (j *journalStore) Load(id string) (domain.UniverseState, error) {
-	if id == j.state.ID {
-		return j.state, nil
+	j.loads++
+	if id != j.state.ID || (j.gone && j.loads > 1) {
+		return domain.UniverseState{}, domain.ErrNotFound
 	}
-	return domain.UniverseState{}, domain.ErrNotFound
+	return j.state, nil
 }
 func (j *journalStore) List() ([]domain.UniverseState, error) {
+	if j.gone && j.loads > 1 {
+		return nil, nil
+	}
 	return []domain.UniverseState{j.state}, nil
 }
 func (j *journalStore) Save(st domain.UniverseState) error  { j.state = st; return nil }
@@ -128,5 +136,67 @@ func TestANoteIsFoundWithOrWithoutItsPrefix(t *testing.T) {
 	}
 	if _, err := s.RemoveNote(ctx, "3", " n1 "); err != nil {
 		t.Fatalf("a padded id: %v", err)
+	}
+}
+
+// A universe can be removed while a note waits for its lock, and a journal
+// must not be written for one that is gone.
+func TestANoteIsNotWrittenForAUniverseThatWentAway(t *testing.T) {
+	s, store := journal(t)
+	store.gone = true
+	if _, err := s.AddNote(context.Background(), "3", "mine", ""); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("adding to a universe that went away: %v", err)
+	}
+	if len(store.notes) != 0 {
+		t.Errorf("it wrote anyway: %+v", store.notes)
+	}
+}
+
+// A removed note keeps its place and its id, and the words go.
+func TestARemovedNoteLeavesItsIDSpent(t *testing.T) {
+	s, store := journal(t)
+	ctx := context.Background()
+	for _, text := range []string{"first", "second"} {
+		if _, err := s.AddNote(ctx, "3", text, "claude"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	removed, err := s.RemoveNote(ctx, "3", "n2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed.Text != "second" {
+		t.Errorf("the removed note should be the one it says: %+v", removed)
+	}
+	if len(store.notes) != 2 || !store.notes[1].Removed || store.notes[1].Text != "" || store.notes[1].ID != "n2" {
+		t.Fatalf("on disk: %+v", store.notes)
+	}
+	if notes, _ := s.Journal("3"); len(notes) != 1 || notes[0].ID != "n1" {
+		t.Errorf("a removed note is not in the journal: %+v", notes)
+	}
+	// Its id is spent: the next note is n3, and n2 can be neither set nor removed again.
+	next, err := s.AddNote(ctx, "3", "third", "")
+	if err != nil || next.ID != "n3" {
+		t.Errorf("next id: %s %v", next.ID, err)
+	}
+	if _, err := s.EditNote(ctx, "3", "n2", "back again"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("editing a removed note: %v", err)
+	}
+}
+
+// Nothing may be written that cannot be read back: a journal with a note too
+// long in it would be one nobody could repair, since repairing means reading.
+func TestANoteTooLongIsRefused(t *testing.T) {
+	s, _ := journal(t)
+	ctx := context.Background()
+	long := strings.Repeat("x", domain.NoteLimit+1)
+	if _, err := s.AddNote(ctx, "3", long, ""); err == nil || !strings.Contains(err.Error(), "at most") {
+		t.Errorf("adding: %v", err)
+	}
+	if _, err := s.AddNote(ctx, "3", strings.Repeat("x", domain.NoteLimit), ""); err != nil {
+		t.Errorf("the limit itself is allowed: %v", err)
+	}
+	if _, err := s.EditNote(ctx, "3", "n1", long); err == nil || !strings.Contains(err.Error(), "at most") {
+		t.Errorf("editing: %v", err)
 	}
 }

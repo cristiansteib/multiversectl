@@ -18,8 +18,9 @@ import (
 // for; this is the account underneath it. Nothing is obliged to write here.
 func (r runner) notesCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "notes <universe>",
-		Short: "The journal of a universe: what was done in it, in the order it happened",
+		Use:     "notes <universe>",
+		Aliases: []string{"journal"},
+		Short:   "The journal of a universe: what was done in it, in the order it happened",
 		Long: "Every note with its id, when it was added and who by. A note is appended and\n" +
 			"never rewritten by another, so the journal is an account of the work rather\n" +
 			"than a single line that the next writer overwrites — which is what `universe\n" +
@@ -86,13 +87,11 @@ func (r runner) notesAddCmd() *cobra.Command {
 
 func (r runner) notesSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "set <universe> <id> <text>",
-		Short:   "Replace what one note says, keeping its id and its time",
-		Example: "  multiversectl universe notes set 3 n2 \"fixed in api and in web\"",
-		Args:    cobra.MinimumNArgs(3),
-		ValidArgsFunction: func(c *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-			return r.noteIDs(c, args), cobra.ShellCompDirectiveNoFileComp
-		},
+		Use:               "set <universe> <id> <text>",
+		Short:             "Replace what one note says, keeping its id and its time",
+		Example:           "  multiversectl universe notes set 3 n2 \"fixed in api and in web\"",
+		Args:              cobra.MinimumNArgs(3),
+		ValidArgsFunction: r.completeNoteIDs,
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
@@ -113,13 +112,11 @@ func (r runner) notesSetCmd() *cobra.Command {
 
 func (r runner) notesRmCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "rm <universe> <id>",
-		Short:   "Take one note out of a journal",
-		Example: "  multiversectl universe notes rm 3 n2",
-		Args:    cobra.ExactArgs(2),
-		ValidArgsFunction: func(c *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-			return r.noteIDs(c, args), cobra.ShellCompDirectiveNoFileComp
-		},
+		Use:               "rm <universe> <id>",
+		Short:             "Take one note out of a journal",
+		Example:           "  multiversectl universe notes rm 3 n2",
+		Args:              cobra.ExactArgs(2),
+		ValidArgsFunction: r.completeNoteIDs,
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
@@ -140,18 +137,18 @@ func (r runner) notesRmCmd() *cobra.Command {
 func journalLines(notes []domain.Note) string {
 	width, by := 0, 0
 	for _, n := range notes {
-		width = max(width, len(n.ID))
-		by = max(by, len(n.By))
+		width = max(width, visibleLen(n.ID))
+		by = max(by, visibleLen(n.By))
 	}
 	var b strings.Builder
 	for _, n := range notes {
-		head := fmt.Sprintf("%-*s  %s  ", width, n.ID, n.At.Local().Format("2006-01-02 15:04"))
+		head := pad(n.ID, width) + "  " + n.At.Local().Format("2006-01-02 15:04") + "  "
 		if by > 0 {
-			head += fmt.Sprintf("%-*s  ", by, n.By)
+			head += pad(n.By, by) + "  "
 		}
 		for i, line := range strings.Split(n.Text, "\n") {
 			if i > 0 {
-				head = strings.Repeat(" ", len(head))
+				head = strings.Repeat(" ", visibleLen(head))
 			}
 			b.WriteString(head + line + "\n")
 		}
@@ -178,33 +175,32 @@ func noteText(cmd *cobra.Command, args []string) (string, error) {
 	return strings.Join(args, " "), nil
 }
 
-// noteIDs completes the ids a universe's journal has, with what each says, so
-// an id never has to be looked up first.
-func (r runner) noteIDs(cmd *cobra.Command, args []string) []string {
+// completeNoteIDs completes the ids a universe's journal has, with what each
+// says, so an id never has to be looked up first. Like every completion here
+// it reads what is on this machine and nothing else: no manifest notice on the
+// candidate list the shell parses, and no fetch behind a tab key.
+func (r runner) completeNoteIDs(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	if len(args) != 1 {
-		return nil
+		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	var out []string
-	_ = r.withService(func(_ context.Context, s *app.Service) error {
-		notes, err := s.Journal(args[0])
-		if err != nil {
-			return err
-		}
-		for _, n := range notes {
-			out = append(out, n.ID+"\t"+firstLine(n.Text))
-		}
-		return nil
-	})(cmd, args)
-	return out
+	s, err := r.f.Multiverse(*r.g, quietOut{})
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	notes, err := s.Journal(args[0])
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	out := make([]string, 0, len(notes))
+	for _, n := range notes {
+		out = append(out, n.ID+"\t"+firstLine(n.Text))
+	}
+	return out, cobra.ShellCompDirectiveNoFileComp
 }
 
-// firstLine keeps a completion hint to one line of reasonable length.
+// firstLine is a note's first line, clipped the way this package clips any
+// text that has to fit on one.
 func firstLine(text string) string {
-	if i := strings.IndexByte(text, '\n'); i >= 0 {
-		text = text[:i]
-	}
-	if len(text) > 60 {
-		text = text[:57] + "..."
-	}
-	return text
+	line, _, _ := strings.Cut(text, "\n")
+	return truncate(line, 60)
 }

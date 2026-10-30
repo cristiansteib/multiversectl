@@ -3,6 +3,7 @@ package statestore
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,4 +71,56 @@ func stripNewlines(b []byte) []byte {
 		}
 	}
 	return out
+}
+
+// A line longer than any buffer must still read: the note that would repair a
+// journal somebody pasted a log into is the one in it.
+func TestALongLineDoesNotMakeAJournalUnreadable(t *testing.T) {
+	root := t.TempDir()
+	s := New(root)
+	if err := s.Save(domain.UniverseState{Name: "3", ID: "3", Slug: "u3"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendNote("3", domain.Note{ID: "n1", At: time.Now().UTC(), Text: "short"}); err != nil {
+		t.Fatal(err)
+	}
+	// Written by hand, or by a version that had no limit.
+	if err := s.AppendNote("3", domain.Note{ID: "n2", At: time.Now().UTC(), Text: strings.Repeat("x", 2<<20)}); err != nil {
+		t.Fatal(err)
+	}
+	notes, err := s.Notes("3")
+	if err != nil {
+		t.Fatalf("a journal with a long line in it: %v", err)
+	}
+	if len(notes) != 2 || len(notes[1].Text) != 2<<20 {
+		t.Fatalf("read back %d notes", len(notes))
+	}
+	// And it can be taken out again.
+	if err := s.SaveNotes("3", notes[:1]); err != nil {
+		t.Fatal(err)
+	}
+	if notes, err = s.Notes("3"); err != nil || len(notes) != 1 {
+		t.Fatalf("repaired: %+v %v", notes, err)
+	}
+}
+
+// A line that is not a note at all says where it is, so it can be found by hand.
+func TestABrokenLineSaysWhereItIs(t *testing.T) {
+	root := t.TempDir()
+	s := New(root)
+	if err := s.AppendNote("3", domain.Note{ID: "n1", At: time.Now().UTC(), Text: "fine"}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "universes", "3", notesFile)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("not a note\n"); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	if _, err := s.Notes("3"); err == nil || !strings.Contains(err.Error(), "at byte") {
+		t.Errorf("want where in the file it is: %v", err)
+	}
 }

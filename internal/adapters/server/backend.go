@@ -50,14 +50,16 @@ type Backend interface {
 	// Branches lists the branches across a multiverse's repositories.
 	Branches(ctx context.Context, multiverse string) ([]branchView, error)
 	// Containers lists a universe's containers; Stats reads their resource use;
-	// Notes is a universe's journal, oldest first; Note adds a line to it, or
-	// with an id changes or removes one. The journal is what the command line
-	// writes with `universe notes`, so a page and an agent read the same thing.
-	Notes(ctx context.Context, multiverse, universe string) ([]noteView, error)
-	Note(ctx context.Context, r noteRequest) (noteView, error)
 	// Logs writes one service's log to w, until ctx ends when it follows.
 	Containers(ctx context.Context, multiverse, universe string) ([]containerView, error)
 	Stats(ctx context.Context, multiverse, universe string) ([]statView, error)
+	// Notes is a universe's journal, oldest first; Note adds a line to it, or
+	// with an id changes or removes one, and answers with the journal as it
+	// stands, so a page that wrote need not ask again. The journal is what the
+	// command line writes with `universe notes`, so a page and an agent read
+	// the same thing.
+	Notes(ctx context.Context, multiverse, universe string) ([]noteView, error)
+	Note(ctx context.Context, r noteRequest) ([]noteView, error)
 	// Code reads a universe's repositories: branch, how far it has moved from
 	// what it follows, and the pull or merge request open for it.
 	// With fetch the clones ask their remotes first; without it everything is as
@@ -927,26 +929,25 @@ func (s Services) Notes(_ context.Context, multiverse, universe string) ([]noteV
 	return out, nil
 }
 
-func (s Services) Note(ctx context.Context, r noteRequest) (noteView, error) {
+func (s Services) Note(ctx context.Context, r noteRequest) ([]noteView, error) {
 	svc, err := s.service(r.Multiverse)
 	if err != nil {
-		return noteView{}, err
+		return nil, err
 	}
-	var n domain.Note
 	switch r.Action {
 	case "add":
-		n, err = svc.AddNote(ctx, r.Universe, r.Text, r.By)
+		_, err = svc.AddNote(ctx, r.Universe, r.Text, r.By)
 	case "set":
-		n, err = svc.EditNote(ctx, r.Universe, r.ID, r.Text)
+		_, err = svc.EditNote(ctx, r.Universe, r.ID, r.Text)
 	case "rm":
-		n, err = svc.RemoveNote(ctx, r.Universe, r.ID)
+		_, err = svc.RemoveNote(ctx, r.Universe, r.ID)
 	default:
-		return noteView{}, fmt.Errorf("unknown action %q: add, set or rm", r.Action)
+		return nil, fmt.Errorf("unknown action %q: add, set or rm", r.Action)
 	}
 	if err != nil {
-		return noteView{}, err
+		return nil, err
 	}
-	return noteViewOf(n), nil
+	return s.Notes(ctx, r.Multiverse, r.Universe)
 }
 
 func (s Services) Config(_ context.Context, multiverse, universe string) (configView, error) {

@@ -104,12 +104,15 @@ func (f *fake) Notes(_ context.Context, ws, u string) ([]noteView, error) {
 	f.ask("notes:" + ws + ":" + u)
 	return f.notes, f.err
 }
-func (f *fake) Note(_ context.Context, r noteRequest) (noteView, error) {
+func (f *fake) Note(_ context.Context, r noteRequest) ([]noteView, error) {
 	f.ask("note:" + r.Multiverse + ":" + r.Universe + ":" + r.Action + ":" + r.ID + ":" + r.Text)
 	if f.err != nil {
-		return noteView{}, f.err
+		return nil, f.err
 	}
-	return noteView{ID: "n1", At: "2026-10-30T18:50:31Z", By: r.By, Text: r.Text}, nil
+	if r.Action == "add" {
+		f.notes = append(f.notes, noteView{ID: "n1", At: "2026-10-30T18:50:31Z", By: r.By, Text: r.Text})
+	}
+	return f.notes, nil
 }
 func (f *fake) Ignore(_ context.Context, path string, ignore bool) error {
 	f.ask("ignore:" + path + ":" + map[bool]string{true: "on", false: "off"}[ignore])
@@ -1165,9 +1168,12 @@ func TestAUniversesJournalIsReadAndAddedTo(t *testing.T) {
 
 	body := `{"multiverse":"acme","universe":"1","action":"add","text":"mail still failing","by":"me"}`
 	rec = do(t, h, "POST", "/api/universe/notes", body, actionHeaders)
-	var added noteView
-	if err := json.Unmarshal(rec.Body.Bytes(), &added); err != nil || rec.Code != 200 || added.Text != "mail still failing" {
+	// A write answers with the journal, so the page that wrote need not ask again.
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 || len(got.Notes) != 3 || got.Notes[2].Text != "mail still failing" {
 		t.Fatalf("add: %d %s", rec.Code, rec.Body)
+	}
+	if asks := strings.Count(f.asks(), "notes:acme:1"); asks != 1 {
+		t.Errorf("the journal should not be read again after a write: %s", f.asks())
 	}
 	if !strings.Contains(f.asks(), "note:acme:1:add::mail still failing") {
 		t.Errorf("asked %s", f.asks())

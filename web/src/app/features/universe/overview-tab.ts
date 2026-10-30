@@ -1,5 +1,5 @@
 import { ago, changeSize, isHttpUrl } from '../../core/util';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Events } from '../../core/events.service';
 import { Toasts } from '../../core/toast.service';
 import { Badge } from '../../shared/ui/badge';
@@ -52,35 +52,52 @@ export class OverviewTab {
   protected readonly notes = this.store.notes;
   /** A write is in flight: the form waits rather than queueing a second one. */
   protected readonly saving = signal(false);
-  /** The note whose removal has been asked for once, so a stray click loses nothing. */
+  /**
+   * The note whose removal has been asked for once, so a stray click loses
+   * nothing. It disarms itself, as the restart button on the Services tab
+   * does: a row left armed is a row the next click deletes.
+   */
   protected readonly removing = signal('');
+  private confirmTimer: ReturnType<typeof setTimeout> | undefined;
   protected readonly when = ago;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.confirmTimer));
+  }
 
   /** Adds what the box says, and empties it only once the note is in. */
   protected async add(e: Event, box: HTMLInputElement): Promise<void> {
     e.preventDefault();
     const text = box.value.trim();
     if (!text || this.saving()) return;
-    await this.write({ action: 'add', text }, () => { box.value = ''; });
+    if (await this.write({ action: 'add', text, by: 'web' })) box.value = '';
   }
 
   /** First click asks, second removes: a journal is somebody's account. */
   protected async remove(n: Note): Promise<void> {
     if (this.removing() !== n.id) {
       this.removing.set(n.id);
+      clearTimeout(this.confirmTimer);
+      this.confirmTimer = setTimeout(() => { if (this.removing() === n.id) this.removing.set(''); }, 4000);
       return;
     }
-    await this.write({ action: 'rm', id: n.id }, () => this.removing.set(''));
+    await this.write({ action: 'rm', id: n.id });
   }
 
-  private async write(body: { action: 'add' | 'rm'; id?: string; text?: string }, done: () => void): Promise<void> {
+  private async write(body: { action: 'add' | 'rm'; id?: string; text?: string; by?: string }): Promise<boolean> {
     this.saving.set(true);
     try {
       await this.store.writeNote(body);
-      done();
+      return true;
     } catch (err) {
       this.toasts.show((err as Error).message, 'bad');
+      // The journal may have moved on without this page — a note removed at a
+      // terminal is why a removal here fails — so read it again rather than go
+      // on showing what is no longer there.
+      await this.store.readNotes();
+      return false;
     } finally {
+      this.removing.set('');
       this.saving.set(false);
     }
   }

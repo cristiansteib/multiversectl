@@ -102,10 +102,15 @@ export class UniverseStore {
     }
   }
 
-  /** Adds a line, changes one or takes one out, then reads the journal back. */
-  async writeNote(body: { action: 'add' | 'set' | 'rm'; id?: string; text?: string; by?: string }): Promise<void> {
-    await this.api.post<Note>('universe/notes', { ...this.query(), ...body });
-    await this.readNotes();
+  /**
+   * Adds a line or takes one out. The answer is the journal as it stands after
+   * the write — including anything another writer has added meanwhile — so
+   * nothing has to ask for it again.
+   */
+  async writeNote(body: { action: 'add' | 'rm'; id?: string; text?: string; by?: string }): Promise<void> {
+    const q = this.query();
+    const view = await this.api.post<{ notes: Note[] }>('universe/notes', { ...q, ...body });
+    if (this.isCurrent(q)) this.notes.set(view.notes ?? []);
   }
 
   private async readPlaces(): Promise<void> {

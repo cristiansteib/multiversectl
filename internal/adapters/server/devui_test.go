@@ -121,7 +121,17 @@ func demoFleet() *fake {
 	}
 	url := func(host, service, u string) urlView { return urlView{Host: host, Service: service, URL: u} }
 	now := time.Now().UTC()
+	stamped := func(ago time.Duration, by, text string, n int) noteView {
+		return noteView{ID: fmt.Sprintf("n%d", n), At: now.Add(-ago).Format(time.RFC3339), By: by, Text: text}
+	}
 	return &fake{
+		// The invented fleet has a journal too, or the Journal section is a
+		// permanent empty state in the one place the documentation looks.
+		notes: []noteView{
+			stamped(50*time.Hour, "", "made it for the invoice tax column", 1),
+			stamped(27*time.Hour, "claude", "tax column added in api; the ui still rounds twice", 2),
+			stamped(3*time.Hour, "claude", "rounding fixed, and the fixture updated to match", 3),
+		},
 		fleet: fleetView{Multiverses: []fleetMultiverse{{Name: "acme", Root: "/home/me/acme", Universes: []universeView{
 			{Name: "3", Slug: "u3", Project: "acme-u3", Domain: "example.test", Dir: "/home/me/acme/universes/3",
 				Running: 4, Created: now.Add(-52 * time.Hour).Format(time.RFC3339), LastStarted: now.Add(-3 * time.Hour).Format(time.RFC3339),
