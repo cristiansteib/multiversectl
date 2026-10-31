@@ -85,9 +85,13 @@ const ogTitle = title;
 {/* Applies a stored dark choice before the first paint, so the page never
     flashes light. It must stay inline and unbundled to run this early. */}
 <script is:inline>
+  // A stored choice wins; with none, the reader's system setting decides.
+  var dark = false;
   try {
-    if (localStorage.getItem('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+    var saved = localStorage.getItem('theme');
+    dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
   } catch (e) {}
+  if (dark) document.documentElement.dataset.theme = 'dark';
 </script>
 <link
   rel="icon"
