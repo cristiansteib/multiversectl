@@ -5,7 +5,7 @@
 // install.sh. It is copied rather than duplicated, so there is one of it; the
 // copy is gitignored.
 //
-// Nothing here reads from docs/. docs/ is this project's build output now, so
+// Nothing here reads from a built site, so
 // sourcing a file out of it would make the build depend on its own last run.
 import { cp, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';

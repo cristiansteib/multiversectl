@@ -68,9 +68,8 @@ jobs:
           path: web/dist/web/browser
           if-no-files-found: error
 
-  # The documentation site. docs/ is what GitHub Pages serves, so what is
-  # committed there has to be what site/ builds — the same guarantee the
-  # generator's own test used to give before Astro replaced it.
+  # The documentation site builds, and every page of it answers. The release
+  # workflow is what builds it again, stamped with the release, and publishes it.
   site:
     name: docs site
     runs-on: ubuntu-latest
@@ -86,17 +85,9 @@ jobs:
       - run: npm run check
         working-directory: site
       - run: make docs
-      - name: docs/ is what site/ builds
-        run: |
-          git diff --exit-code -- docs || {
-            echo "docs/ is stale — run 'make docs' and commit the result"
-            exit 1
-          }
-      # Pages ignores _astro/ without this, and drops the domain without CNAME.
-      - run: test -f docs/.nojekyll && test -f docs/CNAME
       - name: every page answers, links resolve, metadata is complete
         run: |
-          npx --yes http-server docs -p 4321 --silent &
+          npx --yes http-server site/dist -p 4321 --silent &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:4321/index.html >/dev/null && break; sleep 1; done
           node site/scripts/verify-site.mjs http://127.0.0.1:4321
 

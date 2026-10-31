@@ -1,7 +1,7 @@
 // The site's menu and its page order: the one place a page is declared.
 //
 // Ported from docsrc/nav.yaml, which the Go generator read. The sidenav, the
-// top bar's section links, the breadcrumbs and the previous/next pager are all
+// breadcrumbs and the previous/next pager are all
 // derived from this file, so adding a page here is the only step that puts it
 // in the menu, and a page that is not here is unreachable.
 //

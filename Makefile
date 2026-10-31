@@ -7,7 +7,7 @@ TYPES = internal/adapters/manifest/v1alpha1/types.go
 CATALOG_SCHEMA = schema/catalog.v1alpha1.yaml
 CATALOG_TYPES = internal/adapters/catalog/v1alpha1/types.go
 
-.PHONY: help ui ui-dev build install test lint vulns schema schema-check docs docs-check tidy clean
+.PHONY: help ui ui-dev build install test lint vulns schema schema-check docs tidy clean
 .DEFAULT_GOAL := help
 
 help: ## Show this help
@@ -46,18 +46,10 @@ schema: ## Generate $(SCHEMA) and $(CATALOG_SCHEMA) from the Go types
 	$(GO) run ./internal/tools/schemagen -kind Catalog $(CATALOG_TYPES) > $(CATALOG_SCHEMA)
 	@echo "wrote $(SCHEMA) $(CATALOG_SCHEMA)"
 
-docs: ## Build the documentation site from site/ into docs/ (needs Node)
+docs: ## Build the documentation site from site/ into site/dist (needs Node; set SITE_VERSION to stamp a release)
 	cd site && npm ci && npm run build
-	# docs/ is what GitHub Pages serves (its source is main:/docs), so it holds
-	# the built site. Emptied first, or a renamed asset would linger forever.
-	find docs -mindepth 1 -delete
-	cp -R site/dist/. docs/
-	@test -f docs/.nojekyll || { echo "docs/.nojekyll missing: Pages would not serve _astro/"; exit 1; }
-	@test -f docs/CNAME || { echo "docs/CNAME missing: Pages would drop the custom domain"; exit 1; }
-
-docs-check: docs ## Fail if the committed docs are stale
-	@git diff --exit-code -- docs \
-		|| { echo "docs/ is stale — run make docs and commit the result"; exit 1; }
+	# The release workflow builds it again with SITE_VERSION set and publishes
+	# site/dist to Pages; nothing built is committed.
 
 schema-check: schema ## Fail if the committed schema is stale
 	@git diff --exit-code -- $(SCHEMA) $(CATALOG_SCHEMA) \
