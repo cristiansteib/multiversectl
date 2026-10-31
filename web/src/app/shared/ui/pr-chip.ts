@@ -20,7 +20,7 @@ import { PrIcon } from './pr-icon';
         <mv-pr-icon [state]="v.state" />
         <b>{{ v.mark }}{{ v.number }}</b>
         <span class="st">{{ v.state }}</span>
-        @if (lines(); as d) { <span class="lines" title="{{ plural(d.files, 'file') }} changed, with the lines this branch adds and removes, against {{ base() || 'its base' }}"><span class="files">{{ plural(d.files, 'file') }}</span><b class="add">+{{ d.added }}</b><b class="del">−{{ d.removed }}</b></span> }
+        @if (lines(); as d) { <span class="lines" [class.landed]="landed()" [title]="linesHint()"><span class="files">{{ plural(d.files, 'file') }}</span><b class="add">+{{ d.added }}</b><b class="del">−{{ d.removed }}</b></span> }
         @if (!compact()) { <span class="t">{{ v.title }}</span> }
       </a>
     } @else if (error()) {
@@ -34,6 +34,9 @@ import { PrIcon } from './pr-icon';
     .lines { display: inline-flex; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap }
     .files { color: var(--muted) }
     .add { color: var(--ok); font-weight: 600 } .del { color: var(--bad); font-weight: 600 }
+    /* Work the base holds already is not work to be done: the counts stay
+       readable as the record of it, in the colour of something settled. */
+    .lines.landed .add, .lines.landed .del { color: var(--muted); font-weight: 500 }
     .st { color: var(--muted) } .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); min-width: 0 }`,
 })
 export class PrChip {
@@ -44,8 +47,18 @@ export class PrChip {
   readonly stat = input<DiffView | null | undefined>();
   /** What the lines are measured against, for the hint. */
   readonly base = input<string | undefined>();
+  /** Whether the base holds that change already, so the lines are what landed. */
+  readonly landed = input(false);
   protected readonly plural = plural;
   protected readonly lines = computed(() => { const d = this.stat(); return d && (d.files || d.added || d.removed) ? d : null; });
+  protected readonly linesHint = computed(() => {
+    const d = this.lines();
+    if (!d) return '';
+    const against = this.base() || 'its base';
+    return this.landed()
+      ? `${plural(d.files, 'file')} changed, with the lines this branch added and removed: ${against} holds them already`
+      : `${plural(d.files, 'file')} changed, with the lines this branch adds and removes, against ${against}`;
+  });
   /** Number and state only, for a place with little room. */
   readonly compact = input(false);
   protected readonly link = computed(() => { const v = this.review(); return v && isHttpUrl(v.url) ? v : null; });

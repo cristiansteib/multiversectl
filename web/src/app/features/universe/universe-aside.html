@@ -20,7 +20,7 @@
         <ul class="plain">
           @for (r of reviews(); track r.repo) {
             <li>
-              <mv-pr-chip [review]="r.review" [error]="r.reviewError" [stat]="r.change" [base]="r.base" />
+              <mv-pr-chip [review]="r.review" [error]="r.reviewError" [stat]="r.change" [base]="r.base" [landed]="!!r.landed" />
               <span class="from muted">{{ r.repo }}</span>
             </li>
           }
@@ -42,7 +42,8 @@
                 @if (r.c.behind) { <mv-badge tone="warn" [hint]="'Behind ' + (r.c.follows || 'its branch')">{{ r.c.behind }}&#8595;</mv-badge> }
                 @if (r.c.ahead) { <mv-badge tone="info" [hint]="'Ahead of ' + (r.c.follows || 'its branch')">{{ r.c.ahead }}&#8593;</mv-badge> }
                 @if (r.c.dirty) { <mv-badge tone="warn" hint="Uncommitted changes in its worktree">edited</mv-badge> }
-                @if (!r.c.behind && !r.c.ahead && !r.c.dirty) { <span class="muted clean">in step</span> }
+                @if (r.code?.landed) { <mv-badge tone="info" [hint]="landedHint(r.code)">landed</mv-badge> }
+                @if (!r.c.behind && !r.c.ahead && !r.c.dirty && !r.code?.landed) { <span class="muted clean">in step</span> }
               </span>
             </li>
           }

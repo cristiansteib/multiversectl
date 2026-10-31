@@ -34,6 +34,12 @@ type CodeStatus struct {
 	// clone (not fetched yet, or gone). An empty Change then means nothing, and
 	// must not be drawn as the branch having no changes.
 	BaseUnknown bool
+	// Landed says Base already holds the branch's work: the service says the
+	// review was merged, or nothing stands between the branch and the base.
+	// Change is then the record of what landed and not a review waiting to
+	// happen, so it must not be drawn as outstanding work. It is an answer,
+	// where BaseUnknown is the lack of one.
+	Landed      bool
 	Uncommitted DiffStat
 	// Fetched is when the clone last asked its remote, which is how old every
 	// number here that is measured against a remote can be.
@@ -188,7 +194,35 @@ func (s *Service) codeOf(ctx context.Context, c Checkout, ready *readiness) Code
 			cs.BaseUnknown = true
 		}
 	}
+	cs.Landed = s.landed(ctx, c.Path, cs)
 	return cs
+}
+
+// landed says whether the branch's work is in its base already. Either signal
+// settles it, because each catches what the other misses.
+//
+// A service that merged the review has said where the work is, and says it of
+// every merge shape: a merge commit leaves the base holding the branch's own
+// commits, so the branch then amounts to nothing at all and there is no change
+// left to read a state off.
+//
+// Failing that, the base and the branch differing in nothing says the same
+// thing without asking anybody — which is the only way to tell after a squash
+// merge, since it keeps no commit of the branch and Change, measured from where
+// the two parted, goes on showing the whole change for ever. That one is only
+// asked of a branch that amounts to something: a branch sitting on its base
+// differs from it in nothing for the ordinary reason, which is not work that
+// landed, and a base that could not be measured against is the lack of an
+// answer rather than one, as BaseUnknown says.
+func (s *Service) landed(ctx context.Context, path string, cs CodeStatus) bool {
+	if cs.Review != nil && cs.Review.State == ReviewMerged {
+		return true
+	}
+	if cs.Change.Empty() || cs.BaseUnknown || cs.Base == "" {
+		return false
+	}
+	landed, err := s.Git.Landed(ctx, path, cs.Base)
+	return err == nil && landed
 }
 
 // reviewOf asks the service the repository is on, and only that one: a URL no

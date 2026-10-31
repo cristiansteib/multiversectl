@@ -378,3 +378,62 @@ func TestCommitsAreTheBranchsOwnNewestFirstWithTheirBodies(t *testing.T) {
 		t.Errorf("a limit of one should keep the newest, got %+v", one)
 	}
 }
+
+// Landed is the question DiffStat cannot answer. The three merge shapes end in
+// the same place — the base holds the work — but only two of them leave a
+// commit of the branch behind for the three-dot range to measure from, so a
+// squash-merged branch goes on counting its whole change for ever.
+func TestLandedSaysTheBaseHoldsTheBranchAlready(t *testing.T) {
+	ctx := context.Background()
+	// squashed keeps none of the branch's commits: one commit on the base with
+	// the branch's tree, which is what `gh pr merge --squash` leaves behind.
+	land := func(t *testing.T, how string) (clone string) {
+		t.Helper()
+		clone, _ = repo(t)
+		git(t, clone, "switch", "-q", "-c", "fix/x")
+		commit(t, clone, "b")
+		commit(t, clone, "c")
+		git(t, clone, "push", "-q", "origin", "fix/x")
+		landed, err := (Git{}).Landed(ctx, clone, "main")
+		if err != nil || landed {
+			t.Fatalf("a branch nobody merged reads as landed: %v %v", landed, err)
+		}
+		git(t, clone, "switch", "-q", "-c", "into", "main")
+		if how == "squash" {
+			git(t, clone, "merge", "-q", "--squash", "fix/x")
+			git(t, clone, "commit", "-qm", "squashed")
+		} else {
+			git(t, clone, "merge", "-q", "--no-ff", "--no-edit", "fix/x")
+		}
+		git(t, clone, "push", "-q", "origin", "into:main")
+		git(t, clone, "switch", "-q", "fix/x")
+		git(t, clone, "fetch", "-q", "origin")
+		return clone
+	}
+	for _, how := range []string{"squash", "merge"} {
+		t.Run(how, func(t *testing.T) {
+			clone := land(t, how)
+			landed, err := Git{}.Landed(ctx, clone, "main")
+			if err != nil || !landed {
+				t.Errorf("a %s-merged branch does not read as landed: %v %v", how, landed, err)
+			}
+			// The change itself stays: it is the record of what landed.
+			d, err := Git{}.DiffStat(ctx, clone, "main")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if how == "squash" && d.Empty() {
+				t.Error("the squash-merged change should still be readable")
+			}
+		})
+	}
+	// A base that is not in the clone is no answer, and must not come back as
+	// "nothing landed" either.
+	clone, _ := repo(t)
+	if _, err := (Git{}).Landed(ctx, clone, "nowhere"); err == nil {
+		t.Error("a base the clone does not have was answered for")
+	}
+	if _, err := (Git{}).Landed(ctx, clone, ""); err == nil {
+		t.Error("landing was answered for with no branch to ask about")
+	}
+}

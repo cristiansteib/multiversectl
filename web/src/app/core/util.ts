@@ -9,9 +9,20 @@ export const shortRepoName = (u: string): string =>
  * How much a repository has changed: what its branch amounts to against the
  * branch it will be merged into, and what is edited and not committed yet. It is
  * what puts the work first where repositories are listed.
+ *
+ * A change the base holds already counts for nothing. Its lines are the record
+ * of a branch that landed, and a repository with nothing left to do must not be
+ * listed ahead of the ones where the work is.
  */
-export const changeSize = (row?: { change?: DiffView; uncommitted?: DiffView } | null): number =>
-  (row?.change ? row.change.added + row.change.removed : 0) + (row?.uncommitted ? row.uncommitted.added + row.uncommitted.removed : 0);
+export const changeSize = (row?: { change?: DiffView; uncommitted?: DiffView; landed?: boolean } | null): number =>
+  (row?.change && !row.landed ? row.change.added + row.change.removed : 0) + (row?.uncommitted ? row.uncommitted.added + row.uncommitted.removed : 0);
+
+/**
+ * Why a repository reads as landed. It is one claim, so it is worded once:
+ * the Code tab, the apps and the summary beside them all say this.
+ */
+export const landedHint = (row?: { base?: string } | null): string =>
+  `${row?.base ?? 'Its base'} holds this branch's change already, so there is nothing left to merge.`;
 
 /** Counting out loud, in the one place that knows the rule. */
 export const plural = (n: number, one: string, many = one + 's'): string => `${n} ${n === 1 ? one : many}`;

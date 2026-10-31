@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { Api } from '../../core/api.service';
 import { CodeRow, CodeView, DiffView } from '../../core/models';
 import { Ops } from '../../core/ops.service';
-import { ago, plural } from '../../core/util';
+import { ago, landedHint, plural } from '../../core/util';
 import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { ErrorBox } from '../../shared/ui/error-box';
@@ -24,11 +24,15 @@ const FETCH_EVERY_MS = 300_000;
 type Scope = 'branch' | 'uncommitted';
 interface Fact { kind: 'warn' | 'mute' | 'quiet'; text: string; title: string }
 
-/** Whether a repository has anything to read: commits on its branch, or edits not committed. */
-const changed = (r: CodeRow): boolean => Boolean(r.change || r.uncommitted);
+/**
+ * Whether a repository has work still to be done: a change its base has not
+ * taken yet, or edits not committed. A branch that landed has neither, however
+ * much it amounts to — its change is the record of what was merged.
+ */
+const outstanding = (r: CodeRow): boolean => Boolean((r.change && !r.landed) || r.uncommitted);
 
-/** The change a repository opens on: what the branch amounts to, or, with nothing committed, what is edited. */
-const firstScope = (r: CodeRow): Scope => (r.change || !r.uncommitted ? 'branch' : 'uncommitted');
+/** The change a repository opens on: the one with work still in it, else what the branch amounts to. */
+const firstScope = (r: CodeRow): Scope => ((r.change && !r.landed) || !r.uncommitted ? 'branch' : 'uncommitted');
 
 /**
  * How far each repository of the universe has moved from the branch it follows,
@@ -86,7 +90,7 @@ export class CodeTab {
    * the automatic order would move tabs someone deliberately placed.
    */
   protected readonly ordered = computed<CodeRow[]>(() => {
-    const auto = [...(this.rows() ?? [])].sort((a, b) => Number(changed(b)) - Number(changed(a)));
+    const auto = [...(this.rows() ?? [])].sort((a, b) => Number(outstanding(b)) - Number(outstanding(a)));
     const by = this.manual();
     if (!by) return auto;
     const placed = by.map((name) => auto.find((r) => r.repo === name)).filter((r): r is CodeRow => !!r);
@@ -108,20 +112,26 @@ export class CodeTab {
     return r && want && this.scopes().includes(want) ? want : r ? firstScope(r) : 'branch';
   });
   /**
-   * The counter a tab carries. A repository can have moved in two ways and the
-   * tab only ever showed one of them: `change` is what the branch amounts to
-   * against what it will be merged into, and it is absent whenever there is no
-   * base to measure against — a branch with nothing committed yet, a clone with
-   * no usable origin, a repository whose review could not be asked. Those
-   * repositories were showing no counter at all despite being edited, which is
-   * exactly the case someone is looking for.
+   * The counter a tab carries, and which of three claims it is making. A
+   * repository can have moved in more than one way and the tab shows one of
+   * them: `change` is what the branch amounts to against what it will be merged
+   * into, and it is absent whenever there is no base to measure against — a
+   * branch with nothing committed yet, a clone with no usable origin, a
+   * repository whose review could not be asked. Those repositories were showing
+   * no counter at all despite being edited, which is exactly the case someone is
+   * looking for.
    *
-   * So: what the branch amounts to when that is known, and what is edited and
-   * not committed when it is not. The two are told apart by weight in the tab
-   * and named for a screen reader, because +12 −3 of committed work and +12 −3
-   * of unsaved edits are not the same claim.
+   * So: whichever of the two is work still to be done, and a change the base
+   * holds already only when there is nothing left. The kinds are told apart by
+   * weight in the tab and named for a screen reader, because +12 −3 of work to
+   * review, +12 −3 of unsaved edits and +12 −3 that landed last week are three
+   * different claims.
    */
-  protected stat(r: CodeRow): DiffView | null { return r.change ?? r.uncommitted ?? null; }
+  protected counts(r: CodeRow): { d: DiffView; kind: 'branch' | 'uncommitted' | 'landed' } | null {
+    if (r.change && !r.landed) return { d: r.change, kind: 'branch' };
+    if (r.uncommitted) return { d: r.uncommitted, kind: 'uncommitted' };
+    return r.change ? { d: r.change, kind: 'landed' } : null;
+  }
 
   /** Whether the rows have been read, as against shown from what was kept. */
   protected readonly loaded = signal(false);
@@ -178,6 +188,7 @@ export class CodeTab {
     try { sessionStorage.setItem(this.keptKey(q), JSON.stringify(rows)); } catch { /* private mode */ }
   }
 
+  protected readonly landedHint = landedHint;
   protected readonly facts = computed<Fact[]>(() => { const r = this.row(); return r ? factsOf(r) : []; });
   protected readonly age = computed(() => (this.loading() ? 'reading…' : this.fetched() ? `remotes read ${ago(this.fetched())}` : ''));
   protected readonly plural = plural;
@@ -351,9 +362,20 @@ export class CodeTab {
 
   protected scopeLabel(s: Scope): string {
     const r = this.row();
-    return s === 'branch' ? `Changes against ${r?.base ?? 'its base'}` : 'Not committed';
+    if (s !== 'branch') return 'Not committed';
+    return r?.landed ? `What landed in ${r.base ?? 'its base'}` : `Changes against ${r?.base ?? 'its base'}`;
   }
+
   protected scopeStat(s: Scope) { return s === 'branch' ? this.row()?.change : this.row()?.uncommitted; }
+
+  /** What the panel says with no change to read. A landed branch has none for a reason. */
+  protected readonly nothingToRead = computed(() => {
+    const r = this.row();
+    if (!r) return '';
+    return r.landed
+      ? `Nothing of ${r.repo} is left to merge: ${r.base ?? 'its base'} holds its work already.`
+      : `Nothing changed in ${r.repo}${r.base ? ' against ' + r.base : ''}.`;
+  });
 
   private async load(fetch: boolean): Promise<void> {
     // One read at a time; one asked for meanwhile (another universe, a fetch) is
@@ -401,7 +423,12 @@ export class CodeTab {
  */
 function factsOf(r: CodeRow): Fact[] {
   const out: Fact[] = [];
-  if (!r.change) {
+  if (r.landed) {
+    // Said whether or not a change is left to read: a merge commit leaves the
+    // base holding the branch's own commits, and then there is none.
+    out.push({ kind: 'quiet', text: `Nothing left to merge into ${r.base ?? 'its base'}`,
+               title: `${r.base ?? 'Its base'} holds every change of this branch already${r.change ? ', and what is below is the record of it' : ''}.` });
+  } else if (!r.change) {
     if (r.baseUnknown) {
       // Not the same as nothing changed: the base is not in the clone to compare with.
       out.push({ kind: 'warn', text: `Could not compare with ${r.base}`, title: `origin/${r.base} is not in this clone, perhaps not fetched yet. Reread asks the remotes.` });

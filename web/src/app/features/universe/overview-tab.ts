@@ -1,4 +1,4 @@
-import { ago, changeSize, isHttpUrl } from '../../core/util';
+import { ago, changeSize, isHttpUrl, landedHint } from '../../core/util';
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Events } from '../../core/events.service';
 import { Toasts } from '../../core/toast.service';
@@ -45,6 +45,7 @@ export class OverviewTab {
     return { app: a, rows: rowsOf(a), code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo), size: changeSize(row), i };
   }).sort((a, b) => b.size - a.size || a.i - b.i));
   protected readonly webUrl = isHttpUrl;
+  protected readonly landedHint = landedHint;
 
   protected readonly events = inject(Events);
   private readonly toasts = inject(Toasts);

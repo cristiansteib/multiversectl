@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Ops } from '../../core/ops.service';
-import { ago, changeSize, isHttpUrl } from '../../core/util';
+import { ago, changeSize, isHttpUrl, landedHint } from '../../core/util';
 import { Badge } from '../../shared/ui/badge';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { Icon } from '../../shared/ui/icon';
@@ -31,13 +31,15 @@ export class UniverseAside {
   protected readonly reviews = computed(() => [...this.store.reviews()].sort((a, b) => changeSize(b) - changeSize(a)));
 
   protected readonly repos = computed(() => (this.u()?.checkouts ?? [])
-    .map((c, i) => ({ c, loc: this.store.places().get(c.repo), size: changeSize(this.store.code().get(c.repo)), i }))
+    .map((c, i) => { const code = this.store.code().get(c.repo); return { c, code, loc: this.store.places().get(c.repo), size: changeSize(code), i }; })
     .sort((a, b) => b.size - a.size || a.i - b.i));
 
   /** What was done to this universe in this session, newest first. */
   protected readonly activity = computed(() => this.ops.list()
     .filter((o) => o.multiverse === this.store.multiverse() && o.universe === this.store.name())
     .slice(-5).reverse());
+
+  protected readonly landedHint = landedHint;
 
   protected readonly tone = (s: string): string => (s === 'done' ? 'ok' : s === 'failed' ? 'bad' : 'info');
 
