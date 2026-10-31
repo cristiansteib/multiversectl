@@ -1,6 +1,6 @@
-// Theme: light unless the reader asked for dark. The inline snippet in <head>
-// (see src/components/BaseHead.astro) applies a stored choice before the first
-// paint; this keeps the button, the browser's bar colour and the screenshots
+// Theme: the reader's stored choice, else their system setting. The inline
+// snippet in <head> (see src/components/BaseHead.astro) applies it before the
+// first paint; this keeps the button, the browser's bar colour and the screenshots
 // that come in a light version in step with it.
 import { track } from './analytics';
 
