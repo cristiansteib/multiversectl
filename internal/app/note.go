@@ -68,39 +68,57 @@ func (s *Service) Journal(name string) ([]domain.Note, error) {
 func noteWords(text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return "", errors.New("a note needs something to say")
+		return "", domain.Invalid("a note needs something to say")
 	}
 	if len(text) > domain.NoteLimit {
-		return "", fmt.Errorf("a note is at most %d characters, and this one is %d: keep the account short, and the detail where the work is", domain.NoteLimit, len(text))
+		return "", domain.Invalid("a note is at most %d characters, and this one is %d: keep the account short, and the detail where the work is", domain.NoteLimit, len(text))
 	}
 	return text, nil
 }
 
-// AddNote appends one line, with the id and the time filled in here so that
-// nothing writing a note has to invent either. It holds the universe's lock,
-// so two agents adding a note at the same moment cannot choose the same id.
-func (s *Service) AddNote(ctx context.Context, name, text, by string) (domain.Note, error) {
+// noteTries bounds a race that nobody should lose this often: each turn of it
+// is another writer having taken the id in the moment between reading the
+// journal and writing the note.
+const noteTries = 50
+
+// AddNote writes one line, with the id and the time filled in here so that
+// nothing writing a note has to invent either.
+//
+// It takes no lock. A journal will not hold two notes under one id, so the
+// writer that loses a race is told and takes the next id — and the id is the
+// only thing two writers contend for. That matters because `up` holds the
+// universe's lock for as long as it builds, and the moment one most wants to
+// write down what is happening is while something long is happening.
+func (s *Service) AddNote(_ context.Context, name, text, by string) (domain.Note, error) {
 	text, err := noteWords(text)
 	if err != nil {
 		return domain.Note{}, err
 	}
-	var made domain.Note
-	if err := s.withUniverse(ctx, name, func(st domain.UniverseState) error {
-		notes, err := s.Store.Notes(st.ID)
-		if err != nil {
-			return err
-		}
-		made = domain.Note{
-			ID:   domain.NoteID(domain.HighestNoteNumber(notes) + 1),
+	st, err := s.Resolve(name)
+	if err != nil {
+		return domain.Note{}, err
+	}
+	notes, err := s.Store.Notes(st.ID)
+	if err != nil {
+		return domain.Note{}, err
+	}
+	next := domain.HighestNoteNumber(notes) + 1
+	for try := 0; try < noteTries; try++ {
+		made := domain.Note{
+			ID:   domain.NoteID(next + try),
 			At:   time.Now().UTC(),
 			By:   strings.TrimSpace(by),
 			Text: text,
 		}
-		return s.Store.AppendNote(st.ID, made)
-	}); err != nil {
-		return domain.Note{}, err
+		switch err := s.Store.CreateNote(st.ID, made); {
+		case err == nil:
+			return made, nil
+		case errors.Is(err, domain.ErrExists): // taken since the journal was read: try the next
+		default:
+			return domain.Note{}, err
+		}
 	}
-	return made, nil
+	return domain.Note{}, fmt.Errorf("universe %s: no id free for a note after %d tries, from %s", st.Name, noteTries, domain.NoteID(next))
 }
 
 // EditNote replaces what one note says, keeping its id and the time it was
@@ -111,9 +129,9 @@ func (s *Service) EditNote(ctx context.Context, name, id, text string) (domain.N
 	if err != nil {
 		return domain.Note{}, err
 	}
-	return s.changeNotes(ctx, name, id, func(notes []domain.Note, at int) []domain.Note {
-		notes[at].Text = text
-		return notes
+	return s.changeNote(ctx, name, id, func(n domain.Note) domain.Note {
+		n.Text = text
+		return n
 	})
 }
 
@@ -122,19 +140,20 @@ func (s *Service) EditNote(ctx context.Context, name, id, text string) (domain.N
 // in a pull request would come to mean another note.
 func (s *Service) RemoveNote(ctx context.Context, name, id string) (domain.Note, error) {
 	var removed domain.Note
-	if _, err := s.changeNotes(ctx, name, id, func(notes []domain.Note, at int) []domain.Note {
-		removed = notes[at]
-		notes[at] = domain.Note{ID: removed.ID, At: removed.At, Removed: true}
-		return notes
+	if _, err := s.changeNote(ctx, name, id, func(n domain.Note) domain.Note {
+		removed = n
+		return domain.Note{ID: n.ID, At: n.At, Removed: true}
 	}); err != nil {
 		return domain.Note{}, err
 	}
 	return removed, nil
 }
 
-// changeNotes is what editing and removing have in common: find the note under
-// the universe's lock, let the caller change the journal, write it back whole.
-func (s *Service) changeNotes(ctx context.Context, name, id string, change func([]domain.Note, int) []domain.Note) (domain.Note, error) {
+// changeNote is what editing and removing have in common: find the note under
+// the universe's lock, let the caller say what it becomes, write that note.
+// The lock is taken here and not for adding one, because these change a note
+// somebody may be reading, and because the id is already settled.
+func (s *Service) changeNote(ctx context.Context, name, id string, change func(domain.Note) domain.Note) (domain.Note, error) {
 	var changed domain.Note
 	err := s.withUniverse(ctx, name, func(st domain.UniverseState) error {
 		notes, err := s.Store.Notes(st.ID)
@@ -145,9 +164,8 @@ func (s *Service) changeNotes(ctx context.Context, name, id string, change func(
 		if !ok {
 			return fmt.Errorf("universe %s has no note %s: %w", st.Name, id, domain.ErrNotFound)
 		}
-		saved := change(notes, at)
-		changed = notes[at]
-		return s.Store.SaveNotes(st.ID, saved)
+		changed = change(notes[at])
+		return s.Store.SaveNote(st.ID, changed)
 	})
 	return changed, err
 }

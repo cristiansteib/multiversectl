@@ -10,8 +10,8 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// journalStore keeps a journal the way the real store does: appended to, and
-// rewritten whole when a line changes.
+// journalStore keeps a journal the way the real store does: a note at a time,
+// under an id no second note can take.
 type journalStore struct {
 	Store
 	state domain.UniverseState
@@ -20,6 +20,9 @@ type journalStore struct {
 	// gone is a universe removed while this command waited for its lock: it is
 	// there when the command starts and not there when the lock is in hand.
 	gone bool
+	// stale hides the journal from the next read, as a writer that added a
+	// note in the moment between another's read and its write would.
+	stale bool
 }
 
 func (j *journalStore) Load(id string) (domain.UniverseState, error) {
@@ -35,15 +38,31 @@ func (j *journalStore) List() ([]domain.UniverseState, error) {
 	}
 	return []domain.UniverseState{j.state}, nil
 }
-func (j *journalStore) Save(st domain.UniverseState) error  { j.state = st; return nil }
-func (j *journalStore) Notes(string) ([]domain.Note, error) { return j.notes, nil }
-func (j *journalStore) AppendNote(_ string, n domain.Note) error {
+func (j *journalStore) Save(st domain.UniverseState) error { j.state = st; return nil }
+func (j *journalStore) Notes(string) ([]domain.Note, error) {
+	if j.stale {
+		j.stale = false
+		return nil, nil
+	}
+	return j.notes, nil
+}
+func (j *journalStore) CreateNote(_ string, n domain.Note) error {
+	for _, had := range j.notes {
+		if had.ID == n.ID {
+			return domain.ErrExists
+		}
+	}
 	j.notes = append(j.notes, n)
 	return nil
 }
-func (j *journalStore) SaveNotes(_ string, notes []domain.Note) error {
-	j.notes = notes
-	return nil
+func (j *journalStore) SaveNote(_ string, n domain.Note) error {
+	for i, had := range j.notes {
+		if had.ID == n.ID {
+			j.notes[i] = n
+			return nil
+		}
+	}
+	return domain.ErrNotFound
 }
 
 func journal(t *testing.T) (*Service, *journalStore) {
@@ -110,8 +129,8 @@ func TestEditingKeepsTheIDAndTheTime(t *testing.T) {
 func TestAJournalSaysWhatItCannotDo(t *testing.T) {
 	s, _ := journal(t)
 	ctx := context.Background()
-	if _, err := s.AddNote(ctx, "3", "   ", ""); err == nil || !strings.Contains(err.Error(), "something to say") {
-		t.Errorf("an empty note: %v", err)
+	if _, err := s.AddNote(ctx, "3", "   ", ""); err == nil || !strings.Contains(err.Error(), "something to say") || !errors.Is(err, domain.ErrInvalid) {
+		t.Errorf("an empty note, refused as the caller's mistake: %v", err)
 	}
 	if _, err := s.EditNote(ctx, "3", "n9", "nothing"); !errors.Is(err, domain.ErrNotFound) {
 		t.Errorf("an id that is not there: %v", err)
@@ -139,16 +158,42 @@ func TestANoteIsFoundWithOrWithoutItsPrefix(t *testing.T) {
 	}
 }
 
-// A universe can be removed while a note waits for its lock, and a journal
-// must not be written for one that is gone.
-func TestANoteIsNotWrittenForAUniverseThatWentAway(t *testing.T) {
+// A universe can be removed while a change to one of its notes waits for the
+// lock, and a journal must not be written for one that is gone.
+func TestANoteIsNotChangedForAUniverseThatWentAway(t *testing.T) {
 	s, store := journal(t)
-	store.gone = true
-	if _, err := s.AddNote(context.Background(), "3", "mine", ""); !errors.Is(err, domain.ErrNotFound) {
-		t.Errorf("adding to a universe that went away: %v", err)
+	if _, err := s.AddNote(context.Background(), "3", "mine", ""); err != nil {
+		t.Fatal(err)
 	}
-	if len(store.notes) != 0 {
+	store.gone = true
+	if _, err := s.EditNote(context.Background(), "3", "n1", "theirs"); !errors.Is(err, domain.ErrNotFound) {
+		t.Errorf("editing in a universe that went away: %v", err)
+	}
+	if store.notes[0].Text != "mine" {
 		t.Errorf("it wrote anyway: %+v", store.notes)
+	}
+}
+
+// Adding takes no lock, so two writers can pick the same id. The journal
+// refuses the second, which then takes the next id rather than writing over
+// the note that got there first.
+func TestAnIDTakenSinceTheJournalWasReadIsNotWrittenOver(t *testing.T) {
+	s, store := journal(t)
+	ctx := context.Background()
+	first, err := s.AddNote(ctx, "3", "theirs", "them")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.stale = true // as if "theirs" had landed a moment ago
+	second, err := s.AddNote(ctx, "3", "mine", "me")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ID != "n1" || second.ID != "n2" {
+		t.Fatalf("ids %s and %s", first.ID, second.ID)
+	}
+	if len(store.notes) != 2 || store.notes[0].Text != "theirs" {
+		t.Errorf("both notes should be there, the first one as it was: %+v", store.notes)
 	}
 }
 
@@ -190,7 +235,7 @@ func TestANoteTooLongIsRefused(t *testing.T) {
 	s, _ := journal(t)
 	ctx := context.Background()
 	long := strings.Repeat("x", domain.NoteLimit+1)
-	if _, err := s.AddNote(ctx, "3", long, ""); err == nil || !strings.Contains(err.Error(), "at most") {
+	if _, err := s.AddNote(ctx, "3", long, ""); err == nil || !strings.Contains(err.Error(), "at most") || !errors.Is(err, domain.ErrInvalid) {
 		t.Errorf("adding: %v", err)
 	}
 	if _, err := s.AddNote(ctx, "3", strings.Repeat("x", domain.NoteLimit), ""); err != nil {

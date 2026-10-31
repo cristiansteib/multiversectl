@@ -34,6 +34,16 @@ const notePrefix = "n"
 // NoteID is the id of the nth note a universe has been given.
 func NoteID(number int) string { return notePrefix + strconv.Itoa(number) }
 
+// NoteNumber is which note an id denotes, or 0 when it is in another shape —
+// written by hand, or by a later version that numbers them differently.
+func NoteNumber(id string) int {
+	number, err := strconv.Atoi(strings.TrimPrefix(strings.TrimSpace(id), notePrefix))
+	if err != nil {
+		return 0
+	}
+	return number
+}
+
 // LiveNotes are the notes that are still there, in order: what a journal says.
 // A removed one keeps its place on disk and its id, and is not one of these.
 func LiveNotes(notes []Note) []Note {
@@ -52,7 +62,7 @@ func LiveNotes(notes []Note) []Note {
 func HighestNoteNumber(notes []Note) int {
 	highest := 0
 	for _, n := range notes {
-		if number, err := strconv.Atoi(strings.TrimPrefix(n.ID, notePrefix)); err == nil && number > highest {
+		if number := NoteNumber(n.ID); number > highest {
 			highest = number
 		}
 	}

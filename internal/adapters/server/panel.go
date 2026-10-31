@@ -194,6 +194,12 @@ func failErr(w http.ResponseWriter, err error) {
 		fail(w, http.StatusNotFound, err.Error())
 		return
 	}
+	// What the caller asked for cannot be done however often it is asked: an
+	// empty note, one too long. That is the request's fault, not the server's.
+	if errors.Is(err, domain.ErrInvalid) {
+		fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	fail(w, http.StatusInternalServerError, err.Error())
 }
 

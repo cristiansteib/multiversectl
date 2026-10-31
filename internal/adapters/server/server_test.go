@@ -1188,6 +1188,12 @@ func TestAUniversesJournalIsReadAndAddedTo(t *testing.T) {
 	if rec := do(t, h, "POST", "/api/universe/notes", body, map[string]string{"Content-Type": "application/json"}); rec.Code != http.StatusForbidden {
 		t.Errorf("without the CSRF header: %d", rec.Code)
 	}
+	// A note the journal will not take is the request's fault, and says why.
+	f.err = domain.Invalid("a note is at most 8192 characters, and this one is 9000")
+	rec = do(t, h, "POST", "/api/universe/notes", body, actionHeaders)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "at most 8192") {
+		t.Errorf("a note too long: %d %s", rec.Code, rec.Body)
+	}
 }
 
 func TestAReadOnlyServerWritesNoNote(t *testing.T) {
