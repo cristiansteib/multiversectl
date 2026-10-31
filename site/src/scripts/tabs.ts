@@ -1,3 +1,5 @@
+import { track } from './analytics';
+
 // Install tabs: one tablist per page, driven by the roving tabindex pattern.
 export function tabs(): void {
   const items = Array.from(document.querySelectorAll<HTMLElement>('[role=tab]'));
@@ -15,7 +17,10 @@ export function tabs(): void {
   }
 
   items.forEach((t, i) => {
-    t.addEventListener('click', () => select(t));
+    t.addEventListener('click', () => {
+      select(t);
+      track('select_install_method', { method: t.textContent?.trim() ?? '' });
+    });
     t.addEventListener('keydown', (e) => {
       const moves: Record<string, number> = {
         ArrowRight: i + 1,
