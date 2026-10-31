@@ -6,7 +6,7 @@
 // yet, and the page behaves the same either way.
 declare global {
   interface Window {
-    gtag?: (command: 'event', name: string, params?: Record<string, string>) => void;
+    gtag?: (command: 'event' | 'consent', name: string, params?: Record<string, string>) => void;
   }
 }
 
