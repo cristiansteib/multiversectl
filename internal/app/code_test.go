@@ -343,11 +343,11 @@ func TestDoctorSaysWhichHostingServicesCannotBeAsked(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("want one check per instance a repository is on, got %v", got)
 	}
-	company := got["hosting gitlab gitlab.example.test"]
+	company := got["gitlab gitlab.example.test"]
 	if company.Status != StatusOK || !strings.Contains(company.Detail, "api, ui") {
 		t.Errorf("the signed-in instance: %+v", company)
 	}
-	public := got["hosting gitlab"]
+	public := got["gitlab"]
 	if public.Status != StatusOK || !strings.Contains(public.Detail, "lib") {
 		// instanceHost's error carries no sign-in fix, so it is only said.
 		t.Errorf("the public instance: %+v", public)

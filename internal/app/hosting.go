@@ -71,7 +71,7 @@ func unavailableText(h RepoHost, instance string, err error) string {
 func (s *Service) checkHosting(ctx context.Context, add addCheck) {
 	ready := &readiness{}
 	for _, g := range s.hostedRepos() {
-		name := "hosting " + strings.ToLower(g.host.Name())
+		name := strings.ToLower(g.host.Name())
 		if g.instance != "" {
 			name += " " + g.instance
 		}
@@ -88,6 +88,6 @@ func (s *Service) checkHosting(ctx context.Context, add addCheck) {
 			}
 			continue
 		}
-		add(name, StatusOK, "%s: signed in (%s)", where(g.host, g.instance), strings.Join(g.repos, ", "))
+		add(name, StatusOK, "signed in, for %s", strings.Join(g.repos, ", "))
 	}
 }

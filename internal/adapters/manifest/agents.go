@@ -31,7 +31,7 @@ func (Writer) Agents(d app.ProjectDraft, source string) ([]byte, error) {
 	b.WriteString("multiversectl universe ls -o list         # what is running\n")
 	b.WriteString("multiversectl universe urls fix/login     # the addresses it answers on\n")
 	b.WriteString("multiversectl universe rm fix/login       # remove it: containers, volumes and worktrees\n")
-	b.WriteString("multiversectl universe doctor             # check the host and the multiverse\n")
+	b.WriteString("multiversectl status                      # check the machine and the multiverse\n")
 	b.WriteString("multiversectl catalog sync                # after this repository changes\n")
 	b.WriteString("```\n\n`multiversectl --help` lists everything; a command missing an argument asks for it.\n\n")
 

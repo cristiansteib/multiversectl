@@ -69,7 +69,7 @@ web   ~/acme/universes/3/web      acme-u3-web  acme-u3-web_node_modules</pre></T
   - <span class="k">name</span>: api
     <span class="k">repo</span>: api
     <span class="k">secrets</span>: [.env, service-account.json]</pre></Terminal>
-  <p>The clone is the source of truth: put the file there once and every universe gets it. An existing file in a universe is never overwritten, so one can diverge on purpose, and <code>doctor</code> fails when a file is missing from the clone.</p>
+  <p>The clone is the source of truth: put the file there once and every universe gets it. An existing file in a universe is never overwritten, so one can diverge on purpose, and <code>status</code> fails when a file is missing from the clone.</p>
   <p><strong>When the repository ships a template, nothing has to be done.</strong> If the clone has no <code>.env</code> but a tracked <code>.env.example</code>, multiversectl does what a first run does: makes <code>.env</code> from the example, says so, and copies it in. Put your credentials in the clone's file once. <code>universe up</code> checks again before touching the proxy, so a file added later is picked up on the next start; one that is nowhere, with no example, stops the start and names each file and where it belongs.</p>
   <p><strong>The template is configurable.</strong> By default it is the secret's own name with <code>.example</code> added. Name another file, in the repository, with <code>secretTemplates</code>, or give <code>""</code> to never make one, for a file that must come from somewhere else and should stop the start when it is missing:</p>
   <Terminal kind="file"><pre><span class="k">secrets</span>: [.env, service-account.json]

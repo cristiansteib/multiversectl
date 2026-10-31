@@ -341,7 +341,11 @@ func (s Services) Doctor(ctx context.Context, multiverse, universe string) (doct
 	}
 	v := doctorView{OK: true, Checks: []checkView{}}
 	for _, c := range rep.Checks {
-		v.Checks = append(v.Checks, checkView{Name: c.Name, Status: string(c.Status), Detail: c.Detail})
+		detail := c.Detail
+		if c.Fix != "" {
+			detail += " — run: " + c.Fix
+		}
+		v.Checks = append(v.Checks, checkView{Name: c.Name, Status: string(c.Status), Detail: detail})
 		if c.Status == app.StatusFail {
 			v.OK = false
 		}

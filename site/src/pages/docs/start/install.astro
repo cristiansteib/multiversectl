@@ -65,7 +65,7 @@ import Terminal from '../../../components/Terminal.astro';
     <li><code>git</code>, new enough for <code>git worktree</code>.</li>
     <li>Nothing else: it runs no daemon of its own, and the only long-lived process it starts is the shared proxy, which is a container.</li>
   </ul>
-  <p><code>multiversectl universe doctor</code> checks all of it and names what is missing.</p>
+  <p><code>multiversectl status</code> checks all of it and names what is missing.</p>
   <p>Releases are built for Linux and macOS on <code>amd64</code> and <code>arm64</code>. The script installs into <code>~/.local/bin</code>, which macOS does not put on the <code>PATH</code> by default, and warns when it is missing. Completions work for zsh and fish; macOS ships bash 3.2 with no <code>bash-completion</code> to load them.</p>
 </section>
 </Page>

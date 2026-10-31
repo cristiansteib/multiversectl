@@ -202,7 +202,7 @@ type App struct {
 	// false for an app that should be checked out and have its addresses but run
 	// only when asked for (`universe up 3 <app>`): a tool that needs setup, a code
 	// generator, a heavy optional service. Commands that look after what runs
-	// (down, rm, doctor, ls) still deal with it when it is
+	// (down, rm, status, ls) still deal with it when it is
 	// up, and do not report it as a problem when it is not.
 	// +default=true
 	Autostart *bool `yaml:"autostart"`
@@ -232,7 +232,7 @@ type App struct {
 	Optional []Optional `yaml:"optional"`
 
 	// Files that are deliberately not in git — credentials, service accounts —
-	// copied from the clone into each universe's checkout. doctor fails when
+	// copied from the clone into each universe's checkout. status fails when
 	// one is missing, rather than letting the universe half-start.
 	Secrets []string `yaml:"secrets"`
 
@@ -484,7 +484,7 @@ type Host struct {
 	// dev.multiversectl.host.<name>.ready.
 	Ready string `yaml:"ready"`
 
-	// How `doctor` checks this host. By default it asks the address over HTTP
+	// How `status` checks this host. By default it asks the address over HTTP
 	// (a TCP connection for an h2c host); "tcp" connects, "grpc" connects (the
 	// standard gRPC health check is not run, as multiversectl carries no gRPC
 	// client), "http" forces the HTTP request, and "none" leaves the host

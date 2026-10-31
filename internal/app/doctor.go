@@ -23,7 +23,21 @@ type Check struct {
 	Name   string
 	Status Status
 	Detail string
+	// Scope is what the check is about, so a report that covers several
+	// multiverses can say the machine's once and each multiverse's under it.
+	Scope Scope
+	// Fix is the command that puts it right, when there is one.
+	Fix string
 }
+
+// Scope is what a check is about.
+type Scope string
+
+const (
+	ScopeMachine    Scope = "machine"
+	ScopeMultiverse Scope = "multiverse"
+	ScopeUniverse   Scope = "universe"
+)
 
 // Report is everything Doctor found.
 type Report struct {
@@ -39,49 +53,65 @@ type DoctorInput struct {
 // the report, never an error.
 func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 	var r Report
+	scope := ScopeMachine
+	addFix := func(name string, status Status, fix, format string, a ...any) {
+		r.Checks = append(r.Checks, Check{Name: name, Status: status, Detail: fmt.Sprintf(format, a...), Scope: scope, Fix: fix})
+	}
 	add := func(name string, status Status, format string, a ...any) {
-		r.Checks = append(r.Checks, Check{Name: name, Status: status, Detail: fmt.Sprintf(format, a...)})
+		addFix(name, status, "", format, a...)
 	}
 
 	s.checkRuntime(ctx, add)
-	if s.Manifest == nil {
-		add("manifest", StatusWarn, "no manifest loaded; multiversectl start <owner/repo>")
-	} else {
-		s.checkProxy(ctx, add)
-		s.checkSharedNetwork(ctx, add)
-		s.checkMultiverses(add)
-		s.checkClones(ctx, add)
-	}
-
-	var st domain.UniverseState
-	loaded := false
-	if in.Universe != "" {
-		var err error
-		if st, err = s.Resolve(in.Universe); err != nil {
-			add("state", StatusFail, "universe %s: %v", in.Universe, err)
-		} else {
-			loaded = true
-			add("state", StatusOK, "universe %s loaded", st.Name)
-		}
-	}
-
-	if s.Manifest != nil {
-		s.checkDomain(ctx, add, st, loaded)
-		s.checkHosting(ctx, add)
-	}
 	if _, found := s.System.Which("git"); found {
 		add("git", StatusOK, "found")
 	} else {
 		add("git", StatusFail, "not on PATH")
 	}
+	if s.Manifest == nil {
+		scope = ScopeMultiverse
+		addFix("manifest", StatusWarn, "multiversectl start <owner/repo>", "none installed")
+	} else {
+		s.checkProxy(ctx, add)
+		s.checkSharedNetwork(ctx, add)
+		scope = ScopeMultiverse
+		s.checkMultiverses(add)
+		s.checkClones(ctx, add, addFix)
+	}
+
+	var st domain.UniverseState
+	loaded := false
+	if in.Universe != "" {
+		scope = ScopeUniverse
+		var err error
+		if st, err = s.Resolve(in.Universe); err != nil {
+			add("state", StatusFail, "universe %s: %v", in.Universe, err)
+		} else {
+			loaded = true
+		}
+	}
+
+	if s.Manifest != nil {
+		// The domain is the universe's when one is named: its own hostname is
+		// what is asked.
+		if !loaded {
+			scope = ScopeMultiverse
+		}
+		s.checkDomain(ctx, add, st, loaded)
+		scope = ScopeMultiverse
+		s.checkHosting(ctx, add)
+	}
 
 	if loaded && s.Manifest != nil {
+		scope = ScopeUniverse
 		s.forUniverseOrSelf(st.Name).checkUniverse(ctx, add, st)
 	}
 	return r, nil
 }
 
 type addCheck func(name string, status Status, format string, a ...any)
+
+// fixCheck is addCheck for a finding that one command puts right.
+type fixCheck func(name string, status Status, fix, format string, a ...any)
 
 func (s *Service) checkRuntime(ctx context.Context, add addCheck) {
 	version, err := s.Runtime.Version(ctx)
@@ -146,7 +176,7 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 // are what a universe falls back on for a repository's own settings, secrets
 // and the code new universes branch from, and nothing else brings them forward
 // by itself when they have changes.
-func (s *Service) checkClones(ctx context.Context, add addCheck) {
+func (s *Service) checkClones(ctx context.Context, add addCheck, addFix fixCheck) {
 	fresh := s.CloneFreshness(ctx)
 	behind := 0
 	for _, key := range mapKeys(fresh) {
@@ -158,15 +188,15 @@ func (s *Service) checkClones(ctx context.Context, add addCheck) {
 		dir := s.Manifest.CloneDir(s.Multiverse, key)
 		switch {
 		case f.Dirty:
-			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch, and %s has uncommitted changes, so it is never moved on its own: commit or stash them, then `multiversectl catalog sync`", f.Behind, f.Follows, dir)
+			addFix("clone "+key, StatusWarn, "multiversectl catalog sync", "%d commits behind origin/%s, and %s has uncommitted changes, so it is never moved on its own: commit or stash them first", f.Behind, f.Follows, dir)
 		case f.Ahead > 0:
 			add("clone "+key, StatusWarn, "%d commits behind origin/%s and %d ahead of it: update %s by hand", f.Behind, f.Follows, f.Ahead, dir)
 		default:
-			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch; a universe with no checkout of it reads its files from here. Run: multiversectl catalog sync", f.Behind, f.Follows)
+			addFix("clone "+key, StatusWarn, "multiversectl catalog sync", "%d commits behind origin/%s; a universe with no checkout of it reads its files from here", f.Behind, f.Follows)
 		}
 	}
 	if len(fresh) > 0 && behind == 0 {
-		add("clones", StatusOK, "the %d shared clones are up to date with their remotes, as of the last fetch", len(fresh))
+		add("clones", StatusOK, "all %d up to date with their remotes", len(fresh))
 	}
 }
 
@@ -290,6 +320,10 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 		running := runningFor(containers, s.UniverseOf(st).ProjectFor(appKey))
 		if running == 0 && s.Manifest.Apps[appKey].OnDemand {
 			add("app "+appKey, StatusOK, "off, on demand (start it with: multiversectl universe up %s %s)", st.Name, appKey)
+			continue
+		}
+		if running == 0 {
+			add("app "+appKey, StatusOK, "not running")
 			continue
 		}
 		add("app "+appKey, StatusOK, "%d running", running)
