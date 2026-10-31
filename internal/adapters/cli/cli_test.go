@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
 	"github.com/cristiansteib/multiversectl/internal/domain"
@@ -589,4 +590,46 @@ func TestOneWordPerMeaning(t *testing.T) {
 		}
 	}
 	walk(root)
+}
+
+// A flag of a command's own with the name of a global one hides it: -f stops
+// working on that command alone.
+func TestNoCommandHidesAGlobalFlag(t *testing.T) {
+	root, _ := New(Factory{})
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		for _, k := range c.Commands() {
+			k.LocalNonPersistentFlags().VisitAll(func(f *pflag.Flag) {
+				if g := root.PersistentFlags().Lookup(f.Name); g != nil {
+					t.Errorf("`%s --%s` hides the global --%s", k.CommandPath(), f.Name, g.Name)
+				}
+				if f.Shorthand != "" {
+					if g := root.PersistentFlags().ShorthandLookup(f.Shorthand); g != nil {
+						t.Errorf("`%s -%s` hides the global -%s (--%s)", k.CommandPath(), f.Shorthand, f.Shorthand, g.Name)
+					}
+				}
+			})
+			walk(k)
+		}
+	}
+	walk(root)
+}
+
+// A name that was renamed is not run, but its error names the new one, and
+// only that: "server start" is `up`, not a near spelling such as `restart`.
+func TestAnOldNameSaysTheNewOne(t *testing.T) {
+	for old, want := range map[string]string{
+		"server start": "did you mean `up`?", "catalog update": "did you mean `sync`?", "catalog list": "did you mean `ls`?",
+		"agents skill uninstall": "did you mean `rm`?", "universe checkout": "did you mean `new`?", "universe config": "did you mean `about`?",
+		"universe status": "did you mean `ls`?", "universe hooks": "did you mean `about` or `run`?",
+	} {
+		root, _ := New(Factory{})
+		root.SetOut(&bytes.Buffer{})
+		root.SetErr(&bytes.Buffer{})
+		root.SetArgs(append(strings.Fields(old), "x"))
+		err := root.Execute()
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: %v, want %q", old, err, want)
+		}
+	}
 }

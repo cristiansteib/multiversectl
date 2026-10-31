@@ -58,8 +58,9 @@ func (r runner) statusCmd() *cobra.Command {
 			"multiverse — where it came from and whether its manifest is behind that — with\n" +
 			"one line per universe: running, partial, stopped or only created, how many of its\n" +
 			"services are up, when it was last started, its branch and what it is for. It says\n" +
-			"how things are; `multiversectl doctor` checks them and says what to fix. It reads\n" +
-			"what was last fetched; --fetch compares with the remotes first.",
+			"how things are; `multiversectl doctor` checks the machine and `universe doctor` a\n" +
+			"multiverse and its universes, and they say what to fix. It reads what was last\n" +
+			"fetched; --fetch compares with the remotes first.",
 		Example: "  multiversectl status\n  multiversectl status --fetch\n  multiversectl status -o json",
 		Args:    cobra.NoArgs,
 	}
@@ -220,5 +221,5 @@ func (r runner) printStatus(st statusReport) {
 		o.Cells([]string{"  UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCH", "ABOUT"}, rows)
 	}
 	o.Plain("")
-	o.Info("`multiversectl doctor` checks all of it and says what to fix")
+	o.Info("checks, and what to fix: `multiversectl doctor` for the machine, `multiversectl universe doctor` for a multiverse and its universes")
 }

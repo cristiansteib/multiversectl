@@ -16,6 +16,9 @@ const (
 	StatusOK   Status = "ok"
 	StatusWarn Status = "warn"
 	StatusFail Status = "fail"
+	// StatusIdle is something that is not running, or not installed, because
+	// nothing needs it: not a finding, and not something that was checked.
+	StatusIdle Status = "idle"
 )
 
 // Check is one finding of Doctor.
@@ -71,9 +74,11 @@ func (s *Service) Doctor(ctx context.Context, in DoctorInput) (Report, error) {
 		scope = ScopeMultiverse
 		addFix("manifest", StatusWarn, "multiversectl start <owner/repo>", "none installed")
 	} else {
+		// The proxy is the machine's, but what is said here is whether it is as
+		// this multiverse asks for it.
+		scope = ScopeMultiverse
 		s.checkProxy(ctx, add)
 		s.checkSharedNetwork(ctx, add)
-		scope = ScopeMultiverse
 		s.checkMultiverses(add)
 		s.checkClones(ctx, add, addFix)
 	}
@@ -150,7 +155,7 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 		add("proxy", StatusOK, "running on %s — %s", where, reach)
 		return
 	}
-	add("proxy", StatusWarn, "not running; the first start brings it up")
+	add("proxy", StatusIdle, "not running; the first start brings it up")
 
 	names := make([]string, 0, len(s.Manifest.Proxy.Entrypoints))
 	for name := range s.Manifest.Proxy.Entrypoints {
@@ -323,7 +328,7 @@ func (s *Service) checkUniverse(ctx context.Context, add addCheck, st domain.Uni
 			continue
 		}
 		if running == 0 {
-			add("app "+appKey, StatusOK, "not running")
+			add("app "+appKey, StatusIdle, "not running")
 			continue
 		}
 		add("app "+appKey, StatusOK, "%d running", running)

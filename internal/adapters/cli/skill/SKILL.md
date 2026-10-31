@@ -18,7 +18,7 @@ Each **universe** is a copy of the whole multiverse: one git worktree per reposi
 
 1. Look first: `universe ls -o json,less`. The `note` and `pr` say what another universe is for; reuse an idle one of yours before making another.
 2. Name it after the work: `universe new fix/login --about "<what you are doing>"` puts every repository on that branch — checked out where it exists, started where it does not — so the branch itself says what it is for. Keep to the convention the multiverse states — a rule in an `AGENTS.md`, or a `spec.branch` in its `multiverse.yaml` that is not the default `u{{universe}}`: a pattern of its own numbers the universes, so a plain `universe new` follows it. With none stated, `<type>/<subject>` (`fix/login`, `feat/invoicing`) is enough. A nameless, numbered universe is for a try you will throw away, not for work that becomes a pull request. A branch to review or carry on is the same command: `universe new <branch>`.
-3. `universe up <universe>` starts it: minutes, not seconds. Then edit and commit in the worktrees `universe ls <universe> -o json` names (`checkouts[].path`, or `checkout.<repo>` in the `less` view), and browse at `urls`; `doctor` asks each address and says which one does not answer.
+3. `universe up <universe>` starts it: minutes, not seconds. Then edit and commit in the worktrees `universe ls <universe> -o json` names (`checkouts[].path`, or `checkout.<repo>` in the `less` view), and browse at `urls`; `universe doctor <universe>` asks each address and says which one does not answer.
 4. Leave a trace for whoever looks next: `universe about <universe> "<short text>"` says what the universe is for, and `universe about <universe> --pr <url>` once the work has a pull request.
 5. Notes are how the user and other agents hear from you, and you from them. Read `universe notes <universe>` before working in one, and add a note (`universe notes add <universe> --by <your name> "<text>"`) only when there is something the next reader needs: what is broken or blocked, what you need from someone, a decision, where things stand when you stop. One or two lines, the fact rather than the story — the diff and the commits already tell what you did. To reach whoever works in another universe, add a note to theirs; that is the one thing you may write in a universe that is not yours.
 6. Code in a universe does not follow `main`. If `behind` is set, or `up` says the code is out of date: `universe sync <universe>` (`--merge` or a rebase only if you know the branch is yours).
@@ -54,14 +54,14 @@ A new manifest only lists the repositories: `universe up` starts each one that h
 
 ## When something is wrong
 
-Fixing it is part of the job. Run `doctor <universe>`, read the error — it says what to run — find the cause, fix it in your universe's repositories and run it again. That includes the multiverse's own files: a compose label, a missing example env, a bad script. Make it a normal commit on your branch and say what you changed and why. The `multiverse.yaml` and the shared clones are not yours to edit: tell the user what should change there.
+Fixing it is part of the job. Run `universe doctor <universe>`, read the error — it says what to run — find the cause, fix it in your universe's repositories and run it again. That includes the multiverse's own files: a compose label, a missing example env, a bad script. Make it a normal commit on your branch and say what you changed and why. The `multiverse.yaml` and the shared clones are not yours to edit: tell the user what should change there.
 
 ## Care
 
 - `--json` for anything you parse. Messages and tables come as one JSON object per line; errors on stderr.
 - You may `universe down` and `universe rm` the universes you created. Ask first for any other, and for `system prune`, `system proxy` and `reset`, which reach beyond one universe.
 - Secrets (`.env`, keys): you may look at which keys exist, but do not print their values or commit them. If `up` says a secret file is missing, tell the user where it goes.
-- The proxy and the web server are shared with other agents and with the user: diagnose them with `doctor` and say what to run; do not stop or restart them yourself.
+- The proxy and the web server are shared with other agents and with the user: diagnose them with `doctor` (the machine) and `universe doctor` and say what to run; do not stop or restart them yourself.
 - No force pushes, and no resets of a branch you did not start. Never touch another universe (beyond adding a note to it) or anything under the multiverse's `.multiverse/`.
 
 Documentation: <https://multiversectl.dev/docs/>. A bug in the tool itself, once you are sure it is not the multiverse: <https://github.com/cristiansteib/multiversectl/issues>.

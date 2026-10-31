@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/cristiansteib/multiversectl/internal/app"
 )
 
 func TestRepositoriesAreShownByPlatform(t *testing.T) {
@@ -41,43 +43,52 @@ func TestTheServerCanBeRestarted(t *testing.T) {
 	}
 }
 
-// doctor says the machine's checks once, then each multiverse's under its
-// name, with one line per command that fixes something however many checks
-// it fixes, and fails when a check does.
-func TestDoctorGroupsTheChecksAndSaysEachFixOnce(t *testing.T) {
+// doctor lists the machine's checks, with one line per command that fixes
+// something however many checks it fixes, and fails when a check does.
+func TestDoctorSaysEachFixOnce(t *testing.T) {
 	var buf bytes.Buffer
 	run := runner{g: &Globals{}, out: NewOutput(&buf, false)}
 	ms := doctorReport{
 		Version: "1.2.3",
 		Checks: []checkLine{
-			{Name: "runtime", Status: "ok", Detail: "5.1.3"},
-			{Name: "web view", Status: statusIdle, Detail: "not running", Fix: "multiversectl server up"},
+			{Name: "docker", Status: "ok", Detail: "reachable; compose 5.1.3"},
+			{Name: "glab", Status: "idle", Detail: "not installed; only needed for merge requests on GitLab"},
+			{Name: "gh", Status: "warn", Detail: "2.6, not signed in", Fix: "gh auth login"},
+			{Name: "port 80", Status: "fail", Detail: "taken by another program", Fix: "sudo lsof -i :80"},
+			{Name: "port 443", Status: "fail", Detail: "taken by another program", Fix: "sudo lsof -i :80"},
 		},
-		Multiverses: []multiverseLine{{Name: "acme", From: "github:acme/multiverse", Universes: 2, Running: 1, Checks: []checkLine{
-			{Name: "manifest", Status: "ok", Detail: "up to date"},
-			{Name: "clone api", Status: "warn", Detail: "2 commits behind", Fix: "multiversectl catalog sync"},
-			{Name: "clone web", Status: "warn", Detail: "1 commits behind", Fix: "multiversectl catalog sync"},
-		}}},
 	}
 	run.printChecks(ms)
 	out := buf.String()
-	for _, want := range []string{"This machine", "✓ runtime", "○ web view", "acme  github:acme/multiverse · 2 universes, 1 running", "! clone api", "2 warnings"} {
+	for _, want := range []string{"This machine", "✓ docker", "○ glab", "! gh", "✗ port 80", "→ gh auth login", "2 failures, 1 warning"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
 	}
-	if n := strings.Count(out, "→ multiversectl catalog sync"); n != 1 {
-		t.Errorf("the fix for both clones is said %d times, want once:\n%s", n, out)
+	if n := strings.Count(out, "→ sudo lsof -i :80"); n != 1 {
+		t.Errorf("a fix for two checks is said %d times, want once:\n%s", n, out)
 	}
-	if strings.Contains(out, "→ multiversectl server up") {
-		t.Errorf("an idle web view is not something to fix:\n%s", out)
+	if !ms.failed() {
+		t.Error("a failed check fails doctor")
 	}
+	ms.Checks = ms.Checks[:3]
 	if ms.failed() {
 		t.Error("warnings alone do not fail doctor")
 	}
-	ms.Multiverses[0].Checks[1].Status = "fail"
-	if !ms.failed() {
-		t.Error("a failed check fails doctor")
+}
+
+// universe doctor says the multiverse's checks under its name, and the
+// universe's under that, and none of the machine's.
+func TestUniverseDoctorKeepsTheMachineOut(t *testing.T) {
+	report := app.Report{Checks: []app.Check{
+		{Name: "runtime", Status: app.StatusOK, Scope: app.ScopeMachine},
+		{Name: "clone api", Status: app.StatusWarn, Scope: app.ScopeMultiverse, Fix: "multiversectl catalog sync"},
+		{Name: "app api", Status: app.StatusIdle, Detail: "not running", Scope: app.ScopeUniverse},
+	}}
+	run := runner{g: &Globals{}, out: NewOutput(&bytes.Buffer{}, false)}
+	ms := run.multiverseChecks(&app.Service{Multiverse: "/r/acme"}, report, "3")
+	if len(ms.Checks) != 0 || len(ms.Multiverses) != 1 || len(ms.Multiverses[0].Checks) != 1 || ms.Universe == nil || len(ms.Universe.Checks) != 1 {
+		t.Errorf("report = %+v", ms)
 	}
 }
 
@@ -99,7 +110,7 @@ func TestStatusSaysWhatRunsAndJudgesNothing(t *testing.T) {
 	})
 	out := buf.String()
 	for _, want := range []string{"Proxy      running · web:80", "Web view   not running", "acme  github:acme/multiverse · manifest behind 2",
-		"1          running  4/4", "fix/login  created", "the redirect", "no universes yet", "multiversectl doctor"} {
+		"1          running  4/4", "fix/login  created", "the redirect", "no universes yet", "universe doctor"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}

@@ -332,13 +332,13 @@ type HostRule struct {
 	// with an error nothing in the universe explains.
 	Scheme string
 	// Ready makes `up` wait until the host answers (see ValidReady); empty is no
-	// wait. Probe is how `doctor` checks it (see Probes); empty is a plain
+	// wait. Probe is how `universe doctor` checks it (see Probes); empty is a plain
 	// HTTP request, except for an h2c host, which is a TCP connection.
 	Ready string
 	Probe string
 }
 
-// Probes are the ways `doctor` can check a host: an HTTP request, a TCP
+// Probes are the ways `universe doctor` can check a host: an HTTP request, a TCP
 // connection, the standard gRPC health check, or not at all.
 var Probes = []string{"http", "tcp", "grpc", "none"}
 

@@ -232,7 +232,7 @@ type App struct {
 	Optional []Optional `yaml:"optional"`
 
 	// Files that are deliberately not in git — credentials, service accounts —
-	// copied from the clone into each universe's checkout. doctor fails when
+	// copied from the clone into each universe's checkout. `universe doctor` fails when
 	// one is missing, rather than letting the universe half-start.
 	Secrets []string `yaml:"secrets"`
 
@@ -484,7 +484,7 @@ type Host struct {
 	// dev.multiversectl.host.<name>.ready.
 	Ready string `yaml:"ready"`
 
-	// How `doctor` checks this host. By default it asks the address over HTTP
+	// How `universe doctor` checks this host. By default it asks the address over HTTP
 	// (a TCP connection for an h2c host); "tcp" connects, "grpc" connects (the
 	// standard gRPC health check is not run, as multiversectl carries no gRPC
 	// client), "http" forces the HTTP request, and "none" leaves the host

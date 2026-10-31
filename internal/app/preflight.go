@@ -90,7 +90,12 @@ func (s *Service) preflightDocker(ctx context.Context, add addCheck) {
 	if out, err := s.Commands.RunHost(ctx, HostCommand{Args: []string{"docker", "buildx", "version"}}); err != nil {
 		add("buildx", StatusFail, "docker buildx is missing, and images that build need it. Install it (https://docs.docker.com/build/install-buildx/), then run: docker buildx version")
 	} else {
-		add("buildx", StatusOK, "%s", strings.TrimSpace(firstLine(out)))
+		// "github.com/docker/buildx v0.17.1 <commit>": the version is what is read.
+		v := strings.TrimSpace(firstLine(out))
+		if f := strings.Fields(v); len(f) > 1 {
+			v = f[1]
+		}
+		add("buildx", StatusOK, "%s", v)
 	}
 	s.checkNetworkPool(ctx, add)
 }

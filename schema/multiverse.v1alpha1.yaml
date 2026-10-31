@@ -312,9 +312,9 @@ spec:
                         description: >-
                           Files that are deliberately not in git —
                           credentials, service accounts — copied from the
-                          clone into each universe's checkout. doctor fails
-                          when one is missing, rather than letting the
-                          universe half-start.
+                          clone into each universe's checkout. `universe
+                          doctor` fails when one is missing, rather than
+                          letting the universe half-start.
                         items:
                           type: string
                       secretTemplates:
@@ -1380,17 +1380,18 @@ spec:
                             probe:
                               type: string
                               description: >-
-                                How `doctor` checks this host. By default it
-                                asks the address over HTTP (a TCP connection
-                                for an h2c host); "tcp" connects, "grpc"
-                                connects (the standard gRPC health check is
-                                not run, as multiversectl carries no gRPC
-                                client), "http" forces the HTTP request, and
-                                "none" leaves the host out. A connection
-                                goes to the host's forwarded port; a host
-                                without one is asked over HTTP, as the proxy
-                                accepts any connection. A host that comes
-                                from a compose label asks for the same with
+                                How `universe doctor` checks this host. By
+                                default it asks the address over HTTP (a TCP
+                                connection for an h2c host); "tcp" connects,
+                                "grpc" connects (the standard gRPC health
+                                check is not run, as multiversectl carries
+                                no gRPC client), "http" forces the HTTP
+                                request, and "none" leaves the host out. A
+                                connection goes to the host's forwarded
+                                port; a host without one is asked over HTTP,
+                                as the proxy accepts any connection. A host
+                                that comes from a compose label asks for the
+                                same with
                                 dev.multiversectl.host.<name>.probe.
                               enum: ["http", "tcp", "grpc", "none"]
                 hooks:

@@ -72,8 +72,9 @@ func (r runner) catalogLsCmd() *cobra.Command {
 	var fetch bool
 	var format, from string
 	cmd := &cobra.Command{
-		Use:   "ls [node-path]",
-		Short: "Show the catalog as a tree, or the part under a node",
+		Use:        "ls [node-path]",
+		SuggestFor: []string{"list", "tree"},
+		Short:      "Show the catalog as a tree, or the part under a node",
 		Long: "Shows the root catalog as a tree: each node's name, what it is (root, catalog\n" +
 			"or multiverse) and where it lives, with the multiverses already installed on this\n" +
 			"machine marked. Give a node's path to show only what is under it. It reads\n" +
@@ -555,8 +556,9 @@ func (r runner) warnClashes(bare *app.Service, added []namedManifest) {
 
 func (r runner) catalogSyncCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "sync [multiverse ...]",
-		Short: "Bring installed multiverses up to date: fetch, move their manifests forward, clone new repositories",
+		Use:        "sync [multiverse ...]",
+		SuggestFor: []string{"update"},
+		Short:      "Bring installed multiverses up to date: fetch, move their manifests forward, clone new repositories",
 		Long: "Fetches the catalogs, fast-forwards each multiverse's manifest from where it was\n" +
 			"installed, and clones any repository the new manifest lists. It refuses a\n" +
 			"manifest with local changes, and leaves a pinned one alone. With no names it\n" +

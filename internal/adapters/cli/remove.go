@@ -14,10 +14,11 @@ import (
 func (r runner) rmCmd() *cobra.Command {
 	var yes, force bool
 	cmd := &cobra.Command{
-		Use:     "rm <universe>",
-		Short:   "Destroy a universe: worktrees, containers, volumes and state (asks first)",
-		Example: "  multiversectl universe rm 3\n  multiversectl universe rm fix/login --yes",
-		Args:    cobra.MaximumNArgs(1),
+		Use:        "rm <universe>",
+		SuggestFor: []string{"remove", "destroy", "delete"},
+		Short:      "Destroy a universe: worktrees, containers, volumes and state (asks first)",
+		Example:    "  multiversectl universe rm 3\n  multiversectl universe rm fix/login --yes",
+		Args:       cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().BoolVar(&yes, "yes", false, "skip the confirmation prompt")
 	cmd.Flags().BoolVar(&force, "force", false, "remove it even with uncommitted work in a worktree, discarding that work")

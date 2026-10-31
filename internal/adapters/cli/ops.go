@@ -227,6 +227,8 @@ func (r runner) runCmd() *cobra.Command {
 			"  multiversectl universe run 3 api --service db -- psql -U postgres\n"+
 			"  multiversectl universe run 3 --hook postUp           # every app's postUp hooks, now\n"+
 			"  multiversectl universe run 3 --hook preUp api")
+	// Where `universe hooks run` went; the name does not run.
+	cmd.SuggestFor = []string{"hooks"}
 	var hook string
 	cmd.Flags().StringVar(&hook, "hook", "", "run the hooks the manifest ties to this event instead of a command (postCreate, preUp, postUp, preDown, postDown, preRemove), for the apps named or all; a once-only hook runs again and is not marked")
 	_ = cmd.RegisterFlagCompletionFunc("hook", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {

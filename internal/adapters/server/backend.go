@@ -345,7 +345,11 @@ func (s Services) Doctor(ctx context.Context, multiverse, universe string) (doct
 		if c.Fix != "" {
 			detail += " — run: " + c.Fix
 		}
-		v.Checks = append(v.Checks, checkView{Name: c.Name, Status: string(c.Status), Detail: detail})
+		status := c.Status
+		if status == app.StatusIdle { // the page knows ok, warn and fail
+			status = app.StatusOK
+		}
+		v.Checks = append(v.Checks, checkView{Name: c.Name, Status: string(status), Detail: detail})
 		if c.Status == app.StatusFail {
 			v.OK = false
 		}

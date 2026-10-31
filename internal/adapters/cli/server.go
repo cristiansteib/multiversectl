@@ -41,10 +41,11 @@ func (r runner) serverUpCmd() *cobra.Command {
 	var addr string
 	var expose, open, readOnly bool
 	cmd := &cobra.Command{
-		Use:     "up",
-		Short:   "Start the web view in the background",
-		Example: "  multiversectl server up\n  multiversectl server up --open\n  multiversectl server up --addr 127.0.0.1:9000",
-		Args:    cobra.NoArgs,
+		Use:        "up",
+		SuggestFor: []string{"start"},
+		Short:      "Start the web view in the background",
+		Example:    "  multiversectl server up\n  multiversectl server up --open\n  multiversectl server up --addr 127.0.0.1:9000",
+		Args:       cobra.NoArgs,
 	}
 	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7777", "address to listen on (a port of 0 picks a free one; a busy port is replaced by the next free)")
 	cmd.Flags().BoolVar(&expose, "expose", false, "allow a non-loopback address and any host name; there is no login")
@@ -130,9 +131,10 @@ func (r runner) serverOpenCmd() *cobra.Command {
 
 func (r runner) serverDownCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "down",
-		Short: "Stop the web view",
-		Args:  cobra.NoArgs,
+		Use:        "down",
+		SuggestFor: []string{"stop"},
+		Short:      "Stop the web view",
+		Args:       cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			p, err := r.f.Server()
 			if err != nil {
