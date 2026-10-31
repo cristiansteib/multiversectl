@@ -63,6 +63,25 @@ const ogTitle = title;
 <meta name="twitter:image:alt" content={imageAlt} />
 {jsonLd.map((o) => <script type="application/ld+json" set:html={JSON.stringify(o).replace(/</g, '\\u003c')} />)}
 <meta name="theme-color" content="#f5f7fa" />
+{/* Google Analytics 4 (gtag.js), measurement ID of the multiversectl.dev web
+    stream. Both scripts stay inline and unbundled, as Google's snippet is
+    written; the loader is async so it never blocks the first paint. */}
+<script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-QTMFS6JHSM"></script>
+<script is:inline>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  // Consent Mode v2: nothing is stored and no identifier is used until the
+  // reader accepts. The stored choice (src/scripts/consent.ts) is applied here,
+  // before the config call, so a returning reader is never measured as denied.
+  gtag('consent', 'default', {
+    ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', analytics_storage: 'denied',
+  });
+  try {
+    if (localStorage.getItem('consent') === 'granted') gtag('consent', 'update', { analytics_storage: 'granted' });
+  } catch (e) {}
+  gtag('js', new Date());
+  gtag('config', 'G-QTMFS6JHSM');
+</script>
 {/* Applies a stored dark choice before the first paint, so the page never
     flashes light. It must stay inline and unbundled to run this early. */}
 <script is:inline>

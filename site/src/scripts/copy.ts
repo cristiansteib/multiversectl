@@ -1,3 +1,4 @@
+import { track } from './analytics';
 import { say } from './status';
 
 /**
@@ -40,6 +41,7 @@ export function copyButtons(): void {
       : 'Copy the contents of this file');
     b.addEventListener('click', () => {
       const out = text();
+      track('copy_code', { copy_mode: mode ?? '', snippet: out.split('\n')[0]?.slice(0, 100) ?? '' });
       if (navigator.clipboard) {
         navigator.clipboard.writeText(out).then(
           () => say(mode === 'input'

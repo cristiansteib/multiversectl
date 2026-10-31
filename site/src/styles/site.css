@@ -454,3 +454,15 @@ footer{margin-top:48px;padding:28px 0 52px;border-top:1px solid var(--line);font
 footer .wrap{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 footer a{color:var(--muted)}
 footer a:hover{color:var(--head)}
+
+/* Cookie banner: a card pinned to the bottom, over the page rather than in the
+   way of it. "Cookie settings" in the footer reopens it. */
+.consent{position:fixed;z-index:60;left:16px;right:16px;bottom:16px;max-width:34rem;margin:0 auto 0 0;
+  padding:16px 18px;background:var(--raised);border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:.9375rem}
+.consent p{margin:0 0 12px;color:var(--text)}
+.consent-actions{display:flex;gap:10px;justify-content:flex-end}
+.consent .btn{cursor:pointer;background-color:transparent}
+.consent .btn-1{background-color:var(--num)}
+.linklike{padding:0;border:0;background:none;color:var(--muted);font:inherit;text-decoration:underline;cursor:pointer}
+.linklike:hover{color:var(--head)}
