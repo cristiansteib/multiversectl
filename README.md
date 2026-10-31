@@ -47,7 +47,7 @@ volumes have the same names, and the database holds the other branch's schema.
   objects and a `compose up` on the daemon and image cache you already use. Seconds.
 - **A life, not only a start.** Hooks seed data and register addresses, then take
   them back on removal; config files are rendered from the universe's values;
-  `status <universe>` asks every address whether it answers.
+  `doctor` asks every address whether it answers.
 - **For agents and people alike.** `--json` on every command and a skill tell an
   agent how to work in a universe of its own; a web view shows every universe,
   what its branches add and their pull requests.
@@ -149,7 +149,7 @@ multiversectl universe up fix/login     # start its containers
 multiversectl universe ls               # list universes and their state
 multiversectl universe ls -o wide       # every service, whether it is up, and what it owns
 multiversectl universe urls fix/login   # print the hostnames it answers on
-multiversectl status 1                  # check the machine, the multiverse and universe 1
+multiversectl doctor                    # check the machine and the multiverse; doctor 1 checks universe 1 too
 multiversectl universe rm fix/login     # stop and delete it
 ```
 

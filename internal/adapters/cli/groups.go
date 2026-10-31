@@ -27,7 +27,7 @@ var startHere = []string{"init", "start", "status"}
 var commandGroups = map[string]string{
 	"init": groupStart, "start": groupStart, "status": groupStart,
 	"universe": groupWork, "catalog": groupWork,
-	"server": groupMachine, "system": groupMachine,
+	"server": groupMachine, "system": groupMachine, "doctor": groupMachine,
 	"agents": groupTool, "schema": groupTool, "completion": groupTool, "self-update": groupTool, "version": groupTool,
 }
 

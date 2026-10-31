@@ -118,7 +118,7 @@ func (System) FreePort(ctx context.Context) (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-// probeTimeout keeps a dead address from stalling status: it only has to tell
+// probeTimeout keeps a dead address from stalling doctor: it only has to tell
 // "answers" from "does not".
 const probeTimeout = 3 * time.Second
 

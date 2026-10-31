@@ -18,8 +18,8 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// quietOut drops what a use case would print: status asks many services about
-// many things, and what it wants from each is the answer, not their warnings.
+// quietOut drops what a use case would print: status and doctor ask many
+// services about many things, and want the answers, not their warnings.
 type quietOut struct{}
 
 func (quietOut) Info(string, ...any)        {}
@@ -28,9 +28,9 @@ func (quietOut) Warn(string, ...any)        {}
 func (quietOut) Plain(string, ...any)       {}
 func (quietOut) Table([]string, [][]string) {}
 
-// machineStatus is everything `status` says, so the same answer can be printed
+// doctorReport is everything `doctor` found, so the same answer can be printed
 // or handed to a script.
-type machineStatus struct {
+type doctorReport struct {
 	Version     string            `json:"version"`
 	Catalog     app.CatalogStatus `json:"catalog"`
 	Multiverses []multiverseLine  `json:"multiverses"`
@@ -75,7 +75,7 @@ type serverLine struct {
 	Outdated bool `json:"outdated,omitempty"`
 }
 
-// checkLine is one thing status looked at. Idle is not a finding: a proxy or a
+// checkLine is one thing doctor looked at. Idle is not a finding: a proxy or a
 // web view that is not running because nothing needs it.
 type checkLine struct {
 	Name   string `json:"name"`
@@ -96,12 +96,12 @@ func fromCheck(c app.Check) checkLine {
 	return line
 }
 
-func (r runner) machineStatusCmd() *cobra.Command {
+func (r runner) doctorCmd() *cobra.Command {
 	var fetch, preflight bool
 	var format string
 	cmd := &cobra.Command{
-		Use:   "status [universe]",
-		Short: "How this machine stands: what is installed and running, every check, and what to run to fix each",
+		Use:   "doctor [universe]",
+		Short: "Check the machine, every multiverse and optionally one universe, and say what to run to fix each",
 		Long: "One answer to \"is this machine in order?\": the machine itself (the root catalog,\n" +
 			"the container runtime, git, the shared proxy, the web view), then each installed\n" +
 			"multiverse (whether its manifest is behind upstream, its shared clones, its domain,\n" +
@@ -113,8 +113,8 @@ func (r runner) machineStatusCmd() *cobra.Command {
 			"machine: docker reachable, compose and buildx present, free disk space, and, when a\n" +
 			"multiverse is installed, that each of its repositories can be read and its secret\n" +
 			"files are there.",
-		Example: "  multiversectl status\n  multiversectl status 3                # and universe 3: its secrets, apps and addresses\n" +
-			"  multiversectl status --fetch\n  multiversectl status --preflight\n  multiversectl status -o json",
+		Example: "  multiversectl doctor\n  multiversectl doctor 3                # and universe 3: its secrets, apps and addresses\n" +
+			"  multiversectl doctor --fetch\n  multiversectl doctor --preflight\n  multiversectl doctor -o json",
 		Args: cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().BoolVar(&fetch, "fetch", false, "compare with the remotes and look for a newer release")
@@ -134,8 +134,8 @@ func (r runner) machineStatusCmd() *cobra.Command {
 		if len(args) == 1 {
 			universe = args[0]
 		}
-		var ms machineStatus
-		err := r.spin(true, "Looking at this machine", func() (err error) { ms, err = r.collectStatus(cmd.Context(), fetch, universe); return err })
+		var ms doctorReport
+		err := r.spin(true, "Checking this machine", func() (err error) { ms, err = r.collectChecks(cmd.Context(), fetch, universe); return err })
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (r runner) machineStatusCmd() *cobra.Command {
 				return err
 			}
 		} else {
-			r.printMachine(ms)
+			r.printChecks(ms)
 		}
 		if ms.failed() {
 			return errChecksFailed
@@ -173,8 +173,8 @@ func (r runner) preflight(cmd *cobra.Command) error {
 	}), true)
 }
 
-func (r runner) collectStatus(ctx context.Context, fetch bool, universe string) (machineStatus, error) {
-	ms := machineStatus{Version: r.f.Version, Checks: []checkLine{}, Attention: []string{}}
+func (r runner) collectChecks(ctx context.Context, fetch bool, universe string) (doctorReport, error) {
+	ms := doctorReport{Version: r.f.Version, Checks: []checkLine{}, Attention: []string{}}
 	c, err := r.catalogs(false)
 	if err != nil {
 		return ms, err
@@ -201,7 +201,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool, universe string) 
 		ms.Checks = append(ms.Checks, checkLine{Name: "catalog", Status: string(app.StatusOK), Detail: cmp.Or(domain.Locate(rep.Catalog.Source, "").Short(""), rep.Catalog.Source)})
 	}
 
-	// The universe asked about belongs to the multiverse the other universe
+	// The universe asked about belongs to the multiverse the universe
 	// commands would pick: -m, the folder this is run in, or the only one.
 	var asked *app.Service
 	if universe != "" {
@@ -352,7 +352,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool, universe string) 
 }
 
 // firstMachine is the machine's check of that name, to say more in it.
-func (ms *machineStatus) firstMachine(name string) *checkLine {
+func (ms *doctorReport) firstMachine(name string) *checkLine {
 	for i := range ms.Checks {
 		if ms.Checks[i].Name == name {
 			return &ms.Checks[i]
@@ -363,7 +363,7 @@ func (ms *machineStatus) firstMachine(name string) *checkLine {
 
 // each walks every check, with where it was made as a prefix: "" for the
 // machine, "acme: " for a multiverse, "acme/3: " for the universe.
-func (ms machineStatus) each(f func(where string, c checkLine)) {
+func (ms doctorReport) each(f func(where string, c checkLine)) {
 	for _, c := range ms.Checks {
 		f("", c)
 	}
@@ -379,13 +379,13 @@ func (ms machineStatus) each(f func(where string, c checkLine)) {
 	}
 }
 
-func (ms machineStatus) failed() bool {
+func (ms doctorReport) failed() bool {
 	failed := false
 	ms.each(func(_ string, c checkLine) { failed = failed || c.Status == string(app.StatusFail) })
 	return failed
 }
 
-func (r runner) printMachine(ms machineStatus) {
+func (r runner) printChecks(ms doctorReport) {
 	o := r.out
 	home, _ := os.UserHomeDir()
 	width := 0
