@@ -64,6 +64,9 @@ code,pre,.mono{font-family:var(--mono)}
   background:none;color:var(--muted);cursor:pointer}
 .theme:hover{color:var(--head);border-color:var(--muted)}
 .theme svg{width:16px;height:16px}
+/* display:grid above would beat the UA's [hidden] rule, so the button showed (and did
+   nothing) whenever the script had not run: before it loads, blocked, or failed. */
+.theme[hidden]{display:none}
 /* The button shows what a press turns the page to. */
 .theme .moon,:root[data-theme=dark] .theme .sun{display:block}
 .theme .sun,:root[data-theme=dark] .theme .moon{display:none}
