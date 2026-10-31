@@ -4,10 +4,11 @@ The static site for <https://multiversectl.dev>, built with [Astro]. It
 replaced `internal/tools/docgen`, which rendered `docs/` from a folder of HTML
 fragments in `docsrc/`; both are gone.
 
-`make docs` builds this project and copies `dist/` over `docs/`, which is the
-folder GitHub Pages publishes (its source is `main:/docs`). So `docs/` is build
-output that happens to be committed: edit this project, never `docs/`. CI
-rebuilds and fails if the two have drifted.
+Nothing built is committed. CI builds the site and checks every page answers;
+the release workflow builds it again after each release, with `SITE_VERSION`
+set to `git describe --tags` so the top bar says which release the docs are of
+(`v0.0.96`, or `v0.0.95+2` for commits after it), and publishes `dist/` to
+GitHub Pages. A build without it says `dev`.
 
 ```sh
 npm install
@@ -24,7 +25,7 @@ npm run sync     # copy install.sh and the screenshots into public/ (build does 
 
 | Path | What it is |
 |---|---|
-| `src/data/nav.ts` | **The menu, the page order and every address.** Groups, titles, nav labels, summaries, descriptions and the `hero`/`notoc` flags. The sidenav, the top bar's section links, the breadcrumb, previous/next, the hero's buttons and the redirect stubs all derive from it. |
+| `src/data/nav.ts` | **The menu, the page order and every address.** Groups, titles, nav labels, summaries, descriptions and the `hero`/`notoc` flags. The sidenav, the breadcrumb, previous/next, the hero's buttons and the redirect stubs all derive from it. |
 | `src/layouts/Page.astro` | The chrome of an ordinary page: top bar, menu, breadcrumb, h1, lede, content, pager, contents column, footer. |
 | `src/layouts/Home.astro` | The hero variant: landing header, no menu, no breadcrumb, no contents column. |
 | `src/components/` | **The chrome**: `BaseHead`, `TopBar`, `SideNav`, `Breadcrumbs`, `Toc`, `Pager`, `Hero`, `Footer`, `Scripts`. **The content**: `Terminal`, `Figure`, `Shot`, `Note`, `Cards`/`Card` — see below. |

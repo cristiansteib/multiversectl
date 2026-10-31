@@ -51,15 +51,19 @@ code,pre,.mono{font-family:var(--mono)}
 .topbar .wrap{display:flex;align-items:center;gap:16px;height:var(--top)}
 .brand{font:600 .9375rem/1 var(--mono);color:var(--head);text-decoration:none;white-space:nowrap}
 .brand span{color:var(--num)}
-.topnav{display:none;gap:20px;margin-left:auto;font-size:.875rem}
+.version{font:500 .75rem/1 var(--mono);color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:3px 8px;white-space:nowrap}
+a.version:hover{color:var(--head);border-color:var(--muted)}
+.topnav{display:flex;gap:20px;margin-left:auto;font-size:.875rem}
 .topnav a{color:var(--muted);text-decoration:none}
-.topnav a:hover{color:var(--head)}
+.topnav a:hover,.topnav a[aria-current=true]{color:var(--head)}
 .ghlink{margin-left:auto;font-size:.875rem;text-decoration:none;color:var(--muted)}
 .ghlink:hover{color:var(--head)}
 /* GitHub's own mark beside the word, from simple-icons (CC0); see
    public/brands/CREDITS.md. It takes the link's colour like any glyph. */
 .ghmark{width:1em;height:1em;fill:currentColor;vertical-align:-.14em;margin-right:.45em}
-@media (min-width:780px){.topnav{display:flex}.ghlink{margin-left:0}}
+.topnav + .ghlink{margin-left:0}
+/* A phone has room for the mark, not the word beside it. */
+@media (max-width:479px){.ghword{display:none}.ghmark{margin-right:0}}
 .theme{display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid var(--line);border-radius:6px;
   background:none;color:var(--muted);cursor:pointer}
 .theme:hover{color:var(--head);border-color:var(--muted)}

@@ -11,7 +11,7 @@ make build        # ./dist/multiversectl
 make test lint    # go test ./... ; gofmt -l + go vet
 make schema       # regenerate schema/multiverse.v1alpha1.yaml from the Go types
 make schema-check # fail if that file is stale (CI runs it)
-make docs         # build the Astro site (site/) into docs/, which Pages serves
+make docs         # build the Astro site (site/) into site/dist; a release builds and publishes it
 make ui           # build the Angular app (web/) into the server's embed dir; never committed
 make ui-dev       # ng serve with hot reload on :4200, proxied to a running multiversectl-server
 ```
@@ -29,7 +29,7 @@ or its `+markers`, and commit the result.
 | `internal/adapters/cli` | Flags and rendering. Colour and tables live here, not in `app`. |
 | `internal/tools/schemagen` | `go/ast` generator for the CRD-style schema. |
 | `schema/` | The generated field reference, and the package that embeds and reads it: the CRD shape is known here, not by its callers. Generated: `make schema`. |
-| `site/` | The documentation site (Astro). `make docs` builds it into `docs/`; see `site/README.md`. |
+| `site/` | The documentation site (Astro). `make docs` builds it into `site/dist`; the release workflow builds it again, stamped with the release, and publishes it to Pages. See `site/README.md`. |
 
 A new capability starts as a port method in `internal/app/ports.go`.
 

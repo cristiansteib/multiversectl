@@ -136,3 +136,37 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The documentation site, built after the release so it can say which one it
+  # is of: `git describe` is the tag just made, or, when this push released
+  # nothing, the last one and how many commits are on top of it. It runs on a
+  # push to main and on a tag, whichever of the two jobs above ran.
+  pages:
+    needs: [from-commits, from-tag]
+    if: always() && !cancelled() && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The tag the release job made a moment ago is not in the checkout yet.
+      - run: git fetch --tags --force
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: echo "SITE_VERSION=$(git describe --tags --match 'v*')" >> "$GITHUB_ENV"
+      - run: make docs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+      - id: deploy
+        uses: actions/deploy-pages@v4

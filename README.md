@@ -205,8 +205,8 @@ and [labels](https://multiversectl.dev/docs/concepts/labels/).
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md). The
-documentation site is an Astro project: edit [site/](site/) and run `make docs`,
-which builds it into `docs/`, the folder GitHub Pages publishes.
+documentation site is an Astro project: edit [site/](site/) and run `make docs`
+to build it into `site/dist`; each release builds and publishes it.
 
 ## License
 
