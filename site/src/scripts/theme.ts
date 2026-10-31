@@ -2,6 +2,8 @@
 // (see src/components/BaseHead.astro) applies a stored choice before the first
 // paint; this keeps the button, the browser's bar colour and the screenshots
 // that come in a light version in step with it.
+import { track } from './analytics';
+
 export const STORAGE_KEY = 'theme';
 
 export function theme(): void {
@@ -28,6 +30,7 @@ export function theme(): void {
   button.addEventListener('click', () => {
     const dark = root.dataset.theme !== 'dark';
     paint(dark);
+    track('change_theme', { theme: dark ? 'dark' : 'light' });
     try {
       localStorage.setItem(STORAGE_KEY, dark ? 'dark' : 'light');
     } catch {
