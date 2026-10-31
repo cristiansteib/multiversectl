@@ -55,7 +55,7 @@ func (c *Catalogs) Ignore(ctx context.Context, paths []string, ignore bool) erro
 			continue
 		}
 		if known != nil && !known(p) {
-			return fmt.Errorf("there is no %q in the catalog; `multiversectl catalog list` shows the paths", p)
+			return fmt.Errorf("there is no %q in the catalog; `multiversectl catalog ls` shows the paths", p)
 		}
 		if slices.Contains(cfg.Ignored, p) {
 			continue

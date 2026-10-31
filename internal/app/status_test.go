@@ -48,7 +48,7 @@ func TestStatusSaysWhereAMultiverseHasDrifted(t *testing.T) {
 	if !w.Stale || !strings.Contains(notes, "manifest behind 2 (as of the last fetch)") || !strings.Contains(notes, "billing-api not cloned") {
 		t.Errorf("%+v", w)
 	}
-	if rep.Next != "multiversectl catalog update acme" {
+	if rep.Next != "multiversectl catalog sync acme" {
 		t.Errorf("next = %q", rep.Next)
 	}
 	if len(r.git.fetched) != 0 {

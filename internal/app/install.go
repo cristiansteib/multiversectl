@@ -70,7 +70,7 @@ func (c *Catalogs) PlanInstall(ctx context.Context, args []string, o InstallOpti
 			return nil, fmt.Errorf("--exclude %q needs a root catalog to be read from: %w", x, firstErr(rootErr, errors.New("none is set")))
 		}
 		if _, ok := root.Find(strings.Trim(x, "/")); !ok || strings.Trim(x, "/") == "" {
-			return nil, fmt.Errorf("--exclude %q is not in your catalog; `multiversectl catalog list` shows the tree", x)
+			return nil, fmt.Errorf("--exclude %q is not in your catalog; `multiversectl catalog ls` shows the tree", x)
 		}
 	}
 

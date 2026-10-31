@@ -14,7 +14,7 @@ func TestTheRemovalCommandsComeInASafeOrder(t *testing.T) {
 		{Kind: "state", Path: "/home/me/.config/multiversectl/catalogs", Remove: "rm -rf '/home/me/.config/multiversectl/catalogs'"},
 		{Kind: "clone", Path: "/w/api", Remove: "rm -rf '/w/api'", Risk: true, Note: "2 commits on no remote"},
 		{Kind: "universe", Path: "/w/universes/3", Remove: "multiversectl -p acme universe rm 3"},
-		{Kind: "server", Remove: "multiversectl server stop"},
+		{Kind: "server", Remove: "multiversectl server down"},
 		{Kind: "branch", Remove: "git -C '/w/api' branch -D u3"},
 	}
 	var cmds []string
@@ -24,7 +24,7 @@ func TestTheRemovalCommandsComeInASafeOrder(t *testing.T) {
 		}
 	}
 	want := []string{
-		"multiversectl server stop",
+		"multiversectl server down",
 		"multiversectl -p acme universe rm 3",
 		"git -C '/w/api' branch -D u3",
 		"rm -rf '/w/api'",

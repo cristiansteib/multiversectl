@@ -28,18 +28,18 @@ func (Writer) Agents(d app.ProjectDraft, source string) ([]byte, error) {
 	fmt.Fprintf(&b, "multiversectl start %s   # install it, make a universe and run it\n", source)
 	b.WriteString("multiversectl universe new fix/login      # a worktree of every repository, on branch fix/login\n")
 	b.WriteString("multiversectl universe up fix/login       # start it\n")
-	b.WriteString("multiversectl universe status             # what is running\n")
+	b.WriteString("multiversectl status                      # what is installed and running\n")
 	b.WriteString("multiversectl universe urls fix/login     # the addresses it answers on\n")
 	b.WriteString("multiversectl universe rm fix/login       # remove it: containers, volumes and worktrees\n")
-	b.WriteString("multiversectl universe doctor             # check the host and the multiverse\n")
-	b.WriteString("multiversectl catalog update              # after this repository changes\n")
+	b.WriteString("multiversectl doctor                      # check the machine and the multiverse\n")
+	b.WriteString("multiversectl catalog sync                # after this repository changes\n")
 	b.WriteString("```\n\n`multiversectl --help` lists everything; a command missing an argument asks for it.\n\n")
 
 	b.WriteString("## Conventions\n\n")
-	b.WriteString("- Change the multiverse here, in `multiverse.yaml`, then commit and push; run `multiversectl catalog update` on each machine. Do not edit an installed copy.\n")
+	b.WriteString("- Change the multiverse here, in `multiverse.yaml`, then commit and push; run `multiversectl catalog sync` on each machine. Do not edit an installed copy.\n")
 	b.WriteString("- Keep machine-specific values out: no absolute `spec.root`, no secrets, no local paths. Where things live on a machine is chosen when installing.\n")
 	b.WriteString("- A universe is isolated: work for one change goes in its own universe, and `universe rm` discards uncommitted work in its worktrees, so commit first.\n")
 	b.WriteString("- Name a universe after the work it is for (`universe new fix/login`): every repository is then on that branch, and the next person sees what it is without asking. A bare number (`universe new`) is for a try that gets thrown away; set `spec.branch` to have numbered universes follow a pattern of your own.\n")
-	b.WriteString("- To add a repository, add it to `spec.repos`, push, and run `catalog update`.\n")
+	b.WriteString("- To add a repository, add it to `spec.repos`, push, and run `catalog sync`.\n")
 	return []byte(b.String()), nil
 }

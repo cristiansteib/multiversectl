@@ -11,6 +11,8 @@ func (s *Service) CloneChecks(ctx context.Context) []Check {
 	var out []Check
 	s.checkClones(ctx, func(name string, st Status, f string, a ...any) {
 		out = append(out, Check{Name: name, Status: st, Detail: fmt.Sprintf(f, a...)})
+	}, func(name string, st Status, fix, f string, a ...any) {
+		out = append(out, Check{Name: name, Status: st, Detail: fmt.Sprintf(f, a...), Fix: fix})
 	})
 	return out
 }

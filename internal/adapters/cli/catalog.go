@@ -48,33 +48,33 @@ func (r runner) catalogCmd() *cobra.Command {
 		Short: "The tree of multiverses: list it and edit it (install from it with `start`)",
 		Long: "The catalog is the tree of catalogs and multiverses your root points at, and a\n" +
 			"multiverse is one more node in it.\n\n" +
-			"  list                     look at the tree, with what is installed on this machine marked\n" +
+			"  ls                       look at the tree, with what is installed on this machine marked\n" +
 			"  add, new, rm             edit it (shared, versioned): list a multiverse, make one, remove an entry\n" +
 			"  ignore, unignore         leave a branch of it out on this machine, or bring it back\n" +
-			"  update                   bring what is installed up to date with the tree\n" +
+			"  sync                     bring what is installed up to date with the tree\n" +
 			"  manage                   all of this on one screen, with the keyboard (needs a terminal)\n\n" +
-			"To install what the tree lists, use `start`, with the node's path as `list` shows it:\n\n" +
+			"To install what the tree lists, use `start`, with the node's path as `ls` shows it:\n\n" +
 			"  multiversectl start acme/backend/billing --install-only\n\n" +
 			"Without --install-only `start` also makes and starts a universe. The path of a\n" +
 			"catalog installs everything under it, and --exclude leaves some out. A catalog\n" +
 			"is not needed to install a multiverse: `start owner/repo` works on a machine\n" +
 			"that has none.",
-		Example: "  multiversectl catalog list\n  multiversectl start acme/backend/billing --install-only\n  multiversectl catalog add acme/multiverse\n  multiversectl catalog create acme --new-repo acme-index",
+		Example: "  multiversectl catalog ls\n  multiversectl start acme/backend/billing --install-only\n  multiversectl catalog add acme/multiverse\n  multiversectl catalog new",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.catalogListCmd(), r.catalogAddCmd(), r.catalogRmCmd(), r.catalogNewCmd(), r.catalogManageCmd(),
-		r.catalogIgnoreCmd(true), r.catalogIgnoreCmd(false), r.updateCmd())
+	cmd.AddCommand(r.catalogLsCmd(), r.catalogAddCmd(), r.catalogRmCmd(), r.catalogNewCmd(), r.catalogManageCmd(),
+		r.catalogIgnoreCmd(true), r.catalogIgnoreCmd(false), r.catalogSyncCmd())
 	return cmd
 }
 
-func (r runner) catalogListCmd() *cobra.Command {
+func (r runner) catalogLsCmd() *cobra.Command {
 	var fetch bool
 	var format, from string
 	cmd := &cobra.Command{
-		Use:     "list [node-path]",
-		Aliases: []string{"ls", "tree"},
-		Short:   "Show the catalog as a tree, or the part under a node",
+		Use:        "ls [node-path]",
+		SuggestFor: []string{"list", "tree"},
+		Short:      "Show the catalog as a tree, or the part under a node",
 		Long: "Shows the root catalog as a tree: each node's name, what it is (root, catalog\n" +
 			"or multiverse) and where it lives, with the multiverses already installed on this\n" +
 			"machine marked. Give a node's path to show only what is under it. It reads\n" +
@@ -82,7 +82,7 @@ func (r runner) catalogListCmd() *cobra.Command {
 			"Install what is listed as not installed with `multiversectl start <path>\n" +
 			"--install-only`, where <path> is the node's path in the tree (acme/backend/billing);\n" +
 			"a catalog's path installs everything under it, and --exclude leaves some out.",
-		Example:           "  multiversectl catalog list\n  multiversectl catalog ls acme/backend\n  multiversectl catalog list --fetch -o json\n  multiversectl start acme/backend/billing --install-only",
+		Example:           "  multiversectl catalog ls\n  multiversectl catalog ls acme/backend\n  multiversectl catalog ls --fetch -o json\n  multiversectl start acme/backend/billing --install-only",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeNodes(false),
 	}
@@ -129,7 +129,7 @@ func (r runner) showTree(cmd *cobra.Command, args []string, fetch bool, format, 
 		path = strings.Trim(args[0], "/")
 		var ok bool
 		if node, ok = tree.Find(path); !ok {
-			return fmt.Errorf("nothing at %q; run `multiversectl catalog list` to see the tree", args[0])
+			return fmt.Errorf("nothing at %q; run `multiversectl catalog ls` to see the tree", args[0])
 		}
 	}
 	installed, err := c.InstalledIn(tree)
@@ -449,7 +449,7 @@ func (r runner) install(cmd *cobra.Command, args []string, o app.InstallOptions,
 			r.out.Info("%s", t.How)
 		}
 		if t.Skip != "" {
-			r.out.Info("%s: %s; `multiversectl catalog update %s` refreshes it", t.Name, t.Skip, t.Name)
+			r.out.Info("%s: %s; `multiversectl catalog sync %s` refreshes it", t.Name, t.Skip, t.Name)
 			continue
 		}
 		if askRoot {
@@ -554,15 +554,16 @@ func (r runner) warnClashes(bare *app.Service, added []namedManifest) {
 	}
 }
 
-func (r runner) updateCmd() *cobra.Command {
+func (r runner) catalogSyncCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "update [multiverse ...]",
-		Short: "Bring installed multiverses up to date: fetch, move their manifests forward, clone new repositories",
+		Use:        "sync [multiverse ...]",
+		SuggestFor: []string{"update"},
+		Short:      "Bring installed multiverses up to date: fetch, move their manifests forward, clone new repositories",
 		Long: "Fetches the catalogs, fast-forwards each multiverse's manifest from where it was\n" +
 			"installed, and clones any repository the new manifest lists. It refuses a\n" +
 			"manifest with local changes, and leaves a pinned one alone. With no names it\n" +
 			"updates every multiverse.",
-		Example:           "  multiversectl catalog update\n  multiversectl catalog update acme",
+		Example:           "  multiversectl catalog sync\n  multiversectl catalog sync acme",
 		ValidArgsFunction: r.completeMultiverses,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()

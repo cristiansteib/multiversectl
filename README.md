@@ -47,7 +47,7 @@ volumes have the same names, and the database holds the other branch's schema.
   objects and a `compose up` on the daemon and image cache you already use. Seconds.
 - **A life, not only a start.** Hooks seed data and register addresses, then take
   them back on removal; config files are rendered from the universe's values;
-  `doctor` asks every address whether it answers.
+  `universe doctor` asks every address whether it answers.
 - **For agents and people alike.** `--json` on every command and a skill tell an
   agent how to work in a universe of its own; a web view shows every universe,
   what its branches add and their pull requests.
@@ -114,9 +114,9 @@ catalog. It is a git repository of pointers, private if you let `init` create it
 multiversectl init                      # asks where it should live
 multiversectl catalog add acme/billing  # asks which node of the tree it goes in
 multiversectl catalog new               # asks multiverse or catalog, then a guide to make and list it
-multiversectl catalog list              # the tree, with what is installed marked
+multiversectl catalog ls                # the tree, with what is installed marked
 multiversectl status                    # what is installed here, and what has drifted
-multiversectl catalog update            # catch up: manifests and new repositories
+multiversectl catalog sync              # catch up: manifests and new repositories
 ```
 
 See [Catalogs](https://multiversectl.dev/docs/concepts/catalogs/).
@@ -125,8 +125,8 @@ All of it is also a live page â€” the tree, every universe and what runs in it â
 with buttons for the same operations:
 
 ```sh
-multiversectl server start --open   # a live page: versions, and start/stop/create/remove, behind a token
-multiversectl server stop
+multiversectl server up --open      # a live page: versions, and start/stop/create/remove, behind a token
+multiversectl server down
 ```
 
 An agent needs only the command line: `multiversectl universe ls -o json` prints
@@ -149,7 +149,8 @@ multiversectl universe up fix/login     # start its containers
 multiversectl universe ls               # list universes and their state
 multiversectl universe ls -o wide       # every service, whether it is up, and what it owns
 multiversectl universe urls fix/login   # print the hostnames it answers on
-multiversectl universe doctor           # check prerequisites and common problems
+multiversectl doctor                    # check the machine: docker, git, disk, the proxy's ports
+multiversectl universe doctor fix/login # check it: clones, domain, secrets, apps, every address
 multiversectl universe rm fix/login     # stop and delete it
 ```
 

@@ -21,30 +21,31 @@ import (
 func (r runner) serverCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
-		Short: "Start, stop, restart and check the web view of this machine's setup and fleet",
+		Short: "Run, stop, restart and check the web view of this machine's setup and fleet",
 		Long: "The web view is a separate program, multiversectl-server, installed beside this\n" +
 			"one. These commands run it in the background and remember it. The page shows\n" +
 			"the catalog, the multiverses and the fleet live, their versions, and has buttons to\n" +
 			"start, stop, create and remove universes. It is opened with a link that carries a\n" +
-			"token, which `server start` and `server status` print; --read-only removes the buttons.\n" +
+			"token, which `server up` and `server status` print; --read-only removes the buttons.\n" +
 			"--expose lets another machine on the network reach it, and `server pair` gives\n" +
 			"that machine a short code to open it with instead of the link.",
-		Example: "  multiversectl server start --open\n  multiversectl server status\n  multiversectl server start --expose\n  multiversectl server pair",
+		Example: "  multiversectl server up --open\n  multiversectl server status\n  multiversectl server up --expose\n  multiversectl server pair",
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.serverStartCmd(), r.serverStopCmd(), r.serverRestartCmd(), r.serverStatusCmd(), r.serverOpenCmd(), r.serverPairCmd())
+	cmd.AddCommand(r.serverUpCmd(), r.serverDownCmd(), r.serverRestartCmd(), r.serverStatusCmd(), r.serverOpenCmd(), r.serverPairCmd())
 	return cmd
 }
 
-func (r runner) serverStartCmd() *cobra.Command {
+func (r runner) serverUpCmd() *cobra.Command {
 	var addr string
 	var expose, open, readOnly bool
 	cmd := &cobra.Command{
-		Use:     "start",
-		Short:   "Start the web view in the background",
-		Example: "  multiversectl server start\n  multiversectl server start --open\n  multiversectl server start --addr 127.0.0.1:9000",
-		Args:    cobra.NoArgs,
+		Use:        "up",
+		SuggestFor: []string{"start"},
+		Short:      "Start the web view in the background",
+		Example:    "  multiversectl server up\n  multiversectl server up --open\n  multiversectl server up --addr 127.0.0.1:9000",
+		Args:       cobra.NoArgs,
 	}
 	cmd.Flags().StringVar(&addr, "addr", "127.0.0.1:7777", "address to listen on (a port of 0 picks a free one; a busy port is replaced by the next free)")
 	cmd.Flags().BoolVar(&expose, "expose", false, "allow a non-loopback address and any host name; there is no login")
@@ -68,7 +69,7 @@ func (r runner) serverStartCmd() *cobra.Command {
 		})
 		switch {
 		case errors.Is(err, app.ErrServerRunning):
-			r.out.Info("already running at `%s` (pid %d); stop it with: `multiversectl server stop`", info.URL, info.PID)
+			r.out.Info("already running at `%s` (pid %d); stop it with: `multiversectl server down`", info.URL, info.PID)
 		case err != nil:
 			return err
 		default:
@@ -79,7 +80,7 @@ func (r runner) serverStartCmd() *cobra.Command {
 			if want := portOf(addr); want != "" && want != "0" && want != portOf(info.URL) {
 				r.out.Info("port %s is in use by another process; using %s", want, portOf(info.URL))
 			}
-			r.out.OK("serving `%s` in the background (pid %d; %s); stop it with: `multiversectl server stop`", info.URL, info.PID, mode)
+			r.out.OK("serving `%s` in the background (pid %d; %s); stop it with: `multiversectl server down`", info.URL, info.PID, mode)
 			if expose {
 				// Where it can be reached from is the server's own business:
 				// it is the one that knows what it bound to. `pair` asks it.
@@ -128,11 +129,12 @@ func (r runner) serverOpenCmd() *cobra.Command {
 	}
 }
 
-func (r runner) serverStopCmd() *cobra.Command {
+func (r runner) serverDownCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "stop",
-		Short: "Stop the web view",
-		Args:  cobra.NoArgs,
+		Use:        "down",
+		SuggestFor: []string{"stop"},
+		Short:      "Stop the web view",
+		Args:       cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			p, err := r.f.Server()
 			if err != nil {
@@ -140,7 +142,7 @@ func (r runner) serverStopCmd() *cobra.Command {
 			}
 			info, err := p.Stop(cmd.Context())
 			if errors.Is(err, app.ErrServerNotRunning) {
-				r.out.Info("the server is not running: `multiversectl server start`")
+				r.out.Info("the server is not running: `multiversectl server up`")
 				return nil
 			}
 			if err != nil {
@@ -177,7 +179,7 @@ func (r runner) serverRestartCmd() *cobra.Command {
 		})
 		if errors.Is(err, app.ErrServerNotRunning) {
 			if !ifRunning {
-				r.out.Info("the server is not running: `multiversectl server start`")
+				r.out.Info("the server is not running: `multiversectl server up`")
 			}
 			return nil
 		}
@@ -202,7 +204,7 @@ func (r runner) serverStatusCmd() *cobra.Command {
 			}
 			info, err := p.Status(cmd.Context())
 			if errors.Is(err, app.ErrServerNotRunning) {
-				r.out.Info("the server is not running: `multiversectl server start`")
+				r.out.Info("the server is not running: `multiversectl server up`")
 				return nil
 			}
 			if err != nil {
@@ -239,7 +241,7 @@ func (r runner) serverPairCmd() *cobra.Command {
 			}
 			invite, err := p.Pair(cmd.Context())
 			if errors.Is(err, app.ErrServerNotRunning) {
-				r.out.Info("the server is not running: `multiversectl server start --expose`")
+				r.out.Info("the server is not running: `multiversectl server up --expose`")
 				return nil
 			}
 			if err != nil {
@@ -259,7 +261,7 @@ func (r runner) serverPairCmd() *cobra.Command {
 			r.out.Info("it opens one machine, once, and runs out %s", until(invite.Expires))
 			if !invite.Exposed {
 				r.out.Warn("this server answers only on this machine, so no other machine can reach that address;\n" +
-					"stop it and start it again with --expose: `multiversectl server stop && multiversectl server start --expose`")
+					"stop it and start it again with --expose: `multiversectl server down && multiversectl server up --expose`")
 			}
 			return nil
 		},

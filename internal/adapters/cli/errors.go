@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -46,7 +47,18 @@ func argError(cmd *cobra.Command, args []string) error {
 		if cmd.SuggestionsMinimumDistance <= 0 {
 			cmd.SuggestionsMinimumDistance = 2 // cobra sets this only on its own lookup path
 		}
-		if near := cmd.SuggestionsFor(args[0]); len(near) > 0 {
+		// A command that took over the old name is the answer; spelling guesses
+		// would only add noise beside it ("restart" for "start").
+		var near []string
+		for _, sub := range cmd.Commands() {
+			if slices.Contains(sub.SuggestFor, args[0]) {
+				near = append(near, sub.Name())
+			}
+		}
+		if len(near) == 0 {
+			near = cmd.SuggestionsFor(args[0])
+		}
+		if len(near) > 0 {
 			msg += fmt.Sprintf(" — did you mean `%s`?", strings.Join(near, "` or `"))
 		}
 		return fmt.Errorf("%s\n  commands: %s\n  more:     `%s --help`", msg, strings.Join(names, ", "), cmd.CommandPath())

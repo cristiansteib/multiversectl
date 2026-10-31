@@ -16,14 +16,16 @@ import (
 
 // CreateInput asks for a universe, in one of two ways that never mix.
 //
-// A new universe starts branches of its own: in every repository a branch that
-// exists nowhere yet, from the base branch, so it can never land on someone
-// else's work. Name is a number or a branch-like name, and empty means the next
-// free number; Branch names the new branch in every repository and Branches
-// overrides it per repository key. Base is where the new branches start, the
-// repository's default branch when empty, and Bases overrides it per key.
+// A universe is on one branch in every repository: checked out where it already
+// exists, and started from the base where it does not, so `new fix/login` is
+// both how a branch is begun and how one is reviewed. Name is a number or a
+// branch-like name, and empty means the next free number; Branch names the
+// branch in every repository and Branches overrides it per repository key. Base
+// is where a branch that does not exist starts, the repository's default branch
+// when empty, and Bases overrides it per key.
 //
-// A checkout universe (Checkout) works on branches that already exist: Branch
+// A checkout universe (Checkout, which the web view asks for) works on branches
+// that already exist, and is refused when none does: Branch
 // is the one to check out, Branches overrides it per key, and Name defaults to
 // the branch. A repository that lacks the branch gets a new one of that name
 // from its base, or with OnlyExisting is left at its base, detached.
@@ -187,7 +189,7 @@ func (s *Service) plan(ctx context.Context, u domain.Universe, in CreateInput) (
 	for _, key := range s.repoKeys() {
 		clone := s.Manifest.CloneDir(s.Multiverse, key)
 		if !s.Files.Exists(clone) {
-			return nil, fmt.Errorf("clone `%s`: %w — run `multiversectl catalog update` to clone it", clone, domain.ErrNotFound)
+			return nil, fmt.Errorf("clone `%s`: %w — run `multiversectl catalog sync` to clone it", clone, domain.ErrNotFound)
 		}
 		p := repoPlan{key: key, clone: clone, dest: u.RepoDir(key)}
 		if s.Files.Exists(p.dest) {
@@ -261,11 +263,15 @@ func (s *Service) plan(ctx context.Context, u domain.Universe, in CreateInput) (
 				return nil, err
 			}
 			if kind != RefNone {
-				where := "in the clone"
-				if kind == RefRemote {
-					where = "on origin"
+				// The branch is someone's work, or this universe's own from before:
+				// it is checked out as it is, and removing the universe later
+				// leaves it, since this universe did not start it.
+				p.how, p.kind = existing, kind
+				if at, err := s.Git.CheckedOutAt(ctx, clone, p.branch); err != nil {
+					return nil, err
+				} else if at != "" {
+					problems = append(problems, fmt.Sprintf("%s: branch %q is already checked out at %s", key, p.branch, at))
 				}
-				problems = append(problems, fmt.Sprintf("%s: branch %q already exists (%s)", key, p.branch, where))
 			}
 		}
 		plans = append(plans, p)
@@ -293,14 +299,9 @@ func (e *ClashError) Error() string {
 	for _, p := range e.Problems {
 		b.WriteString("\n  - " + p)
 	}
+	b.WriteString("\n  git allows a branch in one worktree only: remove the universe that has it, or use another branch")
 	if e.Checkout {
-		b.WriteString("\n  git allows a branch in one worktree only: remove the universe that has it, or check out another branch")
 		b.WriteString("\n  to start a branch that does not exist yet, use `multiversectl universe new`")
-	} else {
-		b.WriteString("\n  a new universe never reuses a branch, so it cannot land on anyone's work:")
-		b.WriteString("\n  - leave the name out and the next free number is used")
-		b.WriteString("\n  - or work on the existing branch with `multiversectl universe checkout <branch>`")
-		b.WriteString("\n  - or delete the leftover branch yourself if it is not needed: `git branch -d <branch>` in its clone")
 	}
 	return b.String()
 }
@@ -385,7 +386,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 			s.Out.OK("%s: new branch %s from origin/%s", p.key, p.branch, p.base)
 		default:
 			branches[p.key] = p.branch
-			s.Out.OK("%s: worktree on %s", p.key, p.branch)
+			s.Out.OK("%s: existing branch %s, checked out", p.key, p.branch)
 		}
 	}
 

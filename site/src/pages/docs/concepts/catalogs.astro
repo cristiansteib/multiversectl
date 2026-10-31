@@ -79,7 +79,7 @@ index     <span class="c">root</span>       github:me/index                     
 <section id="names">
   <h2 id="names"><a href="#names">Names</a></h2>
   <p>A multiverse is installed under its own <code>metadata.name</code>, <code>billing</code>, in <code>~/multiverse/billing</code>. Names are unique on a machine: a second multiverse with the same name is refused, naming the file that defines it, so rename one of them there. Commands that act on one take <code>-m billing</code>; without it, the one whose folder you are in, else the only one installed. Anywhere a name is accepted, so is the catalog path it was installed from: <code>acme/backend/billing</code>.</p>
-  <p>Each installed multiverse records where it came from, which is how <code>status</code> and <code>catalog update</code> know it has drifted.</p>
+  <p>Each installed multiverse records where it came from, which is how <code>status</code> and <code>catalog sync</code> know it has drifted.</p>
 </section>
 
 <section id="failure">
@@ -89,6 +89,6 @@ index     <span class="c">root</span>       github:me/index                     
 
 <section id="proxy">
   <h2 id="proxy"><a href="#proxy">Several multiverses, one proxy</a></h2>
-  <p>A machine has one proxy, and starting any multiverse rewrites it from that multiverse's manifest. Sharing its network and the default <code>web</code> port is normal; wanting a different entrypoint, network or bind address is not, because starting the second multiverse takes the proxy from the first. <code>start</code> and <code>doctor</code> name those differences, by multiverse.</p>
+  <p>A machine has one proxy, and starting any multiverse rewrites it from that multiverse's manifest. Sharing its network and the default <code>web</code> port is normal; wanting a different entrypoint, network or bind address is not, because starting the second multiverse takes the proxy from the first. <code>start</code> and <code>universe doctor</code> name those differences, by multiverse.</p>
 </section>
 </Page>

@@ -662,8 +662,7 @@ import Terminal from '../../../components/Terminal.astro';
   <div class="tw entries"><table>
   <thead><tr><th scope="col">Command</th><th scope="col">What it does</th><th scope="col">What it keeps</th></tr></thead><tbody>
   <tr><td data-l="Command"><code>start &lt;source&gt;</code></td><td data-l="Does">From nothing to something running: installs the multiverse, creates a universe if there is none, starts it, prints its addresses.</td><td data-l="Keeps">A multiverse already installed is used as it is.</td></tr>
-  <tr><td data-l="Command"><code>universe new [name]</code></td><td data-l="Does">One worktree per repository on a branch that exists nowhere yet, secrets copied in from the clone, state written. Nothing is started.</td><td data-l="Keeps">Refuses rather than touch a branch that already exists.</td></tr>
-  <tr><td data-l="Command"><code>universe checkout &lt;branch&gt;</code></td><td data-l="Does">The same, on a branch that already exists — to work on it or review it.</td><td data-l="Keeps">Removing the universe later never deletes the branch.</td></tr>
+  <tr><td data-l="Command"><code>universe new [name]</code></td><td data-l="Does">One worktree per repository on the branch: checked out where it exists, to work on it or review it, and started from the base where it does not. Secrets copied in from the clone, state written. Nothing is started.</td><td data-l="Keeps">Removing the universe later deletes only the branches it started.</td></tr>
   <tr><td data-l="Command"><code>universe up &lt;universe&gt;</code></td><td data-l="Does">Starts it: see the order below. All apps, or only the ones you name.</td><td data-l="Keeps">Everything on disk. Safe to run again at any time.</td></tr>
   <tr><td data-l="Command"><code>universe sync [universe]</code></td><td data-l="Does">Fetches and moves each checkout forward, where that loses nothing, so a universe made last week has this week's main in it.</td><td data-l="Keeps">A checkout with uncommitted changes or commits of its own is left alone.</td></tr>
   <tr><td data-l="Command"><code>universe down &lt;universe&gt;</code></td><td data-l="Does">Takes the containers and the app networks away, and frees the memory they held.</td><td data-l="Keeps">Volumes, worktrees, state. <code>up</code> picks up where you left off.</td></tr>
@@ -689,12 +688,12 @@ import Terminal from '../../../components/Terminal.astro';
 
 <section id="many">
   <h2 id="many"><a href="#many">Living with several</a></h2>
-  <p>The cost of a running universe is its containers' memory, so the usual rhythm is a handful created and one or two up. <code>universe status</code> is one line each; <code>universe ls</code> is every address.</p>
-  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl universe status</span>
-<span class="c">UNIVERSE    STATE     SERVICES  LAST STARTED  BRANCHES</span>
-1           running   5/5       2 hours ago   feat/login
-2           stopped   0/5       yesterday     main
-fix/cart    created   0/5       never         fix/cart</pre></Terminal>
+  <p>The cost of a running universe is its containers' memory, so the usual rhythm is a handful created and one or two up. <code>universe ls -o list</code> is one line each; <code>universe ls</code> is every address.</p>
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl universe ls -o list</span>
+<span class="c">UNIVERSE    STATE     UP   LAST STARTED  BRANCH      ABOUT</span>
+1           running   5/5  2 hours ago   feat/login
+2           stopped   0/5  yesterday     main
+fix/cart    created   0/5  never         fix/cart</pre></Terminal>
   <p>A universe you are done with goes away with <code>rm</code>; <code>system prune</code> does the same across every multiverse on the machine, listing what it will remove and keeping back anything holding work that exists nowhere else. <a href="/docs/start/machine/">What's on your machine</a> shows where all of it lives.</p>
 </section>
 

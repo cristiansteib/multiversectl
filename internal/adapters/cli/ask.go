@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -79,32 +78,6 @@ func (r runner) newName(cmd *cobra.Command, args []string, s *app.Service) ([]st
 		name = next
 	}
 	return []string{name}, nil
-}
-
-// branchArg is the branch to check out: the argument, or one picked from the
-// branches the multiverse's repositories have.
-func (r runner) branchArg(cmd *cobra.Command, args []string, s *app.Service) (string, error) {
-	if len(args) > 0 {
-		return args[0], nil
-	}
-	list, err := s.Branches(cmd.Context())
-	if err != nil {
-		return "", err
-	}
-	opts := make([]app.Option, 0, len(list))
-	var names []string
-	for _, b := range list {
-		opts = append(opts, app.Option{Label: b.Name, Note: strings.Join(b.Repos, ", ")})
-		names = append(names, b.Name)
-	}
-	if len(opts) == 0 {
-		return "", errors.New("the repositories have no branches to check out")
-	}
-	i, err := r.f.Prompter().Select("Which branch should the universe check out?", opts, 0)
-	if err = asked(cmd, args, err); err != nil {
-		return "", err
-	}
-	return names[i], nil
 }
 
 // textArg is a value the command needs: the argument, or what the person types.

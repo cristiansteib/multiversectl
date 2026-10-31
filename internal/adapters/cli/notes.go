@@ -14,18 +14,17 @@ import (
 )
 
 // notesCmd is a universe's notes: short messages, in order, from whoever works
-// in it to the user and to other agents. `note` is the one line saying what the
+// in it to the user and to other agents. `about` is the one line saying what the
 // universe is for; these are what the next reader needs to know.
 func (r runner) notesCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "notes <universe>",
-		Aliases: []string{"journal"},
-		Short:   "Short messages left in a universe for the user and other agents",
+		Use:   "notes <universe>",
+		Short: "Short messages left in a universe for the user and other agents",
 		Long: "Every note with its id, when it was added and who by. A note is a line or two\n" +
 			"the next reader needs — what is blocked, what is asked of someone, a decision,\n" +
 			"where things stand — not an account of the work, which the commits already\n" +
 			"are. Read them before working in a universe; add one to another universe to\n" +
-			"reach whoever works there. `universe note` is the single line saying what the\n" +
+			"reach whoever works there. `universe about` is the single line saying what the\n" +
 			"universe is for. The web page shows the same notes.",
 		Example: "  multiversectl universe notes 3\n" +
 			"  multiversectl universe notes add 3 \"api redirect fixed; web still wrong\"\n" +

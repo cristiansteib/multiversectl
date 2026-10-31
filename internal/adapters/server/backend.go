@@ -341,7 +341,15 @@ func (s Services) Doctor(ctx context.Context, multiverse, universe string) (doct
 	}
 	v := doctorView{OK: true, Checks: []checkView{}}
 	for _, c := range rep.Checks {
-		v.Checks = append(v.Checks, checkView{Name: c.Name, Status: string(c.Status), Detail: c.Detail})
+		detail := c.Detail
+		if c.Fix != "" {
+			detail += " — run: " + c.Fix
+		}
+		status := c.Status
+		if status == app.StatusIdle { // the page knows ok, warn and fail
+			status = app.StatusOK
+		}
+		v.Checks = append(v.Checks, checkView{Name: c.Name, Status: string(status), Detail: detail})
 		if c.Status == app.StatusFail {
 			v.OK = false
 		}
@@ -784,7 +792,7 @@ func (s Services) refreshCatalog(ctx context.Context, w app.MultiverseInfo) (app
 	return s.Catalogs.RefreshMultiverse(ctx, w.Name, w.MultiverseEntry)
 }
 
-// update is what `catalog update` does for one multiverse.
+// update is what `catalog sync` does for one multiverse.
 func (s Services) update(ctx context.Context, w app.MultiverseInfo, svc *app.Service, k Sink) error {
 	res, err := s.refreshCatalog(ctx, w)
 	if err != nil {

@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cristiansteib/multiversectl/internal/app"
-	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // parseBranches reads repeated --branch flags. A bare name is the branch for
@@ -39,27 +38,31 @@ func (r runner) newCmd() *cobra.Command {
 	var branches, bases []string
 	var note string
 	cmd := &cobra.Command{
-		Use:     "new [number|name]",
-		Aliases: []string{"create"},
-		Short:   "Create a universe on branches of its own: one worktree per repo, secrets and state",
-		Long: "A new universe starts a branch of its own in every repository, from the base\n" +
-			"branch, so it can never land on anyone's work: if the branch already exists, in\n" +
-			"the clone or on origin, nothing is created and every clash is listed. Leave the\n" +
-			"name out and the next free number is used, stepping over a number whose branch a\n" +
-			"removed universe left behind. To work on a branch that already exists, use\n" +
-			"`multiversectl universe checkout`.",
+		Use: "new [number|name]",
+		// Old names point at their new one in the error; they do not run.
+		SuggestFor: []string{"create", "checkout", "co"},
+		Short:      "Create a universe on a branch: one worktree per repo, secrets and state",
+		Long: "A universe is a worktree of every repository on one branch, named after the\n" +
+			"universe (or --branch). Where the branch already exists, in the clone or on origin,\n" +
+			"it is checked out, so a branch to review or to carry on is `universe new <branch>`;\n" +
+			"where it does not, it is started from the base. What each repository got is said.\n" +
+			"Git allows a branch in one worktree only, so one already checked out in another\n" +
+			"universe, or in the shared clone, is refused and its place is shown. Leave the name\n" +
+			"out and the next free number is used, stepping over a number whose branch a removed\n" +
+			"universe left behind. Removing a universe deletes only the branches it started.",
 		Example: "  multiversectl universe new\n" +
 			"  multiversectl universe new 3\n" +
-			"  multiversectl universe new fix/login                   # a new branch of that name\n" +
+			"  multiversectl universe new fix/login                   # that branch: checked out where it exists, started where not\n" +
+			"  multiversectl universe new 7 --branch fix/login        # universe 7, on fix/login\n" +
 			"  multiversectl universe new 3 --base release/1.2        # start from another branch\n" +
 			"  multiversectl universe new 3 --branch feat/invoicing --base api=release/1.2",
 		Args: cobra.MaximumNArgs(1),
 	}
 	cmd.Flags().StringArrayVar(&branches, "branch", nil,
-		"name of the new branch in every repo, or repo=branch for one of them (repeatable; it must not exist yet)")
+		"the branch in every repo, or repo=branch for one of them (repeatable; default: the universe's name)")
 	cmd.Flags().StringArrayVar(&bases, "base", nil,
-		"branch the new ones start from, or repo=branch for one of them (default: each repo's default branch)")
-	cmd.Flags().StringVar(&note, "note", "", "why this universe exists, kept with it and shown by ls")
+		"where a branch that does not exist yet starts, or repo=branch for one of them (default: each repo's default branch)")
+	cmd.Flags().StringVar(&note, "about", "", "what this universe is for, kept with it and shown by ls")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		all, byRepo, err := parseBranches(branches)
 		if err != nil {
@@ -87,71 +90,15 @@ func (r runner) newCmd() *cobra.Command {
 	return cmd
 }
 
-func (r runner) checkoutCmd() *cobra.Command {
-	var name, note string
-	var perRepo []string
-	var onlyExisting bool
-	cmd := &cobra.Command{
-		Use:     "checkout [branch]",
-		Aliases: []string{"co"},
-		Short:   "Create a universe on a branch that already exists, to work on or review it",
-		Long: "Checks the branch out in every repository that has it, locally or on origin, and\n" +
-			"names the universe after it (--name for another). A repository that lacks it gets\n" +
-			"a new branch of that name from its base, or with --only-existing is left on its\n" +
-			"base, detached. Git allows a branch in one worktree only, so one that is already\n" +
-			"checked out in another universe, or in the shared clone, is refused and its place\n" +
-			"is shown. A branch that does not exist anywhere is refused too, so a typo does not\n" +
-			"become one; `multiversectl universe new` starts a new branch. Removing a checkout\n" +
-			"universe never deletes the branch it checked out.",
-		Example: "  multiversectl universe checkout fix/login\n" +
-			"  multiversectl universe checkout fix/login --name 7\n" +
-			"  multiversectl universe checkout fix/login --repo web=feat/ui --only-existing\n" +
-			"  multiversectl universe checkout                         # pick from the branches there are",
-		Args: cobra.MaximumNArgs(1),
-	}
-	cmd.Flags().StringVar(&name, "name", "", "name the universe (default: the branch)")
-	cmd.Flags().StringArrayVar(&perRepo, "repo", nil, "a different branch for one repository, as repo=branch (repeatable)")
-	cmd.Flags().BoolVar(&onlyExisting, "only-existing", false, "leave repositories without the branch on their base branch, detached, instead of starting one")
-	cmd.Flags().StringVar(&note, "note", "", "why this universe exists, kept with it and shown by ls")
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		for _, p := range perRepo {
-			if !strings.Contains(p, "=") {
-				return fmt.Errorf("--repo %q: want repo=branch", p)
-			}
-		}
-		_, byRepo, err := parseBranches(perRepo)
-		if err != nil {
-			return err
-		}
-		return r.withService(func(ctx context.Context, s *app.Service) error {
-			branch := ""
-			if len(args) > 0 || len(byRepo) == 0 {
-				if branch, err = r.branchArg(cmd, args, s); err != nil {
-					return err
-				}
-			}
-			st, err := s.Create(ctx, app.CreateInput{
-				Name: name, Checkout: true, Branch: branch, Branches: byRepo, Note: note, OnlyExisting: onlyExisting,
-			})
-			if err != nil {
-				return err
-			}
-			s.Out.OK("universe `%s` ready (%s)", st.Name, st.Project)
-			return nil
-		})(cmd, args)
-	}
-	return cmd
-}
-
 func (r runner) upCmd() *cobra.Command {
 	var with []string
 	var failFast, rebind bool
 	cmd := &cobra.Command{
-		Use:     "up <universe> [app ...]",
-		Aliases: []string{"start"},
-		Short:   "Start a universe (all apps, or only those named)",
-		Example: "  multiversectl universe up 3\n  multiversectl universe up fix/login api --with workers",
-		Args:    cobra.ArbitraryArgs,
+		Use:        "up <universe> [app ...]",
+		SuggestFor: []string{"start"},
+		Short:      "Start a universe (all apps, or only those named)",
+		Example:    "  multiversectl universe up 3\n  multiversectl universe up fix/login api --with workers",
+		Args:       cobra.ArbitraryArgs,
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
 	wait := waitFlags(cmd)
@@ -171,11 +118,11 @@ func (r runner) upCmd() *cobra.Command {
 
 func (r runner) downCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "down <universe> [app ...]",
-		Aliases: []string{"stop"},
-		Short:   "Stop a universe (all apps, or only those named); keeps data and checkouts",
-		Example: "  multiversectl universe down 3\n  multiversectl universe down fix/login",
-		Args:    cobra.ArbitraryArgs,
+		Use:        "down <universe> [app ...]",
+		SuggestFor: []string{"stop"},
+		Short:      "Stop a universe (all apps, or only those named); keeps data and checkouts",
+		Example:    "  multiversectl universe down 3\n  multiversectl universe down fix/login",
+		Args:       cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
 				args, err := r.universeArgs(cmd, args, s)
@@ -228,12 +175,12 @@ func parseLsFormat(spec string) (lsFormat, error) {
 func (r runner) lsCmd() *cobra.Command {
 	var format string
 	cmd := &cobra.Command{
-		Use:     "ls [universe]",
-		Aliases: []string{"list"},
-		Short:   "List universes, or show one",
+		Use:        "ls [universe]",
+		SuggestFor: []string{"list", "status"},
+		Short:      "List universes, or show one",
 		Example: "  multiversectl universe ls\n" +
 			"  multiversectl universe ls -o wide        # every service, its state and its volumes\n" +
-			"  multiversectl universe ls -o list        # one line per universe\n" +
+			"  multiversectl universe ls -o list        # one line per universe: running or not, services up, since when\n" +
 			"  multiversectl universe ls -o list,wide\n" +
 			"  multiversectl universe ls -o json        # compact, for an agent: multiverse paths, and per universe its state, folders, addresses by app/host, and the running container of each service\n" +
 			"  multiversectl universe ls -o json,wide   # everything: services, volumes, compose names, times\n" +
@@ -249,7 +196,10 @@ func (r runner) lsCmd() *cobra.Command {
 			return err
 		}
 		return r.withService(func(ctx context.Context, s *app.Service) error {
-			list, err := s.List(ctx, app.ListOptions{Services: f.wide || f.json, Freshness: f.wide || f.json})
+			// The one line per universe says how many services are up and whether its
+			// code is behind, so it needs the services and the freshness as well.
+			detail := f.wide || f.json || f.list
+			list, err := s.List(ctx, app.ListOptions{Services: detail, Freshness: detail})
 			if err != nil {
 				return err
 			}
@@ -295,6 +245,16 @@ func (r runner) lsCmd() *cobra.Command {
 					r.out.Plain("")
 				}
 				lsList(r.out, list, f.wide)
+				if !f.table || !f.wide { // the wide table has said them already
+					for _, note := range partialNotes(list) {
+						r.out.Warn("%s", note)
+					}
+				}
+				for _, u := range list {
+					if behind := behindOrigin(u); behind != "" {
+						r.out.Warn("universe %s runs older code than origin has (%s commits behind): `multiversectl universe sync %s`", u.Name, behind, u.Name)
+					}
+				}
 			}
 			return nil
 		})(cmd, args)
@@ -305,25 +265,40 @@ func (r runner) lsCmd() *cobra.Command {
 // lsList is one line per universe, for a quick look at what exists or for
 // piping into something else.
 func lsList(o *Output, list []app.Summary, wide bool) {
-	headers := []string{"UNIVERSE", "COMPOSE", "RUNNING", "HOSTS", "BRANCHES"}
-	if wide {
-		headers = []string{"UNIVERSE", "COMPOSE", "DIR", "CREATED", "RUNNING", "SERVICES", "VOLUMES", "HOSTS", "BRANCHES"}
+	if !wide {
+		rows := make([][]Cell, 0, len(list))
+		for _, u := range list {
+			state, style, up := standing(u)
+			started := "never"
+			if !u.LastStarted.IsZero() {
+				started = age(u.LastStarted)
+			}
+			rows = append(rows, []Cell{{Text: u.Name}, {Text: state, Style: style}, {Text: up}, {Text: started},
+				{Text: oneBranch(u.Branches)}, {Text: strings.TrimSpace(u.PR + " " + u.Note), Style: dim}})
+		}
+		o.Cells([]string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCH", "ABOUT"}, rows)
+		return
 	}
+	headers := []string{"UNIVERSE", "COMPOSE", "DIR", "CREATED", "RUNNING", "SERVICES", "VOLUMES", "HOSTS", "BRANCHES"}
 	rows := make([][]string, 0, len(list))
 	for _, u := range list {
-		row := []string{u.Name, u.Project}
-		if wide {
-			row = append(row, shortPath(u.Dir), age(u.Created))
-		}
-		row = append(row, fmt.Sprint(u.Running))
-		if wide {
-			up, expected, volumes := totals(u)
-			row = append(row, fmt.Sprintf("%d/%d", up, expected), fmt.Sprint(volumes))
-		}
-		row = append(row, strings.Join(sortedValues(u.Hosts), ","), joinPairs(u.Branches))
-		rows = append(rows, row)
+		up, expected, volumes := totals(u)
+		rows = append(rows, []string{u.Name, u.Project, shortPath(u.Dir), age(u.Created), fmt.Sprint(u.Running),
+			fmt.Sprintf("%d/%d", up, expected), fmt.Sprint(volumes), strings.Join(sortedValues(u.Hosts), ","), joinPairs(u.Branches)})
 	}
 	o.Table(headers, rows)
+}
+
+// behindOrigin names the checkouts of a universe that origin has moved past, as
+// "api 2, web 1", or is empty when none has.
+func behindOrigin(u app.Summary) string {
+	var behind []string
+	for _, c := range u.Checkouts {
+		if c.Freshness != nil && c.Freshness.Behind > 0 {
+			behind = append(behind, fmt.Sprintf("%s %d", c.Repo, c.Freshness.Behind))
+		}
+	}
+	return strings.Join(behind, ", ")
 }
 
 // totals add up a universe's services and volumes across its apps.
@@ -768,155 +743,8 @@ func (r runner) universeCmd() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE:    func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(r.newCmd(), r.checkoutCmd(), r.upCmd(), r.doctorCmd(), r.downCmd(), r.syncCmd(), r.noteCmd(), r.notesCmd(), r.rmCmd(), r.lsCmd(), r.universeStatusCmd(), r.urlsCmd(),
-		r.envCmd(), r.runCmd(), r.execCmd(), r.universeConfigCmd(), r.hooksCmd(), r.renderCmd())
-	return cmd
-}
-
-// universeConfigCmd shows the manifest a universe uses, and whether it is the one
-// it was started with: the file can be edited after a universe starts, and the
-// universe goes on running on what it started with.
-func (r runner) universeConfigCmd() *cobra.Command {
-	var show, diff bool
-	cmd := &cobra.Command{
-		Use:   "config <universe>",
-		Short: "The manifest a universe uses, checked, and whether it is the one it was started with",
-		Long: "Says which manifest file the universe uses, its fingerprint, whether loading it would\n" +
-			"complain (every problem is listed), and the manifest the universe was last started with:\n" +
-			"when, by which build, and whether the file has been edited since. A universe started\n" +
-			"before this was kept has no record, and says so. --diff shows what changed, --yaml\n" +
-			"prints the manifest as it is now.",
-		Example: "  multiversectl universe config 3\n  multiversectl universe config 3 --diff\n  multiversectl universe config 3 --yaml",
-		Args:    cobra.ExactArgs(1),
-	}
-	cmd.Flags().BoolVar(&diff, "diff", false, "show what changed since the universe was started")
-	cmd.Flags().BoolVar(&show, "yaml", false, "print the manifest as it is now")
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return r.withService(func(_ context.Context, s *app.Service) error {
-			rep, err := s.UniverseConfig(args[0])
-			if err != nil {
-				return err
-			}
-			if show {
-				r.out.Plain("%s", strings.TrimRight(string(rep.Current), "\n"))
-				return nil
-			}
-			if diff {
-				switch {
-				case rep.StartedWith == nil:
-					return errors.New("this universe has no record of the manifest it was started with (it was started before that was kept); start it again to record one")
-				case rep.Snapshot == nil:
-					return errors.New("the manifest it was started with was not kept, only its fingerprint")
-				case !rep.Changed:
-					r.out.OK("the manifest is the one it was started with")
-					return nil
-				}
-				for _, l := range app.DiffLines(string(rep.Snapshot), string(rep.Current)) {
-					line := string(l.Op) + " " + l.Text
-					switch l.Op {
-					case '+':
-						line = r.out.Green(line)
-					case '-':
-						line = r.out.Red(line)
-					default:
-						line = r.out.Dim(line)
-					}
-					r.out.Plain("%s", line)
-				}
-				return nil
-			}
-			r.out.Plain("manifest   %s", rep.Path)
-			r.out.Plain("sha256     %s", rep.SHA256[:16])
-			for _, f := range rep.RepoFiles {
-				from := "this universe's checkout"
-				if f.FromClone {
-					from = "the shared clone"
-				}
-				r.out.Plain("repo file  %s: %s (%s)", f.Repo, f.Path, from)
-			}
-			if len(rep.Problems) == 0 {
-				r.out.OK("it loads without complaint")
-			} else {
-				r.out.Warn("loading it would fail:")
-				for _, p := range rep.Problems {
-					r.out.Plain("  - %s", p)
-				}
-			}
-			switch rec := rep.StartedWith; {
-			case rec == nil:
-				r.out.Info("no record of what it was started with (it was started before that was kept, or not at all)")
-			case rep.Changed:
-				r.out.Warn("started %s with %s (build %s); the manifest has been edited since: `--diff` shows what changed", rec.At.Local().Format("2006-01-02 15:04"), rec.SHA256[:16], firstNonEmpty(rec.Version, "unknown"))
-				if len(rep.SnapshotProblems) > 0 {
-					r.out.Info("what it was started with would not load either: %s", strings.Join(rep.SnapshotProblems, "; "))
-				}
-			default:
-				r.out.OK("started %s with this manifest, unchanged since", rec.At.Local().Format("2006-01-02 15:04"))
-			}
-			return nil
-		})(cmd, args)
-	}
-	return cmd
-}
-
-// universeStatusCmd is the glance: one line per universe saying whether it is
-// running, where ls says what each app is doing.
-func (r runner) universeStatusCmd() *cobra.Command {
-	var format string
-	cmd := &cobra.Command{
-		Use:     "status",
-		Short:   "One line per universe: whether it is running, how many services are up, and since when",
-		Example: "  multiversectl universe status\n  multiversectl universe status -o json   # compact, for an agent",
-		Args:    cobra.NoArgs,
-	}
-	cmd.Flags().StringVarP(&format, "output", "o", "table", "output: table, json or json,less")
-	cmd.RunE = r.withService(func(ctx context.Context, s *app.Service) error {
-		f, err := parseLsFormat(format)
-		if err != nil || f.wide || f.list {
-			return fmt.Errorf("unknown output %q: want table, json or json,less", format)
-		}
-		list, err := s.List(ctx, app.ListOptions{Services: true, Freshness: true})
-		if err != nil {
-			return err
-		}
-		if f.json {
-			if f.less {
-				return writeCompactJSON(r.out.w, lessView(s.Context(), list))
-			}
-			return writeCompactJSON(r.out.w, briefView(s.Context(), list))
-		}
-		projectHeader(r.out, s.Context(), false)
-		if len(list) == 0 {
-			s.Out.Info("no universes yet — create one with: `multiversectl universe new 1`")
-			return nil
-		}
-		rows := make([][]Cell, 0, len(list))
-		for _, u := range list {
-			state, style, up := standing(u)
-			started := "never"
-			if !u.LastStarted.IsZero() {
-				started = age(u.LastStarted)
-			}
-			rows = append(rows, []Cell{{Text: u.Name}, {Text: state, Style: style}, {Text: up}, {Text: started},
-				{Text: joinPairs(u.Branches)}, {Text: strings.TrimSpace(u.PR + " " + u.Note), Style: dim}})
-		}
-		r.out.Cells([]string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "BRANCHES", "NOTE"}, rows)
-		for _, note := range partialNotes(list) {
-			r.out.Warn("%s", note)
-		}
-		for _, u := range list {
-			var behind []string
-			for _, c := range u.Checkouts {
-				if c.Freshness != nil && c.Freshness.Behind > 0 {
-					behind = append(behind, fmt.Sprintf("%s %d", c.Repo, c.Freshness.Behind))
-				}
-			}
-			if len(behind) > 0 {
-				r.out.Warn("universe %s runs older code than origin has (%s commits behind): `multiversectl universe sync %s`", u.Name, strings.Join(behind, ", "), u.Name)
-			}
-		}
-		return nil
-	})
+	cmd.AddCommand(r.newCmd(), r.upCmd(), r.universeDoctorCmd(), r.downCmd(), r.syncCmd(), r.aboutCmd(), r.notesCmd(), r.rmCmd(), r.lsCmd(), r.urlsCmd(),
+		r.envCmd(), r.runCmd(), r.execCmd())
 	return cmd
 }
 
@@ -1025,25 +853,55 @@ func (r runner) syncCmd() *cobra.Command {
 	return cmd
 }
 
-func (r runner) noteCmd() *cobra.Command {
+// aboutCmd is everything about one universe: what it is for and its PR, which
+// it also sets, the manifest it runs on and the hooks that manifest ties to it.
+// What it says is all read from disk, so it is quick to ask.
+func (r runner) aboutCmd() *cobra.Command {
 	var pr string
-	var clear bool
+	var clear, diff, yaml, files bool
 	cmd := &cobra.Command{
-		Use:   "note <universe> [text]",
-		Short: "Say what a universe is for, and which pull request its work is going to",
-		Long: "The note and the PR are kept with the universe and shown by ls, status, -o json and\n" +
-			"the web page, so a person or another agent finding it later knows what it is doing\n" +
-			"without asking. With neither text nor --pr it prints what is there; --clear empties both.",
-		Example: "  multiversectl universe note 3 \"fixing the login redirect\"\n" +
-			"  multiversectl universe note 3 --pr https://github.com/acme/api/pull/42\n" +
-			"  multiversectl universe note 3",
+		Use:        "about <universe> [text]",
+		SuggestFor: []string{"note", "config", "render", "hooks"},
+		Short:      "What a universe is for, its PR, the manifest it runs on and its hooks; and set what it is for",
+		Long: "With only the universe it says what it is for and its pull request, which manifest it\n" +
+			"uses (whether that loads, and whether it was edited since the universe started) and\n" +
+			"the hooks the manifest ties to its life. With text, or --pr, it sets what the universe\n" +
+			"is for, kept with it and shown by ls, -o json and the web page, so a person or another\n" +
+			"agent finding it later knows what it is doing; --clear empties both. `universe notes`\n" +
+			"is for the messages left in it as the work goes on.\n\n" +
+			"--diff shows how the manifest changed since the universe started, --yaml prints it\n" +
+			"as it is now, and --files the files its `render` entries make, as `universe up` would\n" +
+			"write them, which is how a template is tried.",
+		Example: "  multiversectl universe about 3\n" +
+			"  multiversectl universe about 3 \"fixing the login redirect\"\n" +
+			"  multiversectl universe about 3 --pr https://github.com/acme/api/pull/42\n" +
+			"  multiversectl universe about 3 --diff\n" +
+			"  multiversectl universe about 3 --files",
 		Args: cobra.MinimumNArgs(1),
 	}
 	cmd.Flags().StringVar(&pr, "pr", "", "the pull or merge request the work is going to (a URL)")
-	cmd.Flags().BoolVar(&clear, "clear", false, "remove the note and the PR")
+	cmd.Flags().BoolVar(&clear, "clear", false, "remove what it is for and the PR")
+	cmd.Flags().BoolVar(&diff, "diff", false, "show how the manifest changed since the universe started")
+	cmd.Flags().BoolVar(&yaml, "yaml", false, "print the manifest as it is now")
+	cmd.Flags().BoolVar(&files, "files", false, "print the files the manifest renders for it, without writing them")
+	cmd.MarkFlagsMutuallyExclusive("diff", "yaml", "files", "clear", "pr")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {
 			name, text := args[0], strings.Join(args[1:], " ")
+			switch {
+			case files:
+				return s.Render(ctx, app.RenderInput{Universe: name, Print: true})
+			case diff, yaml:
+				rep, err := s.UniverseConfig(name)
+				if err != nil {
+					return err
+				}
+				if yaml {
+					r.out.Plain("%s", strings.TrimRight(string(rep.Current), "\n"))
+					return nil
+				}
+				return r.manifestDiff(rep)
+			}
 			var in app.NoteInput
 			switch {
 			case clear:
@@ -1058,28 +916,14 @@ func (r runner) noteCmd() *cobra.Command {
 				}
 			}
 			if in.Text == nil && in.PR == nil {
-				t, p, err := s.Note(name)
-				if err != nil {
-					return err
-				}
-				if t == "" && p == "" {
-					r.out.Info("no note on %s: `multiversectl universe note %s \"what it is for\" --pr <url>`", name, name)
-					return nil
-				}
-				if p != "" {
-					r.out.Plain("pr   %s", p)
-				}
-				if t != "" {
-					r.out.Plain("note %s", t)
-				}
-				return nil
+				return r.about(s, name)
 			}
 			st, err := s.SetNote(name, in)
 			if err != nil {
 				return err
 			}
 			if st.PR == "" && st.Note == "" {
-				r.out.OK("universe %s: note cleared", st.Name)
+				r.out.OK("universe %s: what it is for, and its PR, cleared", st.Name)
 				return nil
 			}
 			r.out.OK("universe %s: %s", st.Name, strings.TrimSpace(st.PR+" "+st.Note))
@@ -1089,87 +933,102 @@ func (r runner) noteCmd() *cobra.Command {
 	return cmd
 }
 
-// hooksCmd lists a universe's lifecycle hooks, and runs an event's by hand.
-func (r runner) hooksCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "hooks <universe>",
-		Short: "The commands tied to a universe's life, and a way to run an event's now",
-		Long: "Lists the hooks the manifest ties to the universe's life (postCreate, preUp, postUp,\n" +
-			"preDown, postDown, preRemove): which event, where each runs, whether a once-only one\n" +
-			"has run, and what a failure means. `hooks run` runs an event's now, for one app or\n" +
-			"for all of them: how a hook that was warned about is run again, and how one is\n" +
-			"tried before it is trusted to a start. A once-only hook runs again and is not marked.",
-		Example: "  multiversectl universe hooks 3\n  multiversectl universe hooks run 3 postUp api",
-		Args:    cobra.ExactArgs(1),
+// about prints what is known about a universe without changing it: what it is
+// for, the manifest it runs on, and its hooks.
+func (r runner) about(s *app.Service, name string) error {
+	t, p, err := s.Note(name)
+	if err != nil {
+		return err
 	}
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return r.withService(func(_ context.Context, s *app.Service) error {
-			hooks, err := s.Hooks(args[0])
-			if err != nil {
-				return err
-			}
-			if len(hooks) == 0 {
-				r.out.Info("the manifest ties no commands to this universe's life")
-				return nil
-			}
-			rows := make([][]string, len(hooks))
-			for i, h := range hooks {
-				state := string(h.OnFailure)
-				switch {
-				case h.Done:
-					state += ", done"
-				case h.Once:
-					state += ", once"
-				}
-				rows[i] = []string{string(h.Event), cmp.Or(h.App, "(multiverse)"), h.Where, cmp.Or(h.Name, h.Command), state}
-			}
-			r.out.Table([]string{"EVENT", "APP", "RUNS", "COMMAND", "ON FAILURE"}, rows)
-			return nil
-		})(cmd, args)
+	if t == "" && p == "" {
+		r.out.Info("nothing said about %s yet: `multiversectl universe about %s \"what it is for\" --pr <url>`", name, name)
 	}
-	run := &cobra.Command{
-		Use:     "run <universe> <event> [app...]",
-		Short:   "Run the hooks of an event on a universe now",
-		Example: "  multiversectl universe hooks run 3 postUp\n  multiversectl universe hooks run 3 preUp api",
-		Args:    cobra.MinimumNArgs(2),
-		ValidArgsFunction: func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-			if len(args) == 1 {
-				events := make([]string, len(domain.HookEvents))
-				for i, e := range domain.HookEvents {
-					events[i] = string(e)
-				}
-				return events, cobra.ShellCompDirectiveNoFileComp
-			}
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		},
+	if t != "" {
+		r.out.Plain("about      %s", t)
 	}
-	run.RunE = func(cmd *cobra.Command, args []string) error {
-		return r.withService(func(ctx context.Context, s *app.Service) error {
-			return s.RunHooks(ctx, args[0], domain.HookEvent(args[1]), args[2:])
-		})(cmd, args)
+	if p != "" {
+		r.out.Plain("pr         %s", p)
 	}
-	cmd.AddCommand(run)
-	return cmd
+	rep, err := s.UniverseConfig(name)
+	if err != nil {
+		return err
+	}
+	r.out.Plain("manifest   %s", rep.Path)
+	r.out.Plain("sha256     %s", rep.SHA256[:16])
+	for _, f := range rep.RepoFiles {
+		from := "this universe's checkout"
+		if f.FromClone {
+			from = "the shared clone"
+		}
+		r.out.Plain("repo file  %s: %s (%s)", f.Repo, f.Path, from)
+	}
+	if len(rep.Problems) == 0 {
+		r.out.OK("it loads without complaint")
+	} else {
+		r.out.Warn("loading it would fail:")
+		for _, p := range rep.Problems {
+			r.out.Plain("  - %s", p)
+		}
+	}
+	switch rec := rep.StartedWith; {
+	case rec == nil:
+		r.out.Info("no record of what it was started with (it was started before that was kept, or not at all)")
+	case rep.Changed:
+		r.out.Warn("started %s with %s (build %s); the manifest has been edited since: `--diff` shows what changed", rec.At.Local().Format("2006-01-02 15:04"), rec.SHA256[:16], firstNonEmpty(rec.Version, "unknown"))
+		if len(rep.SnapshotProblems) > 0 {
+			r.out.Info("what it was started with would not load either: %s", strings.Join(rep.SnapshotProblems, "; "))
+		}
+	default:
+		r.out.OK("started %s with this manifest, unchanged since", rec.At.Local().Format("2006-01-02 15:04"))
+	}
+
+	hooks, err := s.Hooks(name)
+	if err != nil {
+		return err
+	}
+	r.out.Plain("")
+	if len(hooks) == 0 {
+		r.out.Info("the manifest ties no commands to this universe's life")
+		return nil
+	}
+	rows := make([][]string, len(hooks))
+	for i, h := range hooks {
+		state := string(h.OnFailure)
+		switch {
+		case h.Done:
+			state += ", done"
+		case h.Once:
+			state += ", once"
+		}
+		rows[i] = []string{string(h.Event), cmp.Or(h.App, "(multiverse)"), h.Where, cmp.Or(h.Name, h.Command), state}
+	}
+	r.out.Table([]string{"HOOK", "APP", "RUNS", "COMMAND", "ON FAILURE"}, rows)
+	r.out.Info("run an event's hooks again with `multiversectl universe run %s --hook <event> [app...]`", name)
+	return nil
 }
 
-// renderCmd renders the files the manifest makes from templates, now.
-func (r runner) renderCmd() *cobra.Command {
-	var printOnly bool
-	cmd := &cobra.Command{
-		Use:   "render <universe> [app...]",
-		Short: "Render the files the manifest makes from the universe's values",
-		Long: "Renders the files an app's `render` entries describe, as `universe up` does before it\n" +
-			"starts the app: from the addresses the universe last started with, and only writing a\n" +
-			"file whose content changed. With --print nothing is written; the result is shown, which\n" +
-			"is how a template is tried. A forwarded address exists once the universe has been started.",
-		Example: "  multiversectl universe render 3\n  multiversectl universe render 3 api --print",
-		Args:    cobra.MinimumNArgs(1),
+// manifestDiff shows how the manifest changed since the universe started.
+func (r runner) manifestDiff(rep app.ConfigReport) error {
+	switch {
+	case rep.StartedWith == nil:
+		return errors.New("this universe has no record of the manifest it was started with (it was started before that was kept); start it again to record one")
+	case rep.Snapshot == nil:
+		return errors.New("the manifest it was started with was not kept, only its fingerprint")
+	case !rep.Changed:
+		r.out.OK("the manifest is the one it was started with")
+		return nil
 	}
-	cmd.Flags().BoolVar(&printOnly, "print", false, "show the rendered files instead of writing them")
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return r.withService(func(ctx context.Context, s *app.Service) error {
-			return s.Render(ctx, app.RenderInput{Universe: args[0], Apps: args[1:], Print: printOnly})
-		})(cmd, args)
+	for _, l := range app.DiffLines(string(rep.Snapshot), string(rep.Current)) {
+		line := string(l.Op) + " " + l.Text
+		switch l.Op {
+		case '+':
+			line = r.out.Green(line)
+		case '-':
+			line = r.out.Red(line)
+		default:
+			line = r.out.Dim(line)
+		}
+		r.out.Plain("%s", line)
 	}
-	return cmd
+	return nil
 }

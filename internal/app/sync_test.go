@@ -204,7 +204,7 @@ func TestDoctorSaysWhichCloneIsBehindAndWhatToRun(t *testing.T) {
 	sh(t, b.clone("api"), "fetch", "-q") // fetched, not moved
 	for _, c := range b.svc.CloneChecks(context.Background()) {
 		if c.Name == "clone api" {
-			if c.Status != app.StatusWarn || !strings.Contains(c.Detail, "1 commits behind origin/main") || !strings.Contains(c.Detail, "multiversectl catalog update") {
+			if c.Status != app.StatusWarn || !strings.Contains(c.Detail, "1 commits behind origin/main") || c.Fix != "multiversectl catalog sync" {
 				t.Errorf("check = %+v", c)
 			}
 			return

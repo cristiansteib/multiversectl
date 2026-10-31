@@ -7,45 +7,46 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// The three things a person does with this tool: work in universes, set the
-// tool up, and manage which multiverses exist and which are on this machine.
+// Where a command sits in the help: what to run first, the work itself, what
+// acts on the whole machine, and the tool's own housekeeping.
 const (
-	groupSetup    = "setup"
-	groupCatalog  = "catalog"
-	groupUniverse = "universe"
 	// groupStart is first, and is what somebody who has just installed this
 	// reads first: the commands to run before any other makes sense.
-	groupStart = "start-here"
+	groupStart   = "start-here"
+	groupWork    = "work"
+	groupMachine = "machine"
+	groupTool    = "tool"
 )
 
 // startHere is what leads the help and the tree of commands, in this order. A
 // help lists commands alphabetically within a group, which puts `init` after
 // `completion` and `agents`; the first thing to run should not have to be
 // found among the housekeeping.
-var startHere = []string{"init"}
+var startHere = []string{"init", "start", "status"}
 
 var commandGroups = map[string]string{
-	"init": groupStart, "reset": groupSetup, "cleanup": groupSetup, "self-update": groupSetup, "version": groupSetup, "completion": groupSetup, "agents": groupSetup,
-	"catalog": groupCatalog, "multiverse": groupCatalog, "schema": groupCatalog,
-	"start": groupUniverse, "system": groupUniverse, "universe": groupUniverse, "status": groupUniverse, "server": groupUniverse,
+	"init": groupStart, "start": groupStart, "status": groupStart,
+	"universe": groupWork, "catalog": groupWork,
+	"server": groupMachine, "system": groupMachine, "doctor": groupMachine,
+	"agents": groupTool, "schema": groupTool, "completion": groupTool, "self-update": groupTool, "version": groupTool,
 }
 
 // groupCommands sorts the help into those groups and colours it. Each group
-// has its own colour, so the three read as three places at a glance; colour
+// has its own colour, so they read as separate places at a glance; colour
 // follows the same rules as everywhere else (NO_COLOR, --no-color, a pipe).
 func groupCommands(root *cobra.Command, g *Globals) {
 	root.AddGroup(
-		&cobra.Group{ID: groupStart, Title: "Get started:"},
-		&cobra.Group{ID: groupUniverse, Title: "Universe management:"},
-		&cobra.Group{ID: groupSetup, Title: "Tool initialization:"},
-		&cobra.Group{ID: groupCatalog, Title: "Catalog management:"},
+		&cobra.Group{ID: groupStart, Title: "Start here:"},
+		&cobra.Group{ID: groupWork, Title: "Work:"},
+		&cobra.Group{ID: groupMachine, Title: "This machine:"},
+		&cobra.Group{ID: groupTool, Title: "The tool:"},
 	)
 	for _, c := range root.Commands() {
 		if id, ok := commandGroups[c.Name()]; ok {
 			c.GroupID = id
 		}
 	}
-	root.SetHelpCommandGroupID(groupSetup)
+	root.SetHelpCommandGroupID(groupTool)
 
 	paint := func() *Output { return NewOutput(os.Stdout, ColorEnabled(os.Stdout, g.NoColor)) }
 	cobra.AddTemplateFunc("heading", func(s string) string { return paint().Bold(s) })
@@ -55,9 +56,9 @@ func groupCommands(root *cobra.Command, g *Globals) {
 		switch id {
 		case groupStart:
 			return o.paint(bold+cyan, title)
-		case groupUniverse:
+		case groupWork:
 			return o.Bold(o.Green(title))
-		case groupCatalog:
+		case groupMachine:
 			return o.Bold(o.Accent(title))
 		}
 		return o.Bold(o.Yellow(title))

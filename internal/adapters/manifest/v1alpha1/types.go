@@ -198,11 +198,11 @@ type App struct {
 	// file: the app is that repository's.
 	Repo string `yaml:"repo"`
 
-	// Whether `universe up` and `universe start` bring this app up when no app is
-	// named. Set it to false for an app that should be checked out and have its
-	// addresses but run only when asked for (`universe up 3 <app>`): a tool that
-	// needs setup, a code generator, a heavy optional service. Commands that look
-	// after what runs (down, rm, status, doctor, ls) still deal with it when it is
+	// Whether `universe up` brings this app up when no app is named. Set it to
+	// false for an app that should be checked out and have its addresses but run
+	// only when asked for (`universe up 3 <app>`): a tool that needs setup, a code
+	// generator, a heavy optional service. Commands that look after what runs
+	// (down, rm, doctor, ls) still deal with it when it is
 	// up, and do not report it as a problem when it is not.
 	// +default=true
 	Autostart *bool `yaml:"autostart"`
@@ -232,7 +232,7 @@ type App struct {
 	Optional []Optional `yaml:"optional"`
 
 	// Files that are deliberately not in git — credentials, service accounts —
-	// copied from the clone into each universe's checkout. doctor fails when
+	// copied from the clone into each universe's checkout. `universe doctor` fails when
 	// one is missing, rather than letting the universe half-start.
 	Secrets []string `yaml:"secrets"`
 
@@ -251,8 +251,8 @@ type App struct {
 
 	// Files made from a template and this universe's values before the app
 	// starts, for an app that reads a config file and cannot take environment
-	// variables. Written on every `universe up` (and by `universe render`), only
-	// when the content changed, and kept out of git's sight.
+	// variables. Written on every `universe up` (`universe about --files` shows
+	// them), only when the content changed, and kept out of git's sight.
 	Render []Render `yaml:"render"`
 
 	// Services allowed to keep their published host ports. Every other
@@ -375,7 +375,7 @@ type Hook struct {
 	// remembers that the hook ran, this looks at what it produced, so data that
 	// was lost (a database volume that was recreated) is loaded again. When
 	// it is set it decides, and once is not used. Not used when the hook is run
-	// by hand with `universe hooks run`.
+	// by hand with `universe run --hook`.
 	SkipIf []string `yaml:"skipIf"`
 
 	// What it means when the command does not succeed: warn says so and goes on
@@ -484,7 +484,7 @@ type Host struct {
 	// dev.multiversectl.host.<name>.ready.
 	Ready string `yaml:"ready"`
 
-	// How `doctor` checks this host. By default it asks the address over HTTP
+	// How `universe doctor` checks this host. By default it asks the address over HTTP
 	// (a TCP connection for an h2c host); "tcp" connects, "grpc" connects (the
 	// standard gRPC health check is not run, as multiversectl carries no gRPC
 	// client), "http" forces the HTTP request, and "none" leaves the host

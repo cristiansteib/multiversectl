@@ -20,7 +20,7 @@ type ListOptions struct {
 	Freshness bool
 }
 
-// Summary is one universe as `list` shows it.
+// Summary is one universe as `ls` shows it.
 type Summary struct {
 	Name     string
 	Slug     string

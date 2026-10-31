@@ -84,7 +84,7 @@ func (r runner) collectFootprint(ctx context.Context) ([]app.Item, error) {
 			// The link carries a token that is a password; the address is enough here.
 			addr, _, _ := strings.Cut(info.URL, "?")
 			items = append(items, app.Item{Kind: "server", What: "the web server", Path: addr, Size: -1,
-				Note: fmt.Sprintf("running, pid %d", info.PID), Remove: "multiversectl server stop"})
+				Note: fmt.Sprintf("running, pid %d", info.PID), Remove: "multiversectl server down"})
 		}
 	}
 

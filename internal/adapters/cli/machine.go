@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -15,8 +16,8 @@ import (
 	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
-// quietOut drops what a use case would print: status asks many services about
-// many things, and what it wants from each is the answer, not their warnings.
+// quietOut drops what a use case would print: status and doctor ask many
+// services about many things, and want the answers, not their warnings.
 type quietOut struct{}
 
 func (quietOut) Info(string, ...any)        {}
@@ -25,27 +26,26 @@ func (quietOut) Warn(string, ...any)        {}
 func (quietOut) Plain(string, ...any)       {}
 func (quietOut) Table([]string, [][]string) {}
 
-// machineStatus is everything `status` says, so the same answer can be printed
-// or handed to a script.
-type machineStatus struct {
-	Version     string            `json:"version"`
-	Catalog     app.CatalogStatus `json:"catalog"`
-	Multiverses []multiverseLine  `json:"multiverses"`
-	Proxy       proxyLine         `json:"proxy"`
-	Server      serverLine        `json:"server"`
-	Latest      string            `json:"latest,omitempty"`
-	Attention   []string          `json:"attention"`
+// doctorReport is everything a doctor found, so the same answer can be printed
+// or handed to a script: the machine's checks for `doctor`, a multiverse's and
+// a universe's for `universe doctor`.
+type doctorReport struct {
+	Version     string           `json:"version"`
+	Checks      []checkLine      `json:"checks"`
+	Multiverses []multiverseLine `json:"multiverses,omitempty"`
+	Universe    *universeCheck   `json:"universe,omitempty"`
 }
 
 type multiverseLine struct {
-	Name      string   `json:"name"`
-	Current   bool     `json:"current,omitempty"`
-	From      string   `json:"from,omitempty"`
-	Root      string   `json:"root"`
-	Notes     []string `json:"notes,omitempty"`
-	Universes int      `json:"universes"`
-	Running   int      `json:"running"`
-	Error     string   `json:"error,omitempty"`
+	Name   string      `json:"name"`
+	Root   string      `json:"root"`
+	Checks []checkLine `json:"checks"`
+}
+
+type universeCheck struct {
+	Name       string      `json:"name"`
+	Multiverse string      `json:"multiverse"`
+	Checks     []checkLine `json:"checks"`
 }
 
 type proxyLine struct {
@@ -60,213 +60,275 @@ type serverLine struct {
 	Outdated bool `json:"outdated,omitempty"`
 }
 
-func (r runner) machineStatusCmd() *cobra.Command {
-	var fetch bool
+// checkLine is one thing a doctor looked at.
+type checkLine struct {
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Detail string `json:"detail,omitempty"`
+	Fix    string `json:"fix,omitempty"`
+}
+
+func fromCheck(c app.Check) checkLine {
+	return checkLine{Name: c.Name, Status: string(c.Status), Detail: c.Detail, Fix: c.Fix}
+}
+
+// doctorCmd checks the machine: what every multiverse needs from it, and
+// nothing about any one of them, which is `universe doctor`.
+func (r runner) doctorCmd() *cobra.Command {
 	var format string
 	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "How this machine stands: the root, what is installed and drifted, what is running, and what needs attention",
-		Long: "One answer to \"is this machine in order?\": the root catalog, each installed\n" +
-			"multiverse with how many universes it has and how many run, the shared proxy and\n" +
-			"the web server, and, first, what needs attention: a root that cannot be read or\n" +
-			"is not marked, a multiverse behind its remote, universes running without the\n" +
-			"proxy, and anything `doctor` warns about. It reads what was last fetched, and is\n" +
-			"quick; --fetch compares with the remotes and looks for a newer release.\n" +
-			"`status` and `universe status` have the detail of each part.",
-		Example: "  multiversectl status\n  multiversectl status --fetch\n  multiversectl status -o json",
+		Use:   "doctor",
+		Short: "Check what this machine needs to run any multiverse: docker, git, the git host tools, disk, the proxy's ports",
+		Long: "Checks what every multiverse needs from this machine: docker reachable with compose\n" +
+			"and buildx, room in Docker's address pools for more networks, git, the GitHub and\n" +
+			"GitLab command lines (optional; signed in when there), free disk space, and the\n" +
+			"shared proxy — where it listens when it runs, and when it does not, that every port\n" +
+			"an installed multiverse needs it to take is free. Anything that is not fine says what\n" +
+			"to run. It exits 1 when a check fails. A multiverse and its universes are checked by\n" +
+			"`multiversectl universe doctor`.",
+		Example: "  multiversectl doctor\n  multiversectl doctor -o json",
 		Args:    cobra.NoArgs,
 	}
-	cmd.Flags().BoolVar(&fetch, "fetch", false, "compare with the remotes and look for a newer release")
 	cmd.Flags().StringVarP(&format, "output", "o", "table", "output: table or json")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		if format != "table" && format != "json" {
 			return fmt.Errorf("--output must be table or json, not %q", format)
 		}
-		var ms machineStatus
-		err := r.spin(true, "Looking at this machine", func() (err error) { ms, err = r.collectStatus(cmd.Context(), fetch); return err })
+		var ms doctorReport
+		err := r.spin(true, "Checking this machine", func() (err error) { ms, err = r.machineChecks(cmd.Context()); return err })
 		if err != nil {
 			return err
 		}
-		if format == "json" {
-			enc := json.NewEncoder(os.Stdout)
-			enc.SetIndent("", "  ")
-			return enc.Encode(ms)
-		}
-		r.printMachine(ms)
-		return nil
+		return r.reportDoctor(ms, format)
 	}
 	return cmd
 }
 
-func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, error) {
-	ms := machineStatus{Version: r.f.Version, Attention: []string{}}
-	c, err := r.catalogs(false)
-	if err != nil {
-		return ms, err
+// universeDoctorCmd checks one multiverse and, when one is named, a universe of
+// it: what the machine-wide `doctor` leaves out.
+func (r runner) universeDoctorCmd() *cobra.Command {
+	var format string
+	cmd := &cobra.Command{
+		Use:   "doctor [universe]",
+		Short: "Check the multiverse and optionally one universe: its clones, domain, git host, secrets, apps and addresses",
+		Long: "Checks the multiverse: that its shared clones are up to date with their remotes,\n" +
+			"the proxy it asks for, a proxy it would clash with, that its domain resolves to this\n" +
+			"machine and that its git host is signed in. Name a universe and it is checked too:\n" +
+			"its secrets, each app, and every address of a running app, asked once. Anything that\n" +
+			"is not fine says what to run. It exits 1 when a check fails. What the machine needs\n" +
+			"for any multiverse is `multiversectl doctor`.",
+		Example: "  multiversectl universe doctor\n  multiversectl universe doctor 3\n  multiversectl universe doctor fix/login -o json",
+		Args:    cobra.MaximumNArgs(1),
 	}
-	rep, err := c.Status(ctx, fetch)
-	if err != nil {
-		return ms, err
+	cmd.Flags().StringVarP(&format, "output", "o", "table", "output: table or json")
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if format != "table" && format != "json" {
+			return fmt.Errorf("--output must be table or json, not %q", format)
+		}
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			universe := ""
+			if len(args) == 1 {
+				universe = args[0]
+			}
+			var ms doctorReport
+			err := r.spin(true, "Checking", func() error {
+				report, err := s.Doctor(ctx, app.DoctorInput{Universe: universe})
+				if err != nil {
+					return err
+				}
+				ms = r.multiverseChecks(s, report, universe)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			return r.reportDoctor(ms, format)
+		})(cmd, args)
 	}
-	ms.Catalog = rep.Catalog
+	return cmd
+}
+
+// reportDoctor prints a report, or writes it for a script, and fails when a
+// check did.
+func (r runner) reportDoctor(ms doctorReport, format string) error {
+	if format == "json" {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(ms); err != nil {
+			return err
+		}
+	} else {
+		r.printChecks(ms)
+	}
+	if ms.failed() {
+		return errChecksFailed
+	}
+	return nil
+}
+
+// machineChecks asks the machine what every installed multiverse needs of it,
+// the proxy's ports most of all, which each multiverse's manifest names.
+func (r runner) machineChecks(ctx context.Context) (doctorReport, error) {
+	ms := doctorReport{Version: r.f.Version, Checks: []checkLine{}}
 	bare, err := r.f.Bare(*r.g, quietOut{})
 	if err != nil {
 		return ms, err
 	}
-
-	var current *app.Service
-	var universesRunning int
-	for _, w := range rep.Multiverses {
-		line := multiverseLine{Name: w.Name, From: firstNonEmpty(w.From, w.Source), Root: w.Root, Notes: w.Notes}
-		if info, err := bare.MultiverseNamed(w.Name); err == nil {
-			svc, err := r.f.At(*r.g, quietOut{}, info.Root, info.Manifest)
-			if err != nil {
-				line.Error = err.Error()
-				ms.Attention = append(ms.Attention, fmt.Sprintf("`%s`: its manifest cannot be read: %v", w.Name, err))
-			} else {
-				if current == nil {
-					current = svc
-				}
-				if list, err := svc.List(ctx, app.ListOptions{}); err == nil {
-					line.Universes = len(list)
-					for _, u := range list {
-						if u.Running > 0 {
-							line.Running++
-						}
-					}
-					universesRunning += line.Running
-				}
-			}
+	ports := map[int][]string{}
+	hosts := map[string]bool{}
+	installed, err := bare.Multiverses()
+	if err != nil {
+		return ms, err
+	}
+	for _, info := range installed {
+		svc, err := r.f.At(*r.g, quietOut{}, info.Root, info.Manifest)
+		if err != nil || svc.Manifest == nil {
+			continue
 		}
-		switch {
-		case w.Stale:
-			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s` is behind its remote (%s): `multiversectl catalog update %s`", w.Name, strings.Join(w.Notes, " · "), w.Name))
-		case w.Advice != "":
-			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s`: %s", w.Name, w.Advice))
+		for entrypoint, port := range svc.Manifest.Proxy.Entrypoints {
+			ports[port] = append(ports[port], entrypoint+" of "+info.Name)
 		}
-		ms.Multiverses = append(ms.Multiverses, line)
-	}
-
-	svc := current
-	if svc == nil {
-		svc = bare
-	}
-	if ps, err := svc.Proxy.Status(ctx); err == nil {
-		ms.Proxy = proxyLine{Running: ps.Running, Entrypoints: ps.Entrypoints}
-	}
-	if p, err := r.f.Server(); err == nil {
-		if info, err := p.Status(ctx); err == nil {
-			ms.Server = serverLine{Running: true, URL: info.URL, Outdated: info.Outdated}
-			if info.Outdated {
-				ms.Attention = append(ms.Attention, "the server is running an older build than the one installed: `multiversectl server restart`")
-			}
+		for _, repo := range svc.Manifest.Repos {
+			hosts[string(domain.Locate(repo.URL, "").Platform)] = true
 		}
 	}
-
-	switch {
-	case rep.Catalog.Unavailable != "":
-		ms.Attention = append(ms.Attention, "the catalog cannot be read: "+rep.Catalog.Unavailable)
+	if len(installed) == 0 {
+		// Nothing installed: the first start takes the default.
+		ports[80] = []string{"web, the default"}
 	}
-	if rep.Catalog.NoRemote {
-		ms.Attention = append(ms.Attention, "the catalog is only on this machine, so it is lost with it: `git -C "+filepath.Dir(rep.Catalog.Source)+" remote add origin <url>`")
+	for _, who := range ports {
+		sort.Strings(who)
 	}
-	if universesRunning > 0 && !ms.Proxy.Running {
-		ms.Attention = append(ms.Attention, "universes are running but the shared proxy is not, so their addresses do not answer: `multiversectl system proxy up`")
-	}
-	// What doctor warns about is attention too; its manifest warning is the same
-	// thing as "nothing installed", which the header already says.
-	if report, err := svc.Doctor(ctx, app.DoctorInput{}); err == nil {
-		for _, ch := range report.Checks {
-			if ch.Status == app.StatusOK || (ch.Name == "manifest" && len(rep.Multiverses) == 0) {
-				continue
-			}
-			ms.Attention = append(ms.Attention, fmt.Sprintf("doctor: %s: %s", ch.Name, ch.Detail))
-		}
-	}
-	if fetch {
-		if rel, err := bare.Releases.Latest(ctx); err == nil {
-			ms.Latest = rel.Version
-			if app.Released(r.f.Version) && app.NewerVersion(rel.Version, r.f.Version) {
-				ms.Attention = append(ms.Attention, fmt.Sprintf("multiversectl %s is out (this is %s): `multiversectl self-update`", rel.Version, r.f.Version))
-			}
-		}
+	for _, c := range bare.MachineChecks(ctx, app.MachineInput{Ports: ports, Path: r.installPath(bare, ""), Hosts: hosts}) {
+		ms.Checks = append(ms.Checks, fromCheck(c))
 	}
 	return ms, nil
 }
 
-func (r runner) printMachine(ms machineStatus) {
+// multiverseChecks keeps what Doctor found about the multiverse and the
+// universe, and leaves the machine's to `doctor`.
+func (r runner) multiverseChecks(s *app.Service, report app.Report, universe string) doctorReport {
+	ms := doctorReport{Version: r.f.Version, Checks: []checkLine{}}
+	name := s.Multiverse
+	if s.Manifest != nil {
+		name = s.Manifest.Name
+	}
+	line := multiverseLine{Name: name, Root: s.Multiverse, Checks: []checkLine{}}
+	uc := universeCheck{Name: universe, Multiverse: name, Checks: []checkLine{}}
+	for _, c := range report.Checks {
+		switch c.Scope {
+		case app.ScopeMultiverse:
+			line.Checks = append(line.Checks, fromCheck(c))
+		case app.ScopeUniverse:
+			uc.Checks = append(uc.Checks, fromCheck(c))
+		}
+	}
+	ms.Multiverses = []multiverseLine{line}
+	if universe != "" {
+		ms.Universe = &uc
+	}
+	return ms
+}
+
+// each walks every check, with where it was made as a prefix: "" for the
+// machine, "acme: " for a multiverse, "acme/3: " for the universe.
+func (ms doctorReport) each(f func(where string, c checkLine)) {
+	for _, c := range ms.Checks {
+		f("", c)
+	}
+	for _, w := range ms.Multiverses {
+		for _, c := range w.Checks {
+			f(w.Name+": ", c)
+		}
+	}
+	if u := ms.Universe; u != nil {
+		for _, c := range u.Checks {
+			f(u.Multiverse+"/"+u.Name+": ", c)
+		}
+	}
+}
+
+func (ms doctorReport) failed() bool {
+	failed := false
+	ms.each(func(_ string, c checkLine) { failed = failed || c.Status == string(app.StatusFail) })
+	return failed
+}
+
+func (r runner) printChecks(ms doctorReport) {
 	o := r.out
-	o.Plain("%s %s", o.Bold("multiversectl"), o.Dim(ms.Version+" · this machine"))
-	o.Plain("")
+	home, _ := os.UserHomeDir()
+	width := 0
+	ms.each(func(_ string, c checkLine) { width = max(width, utf8.RuneCountInString(c.Name)) })
+	block := func(lines []checkLine) {
+		var fixes []string
+		seen := map[string]bool{}
+		for _, c := range lines {
+			glyph := o.Green("✓")
+			detail := c.Detail
+			if home != "" {
+				detail = strings.ReplaceAll(detail, home+string(filepath.Separator), "~"+string(filepath.Separator))
+			}
+			switch c.Status {
+			case string(app.StatusWarn):
+				glyph = o.Yellow("!")
+			case string(app.StatusFail):
+				glyph = o.Red("✗")
+			case string(app.StatusIdle):
+				// Not a problem, so its command is a hint beside it, not a fix.
+				glyph, detail = o.Dim("○"), o.Dim(detail)
+				if c.Fix != "" {
+					detail += o.Dim(" · ") + Markup("`"+c.Fix+"`", o.color)
+				}
+			}
+			o.Plain("  %s %s  %s", glyph, c.Name+strings.Repeat(" ", width-utf8.RuneCountInString(c.Name)), detail)
+			// One line per fix, under the block, however many checks it fixes.
+			if c.Fix != "" && (c.Status == string(app.StatusWarn) || c.Status == string(app.StatusFail)) && !seen[c.Fix] {
+				seen[c.Fix] = true
+				fixes = append(fixes, c.Fix)
+			}
+		}
+		for _, f := range fixes {
+			o.Plain("  %s %s", o.Accent("→"), Markup("`"+f+"`", o.color))
+		}
+	}
 
-	catalog := "none"
+	if len(ms.Checks) > 0 {
+		o.Plain("%s", o.Bold("This machine"))
+		block(ms.Checks)
+	}
+	for i, w := range ms.Multiverses {
+		if i > 0 || len(ms.Checks) > 0 {
+			o.Plain("")
+		}
+		o.Plain("%s  %s", o.Bold(w.Name), o.Dim(w.Root))
+		block(w.Checks)
+		if u := ms.Universe; u != nil && u.Multiverse == w.Name {
+			o.Plain("")
+			o.Plain("%s  %s", o.Bold("universe "+u.Name), o.Dim("of "+w.Name))
+			block(u.Checks)
+		}
+	}
+
+	warns, fails := 0, 0
+	ms.each(func(_ string, c checkLine) {
+		switch c.Status {
+		case string(app.StatusWarn):
+			warns++
+		case string(app.StatusFail):
+			fails++
+		}
+	})
+	o.Plain("")
 	switch {
-	case ms.Catalog.Source == "":
-		catalog = o.Dim("none: ") + "`multiversectl init`"
-	case ms.Catalog.Unavailable != "":
-		catalog = o.Place(domain.Locate(ms.Catalog.Source, "")) + "  " + o.Red("✗ unreadable")
+	case fails > 0 && warns > 0:
+		o.Plain("%s", o.Red(pluralize(fails, "failure")+", ")+o.Yellow(pluralize(warns, "warning")))
+	case fails > 0:
+		o.Plain("%s", o.Red(pluralize(fails, "failure")))
+	case warns > 0:
+		o.Plain("%s", o.Yellow(pluralize(warns, "warning")))
 	default:
-		catalog = o.Place(domain.Locate(ms.Catalog.Source, "")) + "  " + o.Green("✓")
+		o.Plain("%s", o.Green("all good"))
 	}
-	o.Plain("%s  %s", o.Bold("Catalog    "), catalog)
-
-	if len(ms.Multiverses) == 0 {
-		o.Plain("%s  %s", o.Bold("Multiverses   "), o.Dim("nothing installed: ")+"`multiversectl start <owner/repo>`")
-	} else {
-		o.Plain("%s", o.Bold("Multiverses"))
-		cells := make([][]Cell, len(ms.Multiverses))
-		for i, w := range ms.Multiverses {
-			name := "  " + w.Name
-			if w.Current {
-				name = "★ " + w.Name
-			}
-			state := Cell{Text: "up to date", Style: green}
-			switch {
-			case w.Error != "":
-				state = Cell{Text: "✗ unreadable", Style: red}
-			case len(w.Notes) > 0:
-				state = Cell{Text: strings.Join(w.Notes, " · "), Style: yellow}
-			}
-			uni := Cell{Text: pluralize(w.Universes, "universe"), Style: dim}
-			if w.Running > 0 {
-				uni = Cell{Text: pluralize(w.Universes, "universe") + ", " + fmt.Sprint(w.Running) + " running", Style: green}
-			}
-			cells[i] = []Cell{{Text: name}, {Text: firstNonEmpty(w.From, "—"), Style: dim}, state, uni}
-		}
-		o.Cells([]string{"  NAME", "FROM", "STATE", "UNIVERSES"}, cells)
-	}
-
-	proxy := o.Dim("not running")
-	if ms.Proxy.Running {
-		names := make([]string, 0, len(ms.Proxy.Entrypoints))
-		for n, p := range ms.Proxy.Entrypoints {
-			names = append(names, fmt.Sprintf("%s:%d", n, p))
-		}
-		sort.Strings(names)
-		proxy = o.Green("running") + o.Dim("  "+strings.Join(names, ", "))
-	}
-	o.Plain("%s  %s", o.Bold("Proxy      "), proxy)
-	if ms.Server.Running {
-		o.Plain("%s  %s", o.Bold("Server     "), o.Green("running")+"  `"+ms.Server.URL+"`")
-	} else {
-		o.Plain("%s  %s", o.Bold("Server     "), o.Dim("not running: ")+"`multiversectl server start`")
-	}
-
-	o.Plain("")
-	if len(ms.Attention) == 0 {
-		o.OK("nothing needs attention")
-	} else {
-		verb := "need"
-		if len(ms.Attention) == 1 {
-			verb = "needs"
-		}
-		o.Plain("%s", o.Bold(o.Yellow(pluralize(len(ms.Attention), "thing")+" "+verb+" attention")))
-		for _, a := range ms.Attention {
-			o.Warn("%s", a)
-		}
-	}
-	o.Plain("")
-	o.Info("detail: `multiversectl status`  ·  `multiversectl universe status`  ·  `multiversectl universe doctor`")
 }
 
 func pluralize(n int, noun string) string {
