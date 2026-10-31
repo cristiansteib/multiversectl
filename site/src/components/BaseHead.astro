@@ -63,6 +63,16 @@ const ogTitle = title;
 <meta name="twitter:image:alt" content={imageAlt} />
 {jsonLd.map((o) => <script type="application/ld+json" set:html={JSON.stringify(o).replace(/</g, '\\u003c')} />)}
 <meta name="theme-color" content="#f5f7fa" />
+{/* Google Analytics 4 (gtag.js), measurement ID of the multiversectl.dev web
+    stream. Both scripts stay inline and unbundled, as Google's snippet is
+    written; the loader is async so it never blocks the first paint. */}
+<script is:inline async src="https://www.googletagmanager.com/gtag/js?id=G-QTMFS6JHSM"></script>
+<script is:inline>
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { dataLayer.push(arguments); }
+  gtag('js', new Date());
+  gtag('config', 'G-QTMFS6JHSM');
+</script>
 {/* Applies a stored dark choice before the first paint, so the page never
     flashes light. It must stay inline and unbundled to run this early. */}
 <script is:inline>
