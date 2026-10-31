@@ -35,8 +35,8 @@ function banner(): HTMLElement {
   el.setAttribute('role', 'region');
   el.setAttribute('aria-label', 'Cookie consent');
   el.innerHTML = `
-    <p>This site uses Google Analytics cookies to count visits and see which pages help.
-    Nothing is collected unless you accept.</p>
+    <p>We use cookies to understand how the docs get used and make them better.
+    Totally up to you: nothing is collected unless you say yes.</p>
     <div class="consent-actions">
       <button type="button" class="btn btn-2" data-consent="denied">Reject</button>
       <button type="button" class="btn btn-1" data-consent="granted">Accept</button>
