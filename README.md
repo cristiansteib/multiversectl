@@ -114,9 +114,9 @@ catalog. It is a git repository of pointers, private if you let `init` create it
 multiversectl init                      # asks where it should live
 multiversectl catalog add acme/billing  # asks which node of the tree it goes in
 multiversectl catalog new               # asks multiverse or catalog, then a guide to make and list it
-multiversectl catalog list              # the tree, with what is installed marked
+multiversectl catalog ls                # the tree, with what is installed marked
 multiversectl status                    # what is installed here, and what has drifted
-multiversectl catalog update            # catch up: manifests and new repositories
+multiversectl catalog sync              # catch up: manifests and new repositories
 ```
 
 See [Catalogs](https://multiversectl.dev/docs/concepts/catalogs/).
@@ -125,8 +125,8 @@ All of it is also a live page â€” the tree, every universe and what runs in it â
 with buttons for the same operations:
 
 ```sh
-multiversectl server start --open   # a live page: versions, and start/stop/create/remove, behind a token
-multiversectl server stop
+multiversectl server up --open      # a live page: versions, and start/stop/create/remove, behind a token
+multiversectl server down
 ```
 
 An agent needs only the command line: `multiversectl universe ls -o json` prints

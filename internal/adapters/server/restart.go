@@ -48,7 +48,7 @@ func (s *Server) restartSoon() {
 	exe = strings.TrimSuffix(exe, " (deleted)")
 	argv := append([]string{exe}, restartArgs(os.Args[1:], s.o.Addr)...)
 	time.AfterFunc(restartDelay, func() {
-		// Stopped in the meantime (Ctrl-C, `server stop`): it stays stopped.
+		// Stopped in the meantime (Ctrl-C, `server down`): it stays stopped.
 		if s.runCtx.Err() != nil {
 			return
 		}

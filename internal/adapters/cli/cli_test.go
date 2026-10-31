@@ -404,8 +404,8 @@ func TestHelpTreeNestsAndNamesAliases(t *testing.T) {
 	}
 	out := buf.String()
 	// Aliases, which no help screen puts beside the name they belong to.
-	if !strings.Contains(out, "rm (remove, destroy)") {
-		t.Errorf("want the aliases of rm beside it:\n%s", out)
+	if !strings.Contains(out, "checkout (co)") {
+		t.Errorf("want the alias of checkout beside it:\n%s", out)
 	}
 	if !strings.Contains(out, "universe (u)") {
 		t.Errorf("want universe's alias:\n%s", out)
@@ -464,7 +464,7 @@ func TestInitLeadsTheTreeAtTheTopLevelOnly(t *testing.T) {
 		t.Fatalf("want init first, got %v", nodes)
 	}
 	// The rest stay alphabetical, so the tree is still easy to look things up in.
-	for i := 2; i < len(nodes); i++ {
+	for i := len(startHere) + 1; i < len(nodes); i++ {
 		if nodes[i-1].Name > nodes[i].Name {
 			t.Errorf("%s comes after %s", nodes[i-1].Name, nodes[i].Name)
 		}
@@ -560,4 +560,36 @@ func TestALookThatIsStillOutIsWaitedForOnlyWhenThereIsNothingToSay(t *testing.T)
 	if !lookFinished(done, 0) {
 		t.Error("a finished look was not seen")
 	}
+}
+
+// TestOneWordPerMeaning holds the commands to one word for each thing they do,
+// the same in every group: up and down run and stop, ls lists, sync brings up to
+// date, rm takes out. `start` is only the top-level command that installs and
+// runs a multiverse, and an alias is kept only where it is much shorter.
+func TestOneWordPerMeaning(t *testing.T) {
+	root, _ := New(Factory{})
+	instead := map[string]string{
+		"start": "up", "stop": "down", "list": "ls", "update": "sync", "uninstall": "rm",
+		"remove": "rm", "destroy": "rm", "delete": "rm", "create": "new",
+	}
+	aliases := map[string]bool{"universe u": true, "universe checkout co": true}
+	var walk func(c *cobra.Command)
+	walk = func(c *cobra.Command) {
+		for _, k := range c.Commands() {
+			if k.Hidden || k.Name() == "help" {
+				continue
+			}
+			if want, ok := instead[k.Name()]; ok && k.CommandPath() != "multiversectl start" {
+				t.Errorf("`%s`: the word for this is %q", k.CommandPath(), want)
+			}
+			for _, a := range k.Aliases {
+				path := strings.TrimPrefix(k.CommandPath(), "multiversectl ") + " " + a
+				if !aliases[path] {
+					t.Errorf("`%s` has the alias %q; keep one name per command", k.CommandPath(), a)
+				}
+			}
+			walk(k)
+		}
+	}
+	walk(root)
 }

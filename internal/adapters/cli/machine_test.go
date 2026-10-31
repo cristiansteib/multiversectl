@@ -32,7 +32,7 @@ func TestStatusAndCatalogAreCommandsWithTheirGroupsAndAliases(t *testing.T) {
 
 func TestTheServerCanBeRestarted(t *testing.T) {
 	root, _ := New(Factory{})
-	for _, name := range []string{"start", "stop", "restart", "status"} {
+	for _, name := range []string{"up", "down", "restart", "status"} {
 		if c, _, err := root.Find([]string{"server", name}); err != nil || c.Name() != name {
 			t.Errorf("server %s: %v", name, err)
 		}

@@ -15,7 +15,6 @@ func (r runner) rmCmd() *cobra.Command {
 	var yes, force bool
 	cmd := &cobra.Command{
 		Use:     "rm <universe>",
-		Aliases: []string{"remove", "destroy"},
 		Short:   "Destroy a universe: worktrees, containers, volumes and state (asks first)",
 		Example: "  multiversectl universe rm 3\n  multiversectl universe rm fix/login --yes",
 		Args:    cobra.MaximumNArgs(1),

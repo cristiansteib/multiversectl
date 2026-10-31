@@ -784,7 +784,7 @@ func (s Services) refreshCatalog(ctx context.Context, w app.MultiverseInfo) (app
 	return s.Catalogs.RefreshMultiverse(ctx, w.Name, w.MultiverseEntry)
 }
 
-// update is what `catalog update` does for one multiverse.
+// update is what `catalog sync` does for one multiverse.
 func (s Services) update(ctx context.Context, w app.MultiverseInfo, svc *app.Service, k Sink) error {
 	res, err := s.refreshCatalog(ctx, w)
 	if err != nil {

@@ -442,7 +442,7 @@ func (c *Catalogs) Remove(ctx context.Context, nodePath string) error {
 	}
 	nodePath = strings.Trim(nodePath, "/")
 	if _, ok := tree.Find(nodePath); !ok || nodePath == "" {
-		return fmt.Errorf("no entry at %q; see `catalog tree` (the root itself cannot be removed)", nodePath)
+		return fmt.Errorf("no entry at %q; see `catalog ls` (the root itself cannot be removed)", nodePath)
 	}
 	parentPath := path.Dir(nodePath)
 	if parentPath == "." {

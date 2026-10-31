@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -204,5 +205,26 @@ func TestTheBriefViewGivesTheReasonsToo(t *testing.T) {
 		if !strings.Contains(string(b), want) {
 			t.Errorf("missing %s in %s", want, b)
 		}
+	}
+}
+
+// `ls -o list` is the glance `universe status` was: one line per universe with
+// its state, how many services are up and what it is for.
+func TestTheListIsOneLinePerUniverseWithItsState(t *testing.T) {
+	var buf bytes.Buffer
+	u := partialUniverse()
+	u.Note = "fixing the login redirect"
+	lsList(NewOutput(&buf, false), []app.Summary{u, {Name: "4"}}, false)
+	out := buf.String()
+	for _, want := range []string{"UNIVERSE", "STATE", "UP", "LAST STARTED", "ABOUT", "partial", "1/3", "fixing the login redirect", "created", "never"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+	behind := app.Summary{Checkouts: []app.Checkout{
+		{Repo: "api", Freshness: &app.Freshness{Behind: 2}}, {Repo: "web", Freshness: &app.Freshness{}},
+	}}
+	if got := behindOrigin(behind); got != "api 2" {
+		t.Errorf("behindOrigin = %q, want %q", got, "api 2")
 	}
 }

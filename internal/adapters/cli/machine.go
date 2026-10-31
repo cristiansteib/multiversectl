@@ -72,7 +72,7 @@ func (r runner) machineStatusCmd() *cobra.Command {
 			"is not marked, a multiverse behind its remote, universes running without the\n" +
 			"proxy, and anything `doctor` warns about. It reads what was last fetched, and is\n" +
 			"quick; --fetch compares with the remotes and looks for a newer release.\n" +
-			"`status` and `universe status` have the detail of each part.",
+			"`status` and `universe ls -o list` have the detail of each part.",
 		Example: "  multiversectl status\n  multiversectl status --fetch\n  multiversectl status -o json",
 		Args:    cobra.NoArgs,
 	}
@@ -140,7 +140,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (machineStatus, e
 		}
 		switch {
 		case w.Stale:
-			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s` is behind its remote (%s): `multiversectl catalog update %s`", w.Name, strings.Join(w.Notes, " · "), w.Name))
+			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s` is behind its remote (%s): `multiversectl catalog sync %s`", w.Name, strings.Join(w.Notes, " · "), w.Name))
 		case w.Advice != "":
 			ms.Attention = append(ms.Attention, fmt.Sprintf("`%s`: %s", w.Name, w.Advice))
 		}
@@ -249,7 +249,7 @@ func (r runner) printMachine(ms machineStatus) {
 	if ms.Server.Running {
 		o.Plain("%s  %s", o.Bold("Server     "), o.Green("running")+"  `"+ms.Server.URL+"`")
 	} else {
-		o.Plain("%s  %s", o.Bold("Server     "), o.Dim("not running: ")+"`multiversectl server start`")
+		o.Plain("%s  %s", o.Bold("Server     "), o.Dim("not running: ")+"`multiversectl server up`")
 	}
 
 	o.Plain("")
@@ -266,7 +266,7 @@ func (r runner) printMachine(ms machineStatus) {
 		}
 	}
 	o.Plain("")
-	o.Info("detail: `multiversectl status`  ·  `multiversectl universe status`  ·  `multiversectl universe doctor`")
+	o.Info("detail: `multiversectl status`  ·  `multiversectl universe ls -o list`  ·  `multiversectl universe doctor`")
 }
 
 func pluralize(n int, noun string) string {

@@ -7,7 +7,7 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="hw-branches">
   <h2 id="hw-branches"><a href="#hw-branches">Work on two branches at once</a></h2>
   <Terminal kind="shell"><pre><span class="c"># a new universe: branches of its own, named after it</span>
-<span class="p">$ </span><span class="in">multiversectl universe new fix/login --note <span class="s">"PR 412 review"</span></span>
+<span class="p">$ </span><span class="in">multiversectl universe new fix/login --about <span class="s">"PR 412 review"</span></span>
 <span class="p">$ </span><span class="in">multiversectl universe up fix/login</span>
 <span class="p">$ </span><span class="in">multiversectl universe urls fix/login</span>
 http://api-fix-login.10-0-0-5.traefik.me
@@ -32,7 +32,7 @@ http://api-fix-login.10-0-0-5.traefik.me
       <span class="k">url</span>: git@github.com:acme/worker.git</pre></Terminal>
   <p>That is the whole change: a repository no <code>apps</code> entry names gets an app of its own name, its compose files are found by convention, every service they define starts, and the addresses come from their labels. Add an <code>apps</code> entry only to change one of those, or to split the repository into several apps.</p>
   <Terminal kind="shell"><pre><span class="c"># clone the new repo (already-cloned ones are skipped)</span>
-<span class="p">$ </span><span class="in">multiversectl catalog update</span>
+<span class="p">$ </span><span class="in">multiversectl catalog sync</span>
 <span class="c"># add its worktree to an existing universe; existing checkouts are kept</span>
 <span class="p">$ </span><span class="in">multiversectl universe new 3</span>
 <span class="p">$ </span><span class="in">multiversectl universe up 3 worker</span></pre></Terminal>

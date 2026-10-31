@@ -98,7 +98,7 @@ func (r runner) skillCmd() *cobra.Command {
 			},
 		}),
 		flags(&cobra.Command{
-			Use:   "uninstall",
+			Use:   "rm",
 			Short: "Remove the skill this tool wrote",
 			Args:  cobra.NoArgs,
 			RunE: func(*cobra.Command, []string) error {

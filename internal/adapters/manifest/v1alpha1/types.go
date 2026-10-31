@@ -198,11 +198,11 @@ type App struct {
 	// file: the app is that repository's.
 	Repo string `yaml:"repo"`
 
-	// Whether `universe up` and `universe start` bring this app up when no app is
-	// named. Set it to false for an app that should be checked out and have its
-	// addresses but run only when asked for (`universe up 3 <app>`): a tool that
-	// needs setup, a code generator, a heavy optional service. Commands that look
-	// after what runs (down, rm, status, doctor, ls) still deal with it when it is
+	// Whether `universe up` brings this app up when no app is named. Set it to
+	// false for an app that should be checked out and have its addresses but run
+	// only when asked for (`universe up 3 <app>`): a tool that needs setup, a code
+	// generator, a heavy optional service. Commands that look after what runs
+	// (down, rm, doctor, ls) still deal with it when it is
 	// up, and do not report it as a problem when it is not.
 	// +default=true
 	Autostart *bool `yaml:"autostart"`

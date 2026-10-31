@@ -158,11 +158,11 @@ func (s *Service) checkClones(ctx context.Context, add addCheck) {
 		dir := s.Manifest.CloneDir(s.Multiverse, key)
 		switch {
 		case f.Dirty:
-			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch, and %s has uncommitted changes, so it is never moved on its own: commit or stash them, then `multiversectl catalog update`", f.Behind, f.Follows, dir)
+			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch, and %s has uncommitted changes, so it is never moved on its own: commit or stash them, then `multiversectl catalog sync`", f.Behind, f.Follows, dir)
 		case f.Ahead > 0:
 			add("clone "+key, StatusWarn, "%d commits behind origin/%s and %d ahead of it: update %s by hand", f.Behind, f.Follows, f.Ahead, dir)
 		default:
-			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch; a universe with no checkout of it reads its files from here. Run: multiversectl catalog update", f.Behind, f.Follows)
+			add("clone "+key, StatusWarn, "%d commits behind origin/%s as of the last fetch; a universe with no checkout of it reads its files from here. Run: multiversectl catalog sync", f.Behind, f.Follows)
 		}
 	}
 	if len(fresh) > 0 && behind == 0 {

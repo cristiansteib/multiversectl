@@ -8,8 +8,8 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="hw-server">
   <h2 id="hw-server"><a href="#hw-server">See the whole setup in a page</a></h2>
   <p>One command opens a page that shows every universe on the machine, what is running in it, and what its code has become. It is live: start a universe in a terminal and the page knows.</p>
-  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl server start --open</span>
-✓ serving http://127.0.0.1:7777/?t=… in the background (pid 4242); stop it with: multiversectl server stop</pre></Terminal>
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl server up --open</span>
+✓ serving http://127.0.0.1:7777/?t=… in the background (pid 4242); stop it with: multiversectl server down</pre></Terminal>
   <Shot src="/assets/img/fleet-dark.png" light="/assets/img/fleet-light.png"
       alt="The fleet: three universes of a multiverse side by side, each with its branch, its apps and services, its addresses, and the pull requests open for its code."
       width={1280} height={800}>
@@ -54,7 +54,7 @@ import Terminal from '../../../components/Terminal.astro';
 
 <section id="hw-run">
   <h2 id="hw-run"><a href="#hw-run">Running it</a></h2>
-  <p><code>server start</code> runs it detached, so closing the terminal does not stop it; <code>server status</code> says where it is, <code>server stop</code> ends it. Its output goes to <code>server.log</code> beside the configuration, which is where <code>start</code> explains itself when it cannot start. To keep it in a terminal, run <code>multiversectl-server</code>.</p>
+  <p><code>server up</code> runs it detached, so closing the terminal does not stop it; <code>server status</code> says where it is, <code>server down</code> ends it. Its output goes to <code>server.log</code> beside the configuration, which is where <code>start</code> explains itself when it cannot start. To keep it in a terminal, run <code>multiversectl-server</code>.</p>
   <p>An update replaces the program on disk but not the one running, so <code>self-update</code> and the install script restart it, and after a package upgrade <code>server status</code> says it is on the older build. <code>server restart</code> brings it back with the address and flags it had, link unchanged. The flags are in the <a href="/docs/reference/cli/">command reference</a>.</p>
 </section>
 

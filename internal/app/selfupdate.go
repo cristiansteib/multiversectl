@@ -83,7 +83,7 @@ func (s *Service) SelfUpdate(ctx context.Context, in SelfUpdateInput) (SelfUpdat
 		result.Updated = true
 	}
 
-	// The web view is a separate program that `server start` looks for beside
+	// The web view is a separate program that `server up` looks for beside
 	// this one, so it has to move with it or the page runs an older release.
 	serverName := fmt.Sprintf("multiversectl-server_%s_%s", in.OS, in.Arch)
 	if server, ok := latest.Assets[serverName]; ok && in.ServerPath != "" {

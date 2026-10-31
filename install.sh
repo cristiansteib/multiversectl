@@ -122,7 +122,7 @@ $sudo_cmd mv "$tmp/$asset" "$dir/$BIN"
 $sudo_cmd ln -sfn "$BIN" "$dir/mvctl"
 
 say "Installed $dir/$BIN (alias: mvctl)"
-[ "$have_server" = 1 ] && say "Installed $dir/$SERVER (the web view: multiversectl server start)"
+[ "$have_server" = 1 ] && say "Installed $dir/$SERVER (the web view: multiversectl server up)"
 "$dir/$BIN" version 2>/dev/null || "$dir/$BIN" --version 2>/dev/null || true
 
 # A web view that was already running still holds the old build; this makes it

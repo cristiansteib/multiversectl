@@ -18,14 +18,12 @@ func (noTerminal) Input(string, string) (string, error)            { return "", 
 
 func TestUniverseCommandsLiveUnderUniverse(t *testing.T) {
 	root, _ := New(Factory{})
-	for _, name := range []string{"new", "checkout", "up", "down", "rm", "ls", "status", "urls", "env", "run", "exec", "doctor"} {
+	for _, name := range []string{"new", "checkout", "up", "down", "rm", "ls", "urls", "env", "run", "exec", "doctor", "sync", "about", "notes"} {
 		c, _, err := root.Find([]string{"u", name})
 		if err != nil || c.Name() != name {
 			t.Errorf("u %s: not found under universe (%v)", name, err)
 		}
-		// status is also a top-level command, but a different one: the machine's
-		// overview, not a universe listing.
-		if top, _, _ := root.Find([]string{name}); name != "status" && top != root {
+		if top, _, _ := root.Find([]string{name}); top != root {
 			t.Errorf("%s is still a top-level command", name)
 		}
 	}
@@ -39,7 +37,7 @@ func TestEachCommandLivesWhereItsSubjectDoes(t *testing.T) {
 	// Everything about an entry of the catalog — looking at the tree, editing
 	// it, and bringing it up to date — is the catalog's. There is no second
 	// noun to look under, and starting one is `start`, not a catalog verb.
-	for _, name := range []string{"list", "add", "rm", "new", "update"} {
+	for _, name := range []string{"ls", "add", "rm", "new", "sync"} {
 		c, _, err := root.Find([]string{"catalog", name})
 		if err != nil || c.Name() != name || c.Hidden {
 			t.Errorf("catalog %s: not found as a visible command (%v)", name, err)
@@ -89,7 +87,7 @@ func TestArgumentErrorsSayWhatToDo(t *testing.T) {
 		want []string
 	}{
 		{[]string{"catalog", "create"}, []string{"has no command create", "commands:"}},
-		{[]string{"universe", "status", "extra"}, []string{"takes no arguments", "extra"}},
+		{[]string{"server", "status", "extra"}, []string{"takes no arguments", "extra"}},
 		{[]string{"u", "nwe"}, []string{"has no command nwe", "did you mean new", "commands:"}},
 	}
 	for _, c := range cases {

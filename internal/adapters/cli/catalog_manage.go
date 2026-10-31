@@ -47,7 +47,7 @@ func (r runner) catalogManageCmd() *cobra.Command {
 
 func (r runner) manage(cmd *cobra.Command) error {
 	if !term.IsTerminal(os.Stdin.Fd()) || !term.IsTerminal(os.Stdout.Fd()) {
-		return errors.New("catalog manage is a screen and needs a terminal; the same things one at a time: `catalog list`, `start <path> --install-only`, `system forget <name>`, `catalog ignore <path>`, `catalog add`, `catalog rm <path>`, `catalog update`")
+		return errors.New("catalog manage is a screen and needs a terminal; the same things one at a time: `catalog ls`, `start <path> --install-only`, `system forget <name>`, `catalog ignore <path>`, `catalog add`, `catalog rm <path>`, `catalog sync`")
 	}
 	c, err := r.catalogs(false)
 	if err != nil {
@@ -150,7 +150,7 @@ func (e manageRunner) Interactive(which string) tea.ExecCommand {
 		case "add":
 			return e.r.delegate(e.cmd, e.r.catalogAddCmd())
 		case "update":
-			return e.r.delegate(e.cmd, e.r.updateCmd())
+			return e.r.delegate(e.cmd, e.r.catalogSyncCmd())
 		}
 		return fmt.Errorf("unknown action %q", which)
 	}}

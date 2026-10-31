@@ -75,21 +75,21 @@ import Terminal from '../../../components/Terminal.astro';
   <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl status --fetch</span>
 MULTIVERSE  FROM             STATE
 acme        acme/multiverse  manifest behind 1 · billing-api not cloned
-› next: multiversectl catalog update acme
-<span class="p">$ </span><span class="in">multiversectl catalog update</span>
+› next: multiversectl catalog sync acme
+<span class="p">$ </span><span class="in">multiversectl catalog sync</span>
 ✓ billing-api: cloned
 ✓ acme: manifest moved forward 1 · billing-api cloned</pre></Terminal>
-  <p><code>status</code> compares each multiverse with where it came from, offline unless you pass <code>--fetch</code>. <code>catalog update</code> fetches, moves each manifest forward and clones what the new one lists; it refuses a manifest with local changes and leaves a pinned one alone. <code>system forget &lt;name&gt;</code> stops tracking a multiverse and leaves its files.</p>
+  <p><code>status</code> compares each multiverse with where it came from, offline unless you pass <code>--fetch</code>. <code>catalog sync</code> fetches, moves each manifest forward and clones what the new one lists; it refuses a manifest with local changes and leaves a pinned one alone. <code>system forget &lt;name&gt;</code> stops tracking a multiverse and leaves its files.</p>
   <h3 id="hw-news">Hearing about changes while you work</h3>
   <p>Nothing updates by itself; you are told. Every command under <code>universe</code> opens with a line when the manifest has moved upstream, as does <code>status</code>. To have that news be current, a command looks at the remote when the last look is over six hours old, for at most four seconds, silently if it fails. <code>MULTIVERSECTL_NO_FETCH=1</code> turns it off.</p>
   <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">multiversectl universe ls</span>
-! acme: 2 upstream changes to its manifest: multiversectl catalog update acme</pre></Terminal>
+! acme: 2 upstream changes to its manifest: multiversectl catalog sync acme</pre></Terminal>
   <h3 id="hw-edit">Editing the manifest here</h3>
-  <p>A manifest installed from a repository is a checkout under <code>&lt;root&gt;/.multiverse/source</code>. Edit it there and keep working: <code>catalog update</code> never overwrites an edit, and <code>status</code> says what it found.</p>
+  <p>A manifest installed from a repository is a checkout under <code>&lt;root&gt;/.multiverse/source</code>. Edit it there and keep working: <code>catalog sync</code> never overwrites an edit, and <code>status</code> says what it found.</p>
   <ul class="t">
     <li><strong>Edited, nothing upstream</strong>: <code>manifest edited here</code>. A choice, not news.</li>
-    <li><strong>Edited, and upstream moved</strong>: <code>manifest edited here · manifest behind 2</code> — keep working, or stash, <code>catalog update</code>, <code>git stash pop</code>.</li>
-    <li><strong>Committed here, and upstream moved</strong>: <code>manifest diverged (1 local, 2 upstream)</code>. <code>catalog update</code> cannot fast-forward; <code>git pull --rebase</code> in that folder.</li>
+    <li><strong>Edited, and upstream moved</strong>: <code>manifest edited here · manifest behind 2</code> — keep working, or stash, <code>catalog sync</code>, <code>git stash pop</code>.</li>
+    <li><strong>Committed here, and upstream moved</strong>: <code>manifest diverged (1 local, 2 upstream)</code>. <code>catalog sync</code> cannot fast-forward; <code>git pull --rebase</code> in that folder.</li>
   </ul>
   <p>A multiverse installed from a file has nothing to compare with and is never updated.</p>
 </section>

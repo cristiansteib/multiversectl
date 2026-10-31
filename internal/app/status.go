@@ -30,7 +30,7 @@ type MultiverseStatus struct {
 	RepoURL string   `json:"repoUrl,omitempty"`
 	Ref     string   `json:"ref,omitempty"`
 	Notes   []string `json:"notes,omitempty"`
-	// Stale is when `catalog update` would bring the manifest forward.
+	// Stale is when `catalog sync` would bring the manifest forward.
 	Stale bool `json:"stale,omitempty"`
 	// Dirty, Diverged, Ahead and Behind say how the manifest compares with its
 	// remote; Advice is what to do about it, empty when nothing is pending.
@@ -106,13 +106,13 @@ func (c *Catalogs) Status(ctx context.Context, fetch bool) (StatusReport, error)
 	}
 	switch {
 	case len(stale) > 0:
-		rep.Next = "multiversectl catalog update " + strings.Join(stale, " ")
+		rep.Next = "multiversectl catalog sync " + strings.Join(stale, " ")
 	case advised != "":
 		rep.Next = advised
 	case len(rep.Multiverses) == 0 && cfg.Catalog == "":
 		rep.Next = "multiversectl start <owner/repo>  ·  multiversectl init"
 	case len(rep.Multiverses) == 0:
-		rep.Next = "multiversectl catalog list  ·  multiversectl start <path>"
+		rep.Next = "multiversectl catalog ls  ·  multiversectl start <path>"
 	}
 	return rep, nil
 }
@@ -197,7 +197,7 @@ func (c *Catalogs) RefreshMultiverse(ctx context.Context, name string, e Multive
 		return res, nil
 	}
 	if clean, err := c.Git.IsClean(ctx, dir); err != nil || !clean {
-		return res, fmt.Errorf("%s: local changes in `%s`, which an update never overwrites; commit or stash them, then `multiversectl catalog update %s`", name, dir, name)
+		return res, fmt.Errorf("%s: local changes in `%s`, which an update never overwrites; commit or stash them, then `multiversectl catalog sync %s`", name, dir, name)
 	}
 	if err := c.Progress.Do("Checking "+name+" for changes", func(ctx context.Context) error { return c.Git.Fetch(ctx, dir) }); err != nil {
 		return res, fmt.Errorf("%s: fetch %s: %s", name, shortRepo(e.Source.Repo), reason(err, e.Source.Repo))
