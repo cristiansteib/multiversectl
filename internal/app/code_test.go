@@ -24,6 +24,11 @@ type codeGit struct {
 	fetched   time.Time
 	diffErr   map[string]error
 	fetches   []string
+	// landed is what the base already holds, by branch, and landedAsked the
+	// bases it was asked about: the question costs a git call, so when it is
+	// not asked matters as much as what it answers.
+	landed      map[string]bool
+	landedAsked []string
 }
 
 // A universe's branch that has never been pushed has no counterpart on
@@ -55,6 +60,12 @@ func (g *codeGit) DiffStat(_ context.Context, dir, ref string) (DiffStat, error)
 	defer g.mu.Unlock()
 	g.asked = append(g.asked, dir+"@"+ref)
 	return g.diffs[ref], g.diffErr[ref]
+}
+func (g *codeGit) Landed(_ context.Context, dir, ref string) (bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.landedAsked = append(g.landedAsked, dir+"@"+ref)
+	return g.landed[ref], nil
 }
 func (g *codeGit) DiffFiles(context.Context, string, string) ([]FileChange, error) { return nil, nil }
 func (g *codeGit) Commits(context.Context, string, string, int) ([]Commit, error)  { return nil, nil }
@@ -340,5 +351,92 @@ func TestDoctorSaysWhichHostingServicesCannotBeAsked(t *testing.T) {
 	if public.Status != StatusOK || !strings.Contains(public.Detail, "lib") {
 		// instanceHost's error carries no sign-in fix, so it is only said.
 		t.Errorf("the public instance: %+v", public)
+	}
+}
+
+// A branch whose work is in its base already is not work waiting for a review,
+// however it got there. The two signals are checked apart: a squash merge
+// leaves the change measuring whole for ever, so without the local one a
+// branch merged by a service nobody can ask reads as outstanding for ever.
+func TestWorkAlreadyInTheBaseIsSaidToHaveLanded(t *testing.T) {
+	ctx := context.Background()
+	change := map[string]DiffStat{"u3": {}, "main": {Files: 2, Added: 10, Removed: 2}}
+
+	// Nothing stands between the branch and its base: a squash merge, with no
+	// service asked at all.
+	git := &codeGit{pushed: true, diffs: change, landed: map[string]bool{"main": true}}
+	rows, err := codeService(git).UniverseCode(ctx, "3", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows[0].Landed || rows[0].Change.Empty() {
+		t.Errorf("want it landed with its change kept as the record, got %+v", rows[0])
+	}
+
+	// The service says it was merged, which settles it without a git call: a
+	// base that has moved on since the merge would answer otherwise.
+	git = &codeGit{pushed: true, diffs: change}
+	host := &codeHost{owns: "https://example.test/acme/api.git", review: &Review{Number: 1, State: ReviewMerged, Base: "main"}}
+	rows, err = codeService(git, host).UniverseCode(ctx, "3", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows[0].Landed {
+		t.Errorf("a merged review is work that landed, got %+v", rows[0])
+	}
+	for _, asked := range git.landedAsked {
+		if strings.Contains(asked, "/api@") {
+			t.Errorf("git was asked as well as the service: %v", git.landedAsked)
+		}
+	}
+
+	// A merge commit leaves the base holding the branch's own commits, so once
+	// the clone has fetched the branch amounts to nothing: there is no change
+	// left to read a state off, and the service is all that knows.
+	git = &codeGit{pushed: true}
+	rows, err = codeService(git, host).UniverseCode(ctx, "3", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rows[0].Landed || !rows[0].Change.Empty() {
+		t.Errorf("want a merged review honoured with nothing left to measure, got %+v", rows[0])
+	}
+
+	// An open review over the same change is outstanding work, as before.
+	git = &codeGit{pushed: true, diffs: change}
+	host = &codeHost{owns: "https://example.test/acme/api.git", review: &Review{Number: 1, State: "open", Base: "main"}}
+	rows, err = codeService(git, host).UniverseCode(ctx, "3", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].Landed || rows[0].Change.Empty() {
+		t.Errorf("want an open review's change left outstanding, got %+v", rows[0])
+	}
+}
+
+// Nothing to have landed, and nothing to ask about: a branch that is its base
+// differs from it in nothing, which is not work that landed, and a base that
+// could not be measured against is the lack of an answer rather than one.
+func TestLandingIsNotClaimedWithNoChangeOrNoMeasurableBase(t *testing.T) {
+	git := &codeGit{pushed: true, landed: map[string]bool{"main": true}}
+	rows, err := codeService(git).UniverseCode(context.Background(), "3", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].Landed || len(git.landedAsked) != 0 {
+		t.Errorf("a branch with no change was called landed: %+v %v", rows[0], git.landedAsked)
+	}
+
+	git = &codeGit{pushed: true, landed: map[string]bool{"main": true},
+		diffErr: map[string]error{"main": errors.New("unknown revision origin/main")}}
+	rows, err = codeService(git).UniverseCode(context.Background(), "3", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows[0].Landed || !rows[0].BaseUnknown {
+		t.Errorf("want the base still only unknown, got %+v", rows[0])
+	}
+	if len(git.landedAsked) != 0 {
+		t.Errorf("a base that cannot be measured was asked about: %v", git.landedAsked)
 	}
 }

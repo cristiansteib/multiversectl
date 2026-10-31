@@ -143,7 +143,8 @@ func demoFleet() *fake {
 					app("ui", "u3", 1, 1, []urlView{url("ui", "app", "https://ui-3.example.test")}, svc("app", "running", "Up 3 hours")),
 				},
 				Checkouts: []checkoutView{{Repo: "api", Branch: "u3", Path: "/home/me/acme/universes/3/api", App: "api"},
-					{Repo: "ui", Branch: "u3", Path: "/home/me/acme/universes/3/ui", App: "ui"}}},
+					{Repo: "ui", Branch: "u3", Path: "/home/me/acme/universes/3/ui", App: "ui"},
+					{Repo: "billing", Branch: "u3", Path: "/home/me/acme/universes/3/billing"}}},
 			{Name: "4", Slug: "u4", Project: "acme-u4", Domain: "example.test", Dir: "/home/me/acme/universes/4",
 				Running: 3, Created: now.Add(-26 * time.Hour).Format(time.RFC3339), LastStarted: now.Add(-40 * time.Minute).Format(time.RFC3339),
 				Branches: map[string]string{"api": "u4", "ui": "u4"}, Behind: 6,
@@ -165,6 +166,10 @@ func demoFleet() *fake {
 				Checkouts: []checkoutView{{Repo: "api", Branch: "u7", Path: "/home/me/acme/universes/7/api", App: "api"},
 					{Repo: "ui", Branch: "u7", Path: "/home/me/acme/universes/7/ui", App: "ui"}}},
 		}}}},
+		// billing is the repository whose work has landed: its branch was merged
+		// and squashed away, so the change still measures whole from where the
+		// two parted and only `landed` keeps the page from calling it a review
+		// waiting to happen.
 		code: codeView{Rows: []codeRow{
 			{Repo: "api", Branch: "u3", Path: "/home/me/acme/universes/3/api", Follows: "u3", Base: "main",
 				Change: &diffView{Files: 12, Added: 248, Removed: 96},
@@ -174,6 +179,9 @@ func demoFleet() *fake {
 				Change:      &diffView{Files: 3, Added: 31, Removed: 4},
 				Uncommitted: &diffView{Files: 1, Added: 14, Removed: 2},
 				Review:      &reviewView{Number: 148, Mark: "#", State: "draft", Title: "Show the tax column in the invoice table", URL: "https://example.test/acme/ui/pull/148", Author: "robin", Updated: now.Add(-25 * time.Minute).Format(time.RFC3339)}},
+			{Repo: "billing", Branch: "u3", Path: "/home/me/acme/universes/3/billing", Follows: "u3", Base: "main", Landed: true,
+				Change: &diffView{Files: 4, Added: 52, Removed: 18},
+				Review: &reviewView{Number: 139, Mark: "#", State: "merged", Title: "Invoice numbers are given out in order", URL: "https://example.test/acme/billing/pull/139", Author: "robin", Updated: now.Add(-28 * time.Hour).Format(time.RFC3339)}},
 		}},
 		containers: []containerView{
 			{App: "api", Service: "web", Name: "acme-u3-api-web-1", Status: "Up 3 hours", Running: true, Ports: "8000/tcp"},

@@ -21,9 +21,9 @@
           (dragleave)="over.set(null)">
           @if (r.review) { <mv-pr-icon [state]="r.review.state" /> }
           {{ r.repo }}
-          @if (stat(r); as d) {
-            <b class="add">+{{ d.added }}</b><b class="del">−{{ d.removed }}</b>
-            @if (!r.change) { <span class="sr-only">uncommitted</span> }
+          @if (counts(r); as c) {
+            <b class="add" [class.landed]="c.kind === 'landed'">+{{ c.d.added }}</b><b class="del" [class.landed]="c.kind === 'landed'">−{{ c.d.removed }}</b>
+            @if (c.kind !== 'branch') { <span class="sr-only">{{ c.kind }}</span> }
           } @else if (!loaded()) {
             <span class="pending" aria-hidden="true">·</span>
           }
@@ -54,7 +54,8 @@
   <section class="repo" role="tabpanel" [attr.aria-label]="r.repo">
     <div class="head row">
       @if (r.branch) { <span class="chip" title="The branch checked out in this repository"><mv-icon name="branch" /> {{ r.branch }}</span> }
-      <mv-pr-chip [review]="r.review" [error]="r.reviewError" [stat]="r.change" [base]="r.base" />
+      <mv-pr-chip [review]="r.review" [error]="r.reviewError" [stat]="r.change" [base]="r.base" [landed]="!!r.landed" />
+      @if (r.landed) { <mv-badge tone="info" [hint]="landedHint(r)">landed</mv-badge> }
       @for (f of facts(); track f.text) { <span class="fact" [class]="f.kind" [attr.title]="f.title">{{ f.text }}</span> }
     </div>
 
@@ -70,7 +71,7 @@
       </div>
       <mv-diff-browser [multiverse]="store.multiverse()" [universe]="store.name()" [repo]="r.repo" [scope]="activeScope()" [base]="r.base ?? ''" [root]="r.path ?? ''" [tick]="tick()" />
     } @else {
-      <p class="muted">Nothing changed in {{ r.repo }}{{ r.base ? ' against ' + r.base : '' }}.</p>
+      <p class="muted">{{ nothingToRead() }}</p>
     }
   </section>
 } @else if (rows() && !rows()!.length) {

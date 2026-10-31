@@ -27,7 +27,7 @@ export interface DiffView { files: number; added: number; removed: number }
 export interface ReviewView { number: number; mark: string; title: string; url: string; state: 'open' | 'draft' | 'merged' | 'closed'; author?: string; updated?: string }
 export interface CodeRow {
   repo: string; branch?: string; path?: string; follows?: string; behind?: number; ahead?: number; dirty?: boolean; work?: DiffView;
-  base?: string; baseUnknown?: boolean; change?: DiffView; uncommitted?: DiffView; review?: ReviewView; reviewError?: string;
+  base?: string; baseUnknown?: boolean; landed?: boolean; change?: DiffView; uncommitted?: DiffView; review?: ReviewView; reviewError?: string;
 }
 export interface CodeView { rows: CodeRow[]; fetched?: string }
 export interface FileView { path: string; oldPath?: string; status: string; added: number; removed: number; binary?: boolean }

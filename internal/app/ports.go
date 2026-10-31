@@ -105,6 +105,13 @@ type Git interface {
 	DiffStat(ctx context.Context, dir, ref string) (DiffStat, error)
 	// DiffFiles lists what DiffStat counts, file by file, for the same ref.
 	DiffFiles(ctx context.Context, dir, ref string) ([]FileChange, error)
+	// Landed says whether origin's ref already holds what is on dir's HEAD:
+	// the two differ in nothing, so there is nothing left to merge, however it
+	// got there. DiffStat counts from where the branch and the ref parted,
+	// which a squash merge leaves untouched — it keeps none of the branch's
+	// commits — so that count alone cannot tell landed work from outstanding
+	// work. An error is no answer either way, not an answer of "no".
+	Landed(ctx context.Context, dir, ref string) (bool, error)
 	// DiffPatch is the unified diff of one of those files, cut at limit bytes;
 	// truncated says it was.
 	DiffPatch(ctx context.Context, dir, ref, path string, limit int) (patch string, truncated bool, err error)
@@ -602,6 +609,11 @@ type Review struct {
 	Author  string
 	Updated time.Time
 }
+
+// ReviewMerged is the one review state anything here decides by: the service
+// has merged it, so the work is in the base branch whatever the branch still
+// looks like.
+const ReviewMerged = "merged"
 
 // Account is a user, organization or group on a hosting service.
 type Account struct {

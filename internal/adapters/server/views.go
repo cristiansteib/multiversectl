@@ -172,8 +172,11 @@ type codeRow struct {
 	Work    *diffView `json:"work,omitempty"`
 	// Base is the branch the change is measured against and Change what the
 	// branch amounts to against it.
-	Base        string      `json:"base,omitempty"`
-	BaseUnknown bool        `json:"baseUnknown,omitempty"`
+	Base        string `json:"base,omitempty"`
+	BaseUnknown bool   `json:"baseUnknown,omitempty"`
+	// Landed says Base holds the change already, so it is the record of what
+	// landed rather than work still to be reviewed.
+	Landed      bool        `json:"landed,omitempty"`
 	Change      *diffView   `json:"change,omitempty"`
 	Uncommitted *diffView   `json:"uncommitted,omitempty"`
 	Review      *reviewView `json:"review,omitempty"`

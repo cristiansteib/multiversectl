@@ -514,6 +514,23 @@ func lineCount(text string) int {
 	return n
 }
 
+// Landed compares the two as they stand — two dots, `origin/<ref>..HEAD` —
+// where the rest of this file measures from where they parted. Nothing between
+// them means the branch's work is in the ref already: a squash merge, a merge
+// commit and a rebase all end there, and only the first of the three is
+// invisible to the three-dot range, which keeps the whole change for ever
+// because no commit of the branch survived to be the merge base.
+func (g Git) Landed(ctx context.Context, dir, ref string) (bool, error) {
+	if ref == "" {
+		return false, errors.New("whether work has landed needs a branch to ask about")
+	}
+	out, err := g.run(ctx, "-C", dir, "diff", "--numstat", "origin/"+ref+"..HEAD")
+	if err != nil {
+		return false, err
+	}
+	return parseNumstat(out).Empty(), nil
+}
+
 // diffRange is what DiffStat measures: the work on HEAD since it left origin's
 // branch, or with no branch everything edited since HEAD.
 func diffRange(ref string) string {

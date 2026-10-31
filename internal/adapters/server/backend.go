@@ -381,7 +381,8 @@ func (s Services) Code(ctx context.Context, multiverse, universe string, fetch b
 	for _, r := range rows {
 		row := codeRow{Repo: r.Repo, Branch: r.Branch, Path: r.Path, Follows: r.Follows,
 			Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError,
-			Work: diffOf(r.Work), Base: r.Base, BaseUnknown: r.BaseUnknown, Change: diffOf(r.Change), Uncommitted: diffOf(r.Uncommitted)}
+			Work: diffOf(r.Work), Base: r.Base, BaseUnknown: r.BaseUnknown, Landed: r.Landed,
+			Change: diffOf(r.Change), Uncommitted: diffOf(r.Uncommitted)}
 		if r.Review != nil {
 			row.Review = &reviewView{Number: r.Review.Number, Mark: reviewMark(r.URL), Title: r.Review.Title,
 				URL: r.Review.URL, State: r.Review.State, Author: r.Review.Author, Updated: stamp(r.Review.Updated)}
