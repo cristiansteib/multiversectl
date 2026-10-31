@@ -163,7 +163,9 @@ func TestAutomaticNumbersStepOverLeftoverBranches(t *testing.T) {
 	}
 }
 
-func TestANamedNewUniverseNeverReusesABranch(t *testing.T) {
+// A universe named after a branch that exists checks that branch out, as it
+// is, wherever it is: `new <branch>` is how a branch is reviewed or carried on.
+func TestANamedUniverseChecksOutABranchThatExists(t *testing.T) {
 	b := newBench(t)
 	sh(t, b.clone("api"), "branch", "u7") // in the clone only
 
@@ -176,18 +178,42 @@ func TestANamedNewUniverseNeverReusesABranch(t *testing.T) {
 	commitIn(t, other, "theirs")
 	sh(t, other, "push", "-q", "origin", "u7")
 
-	_, err := b.create(app.CreateInput{Name: "7"})
+	st, err := b.create(app.CreateInput{Name: "7"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := filepath.Join(b.ws, "universes", "7", "web")
+	if got := sh(t, web, "log", "-1", "--format=%s"); got != "theirs" {
+		t.Errorf("web should be on their u7, at %q", got)
+	}
+	if got := sh(t, filepath.Join(b.ws, "universes", "7", "api"), "branch", "--show-current"); got != "u7" {
+		t.Errorf("api should be on u7, is on %q", got)
+	}
+	if len(st.CreatedBranches) != 0 {
+		t.Errorf("it started no branch, so removing it must delete none: %v", st.CreatedBranches)
+	}
+	if !b.out.said("web: existing branch u7, checked out") {
+		t.Errorf("it should say it checked out a branch that was there: %v", b.out.all)
+	}
+}
+
+// A branch already checked out elsewhere is refused, and nothing is left behind.
+func TestABranchCheckedOutElsewhereIsRefused(t *testing.T) {
+	b := newBench(t)
+	if _, err := b.create(app.CreateInput{Name: "fix/login"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := b.create(app.CreateInput{Name: "8", Branch: "fix/login"})
 	var clash *app.ClashError
 	if !errors.As(err, &clash) {
 		t.Fatalf("err = %v, want a clash", err)
 	}
-	msg := err.Error()
-	for _, want := range []string{`api: branch "u7" already exists (in the clone)`, `web: branch "u7" already exists (on origin)`, "universe checkout", "nothing was created"} {
-		if !strings.Contains(msg, want) {
-			t.Errorf("the refusal lacks %q:\n%s", want, msg)
+	for _, want := range []string{`branch "fix/login" is already checked out at`, "nothing was created", "one worktree only"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal lacks %q:\n%s", want, err)
 		}
 	}
-	if _, statErr := os.Stat(filepath.Join(b.ws, "universes", "7")); statErr == nil {
+	if _, statErr := os.Stat(filepath.Join(b.ws, "universes", "8")); statErr == nil {
 		t.Error("a refused universe must leave nothing behind")
 	}
 }
@@ -335,13 +361,16 @@ func TestRemovingDeletesTheBranchesItStartedWhenNothingIsLost(t *testing.T) {
 	if !b.out.said("kept branch u3") || !b.out.said("1 commits that are on no remote") {
 		t.Errorf("it should say why it kept it: %v", b.out.all)
 	}
-	// The number is not free for a new universe while that branch is there,
-	// and the planner says so instead of reusing it.
-	if _, err := b.create(app.CreateInput{Name: "3"}); err == nil {
-		t.Error("recreating 3 must not land on the kept branch")
-	}
+	// The next free number steps over 3 while that branch is there, but asking
+	// for 3 by name picks the kept branch up again, work and all.
 	if n, _, _ := b.svc.NextFree(context.Background()); n == 3 {
 		t.Error("the next free number must step over 3")
+	}
+	if _, err := b.create(app.CreateInput{Name: "3"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := sh(t, apiWt, "log", "-1", "--format=%s"); got != "wip" {
+		t.Errorf("recreating 3 should carry on the kept branch, at %q", got)
 	}
 }
 

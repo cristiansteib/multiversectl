@@ -18,7 +18,7 @@ func (noTerminal) Input(string, string) (string, error)            { return "", 
 
 func TestUniverseCommandsLiveUnderUniverse(t *testing.T) {
 	root, _ := New(Factory{})
-	for _, name := range []string{"new", "checkout", "up", "down", "rm", "ls", "urls", "env", "run", "exec", "doctor", "sync", "about", "notes"} {
+	for _, name := range []string{"new", "up", "down", "rm", "ls", "urls", "env", "run", "exec", "doctor", "sync", "about", "notes"} {
 		c, _, err := root.Find([]string{"u", name})
 		if err != nil || c.Name() != name {
 			t.Errorf("u %s: not found under universe (%v)", name, err)
@@ -139,5 +139,17 @@ func TestLsAsksForJSONForScriptsAndAgents(t *testing.T) {
 	}
 	if _, err := parseLsFormat("yaml"); err == nil || !strings.Contains(err.Error(), "json") {
 		t.Errorf("the error should list json among the choices: %v", err)
+	}
+}
+
+// run --hook takes the universe and the apps, and no command of its own.
+func TestRunWithAHookTakesNoCommand(t *testing.T) {
+	root, _ := New(Factory{})
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"universe", "run", "3", "--hook", "postUp", "--", "ls"})
+	if err := root.Execute(); err == nil || !strings.Contains(err.Error(), "takes no command") {
+		t.Errorf("err = %v, want it to say --hook takes no command", err)
 	}
 }

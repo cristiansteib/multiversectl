@@ -337,7 +337,7 @@ func shellLine(args []string) string {
 	return strings.Join(words, " ")
 }
 
-// HookInfo is one hook of a universe as `universe hooks` lists it.
+// HookInfo is one hook of a universe as `universe about` lists it.
 type HookInfo struct {
 	Event     domain.HookEvent
 	App       string // "" for the multiverse's own

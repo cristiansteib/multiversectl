@@ -22,9 +22,9 @@ func TestRepositoriesAreShownByPlatform(t *testing.T) {
 
 func TestStatusAndCatalogAreCommandsWithTheirGroupsAndAliases(t *testing.T) {
 	root, _ := New(Factory{})
-	for _, path := range [][]string{{"status"}, {"catalog", "list"}, {"catalog", "new"}, {"catalog", "add"}, {"catalog", "ls"}, {"u", "checkout"}, {"u", "co"}} {
+	for _, path := range [][]string{{"status"}, {"catalog", "new"}, {"catalog", "add"}, {"catalog", "ls"}, {"u", "new"}, {"u", "about"}} {
 		c, _, err := root.Find(path)
-		if err != nil || c == root {
+		if err != nil || c == root || c.Name() != path[len(path)-1] {
 			t.Errorf("%v: not found (%v)", path, err)
 		}
 	}

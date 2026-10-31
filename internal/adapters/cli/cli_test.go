@@ -404,9 +404,6 @@ func TestHelpTreeNestsAndNamesAliases(t *testing.T) {
 	}
 	out := buf.String()
 	// Aliases, which no help screen puts beside the name they belong to.
-	if !strings.Contains(out, "checkout (co)") {
-		t.Errorf("want the alias of checkout beside it:\n%s", out)
-	}
 	if !strings.Contains(out, "universe (u)") {
 		t.Errorf("want universe's alias:\n%s", out)
 	}
@@ -565,14 +562,14 @@ func TestALookThatIsStillOutIsWaitedForOnlyWhenThereIsNothingToSay(t *testing.T)
 // TestOneWordPerMeaning holds the commands to one word for each thing they do,
 // the same in every group: up and down run and stop, ls lists, sync brings up to
 // date, rm takes out. `start` is only the top-level command that installs and
-// runs a multiverse, and an alias is kept only where it is much shorter.
+// runs a multiverse, and the only alias is `u`.
 func TestOneWordPerMeaning(t *testing.T) {
 	root, _ := New(Factory{})
 	instead := map[string]string{
 		"start": "up", "stop": "down", "list": "ls", "update": "sync", "uninstall": "rm",
 		"remove": "rm", "destroy": "rm", "delete": "rm", "create": "new",
 	}
-	aliases := map[string]bool{"universe u": true, "universe checkout co": true}
+	aliases := map[string]bool{"universe u": true}
 	var walk func(c *cobra.Command)
 	walk = func(c *cobra.Command) {
 		for _, k := range c.Commands() {

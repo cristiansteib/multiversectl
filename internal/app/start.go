@@ -137,7 +137,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		s.Out.Warn("could not keep the manifest this universe starts with: %v", err)
 	} else {
 		if prev := st.StartedWith.SHA256; prev != "" && prev != rec.SHA256 {
-			s.Out.Info("the manifest changed since this universe was last started; it starts with the current one (`multiversectl universe config` shows what changed)")
+			s.Out.Info("the manifest changed since this universe was last started; it starts with the current one (`multiversectl universe about --diff` shows what changed)")
 		}
 		st.StartedWith = rec
 	}

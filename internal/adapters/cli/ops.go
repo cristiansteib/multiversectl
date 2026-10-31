@@ -14,6 +14,7 @@ import (
 
 	"github.com/cristiansteib/multiversectl/internal/adapters/userdirs"
 	"github.com/cristiansteib/multiversectl/internal/app"
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // errChecksFailed makes doctor exit non-zero without a second message.
@@ -291,9 +292,42 @@ func (r runner) execCmd() *cobra.Command {
 }
 
 func (r runner) runCmd() *cobra.Command {
-	return r.commandIn("run", "Run a one-off command in a fresh container", false,
+	cmd := r.commandIn("run", "Run a one-off command in a fresh container, or the hooks of an event", false,
 		"  multiversectl universe run 3 api -- python manage.py migrate\n"+
-			"  multiversectl universe run 3 api --service db -- psql -U postgres")
+			"  multiversectl universe run 3 api --service db -- psql -U postgres\n"+
+			"  multiversectl universe run 3 --hook postUp           # every app's postUp hooks, now\n"+
+			"  multiversectl universe run 3 --hook preUp api")
+	var hook string
+	cmd.Flags().StringVar(&hook, "hook", "", "run the hooks the manifest ties to this event instead of a command (postCreate, preUp, postUp, preDown, postDown, preRemove), for the apps named or all; a once-only hook runs again and is not marked")
+	_ = cmd.RegisterFlagCompletionFunc("hook", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		events := make([]string, len(domain.HookEvents))
+		for i, e := range domain.HookEvents {
+			events[i] = string(e)
+		}
+		return events, cobra.ShellCompDirectiveNoFileComp
+	})
+	// A hook is run again to retry one that was warned about, or to try one
+	// before a start depends on it; it has no command of its own to take.
+	command, args := cmd.RunE, cmd.Args
+	cmd.Args = func(c *cobra.Command, a []string) error {
+		if hook == "" {
+			return args(c, a)
+		}
+		return cobra.MinimumNArgs(1)(c, a)
+	}
+	cmd.RunE = func(c *cobra.Command, a []string) error {
+		if hook == "" {
+			return command(c, a)
+		}
+		// Said here, not by Args, whose errors are all reworded as a usage.
+		if c.ArgsLenAtDash() >= 0 {
+			return errors.New("--hook runs the manifest's commands for that event; it takes no command after --")
+		}
+		return r.withService(func(ctx context.Context, s *app.Service) error {
+			return s.RunHooks(ctx, a[0], domain.HookEvent(hook), a[1:])
+		})(c, a)
+	}
+	return cmd
 }
 
 // commandIn builds run and exec, which differ only in where they land.

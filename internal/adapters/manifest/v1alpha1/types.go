@@ -251,8 +251,8 @@ type App struct {
 
 	// Files made from a template and this universe's values before the app
 	// starts, for an app that reads a config file and cannot take environment
-	// variables. Written on every `universe up` (and by `universe render`), only
-	// when the content changed, and kept out of git's sight.
+	// variables. Written on every `universe up` (`universe about --files` shows
+	// them), only when the content changed, and kept out of git's sight.
 	Render []Render `yaml:"render"`
 
 	// Services allowed to keep their published host ports. Every other
@@ -375,7 +375,7 @@ type Hook struct {
 	// remembers that the hook ran, this looks at what it produced, so data that
 	// was lost (a database volume that was recreated) is loaded again. When
 	// it is set it decides, and once is not used. Not used when the hook is run
-	// by hand with `universe hooks run`.
+	// by hand with `universe run --hook`.
 	SkipIf []string `yaml:"skipIf"`
 
 	// What it means when the command does not succeed: warn says so and goes on
