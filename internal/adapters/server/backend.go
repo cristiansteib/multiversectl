@@ -53,6 +53,13 @@ type Backend interface {
 	// Logs writes one service's log to w, until ctx ends when it follows.
 	Containers(ctx context.Context, multiverse, universe string) ([]containerView, error)
 	Stats(ctx context.Context, multiverse, universe string) ([]statView, error)
+	// Notes is a universe's journal, oldest first; Note adds a line to it, or
+	// with an id changes or removes one, and answers with the journal as it
+	// stands, so a page that wrote need not ask again. The journal is what the
+	// command line writes with `universe notes`, so a page and an agent read
+	// the same thing.
+	Notes(ctx context.Context, multiverse, universe string) ([]noteView, error)
+	Note(ctx context.Context, r noteRequest) ([]noteView, error)
 	// Code reads a universe's repositories: branch, how far it has moved from
 	// what it follows, and the pull or merge request open for it.
 	// With fetch the clones ask their remotes first; without it everything is as
@@ -372,7 +379,7 @@ func (s Services) Code(ctx context.Context, multiverse, universe string, fetch b
 	v := codeView{Rows: []codeRow{}}
 	var oldest time.Time
 	for _, r := range rows {
-		row := codeRow{Repo: r.Repo, Branch: r.Branch, Follows: r.Follows,
+		row := codeRow{Repo: r.Repo, Branch: r.Branch, Path: r.Path, Follows: r.Follows,
 			Behind: r.Behind, Ahead: r.Ahead, Dirty: r.Dirty, ReviewError: r.ReviewError,
 			Work: diffOf(r.Work), Base: r.Base, BaseUnknown: r.BaseUnknown, Change: diffOf(r.Change), Uncommitted: diffOf(r.Uncommitted)}
 		if r.Review != nil {
@@ -401,6 +408,19 @@ func (s Services) Diff(ctx context.Context, multiverse, universe, repo, scope, b
 	v := diffFilesView{Base: base, Files: []fileView{}}
 	for _, f := range files {
 		v.Files = append(v.Files, fileView{Path: f.Path, OldPath: f.OldPath, Status: f.Status, Added: f.Added, Removed: f.Removed, Binary: f.Binary})
+	}
+	if scope == app.ScopeBranch {
+		// The commits are of the same change, against the same base. A log that
+		// cannot be read leaves the files to be shown on their own.
+		if commits, err := svc.UniverseCommits(ctx, universe, repo, base); err == nil {
+			for _, c := range commits {
+				cv := commitView{SHA: c.SHA, Author: c.Author, Subject: c.Subject, Body: c.Body}
+				if !c.At.IsZero() {
+					cv.At = c.At.Format(time.RFC3339)
+				}
+				v.Commits = append(v.Commits, cv)
+			}
+		}
 	}
 	return v, nil
 }
@@ -904,6 +924,43 @@ func (s Services) service(multiverse string) (*app.Service, error) {
 		return nil, err
 	}
 	return s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+}
+
+func (s Services) Notes(_ context.Context, multiverse, universe string) ([]noteView, error) {
+	svc, err := s.service(multiverse)
+	if err != nil {
+		return nil, err
+	}
+	notes, err := svc.Journal(universe)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]noteView, 0, len(notes))
+	for _, n := range notes {
+		out = append(out, noteViewOf(n))
+	}
+	return out, nil
+}
+
+func (s Services) Note(ctx context.Context, r noteRequest) ([]noteView, error) {
+	svc, err := s.service(r.Multiverse)
+	if err != nil {
+		return nil, err
+	}
+	switch r.Action {
+	case "add":
+		_, err = svc.AddNote(ctx, r.Universe, r.Text, r.By)
+	case "set":
+		_, err = svc.EditNote(ctx, r.Universe, r.ID, r.Text)
+	case "rm":
+		_, err = svc.RemoveNote(ctx, r.Universe, r.ID)
+	default:
+		return nil, fmt.Errorf("unknown action %q: add, set or rm", r.Action)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return s.Notes(ctx, r.Multiverse, r.Universe)
 }
 
 func (s Services) Config(_ context.Context, multiverse, universe string) (configView, error) {

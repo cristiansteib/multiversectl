@@ -40,6 +40,9 @@ func (c *cfgStore) LoadConfig(id string) ([]byte, error) {
 	}
 	return nil, domain.ErrNotFound
 }
+func (c *cfgStore) Notes(string) ([]domain.Note, error)  { return nil, nil }
+func (c *cfgStore) CreateNote(string, domain.Note) error { return nil }
+func (c *cfgStore) SaveNote(string, domain.Note) error   { return nil }
 
 type cfgFiles struct {
 	Files

@@ -252,6 +252,21 @@ func (s *Service) UniverseDiff(ctx context.Context, name, repo, scope, base stri
 	return ref, files, err
 }
 
+// MaxCommits is how many of a branch's commits are listed: a branch is read
+// by its newest, and one hundreds of commits long is a merge of another's history.
+const MaxCommits = 50
+
+// UniverseCommits is the commits of one repository's branch that base lacks,
+// newest first: the account of the work that its commit messages already give,
+// so nobody has to retell it in a note.
+func (s *Service) UniverseCommits(ctx context.Context, name, repo, base string) ([]Commit, error) {
+	path, ref, err := s.diffTarget(ctx, name, repo, ScopeBranch, base)
+	if err != nil {
+		return nil, err
+	}
+	return s.Git.Commits(ctx, path, ref, MaxCommits)
+}
+
 // UniverseDiffFile is the diff of one file of that list. The file has to be in
 // it — the git adapter refuses a path that is not — so what is read is what the
 // listing showed, not any path a caller names.

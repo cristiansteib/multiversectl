@@ -4,6 +4,8 @@ import (
 	"context"
 	"path/filepath"
 	"time"
+
+	"github.com/cristiansteib/multiversectl/internal/domain"
 )
 
 // Two processes, one multiverse
@@ -38,6 +40,26 @@ func (s *Service) lockProject(ctx context.Context) (Unlock, error) {
 // lockUniverse guards one universe, so another may be worked on at the same time.
 func (s *Service) lockUniverse(ctx context.Context, id, name string) (Unlock, error) {
 	return s.lock(ctx, "universe-"+id, "universe "+name)
+}
+
+// withUniverse is how every use case that changes one universe begins: resolve
+// it, take its lock, and resolve it again — what it was before the wait is not
+// what whoever held the lock left behind, and a universe can be removed while
+// another command queues for it.
+func (s *Service) withUniverse(ctx context.Context, name string, fn func(domain.UniverseState) error) error {
+	st, err := s.Resolve(name)
+	if err != nil {
+		return err
+	}
+	unlock, err := s.lockUniverse(ctx, st.ID, st.Name)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if st, err = s.Resolve(name); err != nil {
+		return err
+	}
+	return fn(st)
 }
 
 // lock takes one, and does nothing when no Locks port is wired — which is how

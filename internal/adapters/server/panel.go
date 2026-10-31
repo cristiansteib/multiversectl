@@ -1,7 +1,10 @@
 package server
 
 import (
+	"cmp"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -49,6 +52,52 @@ func (s *Server) stats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply(w, map[string]any{"stats": rows})
+}
+
+// notes is a universe's journal: a GET reads it, and a POST adds, changes or
+// removes one line. The write is the only one in the panel, and it goes
+// through the same guards as every other POST — refused on a read-only server,
+// and only with the CSRF header.
+func (s *Server) notes(w http.ResponseWriter, r *http.Request) {
+	project, universe := r.URL.Query().Get("multiverse"), r.URL.Query().Get("universe")
+	var req noteRequest
+	write := r.Method == http.MethodPost
+	if write {
+		// A note is prose, so this one request may be longer than the rest;
+		// what a journal takes is domain.NoteLimit, and the slack is the
+		// envelope around it.
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, domain.NoteLimit+maxReqBody)).Decode(&req); err != nil {
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				fail(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("that note is too long: a note is at most %d characters", domain.NoteLimit))
+				return
+			}
+			fail(w, http.StatusBadRequest, "a note to add, change or remove is required")
+			return
+		}
+		project, universe = cmp.Or(req.Multiverse, project), cmp.Or(req.Universe, universe)
+		req.Multiverse, req.Universe = project, universe
+	}
+	if project == "" || universe == "" {
+		fail(w, http.StatusBadRequest, "multiverse and universe are required")
+		return
+	}
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	// A write answers with the journal as it stands after it, so the page that
+	// wrote need not ask again; the fleet it reads is unchanged either way.
+	var notes []noteView
+	var err error
+	if write {
+		notes, err = s.b.Note(ctx, req)
+	} else {
+		notes, err = s.b.Notes(ctx, project, universe)
+	}
+	if err != nil {
+		failErr(w, err)
+		return
+	}
+	reply(w, map[string]any{"notes": notes})
 }
 
 // code is one universe's repositories. It is its own request because it costs
@@ -143,6 +192,12 @@ func (s *Server) fleetStats(w http.ResponseWriter, r *http.Request) {
 func failErr(w http.ResponseWriter, err error) {
 	if errors.Is(err, domain.ErrNotFound) {
 		fail(w, http.StatusNotFound, err.Error())
+		return
+	}
+	// What the caller asked for cannot be done however often it is asked: an
+	// empty note, one too long. That is the request's fault, not the server's.
+	if errors.Is(err, domain.ErrInvalid) {
+		fail(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	fail(w, http.StatusInternalServerError, err.Error())

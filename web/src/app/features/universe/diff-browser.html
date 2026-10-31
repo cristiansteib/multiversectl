@@ -2,55 +2,84 @@
   <mv-error [message]="e" />
 } @else if (files() === null) {
   <div class="stack"><mv-skeleton height="2.2rem" /><mv-skeleton height="2.2rem" /><mv-skeleton width="60%" height="2.2rem" /></div>
-} @else if (!files()!.length) {
-  <p class="muted">Nothing changed.</p>
 } @else {
-  <div class="layout" [class.single]="!navigable()">
-    @if (navigable()) {
-      <nav class="tree" aria-label="Changed files">
-        <input type="search" name="filter-files" placeholder="Filter files" aria-label="Filter the changed files" [value]="filter()" (input)="filter.set($any($event.target).value)" />
-        <ul>
-          @for (r of tree(); track r.kind === 'dir' ? 'd:' + r.full : 'f:' + r.file.path) {
-            <li [class]="'d' + (r.depth > 6 ? 6 : r.depth)">
-              @if (r.kind === 'dir') {
-                <button type="button" class="dir" [attr.aria-expanded]="!r.shut" [title]="r.full" (click)="fold(r.full)">
-                  <mv-icon [name]="r.shut ? 'chevron' : 'chevronDown'" /><span class="fname">{{ r.name }}</span>
-                </button>
-              } @else {
-                <button type="button" class="node" [class.active]="active() === r.file.path" [class.open]="open().has(r.file.path)" [title]="title(r.file)" (click)="show(r.file.path, true)">
-                  <span class="mark" [class]="r.file.status">{{ mark[r.file.status] || '?' }}</span>
-                  <span class="fname">{{ r.name }}</span>
-                  @if (!r.file.binary) { <span class="stat"><b class="add">+{{ r.file.added }}</b><b class="del">−{{ r.file.removed }}</b></span> }
-                </button>
-              }
-            </li>
-          } @empty { <li class="muted small">No file matches.</li> }
-        </ul>
-      </nav>
-    }
-    <div class="files">
-      @if (navigable()) { <p class="muted small tip">Opening a file closes the others, unless you pin it with “Keep open”.</p> }
-      <ul>
-        @for (f of files(); track f.path) {
-          <li class="file" [class.is-open]="open().has(f.path)" [attr.data-path]="f.path">
-            <div class="file-row">
-              <button type="button" class="file-head" [attr.aria-expanded]="open().has(f.path)" (click)="toggle(f.path)">
-                <mv-icon [name]="open().has(f.path) ? 'chevronDown' : 'chevron'" />
-                <span class="mark" [class]="f.status" [title]="f.status">{{ mark[f.status] || '?' }}</span>
-                <span class="fpath mono">{{ title(f) }}</span>
-                @if (f.binary) { <span class="muted small">binary</span> } @else { <b class="add">+{{ f.added }}</b><b class="del">−{{ f.removed }}</b> }
-              </button>
-              @if (open().has(f.path) && navigable()) {
-                <button type="button" class="btn small ghost" [attr.aria-pressed]="pinned().has(f.path)"
-                        [title]="pinned().has(f.path) ? 'Pinned: stays open when another file is opened. Press to unpin.' : 'Keep this one open when another file is opened.'" (click)="pin(f.path)">
-                  {{ pinned().has(f.path) ? 'Pinned' : 'Keep open' }}
-                </button>
-              }
-            </div>
-            @if (open().has(f.path)) { <mv-patch-view [patch]="patches()[f.path]" [path]="f.path" /> }
+  @if (hasCommits()) {
+    <div class="views" role="tablist" aria-label="Commits or files">
+      <button type="button" role="tab" class="view" [class.on]="view() === 'commits'" [attr.aria-selected]="view() === 'commits'" (click)="view.set('commits')">
+        <mv-icon name="git" /> Commits <span class="count">{{ commits().length }}</span>
+      </button>
+      <button type="button" role="tab" class="view" [class.on]="view() === 'files'" [attr.aria-selected]="view() === 'files'" (click)="view.set('files')">
+        <mv-icon name="doc" /> Files changed <span class="count">{{ files()!.length }}</span>
+      </button>
+    </div>
+  }
+
+  @if (view() === 'commits' && hasCommits()) {
+    @if (commits().length) {
+      <ol class="commits" aria-label="Commits on this branch">
+        @for (c of commits(); track c.sha) {
+          <li>
+            @if (c.body) {
+              <details>
+                <summary title="Show the whole message"><mv-icon class="chev" name="chevron" /><span class="subject">{{ c.subject }}</span><span class="who muted small">{{ c.author }} · {{ c.at | ago }}</span><mv-copy class="sha" [text]="c.sha" [label]="c.sha.slice(0, 7)" /></summary>
+                <pre class="body">{{ c.body }}</pre>
+              </details>
+            } @else {
+              <div class="line"><span class="chev-pad"></span><span class="subject">{{ c.subject }}</span><span class="who muted small">{{ c.author }} · {{ c.at | ago }}</span><mv-copy class="sha" [text]="c.sha" [label]="c.sha.slice(0, 7)" /></div>
+            }
           </li>
         }
-      </ul>
+      </ol>
+    } @else {
+      <p class="muted">No commits on this branch yet.</p>
+    }
+  } @else if (!files()!.length) {
+    <p class="muted">Nothing changed.</p>
+  } @else {
+    <div class="layout" [class.single]="!navigable()">
+      @if (navigable()) {
+        <nav class="tree" aria-label="Changed files">
+          <input type="search" name="filter-files" placeholder="Filter files" aria-label="Filter the changed files" [value]="filter()" (input)="filter.set($any($event.target).value)" />
+          <ul>
+            @for (r of tree(); track r.kind === 'dir' ? 'd:' + r.full : 'f:' + r.file.path) {
+              <li [class]="'d' + (r.depth > 6 ? 6 : r.depth)">
+                @if (r.kind === 'dir') {
+                  <button type="button" class="dir" [attr.aria-expanded]="!r.shut" [title]="r.full" (click)="fold(r.full)">
+                    <mv-icon [name]="r.shut ? 'chevron' : 'chevronDown'" /><span class="fname">{{ r.name }}</span>
+                  </button>
+                } @else {
+                  <button type="button" class="node" [class.active]="active() === r.file.path" [attr.aria-current]="active() === r.file.path ? 'true' : null" [title]="title(r.file)" (click)="show(r.file.path)">
+                    <span class="mark" [class]="r.file.status">{{ mark[r.file.status] || '?' }}</span>
+                    <span class="fname">{{ r.name }}</span>
+                    @if (!r.file.binary) { <span class="stat"><b class="add">+{{ r.file.added }}</b><b class="del">−{{ r.file.removed }}</b></span> }
+                  </button>
+                }
+              </li>
+            } @empty { <li class="muted small">No file matches.</li> }
+          </ul>
+        </nav>
+      }
+      <section class="pane" aria-label="Diff">
+        @if (file(); as f) {
+          <header class="filebar" [class.loading]="active() !== shown()">
+            <span class="mark" [class]="f.status" [title]="f.status">{{ mark[f.status] || '?' }}</span>
+            <span class="fpath mono" [title]="title(f)">{{ title(f) }}</span>
+            @if (f.binary) { <span class="muted small">binary</span> } @else { <b class="add">+{{ f.added }}</b><b class="del">−{{ f.removed }}</b> }
+                        <mv-copy [text]="f.path" label="Path" />
+            @if (fullPath()) { <mv-copy [text]="fullPath()" label="Full path" /> }
+            @if (navigable()) {
+              <span class="steps">
+                <button type="button" class="btn small ghost" [disabled]="index() <= 0" title="Previous file" aria-label="Previous file" (click)="step(-1)"><mv-icon name="chevronLeft" /></button>
+                <span class="muted small">{{ index() + 1 }}/{{ files()!.length }}</span>
+                <button type="button" class="btn small ghost" [disabled]="index() >= files()!.length - 1" title="Next file" aria-label="Next file" (click)="step(1)"><mv-icon name="chevron" /></button>
+              </span>
+            }
+          </header>
+          <mv-patch-view [patch]="patches()[f.path]" [path]="f.path" [full]="true" />
+        } @else {
+          <mv-skeleton height="2.4rem" /><mv-skeleton height="12rem" />
+        }
+      </section>
     </div>
-  </div>
+  }
 }

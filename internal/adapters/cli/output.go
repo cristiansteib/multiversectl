@@ -30,6 +30,10 @@ var ansi = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
 func visibleLen(s string) int { return utf8.RuneCountInString(ansi.ReplaceAllString(s, "")) }
 
+// pad widens a cell to a column, measured by what is seen rather than by
+// bytes, so a name in any script still lines up.
+func pad(s string, to int) string { return s + strings.Repeat(" ", max(0, to-visibleLen(s))) }
+
 // Output renders use-case messages to a terminal or a pipe.
 type Output struct {
 	w     io.Writer

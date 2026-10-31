@@ -331,10 +331,13 @@ func (s startStore) Load(id string) (domain.UniverseState, error) {
 	}
 	return domain.UniverseState{}, domain.ErrNotFound
 }
-func (s startStore) Save(domain.UniverseState) error   { return nil }
-func (s startStore) Delete(string) error               { return nil }
-func (s startStore) SaveConfig(string, []byte) error   { return nil }
-func (s startStore) LoadConfig(string) ([]byte, error) { return nil, domain.ErrNotFound }
+func (s startStore) Save(domain.UniverseState) error      { return nil }
+func (s startStore) Delete(string) error                  { return nil }
+func (s startStore) SaveConfig(string, []byte) error      { return nil }
+func (s startStore) LoadConfig(string) ([]byte, error)    { return nil, domain.ErrNotFound }
+func (s startStore) Notes(string) ([]domain.Note, error)  { return nil, nil }
+func (s startStore) CreateNote(string, domain.Note) error { return nil }
+func (s startStore) SaveNote(string, domain.Note) error   { return nil }
 
 type discard struct{}
 

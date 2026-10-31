@@ -1,6 +1,8 @@
 package statestore
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -8,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -117,7 +120,6 @@ func (s *Store) List() ([]domain.UniverseState, error) {
 	return out, nil
 }
 
-// Delete removes only the state file; the caller owns the directory.
 // configPath is where the manifest a universe was started with is kept: beside
 // its state, in a file of its own so that universe.yaml stays short to read.
 func (s *Store) configPath(id string) string {
@@ -139,8 +141,12 @@ func (s *Store) LoadConfig(id string) ([]byte, error) {
 	return data, err
 }
 
+// Delete removes what the store wrote — the state, the kept manifest and the
+// journal — and not the universe's directory itself: the worktrees in it are
+// the caller's to take down first.
 func (s *Store) Delete(id string) error {
 	_ = os.Remove(s.configPath(id))
+	_ = os.RemoveAll(s.ownPath(id))
 	err := os.Remove(s.path(id))
 	if errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("universe %s: %w", id, domain.ErrNotFound)
@@ -172,4 +178,132 @@ func writeAtomic(path string, data []byte) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// The journal: a directory of notes, one file to a note
+//
+// A note is its own file, named for its id — .multiverse/notes/n7.json — so
+// nothing that writes one has to coordinate with anything that writes
+// another. Two processes adding a note at the same moment write two different
+// files; changing or removing one touches that file alone, never a file
+// somebody else has open; and no note is ever part of a document that has to
+// be rewritten whole to change one line of it.
+const (
+	// ownDir is what belongs to multiversectl inside a universe, beside the
+	// repository checkouts rather than among them: the journal, and whatever
+	// else is worth keeping per universe later. It is the name the multiverse
+	// root already uses for the same purpose, and being dotted it cannot be
+	// taken for, or collide with, a repository called `multiverse`.
+	ownDir   = ".multiverse"
+	notesDir = "notes"
+	noteExt  = ".json"
+)
+
+func (s *Store) ownPath(id string) string { return filepath.Join(s.universes(), id, ownDir) }
+
+func (s *Store) notesPath(id string) string { return filepath.Join(s.ownPath(id), notesDir) }
+
+func (s *Store) notePath(id, noteID string) string {
+	return filepath.Join(s.notesPath(id), noteID+noteExt)
+}
+
+// Notes reads the journal, oldest first: ids are handed out in order, so their
+// order is the order things happened in. Anything in the directory that is not
+// a note — the temporary file of a write in flight, something somebody left
+// there — is passed over rather than read.
+func (s *Store) Notes(id string) ([]domain.Note, error) {
+	dir := s.notesPath(id)
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil // a universe nobody wrote about
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read the journal of universe %s: %w", id, err)
+	}
+	out := make([]domain.Note, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), noteExt) {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read note %s of universe %s: %w", e.Name(), id, err)
+		}
+		// An id taken by a write that never landed: nothing to read, and the
+		// id stays spent. One note must not make a whole journal unreadable.
+		if len(bytes.TrimSpace(data)) == 0 {
+			continue
+		}
+		var n domain.Note
+		if err := json.Unmarshal(data, &n); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
+		}
+		out = append(out, n)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := domain.NoteNumber(out[i].ID), domain.NoteNumber(out[j].ID)
+		if a != b {
+			return a < b
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out, nil
+}
+
+// CreateNote writes a note that is not there yet. Two processes adding one at
+// the same moment can pick the same id; the directory settles it, and the one
+// that loses is told the id is taken rather than writing over the other's
+// note.
+func (s *Store) CreateNote(id string, n domain.Note) error {
+	data, err := json.Marshal(n)
+	if err != nil {
+		return fmt.Errorf("encode the note: %w", err)
+	}
+	if err := s.makeNotesDir(id); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(s.notePath(id, n.ID), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if errors.Is(err, fs.ErrExist) {
+		return fmt.Errorf("universe %s already has a note %s: %w", id, n.ID, domain.ErrExists)
+	}
+	if err != nil {
+		return fmt.Errorf("write note %s of universe %s: %w", n.ID, id, err)
+	}
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		return fmt.Errorf("write note %s of universe %s: %w", n.ID, id, err)
+	}
+	return f.Close()
+}
+
+// makeNotesDir makes the journal's directory inside a universe that is there,
+// one level at a time: making the whole path would make the universe's own
+// directory too, and so bring back a universe that was removed while a note
+// was being written for it.
+func (s *Store) makeNotesDir(id string) error {
+	for _, dir := range []string{s.ownPath(id), s.notesPath(id)} {
+		switch err := os.Mkdir(dir, 0o755); {
+		case err == nil, errors.Is(err, fs.ErrExist):
+		case errors.Is(err, fs.ErrNotExist):
+			return fmt.Errorf("universe %s: %w", id, domain.ErrNotFound)
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
+// SaveNote writes over one note: what it says has changed, or its words are
+// gone and a tombstone is left in its place. Only that note's file is
+// touched, so a change cannot undo a note written beside it meanwhile.
+func (s *Store) SaveNote(id string, n domain.Note) error {
+	data, err := json.Marshal(n)
+	if err != nil {
+		return fmt.Errorf("encode the note: %w", err)
+	}
+	if err := writeAtomic(s.notePath(id, n.ID), data); err != nil {
+		return fmt.Errorf("write note %s of universe %s: %w", n.ID, id, err)
+	}
+	return nil
 }

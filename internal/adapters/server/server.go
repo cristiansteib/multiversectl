@@ -127,6 +127,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/universe/logs", s.logs)
 	mux.HandleFunc("/api/universe/code", s.code)
 	mux.HandleFunc("/api/universe/config", s.config)
+	mux.HandleFunc("/api/universe/notes", s.notes)
 	mux.HandleFunc("/api/universe/diff", s.diff)
 	mux.HandleFunc("/api/pair", s.pairNew)
 	mux.HandleFunc("/api/stats", s.fleetStats)

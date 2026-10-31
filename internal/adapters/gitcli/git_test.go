@@ -350,3 +350,31 @@ func TestAWorktreeSharesTheExcludeFileOfItsClone(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitsAreTheBranchsOwnNewestFirstWithTheirBodies(t *testing.T) {
+	clone, _ := repo(t)
+	ctx := context.Background()
+	git(t, clone, "push", "-q", "origin", "main")
+	git(t, clone, "switch", "-q", "-c", "fix/y")
+	commit(t, clone, "first")
+	if err := os.WriteFile(filepath.Join(clone, "second"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, clone, "add", "second")
+	git(t, clone, "commit", "-qm", "second: the subject", "-m", "a body\nover two lines")
+
+	commits, err := Git{}.Commits(ctx, clone, "main", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) != 2 {
+		t.Fatalf("want the branch's two commits and none of main's, got %+v", commits)
+	}
+	c := commits[0]
+	if c.Subject != "second: the subject" || c.Body != "a body\nover two lines" || len(c.SHA) != 40 || c.Author == "" || c.At.IsZero() {
+		t.Errorf("the newest commit came back as %+v", c)
+	}
+	if one, _ := (Git{}).Commits(ctx, clone, "main", 1); len(one) != 1 || one[0].SHA != c.SHA {
+		t.Errorf("a limit of one should keep the newest, got %+v", one)
+	}
+}

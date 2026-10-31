@@ -26,12 +26,13 @@ export interface FleetView { multiverses: FleetMultiverse[]; error?: string }
 export interface DiffView { files: number; added: number; removed: number }
 export interface ReviewView { number: number; mark: string; title: string; url: string; state: 'open' | 'draft' | 'merged' | 'closed'; author?: string; updated?: string }
 export interface CodeRow {
-  repo: string; branch?: string; follows?: string; behind?: number; ahead?: number; dirty?: boolean; work?: DiffView;
+  repo: string; branch?: string; path?: string; follows?: string; behind?: number; ahead?: number; dirty?: boolean; work?: DiffView;
   base?: string; baseUnknown?: boolean; change?: DiffView; uncommitted?: DiffView; review?: ReviewView; reviewError?: string;
 }
 export interface CodeView { rows: CodeRow[]; fetched?: string }
 export interface FileView { path: string; oldPath?: string; status: string; added: number; removed: number; binary?: boolean }
-export interface DiffFilesView { base?: string; files: FileView[] }
+export interface CommitView { sha: string; author?: string; at?: string; subject: string; body?: string }
+export interface DiffFilesView { base?: string; files: FileView[]; commits?: CommitView[] }
 export interface PatchView { path: string; patch: string; truncated?: boolean }
 
 export interface RepoView { key: string; clone?: string; loc?: LocView; url: string; dir: string; cloned: boolean; follows?: string; behind?: number; ahead?: number; dirty?: boolean }
@@ -69,6 +70,9 @@ export interface OverviewView { version: string; readOnly?: boolean; status: Sta
 export interface UpdateNotice { current: string; latest: string; releases: number; fixes: number; more?: boolean; changes?: number; highlights?: string[]; url: string }
 
 export interface VersionInfo { version: string; commit?: string; date?: string; url?: string }
+/** One line of a universe's journal: what was done in it, when, and who says so. */
+export interface Note { id: string; at: string; by?: string; text: string }
+
 export interface ToolVersion { name: string; version?: string; path?: string; note?: string; ok: boolean }
 export interface SystemView {
   server: VersionInfo; tools: ToolVersion[]; latest: { version?: string; url?: string; newer?: boolean; error?: string };

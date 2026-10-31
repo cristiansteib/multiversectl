@@ -108,6 +108,20 @@ type Git interface {
 	// DiffPatch is the unified diff of one of those files, cut at limit bytes;
 	// truncated says it was.
 	DiffPatch(ctx context.Context, dir, ref, path string, limit int) (patch string, truncated bool, err error)
+	// Commits are the commits on dir's HEAD that origin's ref lacks, newest
+	// first and at most limit of them: what the branch says it did, in the
+	// words of whoever did it.
+	Commits(ctx context.Context, dir, ref string, limit int) ([]Commit, error)
+}
+
+// Commit is one commit of a branch, as its log tells it.
+type Commit struct {
+	SHA     string
+	Author  string
+	At      time.Time
+	Subject string
+	// Body is the message under the subject, empty when there is none.
+	Body string
 }
 
 // FileChange is one file of a diff.
@@ -672,6 +686,15 @@ type Store interface {
 	// was kept (a universe started before it was).
 	SaveConfig(id string, data []byte) error
 	LoadConfig(id string) ([]byte, error)
+	// Notes is a universe's journal, in the order it was written; a universe
+	// that has none is no error. CreateNote writes a note that is not there
+	// yet and says domain.ErrExists when that id is taken, so two writers that
+	// pick the same id cannot write over one another. SaveNote writes over one
+	// note, which is how a line is changed or taken out, and leaves every other
+	// note alone.
+	Notes(id string) ([]domain.Note, error)
+	CreateNote(id string, n domain.Note) error
+	SaveNote(id string, n domain.Note) error
 }
 
 // Output is the presentation port; use cases never write to stdout directly.

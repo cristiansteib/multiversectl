@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } f
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Api } from '../../core/api.service';
 import { Events } from '../../core/events.service';
-import { CodeRow, CodeView, LocView, MultiverseView } from '../../core/models';
+import { CodeRow, CodeView, LocView, MultiverseView, Note } from '../../core/models';
 import { Ops } from '../../core/ops.service';
 import { isHttpUrl } from '../../core/util';
 
@@ -49,6 +49,13 @@ export class UniverseStore {
   /** Where each repository lives, by name, for a chip to say it and link to it. */
   readonly places = signal<ReadonlyMap<string, LocView>>(new Map());
 
+  /**
+   * Its journal, oldest first: what has been done in the universe, by whoever
+   * said so. It is read when the page opens and after a write; nothing else
+   * changes it, so it is not in the fleet every page polls.
+   */
+  readonly notes = signal<readonly Note[]>([]);
+
   /** Whether an answer is still about the universe in view: the same name in another multiverse is another universe. */
   isCurrent(q: { multiverse: string; universe: string }): boolean {
     return q.multiverse === this.multiverse() && q.universe === this.name();
@@ -61,8 +68,10 @@ export class UniverseStore {
         // What was read for the universe before is not this one's.
         this.code.set(new Map());
         this.places.set(new Map());
+        this.notes.set([]);
         void this.readCode();
         void this.readPlaces();
+        void this.readNotes();
       });
     });
     // What an operation did (a start, an update of the code) is on the page when it ends.
@@ -79,6 +88,29 @@ export class UniverseStore {
     } catch {
       // The chips and the summary are extras: the page is whole without them.
     }
+  }
+
+  async readNotes(): Promise<void> {
+    const q = this.query();
+    if (!q.multiverse || !q.universe) return;
+    try {
+      const view = await this.api.get<{ notes: Note[] }>('universe/notes', q);
+      if (!this.isCurrent(q)) return;
+      this.notes.set(view.notes ?? []);
+    } catch {
+      // A journal nobody can read is still a universe: the page is whole without it.
+    }
+  }
+
+  /**
+   * Adds a line or takes one out. The answer is the journal as it stands after
+   * the write — including anything another writer has added meanwhile — so
+   * nothing has to ask for it again.
+   */
+  async writeNote(body: { action: 'add' | 'rm'; id?: string; text?: string; by?: string }): Promise<void> {
+    const q = this.query();
+    const view = await this.api.post<{ notes: Note[] }>('universe/notes', { ...q, ...body });
+    if (this.isCurrent(q)) this.notes.set(view.notes ?? []);
   }
 
   private async readPlaces(): Promise<void> {

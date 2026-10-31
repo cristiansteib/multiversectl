@@ -36,7 +36,7 @@ interface Drawn {
     @if (!patch()) { <mv-skeleton height="4rem" /> }
     @else if (failure(); as e) { <mv-error [message]="e" /> }
     @else {
-      <div class="patch mono" tabindex="0" role="region" aria-label="Diff">
+      <div class="patch mono" [class.full]="full()" tabindex="0" role="region" aria-label="Diff">
         @for (l of lines(); track $index) {
           @if (l.html !== null) {
             <div class="pl lit" [class]="l.kind"><span class="mk">{{ l.mark }}</span><span [innerHTML]="l.html"></span></div>
@@ -49,6 +49,8 @@ interface Drawn {
     }`,
   styles: `
     .patch { overflow: auto; max-height: 70vh; background: var(--sunk); border-top: 1px solid var(--line-soft); font-size: .8rem; line-height: 1.5; padding: 6px 0 }
+    /* Alone on its pane, the diff runs at its own length and the page scrolls. */
+    .patch.full { max-height: none; border-top: 0; border-radius: 0 0 var(--r-lg) var(--r-lg) }
     .pl { white-space: pre; padding: 0 14px; width: max-content; min-width: 100% }
     .ins { background: var(--ok-bg); color: var(--ok) } .rem { background: var(--bad-bg); color: var(--bad) }
     .hunk { color: var(--info); background: var(--info-bg) } .meta { color: var(--faint) }
@@ -83,6 +85,8 @@ export class PatchViewer {
   readonly patch = input<Patch | { error: string } | undefined>();
   /** The file this diff is of. Its name is what decides the language. */
   readonly path = input<string>('');
+  /** Alone on its pane: no height of its own, the page scrolls it. */
+  readonly full = input(false);
 
   protected readonly failure = computed(() => { const p = this.patch(); return p && 'error' in p ? p.error : null; });
   private readonly real = computed(() => { const p = this.patch(); return p && !('error' in p) ? p : null; });

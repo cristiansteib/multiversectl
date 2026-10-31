@@ -523,6 +523,30 @@ func diffRange(ref string) string {
 	return "origin/" + ref + "...HEAD"
 }
 
+// Commits lists the commits on dir's HEAD that origin's ref lacks. Fields are
+// split by unit separators and commits by record separators, which no message
+// is expected to hold, so a body of several lines comes through whole.
+func (g Git) Commits(ctx context.Context, dir, ref string, limit int) ([]app.Commit, error) {
+	if ref == "" {
+		return nil, fmt.Errorf("commits need a branch to be measured against")
+	}
+	out, err := g.run(ctx, "-C", dir, "log", "--no-color", "-n", strconv.Itoa(limit),
+		"--format=%H%x1f%an%x1f%aI%x1f%s%x1f%b%x1e", "origin/"+ref+"..HEAD", "--")
+	if err != nil {
+		return nil, err
+	}
+	var commits []app.Commit
+	for _, rec := range strings.Split(out, "\x1e") {
+		f := strings.SplitN(strings.TrimLeft(rec, "\n"), "\x1f", 5)
+		if len(f) < 5 {
+			continue
+		}
+		at, _ := time.Parse(time.RFC3339, f[2])
+		commits = append(commits, app.Commit{SHA: f[0], Author: f[1], At: at, Subject: f[3], Body: strings.TrimSpace(f[4])})
+	}
+	return commits, nil
+}
+
 var statusNames = map[byte]string{'A': "added", 'M': "modified", 'D': "deleted", 'R': "renamed", 'C': "added", 'T': "modified"}
 
 // DiffFiles lists the files DiffStat counts. The status comes from --name-status
