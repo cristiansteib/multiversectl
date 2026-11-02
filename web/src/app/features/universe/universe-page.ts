@@ -9,13 +9,14 @@ import { Icon } from '../../shared/ui/icon';
 import { Skeleton } from '../../shared/ui/skeleton';
 import { Drawer } from '../../shared/ui/drawer';
 import { PrIcon } from '../../shared/ui/pr-icon';
+import { RemoveUniversePopover } from '../../shared/dialogs/remove-universe-popover';
 import { UniverseAside } from './universe-aside';
 import { UniverseStore } from './universe.store';
 
 /** One universe: its number, whether it runs, what can be done to it, and its tabs. */
 @Component({
   selector: 'mv-universe-page',
-  imports: [RouterLink, RouterLinkActive, RouterOutlet, Badge, Icon, EmptyState, Skeleton, UniverseAside, Drawer, PrIcon],
+  imports: [RouterLink, RouterLinkActive, RouterOutlet, Badge, Icon, EmptyState, Skeleton, UniverseAside, Drawer, PrIcon, RemoveUniversePopover],
   providers: [UniverseStore],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './universe-page.html',

@@ -15,9 +15,10 @@ export function runState(u: UniverseView): RunState {
 export const dirtyCheckouts = (u: UniverseView): string[] => u.checkouts.filter((c) => c.dirty).map((c) => c.repo);
 
 /** Why a person might want to look at it: only what they can act on. */
-export function reasonsFor(u: UniverseView): string[] {
+export function reasonsFor(u: UniverseView, opts: { containers?: boolean } = {}): string[] {
   const out: string[] = [];
-  if (runState(u) === 'partial') out.push(`only ${u.running} of ${expectedOf(u)} containers are up`);
+  // A stopped one-shot is not a fault, so a page that already shows the count (a badge) may leave it out.
+  if ((opts.containers ?? true) && runState(u) === 'partial') out.push(`only ${u.running} of ${expectedOf(u)} containers are up`);
   if (u.behind) out.push(`${u.behind} ${u.behind === 1 ? 'commit' : 'commits'} behind the branches it follows`);
   const dirty = dirtyCheckouts(u);
   if (dirty.length) out.push(`uncommitted changes in ${dirty.join(', ')}`);

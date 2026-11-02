@@ -27,3 +27,4 @@ td { vertical-align: middle }
 .journal .add input { flex: 1 1 auto; min-width: 0; padding: 7px 10px; color: var(--text); font: inherit; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-md) }
 .journal .add input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
 .journal .none { margin: 0 0 12px }
+.more { margin-top: 6px } .more .muted { font-weight: 400; font-size: .82rem }

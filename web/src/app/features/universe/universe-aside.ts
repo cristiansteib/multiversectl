@@ -28,6 +28,9 @@ export class UniverseAside {
   protected readonly ago = ago;
 
   protected readonly links = this.store.links;
+  /** Through the proxy first, by name; then the ports forwarded to the host. */
+  protected readonly proxied = computed(() => this.links().filter((l) => !l.forwarded));
+  protected readonly forwarded = computed(() => this.links().filter((l) => l.forwarded));
   protected readonly reviews = computed(() => [...this.store.reviews()].sort((a, b) => changeSize(b) - changeSize(a)));
 
   protected readonly repos = computed(() => (this.u()?.checkouts ?? [])
