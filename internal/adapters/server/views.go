@@ -128,6 +128,8 @@ type urlView struct {
 	Host    string `json:"host"`
 	Service string `json:"service"`
 	URL     string `json:"url"`
+	// Forwarded: a host port, not a name behind the proxy.
+	Forwarded bool `json:"forwarded,omitempty"`
 }
 
 type serviceView struct {

@@ -39,6 +39,7 @@
         @if (u.behind) {
           <button type="button" class="btn" [disabled]="busy()" [attr.title]="busyHint() || 'Bring in the commits its branches lack'" (click)="act('sync')"><mv-icon name="arrowDown" /> Update code</button>
         }
+        <mv-remove-universe-popover [multiverse]="multiverse()" [universe]="u.name" [disabled]="busy()" [hint]="busyHint()" />
       </div>
     }
   </header>

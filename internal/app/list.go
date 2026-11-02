@@ -83,6 +83,9 @@ type HostURL struct {
 	Host    string
 	Service string
 	URL     string
+	// Forwarded is set when the address is a host port rather than a name
+	// behind the shared proxy, so a reader need not guess it from the URL.
+	Forwarded bool
 }
 
 // ServiceState is where one service of an app stands, including the two cases
@@ -199,12 +202,16 @@ func (s *Service) appSummaries(ctx context.Context, st domain.UniverseState, con
 				Host:    strings.TrimSuffix(route.Name, "-"+u.Slug()),
 				Service: route.Service,
 				URL:     s.routeURL(route),
+				// By IP, the one address a route has is the forwarded one.
+				Forwarded: route.ByIP,
 			})
 			if route.ForwardURL != "" && !route.ByIP {
 				summary.URLs = append(summary.URLs, HostURL{
 					Host:    strings.TrimSuffix(route.Name, "-"+u.Slug()) + ":forward",
 					Service: route.Service,
 					URL:     route.ForwardURL,
+
+					Forwarded: true,
 				})
 			}
 		}

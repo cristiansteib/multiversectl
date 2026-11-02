@@ -16,6 +16,12 @@ const SERVICE_DOT: Record<string, string> = { running: 'ok', stopped: 'warn' };
 /** One line of an app's table: a service, and the addresses it answers on. */
 interface ServiceRow { name: string; state?: string; detail?: string; published?: string; urls: UrlView[] }
 
+/** A container that stopped badly, in the runtime's own words; a clean exit (a one-shot) is not one. */
+const failed = (r: ServiceRow): boolean => r.state === 'stopped' && /^(Exited \([1-9]|Dead|Restarting)/.test(r.detail ?? '');
+
+/** Whether a row earns its place in the table at first sight: it answers on an address, it runs, or it failed. */
+const shown = (r: ServiceRow): boolean => r.urls.length > 0 || r.state === 'running' || failed(r);
+
 /** The rows of an app: its services, each with its addresses; an address for a service that is not listed gets a row of its own. */
 function rowsOf(a: AppView): ServiceRow[] {
   const urls = a.urls ?? [];
@@ -24,7 +30,9 @@ function rowsOf(a: AppView): ServiceRow[] {
   for (const name of [...new Set(urls.filter((x) => !known.has(x.service)).map((x) => x.service))]) {
     rows.push({ name, urls: urls.filter((x) => x.service === name) });
   }
-  return rows;
+  // Addresses first, then what runs without one; what is stopped (a one-shot, say) goes last.
+  const rank = (r: ServiceRow): number => (r.urls.length ? 0 : shown(r) ? 1 : 2);
+  return rows.sort((a, b) => rank(a) - rank(b));
 }
 
 /** The first thing about a universe: what needs a look, and what runs in it and where to reach it. */
@@ -38,12 +46,18 @@ function rowsOf(a: AppView): ServiceRow[] {
 export class OverviewTab {
   protected readonly store = inject(UniverseStore);
   protected readonly u = this.store.universe;
-  protected readonly reasons = computed(() => { const u = this.u(); return u ? reasonsFor(u) : []; });
+  protected readonly reasons = computed(() => { const u = this.u(); return u ? reasonsFor(u, { containers: false }) : []; });
   /** The apps with the most changes first; the manifest's order settles a tie, and an unread repository counts for nothing. */
   protected readonly apps = computed(() => (this.u()?.apps ?? []).map((a, i) => {
     const row = this.store.code().get(a.repo);
-    return { app: a, rows: rowsOf(a), code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo), size: changeSize(row), i };
+    const rows = rowsOf(a);
+    return { app: a, rows, hidden: rows.some(shown) ? rows.filter((r) => !shown(r)).length : 0, code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo), size: changeSize(row), i };
   }).sort((a, b) => b.size - a.size || a.i - b.i));
+  /** The apps whose stopped services are listed too. */
+  protected readonly expanded = signal<ReadonlySet<string>>(new Set());
+  protected toggleMore(key: string): void {
+    this.expanded.update((s) => { const n = new Set(s); if (!n.delete(key)) n.add(key); return n; });
+  }
   protected readonly webUrl = isHttpUrl;
   protected readonly landedHint = landedHint;
 

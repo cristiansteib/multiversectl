@@ -31,7 +31,8 @@
                 <table>
                   <thead><tr><th scope="col">Service</th><th scope="col">Addresses</th></tr></thead>
                   <tbody>
-                    @for (r of x.rows; track r.name) {
+                    @let open = expanded().has(x.app.key);
+                    @for (r of open ? x.rows : x.rows.slice(0, x.rows.length - x.hidden); track r.name) {
                       <tr>
                         <td [attr.title]="svcTitle(r)">
                           <div class="svc">
@@ -55,6 +56,12 @@
                   </tbody>
                 </table>
               </div>
+              @if (x.hidden) {
+                <button type="button" class="btn ghost small more" [attr.aria-expanded]="expanded().has(x.app.key)" (click)="toggleMore(x.app.key)">
+                  {{ expanded().has(x.app.key) ? 'Show less' : 'Show ' + x.hidden + ' more' }}
+                  <span class="muted">stopped or without an address</span>
+                </button>
+              }
             } @else {
               <p class="muted none">Nothing runs on its own here: no services or addresses.</p>
             }

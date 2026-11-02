@@ -30,12 +30,12 @@ export class UniverseStore {
   /** Every web address of its apps, once each, with the service that answers on it. */
   readonly links = computed(() => {
     const seen = new Set<string>();
-    const out: { url: string; label: string; from: string }[] = [];
+    const out: { url: string; label: string; from: string; forwarded: boolean }[] = [];
     for (const a of this.universe()?.apps ?? []) {
       for (const x of a.urls ?? []) {
         if (!isHttpUrl(x.url) || seen.has(x.url)) continue;
         seen.add(x.url);
-        out.push({ url: x.url, label: x.url.replace(/^https?:\/\//, ''), from: a.key === x.service ? a.key : `${a.key}/${x.service}` });
+        out.push({ url: x.url, label: x.url.replace(/^https?:\/\//, ''), from: a.key === x.service ? a.key : `${a.key}/${x.service}`, forwarded: !!x.forwarded });
       }
     }
     return out;
