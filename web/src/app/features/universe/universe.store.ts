@@ -35,9 +35,7 @@ export class UniverseStore {
       for (const x of a.urls ?? []) {
         if (!isHttpUrl(x.url) || seen.has(x.url)) continue;
         seen.add(x.url);
-        out.push({ url: x.url, label: x.url.replace(/^https?:\/\//, ''), from: a.key === x.service ? a.key : `${a.key}/${x.service}`,
-          // A forwarded address is a host port (or an IP); the others go through the shared proxy by name.
-          forwarded: x.host.endsWith(':forward') || /^https?:\/\/(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:|\/|$)/i.test(x.url) });
+        out.push({ url: x.url, label: x.url.replace(/^https?:\/\//, ''), from: a.key === x.service ? a.key : `${a.key}/${x.service}`, forwarded: !!x.forwarded });
       }
     }
     return out;

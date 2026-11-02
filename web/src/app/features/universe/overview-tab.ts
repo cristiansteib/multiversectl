@@ -29,7 +29,7 @@ function rowsOf(a: AppView): ServiceRow[] {
   }
   // Addresses first, then what runs without one; what is stopped (a one-shot, say) goes last.
   const rank = (r: ServiceRow): number => (r.urls.length ? 0 : shown(r) ? 1 : 2);
-  return rows.map((r, i) => ({ r, i })).sort((a, b) => rank(a.r) - rank(b.r) || a.i - b.i).map((x) => x.r);
+  return rows.sort((a, b) => rank(a) - rank(b));
 }
 
 /** The first thing about a universe: what needs a look, and what runs in it and where to reach it. */
@@ -48,7 +48,7 @@ export class OverviewTab {
   protected readonly apps = computed(() => (this.u()?.apps ?? []).map((a, i) => {
     const row = this.store.code().get(a.repo);
     const rows = rowsOf(a);
-    return { app: a, rows, main: rows.filter(shown), more: rows.filter((r) => !shown(r)), code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo), size: changeSize(row), i };
+    return { app: a, rows, hidden: rows.filter((r) => !shown(r)).length, code: row, branch: a.branch || row?.branch, loc: this.store.places().get(a.repo), size: changeSize(row), i };
   }).sort((a, b) => b.size - a.size || a.i - b.i));
   /** The apps whose stopped services are listed too. */
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());

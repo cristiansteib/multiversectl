@@ -120,6 +120,9 @@ func demoFleet() *fake {
 			Running: running, Expected: expected, URLs: hosts, Services: services}
 	}
 	url := func(host, service, u string) urlView { return urlView{Host: host, Service: service, URL: u} }
+	fwd := func(host, service, u string) urlView {
+		return urlView{Host: host, Service: service, URL: u, Forwarded: true}
+	}
 	now := time.Now().UTC()
 	stamped := func(ago time.Duration, by, text string, n int) noteView {
 		return noteView{ID: fmt.Sprintf("n%d", n), At: now.Add(-ago).Format(time.RFC3339), By: by, Text: text}
@@ -159,7 +162,7 @@ func demoFleet() *fake {
 				Running: 2, Created: now.Add(-3 * time.Hour).Format(time.RFC3339), LastStarted: now.Add(-15 * time.Minute).Format(time.RFC3339),
 				Note: "reviewing #148", Branches: map[string]string{"api": "u7", "ui": "u7"},
 				Apps: []appView{
-					app("api", "u7", 1, 3, []urlView{url("api", "web", "https://api-7.example.test")},
+					app("api", "u7", 1, 3, []urlView{url("api", "web", "https://api-7.example.test"), fwd("api:forward", "web", "http://127.0.0.1:18007"), fwd("db:forward", "db", "http://127.0.0.1:15437")},
 						svc("web", "running", "Up 15 minutes"), svc("worker", "not started", ""), svc("db", "running", "Up 15 minutes")),
 					app("ui", "u7", 1, 1, []urlView{url("ui", "app", "https://ui-7.example.test")}, svc("app", "running", "Up 15 minutes")),
 				},

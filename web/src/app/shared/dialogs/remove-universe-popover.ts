@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, ElementRef, HostListener, computed, inject, input, signal } from '@angular/core';
-import { ApiError } from '../../core/api.service';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, effect, inject, input, signal, viewChild } from '@angular/core';
 import { Ops } from '../../core/ops.service';
+import { RemoveUniverseForm } from './remove-universe';
 import { ErrorBox } from '../ui/error-box';
 import { Icon } from '../ui/icon';
 
@@ -19,17 +19,17 @@ import { Icon } from '../ui/icon';
       <mv-icon name="trash" /> Delete
     </button>
     @if (open()) {
-      <form class="pop" role="dialog" [attr.aria-label]="'Delete universe ' + universe()" (submit)="submit($event)">
+      <form class="pop" role="dialog" [attr.aria-label]="'Delete universe ' + universe()" (submit)="f.submit($event)">
         <p>Deletes its worktrees (uncommitted work is lost), containers, volumes and state. The shared clones are not touched.</p>
         <label>
           <span>Type <b class="mono">{{ universe() }}</b> to confirm</span>
-          <input type="text" name="confirm" autocomplete="off" autocapitalize="off" spellcheck="false" autofocus
-                 [placeholder]="universe()" [value]="typed()" (input)="typed.set($any($event.target).value)" />
+          <input type="text" name="confirm" autocomplete="off" autocapitalize="off" spellcheck="false" #box
+                 [placeholder]="universe()" [value]="f.typed()" (input)="f.typed.set($any($event.target).value)" />
         </label>
-        @if (error()) { <mv-error [message]="error()!" /> }
+        @if (f.error()) { <mv-error [message]="f.error()!" /> }
         <div class="row">
           <button type="button" class="btn ghost small" (click)="open.set(false)">Cancel</button>
-          <button type="submit" class="btn danger solid small" [disabled]="!ready() || busy()" [attr.aria-busy]="busy()">{{ force() ? 'Delete anyway' : 'Delete' }}</button>
+          <button type="submit" class="btn danger solid small" [disabled]="!f.ready() || f.busy()" [attr.aria-busy]="f.busy()">{{ f.force() ? 'Delete anyway' : 'Delete' }}</button>
         </div>
       </form>
     }`,
@@ -41,7 +41,9 @@ import { Icon } from '../ui/icon';
     label { display: flex; flex-direction: column; gap: 5px; font-size: .86rem }
     input { padding: 7px 10px; color: var(--text); font: inherit; background: var(--bg, var(--panel)); border: 1px solid var(--line); border-radius: var(--r-md) }
     input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
-    .row { display: flex; justify-content: flex-end; gap: 8px }`,
+    .row { display: flex; justify-content: flex-end; gap: 8px }
+    /* Where the actions wrap, the button may sit at the left edge, so a box anchored to its right edge would leave the screen. */
+    @media (max-width: 560px) { :host { position: static } .pop { position: fixed; left: 16px; right: 16px; top: 96px; width: auto } }`,
 })
 export class RemoveUniversePopover {
   private readonly ops = inject(Ops);
@@ -52,41 +54,22 @@ export class RemoveUniversePopover {
   readonly hint = input<string | null>(null);
 
   protected readonly open = signal(false);
-  protected readonly typed = signal('');
-  protected readonly error = signal<string | null>(null);
-  protected readonly force = signal(false);
-  protected readonly busy = signal(false);
-  protected readonly ready = computed(() => this.typed() === this.universe());
+  protected readonly f = new RemoveUniverseForm(this.ops, () => this.multiverse(), () => this.universe(), () => this.open.set(false));
+
+  private readonly box = viewChild<ElementRef<HTMLInputElement>>('box');
+
+  constructor() {
+    // `autofocus` does nothing on an element added after the page loaded, so the caret is put there by hand.
+    effect(() => this.box()?.nativeElement.focus());
+  }
 
   protected toggle(): void {
     this.open.update((o) => !o);
-    this.typed.set('');
-    this.error.set(null);
-    this.force.set(false);
+    this.f.reset();
   }
 
   @HostListener('document:click', ['$event']) onDocClick(e: Event): void {
     if (this.open() && !this.host.nativeElement.contains(e.target as Node)) this.open.set(false);
   }
   @HostListener('keydown.escape') onEscape(): void { this.open.set(false); }
-
-  protected async submit(e: Event): Promise<void> {
-    e.preventDefault();
-    if (!this.ready() || this.busy()) return;
-    this.busy.set(true);
-    this.error.set(null);
-    try {
-      await this.ops.run({ action: 'rm', multiverse: this.multiverse(), universe: this.universe(), confirm: this.typed(), force: this.force() });
-      this.open.set(false);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409 && err.body['dirty']) {
-        this.force.set(true);
-        this.error.set(`${err.message}. Press the button again to discard it.`);
-      } else {
-        this.error.set((err as Error).message);
-      }
-    } finally {
-      this.busy.set(false);
-    }
-  }
 }

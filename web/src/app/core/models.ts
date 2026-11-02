@@ -11,7 +11,7 @@ export interface CatalogView { root: NodeView; installed: number }
 export interface CatalogProgress { repo: string; ref?: string; phase: 'fetching' | 'done' | 'stale' | 'unavailable'; detail?: string; ms?: number }
 
 export interface ServiceView { name: string; state: string; detail?: string; published?: string }
-export interface UrlView { host: string; service: string; url: string }
+export interface UrlView { host: string; service: string; url: string; forwarded?: boolean }
 export interface AppView { key: string; repo: string; branch?: string; path: string; running: number; expected: number; onDemand?: boolean; urls?: UrlView[]; services?: ServiceView[] }
 export interface CheckoutView { repo: string; branch?: string; path: string; app?: string; follows?: string; behind?: number; ahead?: number; dirty?: boolean }
 
