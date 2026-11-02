@@ -42,8 +42,8 @@ import { Icon } from '../ui/icon';
     input { padding: 7px 10px; color: var(--text); font: inherit; background: var(--bg, var(--panel)); border: 1px solid var(--line); border-radius: var(--r-md) }
     input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
     .row { display: flex; justify-content: flex-end; gap: 8px }
-    /* Where the actions wrap, the button may sit at the left edge, so a box anchored to its right edge would leave the screen. */
-    @media (max-width: 560px) { :host { position: static } .pop { position: fixed; left: 16px; right: 16px; top: 96px; width: auto } }`,
+    /* Where the actions wrap, the button may sit at the left edge, so a box anchored to its right edge would leave the screen; a sheet at the bottom does not depend on where the header ends. */
+    @media (max-width: 560px) { :host { position: static } .pop { position: fixed; left: 16px; right: 16px; bottom: 16px; top: auto; width: auto } }`,
 })
 export class RemoveUniversePopover {
   private readonly ops = inject(Ops);
@@ -71,5 +71,5 @@ export class RemoveUniversePopover {
   @HostListener('document:click', ['$event']) onDocClick(e: Event): void {
     if (this.open() && !this.host.nativeElement.contains(e.target as Node)) this.open.set(false);
   }
-  @HostListener('keydown.escape') onEscape(): void { this.open.set(false); }
+  @HostListener('document:keydown.escape') onEscape(): void { this.open.set(false); }
 }

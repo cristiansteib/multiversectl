@@ -153,7 +153,7 @@ func demoFleet() *fake {
 				Branches: map[string]string{"api": "u4", "ui": "u4"}, Behind: 6,
 				Apps: []appView{
 					app("api", "u4", 2, 3, []urlView{url("api", "web", "https://api-4.example.test")},
-						svc("web", "running", "Up 40 minutes"), svc("worker", "stopped", "Exited (0)"), svc("db", "running", "Up 40 minutes")),
+						svc("web", "running", "Up 40 minutes"), svc("worker", "stopped", "Exited (0)"), svc("db", "running", "Up 40 minutes"), svc("mailer", "stopped", "Exited (1) 2 minutes ago")),
 					app("ui", "u4", 1, 1, []urlView{url("ui", "app", "https://ui-4.example.test")}, svc("app", "running", "Up 40 minutes")),
 				},
 				Checkouts: []checkoutView{{Repo: "api", Branch: "u4", Path: "/home/me/acme/universes/4/api", App: "api", Follows: "main", Behind: 6},
