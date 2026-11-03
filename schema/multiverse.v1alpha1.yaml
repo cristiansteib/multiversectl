@@ -2223,13 +2223,20 @@ spec:
 # the generated fragment, which is merged last — so it wins over the service's
 # own environment and over any env_file. The sources are:
 #
-#   origins        every address as an origin, each with its entrypoint's port
-#   hosts          every hostname
+#   origins        every address as an origin, each with its entrypoint's port,
+#                  and the IP:port address of each forwarded host
+#   hosts          every hostname (the machine's address for a host given by IP)
 #   domain         the wildcard domain in use
 #   universe       the universe's name
 #   slug           the part its hostnames carry
 #   host:<key>     one host key's hostname
-#   url:<key>      one host key's whole address
+#   url:<key>      one host key's whole address, port included
+#   forward:<key>  one host key's IP:port address; fails if it is not forwarded
+#
+# The whole value is one of these, never text with a name inside it: there is no
+# ${...} here. origins and hosts take a separator, origins:space (comma, space,
+# semicolon or newline; comma by default), and several sources join with +,
+# as in origins+forward:web:newline. An unknown source fails the start.
 #
 # A label rather than ${MULTIVERSE_ORIGINS} in the service's environment,
 # because a compose file is also run by hand: a reference resolves to the empty
