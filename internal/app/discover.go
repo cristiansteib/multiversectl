@@ -42,13 +42,13 @@ const (
 
 // Sources an env label can name.
 const (
-	srcOrigins  = "origins"  // every address as an origin, with ports
-	srcHosts    = "hosts"    // every hostname
+	srcOrigins  = "origins"  // every address as an origin, with ports, plus the forwarded IP:port ones
+	srcHosts    = "hosts"    // every hostname (the machine's address for a host given by IP)
 	srcDomain   = "domain"   // the wildcard domain
 	srcUniverse = "universe" // the universe's name
 	srcSlug     = "slug"     // the part its hostnames carry
-	srcHost     = "host:"    // one host key's hostname
-	srcURL      = "url:"     // one host key's address
+	srcHost     = "host:"    // one host key's hostname (the machine's address for a host given by IP)
+	srcURL      = "url:"     // one host key's origin: scheme, host and the entrypoint's port
 	srcForward  = "forward:" // one host key's address by IP and port, when it is forwarded
 )
 

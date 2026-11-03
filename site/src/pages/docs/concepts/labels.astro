@@ -54,7 +54,7 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></Terminal>
 
 <section id="env">
   <h2 id="env"><a href="#env">Values: <code>dev.multiversectl.env.*</code></a></h2>
-  <p>The key names an environment variable, the value names what to put in it:</p>
+  <p>The key names an environment variable, the value names what to put in it. The value is one of the sources below and nothing else: multiversectl replaces the whole of it with what the universe knows, so it is not text with a name inside it. <code>https://$&#123;slug&#125;.example.com</code> is not a source and fails the start; to build a string around an address, use <code>render</code> (below).</p>
   <Terminal kind="file"><pre><span class="k">services</span>:
   <span class="k">web</span>:
     <span class="k">labels</span>:
@@ -65,16 +65,35 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></Terminal>
   <div class="tw"><table>
   <thead><tr><th scope="col">Source</th><th scope="col">Value</th></tr></thead><tbody>
   <tr><td data-l="Source"><code>origins</code></td><td data-l="Value">Every address of the universe as an origin, each with its entrypoint's port, and the address by IP and port of every host that is forwarded (<code>portForward</code>), once its port is chosen. <code>hosts</code> stays hostnames only.</td></tr>
-  <tr><td data-l="Source"><code>hosts</code></td><td data-l="Value">Every hostname, comma separated.</td></tr>
+  <tr><td data-l="Source"><code>hosts</code></td><td data-l="Value">Every hostname, comma separated. A host that is given by IP (<code>portForward: only</code>, or <code>domain: none</code>) contributes the machine's address in place of a name.</td></tr>
   <tr><td data-l="Source"><code>origins:space</code>, <code>hosts:space</code></td><td data-l="Value">The same list joined as the setting wants it: <code>comma</code> (the default), <code>space</code>, <code>semicolon</code> or <code>newline</code>. A framework decides the shape of its own setting, so it is named rather than guessed.</td></tr>
   <tr><td data-l="Source"><code>domain</code></td><td data-l="Value">The wildcard domain in use.</td></tr>
   <tr><td data-l="Source"><code>universe</code></td><td data-l="Value">The universe's name, as typed.</td></tr>
   <tr><td data-l="Source"><code>slug</code></td><td data-l="Value">The part its hostnames carry.</td></tr>
-  <tr><td data-l="Source"><code>host:&lt;key&gt;</code></td><td data-l="Value">One host key's hostname.</td></tr>
+  <tr><td data-l="Source"><code>host:&lt;key&gt;</code></td><td data-l="Value">One host key's hostname, or the machine's address when the host is given by IP.</td></tr>
   <tr><td data-l="Source"><code>url:&lt;key&gt;</code></td><td data-l="Value">One host key's whole address, port included.</td></tr>
   <tr><td data-l="Source"><code>forward:&lt;key&gt;</code></td><td data-l="Value">The address of a host that is also forwarded by IP and port (<code>portForward: auto</code>), for a client that cannot use the hostname. Fails when the host is not forwarded.</td></tr>
   <tr><td data-l="Source"><code>forward:web+url:web</code></td><td data-l="Value">Several sources in one value, joined with <code>+</code>: each is resolved, a duplicate is dropped (the first stays), and the order is the one written. They are joined with the separator named after the last one, <code>forward:web+url:web:space</code> (also <code>origins+forward:web:newline</code>), comma by default. A list source (<code>origins</code>, <code>hosts</code>) contributes all of its items. A forwarded address whose port is not chosen yet is left out of a combination rather than failing it; a host that does not exist is an error.</td></tr>
   </tbody></table></div>
+  <h3 id="env-examples">What each one becomes</h3>
+  <p>For universe <code>3</code> on <code>domain: example.test</code>, with hosts <code>api</code> and <code>web</code>, where <code>web</code> is forwarded at <code>192.0.2.7:41000</code> and <code>api</code> is not forwarded yet:</p>
+  <div class="tw"><table>
+  <thead><tr><th scope="col">Label value</th><th scope="col">The variable becomes</th></tr></thead><tbody>
+  <tr><td data-l="Label value"><code>hosts</code></td><td data-l="The variable becomes"><code>api-u3.example.test,web-u3.example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>origins</code></td><td data-l="The variable becomes"><code>http://api-u3.example.test,http://web-u3.example.test,http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>origins:space</code></td><td data-l="The variable becomes"><code>http://api-u3.example.test http://web-u3.example.test http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>domain</code></td><td data-l="The variable becomes"><code>example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>universe</code></td><td data-l="The variable becomes"><code>3</code></td></tr>
+  <tr><td data-l="Label value"><code>slug</code></td><td data-l="The variable becomes"><code>u3</code></td></tr>
+  <tr><td data-l="Label value"><code>host:web</code></td><td data-l="The variable becomes"><code>web-u3.example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>url:web</code></td><td data-l="The variable becomes"><code>http://web-u3.example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>forward:web</code></td><td data-l="The variable becomes"><code>http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>url:web+forward:web</code></td><td data-l="The variable becomes"><code>http://web-u3.example.test,http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>url:web+forward:web:space</code></td><td data-l="The variable becomes"><code>http://web-u3.example.test http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>forward:api+url:api</code></td><td data-l="The variable becomes"><code>http://api-u3.example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>forward:api</code></td><td data-l="The variable becomes">An error: <code>api</code> has no forwarded port yet, so the start fails</td></tr>
+  </tbody></table></div>
+  <p>Inside a combination a forwarded address with no port yet is dropped instead of failing, which is why <code>forward:api+url:api</code> works where <code>forward:api</code> alone does not.</p>
   <p>An unknown source fails the start and names the valid ones, rather than leaving a variable quietly empty to surface much later as a confusing runtime error.</p>
   <h3 id="env-precedence">It beats <code>env_file</code></h3>
   <p>These land in the generated fragment, merged last, so they override the service's own <code>environment:</code> and any <code>env_file:</code>. A static list of origins in a committed <code>.env</code> therefore stops being what the universe runs with — the usual reason CORS is wrong in a second copy of a stack.</p>
