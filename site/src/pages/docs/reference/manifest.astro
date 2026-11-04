@@ -52,7 +52,7 @@ import Terminal from '../../../components/Terminal.astro';
   <h2 id="hosts"><a href="#hosts">hosts: for repositories you cannot change</a></h2>
   <p>Labels are the better place to say how a service is reached. <code>hosts:</code> on an app wins over them and exists for repositories you cannot edit:</p>
   <Terminal kind="file"><pre><span class="k">hosts</span>:
-  - <span class="k">name</span>: api            <span class="c"># api-u3.&lt;domain&gt;</span>
+  - <span class="k">name</span>: api            <span class="c"># acme-u3-api.&lt;domain&gt;</span>
     <span class="k">service</span>: web
     <span class="k">port</span>: 8001
     <span class="k">entrypoint</span>: devapi    <span class="c"># default: web</span>

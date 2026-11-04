@@ -15,8 +15,8 @@ import Terminal from '../../../components/Terminal.astro';
 <section id="ts-dns">
   <h2 id="ts-dns"><a href="#ts-dns">Hostnames do not resolve</a></h2>
   <p><code>universe doctor</code> warns: <em>does not resolve; a router or local DNS server may be stripping private-IP answers</em>. Some routers and resolvers drop DNS answers that point to private addresses. Compare your resolver with a public one:</p>
-  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">dig +short app-u3.192-168-1-20.traefik.me</span>
-<span class="p">$ </span><span class="in">dig +short app-u3.192-168-1-20.traefik.me @1.1.1.1</span></pre></Terminal>
+  <Terminal kind="shell"><pre><span class="p">$ </span><span class="in">dig +short acme-u3-app.192-168-1-20.traefik.me</span>
+<span class="p">$ </span><span class="in">dig +short acme-u3-app.192-168-1-20.traefik.me @1.1.1.1</span></pre></Terminal>
   <p>Empty from the first and an address from the second means your resolver strips it. Allow private answers for that domain (often called DNS rebinding protection), point the device at another resolver, or use <a href="/docs/tasks/reach/#hw-domain">a domain you own</a>.</p>
 </section>
 
@@ -50,7 +50,7 @@ import Terminal from '../../../components/Terminal.astro';
 
 <section id="ts-403">
   <h2 id="ts-403"><a href="#ts-403">A dev server answers 403</a></h2>
-  <p>Many dev servers reject Host headers they do not know, and a universe answers on <code>app-u3.&lt;domain&gt;</code>. Allow it with the variable the manifest passes in, through an inline overlay — the variable name is whatever your server reads:</p>
+  <p>Many dev servers reject Host headers they do not know, and a universe answers on <code>acme-u3-app.&lt;domain&gt;</code>. Allow it with the variable the manifest passes in, through an inline overlay — the variable name is whatever your server reads:</p>
   <Terminal kind="file"><pre><span class="k">apps</span>:
   - <span class="k">name</span>: web
     <span class="k">repo</span>: web

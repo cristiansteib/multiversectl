@@ -116,11 +116,11 @@ func TestAHostWithReadyIsPolledUntilItAnswersBelow500(t *testing.T) {
 	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(sys.probes) != 3 || sys.probes[0] != "http://api-u1.example.test" {
+	if len(sys.probes) != 3 || sys.probes[0] != "http://acme-u1-api.example.test" {
 		t.Errorf("probed %v", sys.probes)
 	}
 	out := r.out.text()
-	if !strings.Contains(out, "waiting for http://api-u1.example.test to answer (connection refused)") || !strings.Contains(out, "api: http://api-u1.example.test answers") || len(cmds.ran) != 1 {
+	if !strings.Contains(out, "waiting for http://acme-u1-api.example.test to answer (connection refused)") || !strings.Contains(out, "api: http://acme-u1-api.example.test answers") || len(cmds.ran) != 1 {
 		t.Errorf("output:\n%s", out)
 	}
 }
@@ -134,7 +134,7 @@ func TestAReadyPathIsAskedAndAProxiedH2cHostIsAskedOverHTTP(t *testing.T) {
 	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(sys.probes) == 0 || sys.probes[0] != "http://api-u1.example.test/healthz" {
+	if len(sys.probes) == 0 || sys.probes[0] != "http://acme-u1-api.example.test/healthz" {
 		t.Errorf("probed %v", sys.probes)
 	}
 
@@ -144,7 +144,7 @@ func TestAReadyPathIsAskedAndAProxiedH2cHostIsAskedOverHTTP(t *testing.T) {
 	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(sys.dials) != 0 || len(sys.probes) != 1 || sys.probes[0] != "http://api-u1.example.test" {
+	if len(sys.dials) != 0 || len(sys.probes) != 1 || sys.probes[0] != "http://acme-u1-api.example.test" {
 		t.Errorf("probed %v, dialled %v", sys.probes, sys.dials)
 	}
 }

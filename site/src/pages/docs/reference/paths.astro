@@ -17,7 +17,7 @@ import Page from '../../../layouts/Page.astro';
   <ol class="how">
     <li><strong>Worktrees share one object store</strong>Each universe is a git worktree of every repository, so ten universes cost working files, not ten clones.</li>
     <li><strong>One compose project per app, per universe</strong>Containers, networks and volumes are namespaced by the runtime itself, so databases and caches never leak between universes.</li>
-    <li><strong>Routing by hostname, not by port</strong>Nothing publishes host ports. One shared reverse proxy sends <code>app-u3</code> and <code>api-u3</code> to universe 3.</li>
+    <li><strong>Routing by hostname, not by port</strong>Nothing publishes host ports. One shared reverse proxy sends <code>acme-u3-app</code> and <code>acme-u3-api</code> to universe 3.</li>
     <li><strong>One manifest, versioned</strong>The <code>apiVersion</code> field lets the format evolve without breaking multiverses already written.</li>
   </ol>
 </section>

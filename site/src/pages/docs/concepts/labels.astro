@@ -16,7 +16,7 @@ import Terminal from '../../../components/Terminal.astro';
   <Terminal kind="file"><pre><span class="k">services</span>:
   <span class="k">app-dev</span>:
     <span class="k">labels</span>:
-      <span class="k">dev.multiversectl.host.app</span>: <span class="s">"4200"</span>              <span class="c"># app-u3.&lt;domain&gt; → 4200</span>
+      <span class="k">dev.multiversectl.host.app</span>: <span class="s">"4200"</span>              <span class="c"># acme-u3-app.&lt;domain&gt; → 4200</span>
       <span class="k">dev.multiversectl.host.api</span>: <span class="s">"8001"</span>
       <span class="k">dev.multiversectl.host.api.entrypoint</span>: devapi   <span class="c"># default: web</span>
       <span class="k">dev.multiversectl.host.api.aliases</span>: app,adm     <span class="c"># same service, more names</span>
@@ -25,7 +25,7 @@ import Terminal from '../../../components/Terminal.astro';
       <span class="k">dev.multiversectl.host.api.ready</span>: /healthz      <span class="c"># up waits until this answers</span>
       <span class="k">dev.multiversectl.host.rpc.probe</span>: tcp          <span class="c"># universe doctor connects instead of asking over HTTP</span></pre></Terminal>
   <h3 id="host-forward">By IP and port: <code>portForward</code></h3>
-  <p>Some clients refuse plain http to a hostname: an iPhone app's transport security allows an IP address but not <code>api-u3.&lt;domain&gt;</code>. <code>dev.multiversectl.host.api.portForward: auto</code> also publishes that service on a free host port, so it answers at <code>http://&lt;this machine's address&gt;:&lt;port&gt;</code> next to its hostname. The kernel picks the port once, it is kept in the universe's state (so the address you gave a phone survives restarts) and no other universe is given it. It is bound like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>.</p>
+  <p>Some clients refuse plain http to a hostname: an iPhone app's transport security allows an IP address but not <code>acme-u3-api.&lt;domain&gt;</code>. <code>dev.multiversectl.host.api.portForward: auto</code> also publishes that service on a free host port, so it answers at <code>http://&lt;this machine's address&gt;:&lt;port&gt;</code> next to its hostname. The kernel picks the port once, it is kept in the universe's state (so the address you gave a phone survives restarts) and no other universe is given it. It is bound like the proxy: every interface with <code>expose: lan</code>, loopback only with <code>expose: local</code>. <code>universe ls</code> shows it as <code>&lt;host&gt;:forward</code>.</p>
   <p><code>aliases</code> is how one API answers under each front-end's own hostname on a second entrypoint, which makes a hard-coded <code>:8001</code> work in every universe.</p>
   <h3 id="host-ip-only">By IP alone: <code>portForward: only</code></h3>
   <p>With <code>auto</code> a host answers under its hostname and at <code>http://&lt;ip&gt;:&lt;port&gt;</code>, and both are listed. <code>only</code> keeps the second: the host is reached at that address alone, and no address shown or handed to a service (<code>&lt;HOST&gt;_URL</code>, <code>origins</code>, the web view) is a name. For a service that should not be known by one, such as an identity provider whose issuer must be a single address. <code>domain: none</code> does it for every host.</p>
@@ -79,18 +79,18 @@ should answer: dev.multiversectl.host.api: "&lt;port&gt;"</pre></Terminal>
   <p>For universe <code>3</code> on <code>domain: example.test</code>, with hosts <code>api</code> and <code>web</code>, where <code>web</code> is forwarded at <code>192.0.2.7:41000</code> and <code>api</code> is not forwarded yet:</p>
   <div class="tw"><table>
   <thead><tr><th scope="col">Label value</th><th scope="col">The variable becomes</th></tr></thead><tbody>
-  <tr><td data-l="Label value"><code>hosts</code></td><td data-l="The variable becomes"><code>api-u3.example.test,web-u3.example.test</code></td></tr>
-  <tr><td data-l="Label value"><code>origins</code></td><td data-l="The variable becomes"><code>http://api-u3.example.test,http://web-u3.example.test,http://192.0.2.7:41000</code></td></tr>
-  <tr><td data-l="Label value"><code>origins:space</code></td><td data-l="The variable becomes"><code>http://api-u3.example.test http://web-u3.example.test http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>hosts</code></td><td data-l="The variable becomes"><code>acme-u3-api.example.test,acme-u3-web.example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>origins</code></td><td data-l="The variable becomes"><code>http://acme-u3-api.example.test,http://acme-u3-web.example.test,http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>origins:space</code></td><td data-l="The variable becomes"><code>http://acme-u3-api.example.test http://acme-u3-web.example.test http://192.0.2.7:41000</code></td></tr>
   <tr><td data-l="Label value"><code>domain</code></td><td data-l="The variable becomes"><code>example.test</code></td></tr>
   <tr><td data-l="Label value"><code>universe</code></td><td data-l="The variable becomes"><code>3</code></td></tr>
   <tr><td data-l="Label value"><code>slug</code></td><td data-l="The variable becomes"><code>u3</code></td></tr>
-  <tr><td data-l="Label value"><code>host:web</code></td><td data-l="The variable becomes"><code>web-u3.example.test</code></td></tr>
-  <tr><td data-l="Label value"><code>url:web</code></td><td data-l="The variable becomes"><code>http://web-u3.example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>host:web</code></td><td data-l="The variable becomes"><code>acme-u3-web.example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>url:web</code></td><td data-l="The variable becomes"><code>http://acme-u3-web.example.test</code></td></tr>
   <tr><td data-l="Label value"><code>forward:web</code></td><td data-l="The variable becomes"><code>http://192.0.2.7:41000</code></td></tr>
-  <tr><td data-l="Label value"><code>url:web+forward:web</code></td><td data-l="The variable becomes"><code>http://web-u3.example.test,http://192.0.2.7:41000</code></td></tr>
-  <tr><td data-l="Label value"><code>url:web+forward:web:space</code></td><td data-l="The variable becomes"><code>http://web-u3.example.test http://192.0.2.7:41000</code></td></tr>
-  <tr><td data-l="Label value"><code>forward:api+url:api</code></td><td data-l="The variable becomes"><code>http://api-u3.example.test</code></td></tr>
+  <tr><td data-l="Label value"><code>url:web+forward:web</code></td><td data-l="The variable becomes"><code>http://acme-u3-web.example.test,http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>url:web+forward:web:space</code></td><td data-l="The variable becomes"><code>http://acme-u3-web.example.test http://192.0.2.7:41000</code></td></tr>
+  <tr><td data-l="Label value"><code>forward:api+url:api</code></td><td data-l="The variable becomes"><code>http://acme-u3-api.example.test</code></td></tr>
   <tr><td data-l="Label value"><code>forward:api</code></td><td data-l="The variable becomes">An error: <code>api</code> has no forwarded port yet, so the start fails</td></tr>
   </tbody></table></div>
   <p>Inside a combination a forwarded address with no port yet is dropped instead of failing, which is why <code>forward:api+url:api</code> works where <code>forward:api</code> alone does not.</p>

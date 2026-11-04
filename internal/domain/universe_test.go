@@ -49,10 +49,10 @@ func TestUniverseIdentity(t *testing.T) {
 
 func TestUniverseHostname(t *testing.T) {
 	m := &Manifest{Name: "acme"}
-	if got := (Universe{Name: "fix/login", Manifest: m}).Hostname("api", "example.test"); got != "api-fix-login.example.test" {
+	if got := (Universe{Name: "fix/login", Manifest: m}).Hostname("api", "example.test"); got != "acme-fix-login-api.example.test" {
 		t.Errorf("got %q", got)
 	}
-	if got := (Universe{Name: "3", Manifest: m}).Hostname("api", "example.test"); got != "api-u3.example.test" {
+	if got := (Universe{Name: "3", Manifest: m}).Hostname("api", "example.test"); got != "acme-u3-api.example.test" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -153,5 +153,17 @@ func TestTheProxyReachesAnAppOnItsOwnNetwork(t *testing.T) {
 	recorded := Universe{Manifest: m, Name: "3", Recorded: "acme-old-u3"}
 	if got := recorded.ProxyNetwork("web"); got != "acme-old-u3-web_default" {
 		t.Fatalf("recorded ProxyNetwork = %q", got)
+	}
+}
+
+// Two multiverses with a host of the same name in the same universe get two
+// hostnames, which is what lets one proxy route for both.
+func TestHostnamesDifferAcrossMultiverses(t *testing.T) {
+	a := &Manifest{Name: "acme", Apps: map[string]App{"web": {Hosts: map[string]HostRule{"web": {}}}}}
+	b := &Manifest{Name: "beta", Apps: a.Apps}
+	ha := (Universe{Name: "1", Manifest: a}).Hostname("web", "localhost")
+	hb := (Universe{Name: "1", Manifest: b}).Hostname("web", "localhost")
+	if ha == hb || ha != "acme-u1-web.localhost" {
+		t.Errorf("acme %q, beta %q", ha, hb)
 	}
 }

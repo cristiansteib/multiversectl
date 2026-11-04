@@ -426,7 +426,7 @@ func TestTheFileExistsWhenTheServicesStart(t *testing.T) {
 	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(rt.configAtUp) != 1 || rt.configAtUp[0] != `{"api": "http://api-u1.example.test"}` {
+	if len(rt.configAtUp) != 1 || rt.configAtUp[0] != `{"api": "http://acme-u1-api.example.test"}` {
 		t.Errorf("at start the file held %q", rt.configAtUp)
 	}
 }

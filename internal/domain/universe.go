@@ -34,7 +34,7 @@ type Universe struct {
 var (
 	notSlug   = regexp.MustCompile(`[^a-z0-9]+`)
 	numberRe  = regexp.MustCompile(`^u?([0-9]+)$`)
-	slugLimit = 40 // keeps <host>-<slug> inside a 63-character DNS label
+	slugLimit = 40 // keeps <multiverse>-<slug>-<host> near a 63-character DNS label; a start warns when one is over
 )
 
 // Slugify reduces a name to what DNS labels and compose project names both
@@ -152,9 +152,13 @@ func (u Universe) Dir() string {
 // RepoDir is where a repository is checked out inside the universe.
 func (u Universe) RepoDir(repoKey string) string { return filepath.Join(u.Dir(), repoKey) }
 
-// Hostname renders a host rule's name, e.g. "app-u3.example.test".
+// Hostname renders a host rule's name, e.g. "acme-u3-app.example.test": the
+// multiverse, the universe, then the host. The multiverse comes first because the
+// shared proxy routes by hostname for every multiverse on the machine, and two of
+// them may both have a host "app" in universe 3. It is one DNS label, so a
+// wildcard certificate for the domain still covers it.
 func (u Universe) Hostname(hostKey, domain string) string {
-	return fmt.Sprintf("%s-%s.%s", hostKey, u.Slug(), domain)
+	return fmt.Sprintf("%s-%s-%s.%s", u.Manifest.Name, u.Slug(), hostKey, domain)
 }
 
 // Hostnames maps every host rule of every app to its hostname.

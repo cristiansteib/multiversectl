@@ -420,7 +420,7 @@ const labelsFooter = `
 #   services:
 #     app-dev:
 #       labels:
-#         dev.multiversectl.host.app: "4200"              # app-u3.<domain> -> 4200
+#         dev.multiversectl.host.app: "4200"              # acme-u3-app.<domain> -> 4200
 #         dev.multiversectl.host.api: "8001"
 #         dev.multiversectl.host.api.entrypoint: devapi   # default: web
 #         dev.multiversectl.host.api.aliases: app,adm     # same service, other names
