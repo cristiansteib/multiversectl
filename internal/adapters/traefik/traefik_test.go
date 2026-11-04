@@ -295,3 +295,65 @@ func TestCertificatePairsAreReadBackFromTheFile(t *testing.T) {
 		t.Errorf("certificates = %+v", got)
 	}
 }
+
+// A running proxy is read from its container, so another user's file is not
+// needed to know what it listens on, who can reach each port, and which
+// certificates it presents.
+func TestParseInspectReadsWhatTheRunningProxyListensOn(t *testing.T) {
+	out := []byte(`[{
+	  "Config": {"Cmd": ["--providers.docker=true",
+	    "--entrypoints.web.address=:80", "--entrypoints.websecure.address=:443",
+	    "--entrypoints.websecure.http.tls=true", "--entrypoints.alt.address=:8080"]},
+	  "HostConfig": {"PortBindings": {
+	    "80/tcp": [{"HostIp": "127.0.0.1", "HostPort": "80"}],
+	    "443/tcp": [{"HostIp": "", "HostPort": "443"}],
+	    "8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8080"}]}},
+	  "Mounts": [
+	    {"Source": "/home/a/c1.pem", "Destination": "/certs/1/cert.pem"},
+	    {"Source": "/home/a/k1.pem", "Destination": "/certs/1/key.pem"},
+	    {"Source": "/home/a/c0.pem", "Destination": "/certs/0/cert.pem"},
+	    {"Source": "/home/a/k0.pem", "Destination": "/certs/0/key.pem"},
+	    {"Source": "/var/run/docker.sock", "Destination": "/var/run/docker.sock"}]}]`)
+	listeners, certs, err := parseInspect(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []domain.Listener{
+		{Name: "alt", Port: 8080, Bind: "0.0.0.0"},
+		{Name: "web", Port: 80, Bind: "127.0.0.1"},
+		{Name: "websecure", Port: 443, Bind: "0.0.0.0", TLS: true},
+	}
+	if len(listeners) != 3 || listeners[0] != want[0] || listeners[1] != want[1] || listeners[2] != want[2] {
+		t.Errorf("listeners = %+v", listeners)
+	}
+	if len(certs) != 2 || certs[0].CertFile != "/home/a/c0.pem" || certs[1].KeyFile != "/home/a/k1.pem" {
+		t.Errorf("certs = %+v", certs)
+	}
+	if _, _, err := parseInspect([]byte(`[]`)); err == nil {
+		t.Errorf("an empty inspect must be an error, not a proxy that listens on nothing")
+	}
+}
+
+// The proxy sees the containers of every multiverse: two that each have a host
+// `web` in universe 1 must not be one router defined twice.
+func TestRoutersAreNamedApartAcrossMultiverses(t *testing.T) {
+	label := func(router string) string {
+		content, err := render("routes.yml.tmpl", buildOverride(app.OverrideRequest{Routes: []app.Route{
+			{Name: "web-u1", Router: router, Hostname: "web-u1.localhost", Service: "web", Port: 80, Entrypoint: "web", Network: "n"},
+		}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(content)
+	}
+	a, b := label("acme-web-u1"), label("beta-web-u1")
+	if !strings.Contains(a, "traefik.http.routers.acme-web-u1.rule") || strings.Contains(a, "routers.web-u1.") {
+		t.Errorf("acme's router is not named for acme:\n%s", a)
+	}
+	if !strings.Contains(b, "traefik.http.services.beta-web-u1.loadbalancer.server.port") {
+		t.Errorf("beta's service is not named for beta:\n%s", b)
+	}
+	if !strings.Contains(label(""), "traefik.http.routers.web-u1.rule") {
+		t.Errorf("a route with no router id keeps its name")
+	}
+}

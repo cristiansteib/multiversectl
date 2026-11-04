@@ -330,11 +330,21 @@ type Proxy interface {
 	EnsureUp(ctx context.Context, r ProxyRequest) error
 	Down(ctx context.Context) error
 	Status(ctx context.Context) (ProxyStatus, error)
+	// Serving names the running containers that are labelled as served by this
+	// proxy, whichever multiverse or user on the machine started them. It asks the
+	// container runtime, not a manifest, so it knows of what no manifest can be
+	// read for.
+	Serving(ctx context.Context) ([]string, error)
 }
 
 // Route is one hostname the proxy must send to one service port.
 type Route struct {
-	Name       string // unique per universe, e.g. "app-u3"
+	Name string // unique per universe, e.g. "app-u3"
+	// Router is what the proxy calls the route: unique on the machine, since the
+	// proxy sees the containers of every multiverse and two with a host of the
+	// same name in the same universe would be one router defined twice, which it
+	// answers for neither. Empty means Name.
+	Router     string
 	Hostname   string
 	Aliases    []string // further hostnames routed to the same service
 	Service    string

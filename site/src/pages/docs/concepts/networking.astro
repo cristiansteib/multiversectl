@@ -127,7 +127,7 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
   <span class="k">proxy</span>:
     <span class="k">entrypoints</span>:
       <span class="k">web</span>: 8080</pre></Terminal>
-  <p>Their names may be the same: the proxy tells the ports apart, and routes use the proxy's name for the port. When the last universe of a multiverse stops, the ports only it needed are closed, so a port opened to the network does not outlive the universe that asked for it. With nothing running at all the proxy is left as it is.</p>
+  <p>Their names may be the same: the proxy tells the ports apart, and routes use the proxy's name for the port. When the last universe of a multiverse stops, the ports only it needed are closed, so a port opened to the network does not outlive the universe that asked for it. With no universe running at all the proxy itself is stopped, and the next start brings it back; it is only stopped when the container runtime reports no container labelled as served by it, whichever multiverse or user started that container.</p>
   <p>When they do want the same port, the clash is reported before anything is built, by <code>universe new</code>, <code>universe up</code>, <code>system proxy status</code> and <code>doctor</code>, naming both sides:</p>
   <Terminal kind="output"><pre><span class="err">error: universe 3 of beta cannot be served by the shared proxy together with the universes that run now: nothing was changed.</span>
   - universe 3 of beta (expose lan) and universes 1, 2 of alpha (expose local) both want port 80, on

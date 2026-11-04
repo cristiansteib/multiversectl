@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"os/exec"
@@ -105,6 +106,19 @@ func (t *Traefik) proxyContainer(ctx context.Context) (string, error) {
 		return "", nil
 	}
 	return ids[0], nil
+}
+
+// Serving is the running containers that carry this proxy's served-by label. The
+// label is put on every routed container when its universe starts, so this is
+// the runtime's own answer to "does anything still need the proxy", and it holds
+// across multiverses and users that share one container runtime.
+func (t *Traefik) Serving(ctx context.Context) ([]string, error) {
+	out, err := t.capture(ctx, "ps", "--filter", "status=running",
+		"--filter", "label="+servedByLabel+"="+proxyProject(), "--format", "{{.Names}}")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(out), nil
 }
 
 // ConnectNetwork joins the proxy to a network; being on it already is fine. The
@@ -210,14 +224,41 @@ func (t *Traefik) Down(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// The proxy is shared by every user of the container runtime, so it may have
+	// been started from a file this user does not have: the project name finds it.
 	if _, err := os.Stat(file); err != nil {
-		return nil
+		id, perr := t.proxyContainer(ctx)
+		if perr != nil || id == "" {
+			return perr
+		}
+		return t.docker(ctx, "compose", "--project-name", proxyProject(), "down")
 	}
 	return t.docker(ctx, "compose", "--project-name", proxyProject(), "-f", file, "down")
 }
 
+// Status says whether the proxy runs and what it listens on. A running proxy is
+// read from the container itself, since the compose file on disk belongs to
+// whichever user last wrote it and the container is shared by every user of the
+// machine's container runtime; the file is only what a proxy that is down
+// listened on last.
 func (t *Traefik) Status(ctx context.Context) (app.ProxyStatus, error) {
 	var st app.ProxyStatus
+	id, err := t.proxyContainer(ctx)
+	if err != nil {
+		return st, err
+	}
+	if id != "" {
+		out, err := t.capture(ctx, "inspect", id)
+		if err != nil {
+			return st, err
+		}
+		listeners, certs, err := parseInspect([]byte(out))
+		if err != nil {
+			return st, err
+		}
+		st.Running, st.Listeners, st.Certificates = true, listeners, certs
+		return st, nil
+	}
 	file, err := proxyFile()
 	if err != nil {
 		return st, err
@@ -228,18 +269,69 @@ func (t *Traefik) Status(ctx context.Context) (app.ProxyStatus, error) {
 	}
 	st.Listeners = parseListeners(string(content))
 	st.Certificates = parseCertificatePairs(string(content))
-
-	var stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "docker", "compose", "--project-name", proxyProject(), "-f", file, "ps", "--format", "{{json .}}")
-	cmd.Stderr = &stderr
-	done := t.trace.Begin(cmd)
-	out, err := cmd.Output()
-	done(err)
-	if err != nil {
-		return st, fmt.Errorf("docker compose ps: %w: %s", err, strings.TrimSpace(stderr.String()))
-	}
-	st.Running = anyRunning(out)
 	return st, nil
+}
+
+// parseInspect reads what a running proxy listens on out of `docker inspect`:
+// the entrypoints it was started with, the address each port is published on,
+// and the certificate files mounted into it.
+func parseInspect(out []byte) ([]domain.Listener, []domain.Certificate, error) {
+	var rows []struct {
+		Config     struct{ Cmd []string }
+		HostConfig struct {
+			PortBindings map[string][]struct{ HostIp, HostPort string }
+		}
+		Mounts []struct{ Source, Destination string }
+	}
+	if err := json.Unmarshal(out, &rows); err != nil {
+		return nil, nil, fmt.Errorf("parsing docker inspect output: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil, errors.New("docker inspect returned nothing for the proxy")
+	}
+	row := rows[0]
+	cmd := strings.Join(row.Config.Cmd, "\n")
+	binds := map[int]string{}
+	for key, list := range row.HostConfig.PortBindings {
+		port, err := strconv.Atoi(strings.SplitN(key, "/", 2)[0])
+		if err != nil || len(list) == 0 {
+			continue
+		}
+		binds[port] = list[0].HostIp
+	}
+	tls := parseTLS(cmd)
+	var listeners []domain.Listener
+	for _, m := range entrypointRe.FindAllStringSubmatch(cmd, -1) {
+		port, _ := strconv.Atoi(m[2])
+		bind := binds[port]
+		if bind == "" {
+			bind = "0.0.0.0"
+		}
+		listeners = append(listeners, domain.Listener{Name: m[1], Port: port, Bind: bind, TLS: tls[m[1]]})
+	}
+	sort.Slice(listeners, func(i, j int) bool { return listeners[i].Name < listeners[j].Name })
+
+	certFiles, keyFiles := map[int]string{}, map[int]string{}
+	for _, m := range row.Mounts {
+		var n int
+		var kind string
+		if _, err := fmt.Sscanf(m.Destination, "/certs/%d/%s", &n, &kind); err != nil {
+			continue
+		}
+		switch kind {
+		case "cert.pem":
+			certFiles[n] = m.Source
+		case "key.pem":
+			keyFiles[n] = m.Source
+		}
+	}
+	var certs []domain.Certificate
+	for n := 0; n < len(certFiles); n++ {
+		if c, ok := certFiles[n]; ok && keyFiles[n] != "" {
+			certs = append(certs, domain.Certificate{CertFile: c, KeyFile: keyFiles[n]})
+		}
+	}
+	return listeners, certs, nil
 }
 
 func (t *Traefik) Materialize(ctx context.Context, r app.OverrideRequest) ([]string, error) {
@@ -289,7 +381,11 @@ func mountCertificates(certs []domain.Certificate) ([]mountedCert, error) {
 	var out []mountedCert
 	for i, c := range certs {
 		for _, f := range []string{c.CertFile, c.KeyFile} {
-			if info, err := os.Stat(f); err != nil {
+			if info, err := os.Stat(f); errors.Is(err, fs.ErrPermission) {
+				// Another user's file, already mounted into the shared proxy: the
+				// container runtime can read it even though this user cannot.
+				continue
+			} else if err != nil {
 				return nil, fmt.Errorf("proxy certificate: %w", err)
 			} else if info.IsDir() {
 				return nil, fmt.Errorf("proxy certificate: %s is a directory, not a PEM file", f)
@@ -371,29 +467,6 @@ func parseListeners(content string) []domain.Listener {
 	return out
 }
 
-// anyRunning accepts both compose ps shapes: one JSON object per line, or a
-// single JSON array (older releases).
-func anyRunning(out []byte) bool {
-	out = bytes.TrimSpace(out)
-	var rows []struct{ State string }
-	if bytes.HasPrefix(out, []byte("[")) {
-		_ = json.Unmarshal(out, &rows)
-	} else {
-		for _, line := range bytes.Split(out, []byte("\n")) {
-			var row struct{ State string }
-			if json.Unmarshal(line, &row) == nil {
-				rows = append(rows, row)
-			}
-		}
-	}
-	for _, row := range rows {
-		if row.State == "running" {
-			return true
-		}
-	}
-	return false
-}
-
 type label struct{ Key, Value string }
 
 type service struct {
@@ -455,15 +528,19 @@ func buildOverride(r app.OverrideRequest) override {
 		for i, h := range hosts {
 			rules[i] = "Host(`" + h + "`)"
 		}
-		prefix := "traefik.http.routers." + r.Name
+		id := r.Router
+		if id == "" {
+			id = r.Name
+		}
+		prefix := "traefik.http.routers." + id
 		if r.Scheme != "" && r.Scheme != "http" {
-			s.Labels = append(s.Labels, label{"traefik.http.services." + r.Name + ".loadbalancer.server.scheme", r.Scheme})
+			s.Labels = append(s.Labels, label{"traefik.http.services." + id + ".loadbalancer.server.scheme", r.Scheme})
 		}
 		s.Labels = append(s.Labels,
-			label{"traefik.http.services." + r.Name + ".loadbalancer.server.port", strconv.Itoa(r.Port)},
+			label{"traefik.http.services." + id + ".loadbalancer.server.port", strconv.Itoa(r.Port)},
 			label{prefix + ".rule", strings.Join(rules, " || ")},
 			label{prefix + ".entrypoints", r.Entrypoint},
-			label{prefix + ".service", r.Name},
+			label{prefix + ".service", id},
 		)
 	}
 	for _, se := range r.Env {

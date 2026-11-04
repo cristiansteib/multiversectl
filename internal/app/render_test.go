@@ -389,6 +389,8 @@ func (startProxy) Status(context.Context) (app.ProxyStatus, error) {
 	return app.ProxyStatus{Running: true, Listeners: []domain.Listener{{Name: "web", Port: 80, Bind: "0.0.0.0"}}}, nil
 }
 func (startProxy) EnsureUp(context.Context, app.ProxyRequest) error { return nil }
+func (startProxy) Serving(context.Context) ([]string, error)        { return nil, nil }
+func (startProxy) Down(context.Context) error                       { return nil }
 
 type startRouter struct{}
 

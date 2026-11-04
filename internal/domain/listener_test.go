@@ -94,3 +94,18 @@ func TestDifferentProxyNetworksStillClash(t *testing.T) {
 		t.Errorf("clashes = %v", got)
 	}
 }
+
+func TestPlanNeverReusesAName(t *testing.T) {
+	current := []Listener{{Name: "web", Port: 8080}, {Name: "web-80", Port: 8081}}
+	got := PlanListeners(current, []Listener{{Name: "web", Port: 80, Bind: "127.0.0.1"}})
+	names := map[string]bool{}
+	for _, l := range got {
+		if names[l.Name] {
+			t.Fatalf("name %q is used twice in %v", l.Name, got)
+		}
+		names[l.Name] = true
+	}
+	if len(got) != 3 {
+		t.Errorf("got %v", got)
+	}
+}

@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -13,9 +14,20 @@ import (
 // the real one does through its compose file.
 type sharedProxy struct {
 	startProxy
-	listeners []domain.Listener
-	running   bool
-	ups       [][]domain.Listener
+	listeners  []domain.Listener
+	running    bool
+	ups        [][]domain.Listener
+	downs      int
+	serving    []string // containers the runtime says are routed through it
+	servingErr error
+}
+
+func (p *sharedProxy) Serving(context.Context) ([]string, error) { return p.serving, p.servingErr }
+
+func (p *sharedProxy) Down(context.Context) error {
+	p.running = false
+	p.downs++
+	return nil
 }
 
 func (p *sharedProxy) Status(context.Context) (app.ProxyStatus, error) {
@@ -156,14 +168,40 @@ func TestStoppingTheLastUniverseOfAMultiverseClosesOnlyItsPorts(t *testing.T) {
 		t.Errorf("not said:\n%s", r.out.text())
 	}
 
-	// With nothing running at all the proxy is left as it is.
+	// With nothing running at all the proxy is stopped: nothing is served by it.
 	rt.running = nil
 	before := len(px.ups)
 	if err := r.svc.Stop(ctx, app.StopInput{Universe: "1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(px.ups) != before {
-		t.Errorf("the proxy was touched with nothing running")
+	if px.downs != 1 || px.running || len(px.ups) != before {
+		t.Errorf("downs = %d, running = %v, ups %d -> %d", px.downs, px.running, before, len(px.ups))
+	}
+}
+
+// A proxy that is already down is not stopped again, and one that does not list
+// what the running universes ask for is not emptied.
+func TestTrimLeavesAnUnrelatedOrStoppedProxyAlone(t *testing.T) {
+	r, rt, px, _ := sharedRig(t, 8080)
+	ctx := context.Background()
+	px.running = false
+	rt.running = nil
+	if err := r.svc.Stop(ctx, app.StopInput{Universe: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if px.downs != 0 {
+		t.Errorf("a stopped proxy was stopped again")
+	}
+
+	// beta runs on 8080 but the proxy only lists port 9999.
+	px.running, px.listeners = true, []domain.Listener{{Name: "other", Port: 9999, Bind: "0.0.0.0"}}
+	rt.running = []app.Container{{Name: "beta-u2-api-web-1", Project: "beta-u2-api", Service: "web", Status: "Up 2 minutes",
+		WorkingDir: "/other/universes/2/api", ConfigFile: "/other/universes/2/api/compose.yaml"}}
+	if err := r.svc.Stop(ctx, app.StopInput{Universe: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(px.ups) != 0 || px.downs != 0 || !px.running {
+		t.Errorf("the proxy was touched: ups %v, downs %d", px.ups, px.downs)
 	}
 }
 
@@ -179,5 +217,31 @@ func TestTheConflictIsKnownBeforeAnythingIsBuilt(t *testing.T) {
 	r2, _, _, _ := sharedRig(t, 8080)
 	if got := r2.svc.ProxyConflicts(context.Background()); len(got) != 0 {
 		t.Errorf("distinct ports coexist, yet %q", got)
+	}
+}
+
+// A container no manifest accounts for (another user's multiverse, one whose
+// manifest cannot be read) still carries the served-by label: the proxy stays.
+func TestTheProxyStaysUpWhileAContainerIsStillRoutedThroughIt(t *testing.T) {
+	r, rt, px, _ := sharedRig(t, 8080)
+	rt.running = nil
+	px.serving = []string{"gamma-u1-api-web-1"}
+	if err := r.svc.Stop(context.Background(), app.StopInput{Universe: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if px.downs != 0 || !px.running {
+		t.Errorf("the proxy was stopped under a container that uses it")
+	}
+	if !strings.Contains(r.out.text(), "gamma-u1-api-web-1") {
+		t.Errorf("not said which container keeps it up:\n%s", r.out.text())
+	}
+
+	// When the runtime cannot answer, it is not assumed to be nothing.
+	px.serving, px.servingErr = nil, errors.New("permission denied")
+	if err := r.svc.Stop(context.Background(), app.StopInput{Universe: "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if px.downs != 0 || !px.running {
+		t.Errorf("the proxy was stopped without knowing nothing uses it")
 	}
 }

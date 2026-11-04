@@ -41,10 +41,10 @@ func PlanListeners(current, want []Listener) []Listener {
 			continue
 		}
 		name := w.Name
-		for _, l := range out {
-			if l.Name == name {
-				name = fmt.Sprintf("%s-%d", w.Name, w.Port)
-				break
+		if nameTaken(out, name) {
+			name = fmt.Sprintf("%s-%d", w.Name, w.Port)
+			for n := 2; nameTaken(out, name); n++ {
+				name = fmt.Sprintf("%s-%d-%d", w.Name, w.Port, n)
 			}
 		}
 		w.Name = name
@@ -83,6 +83,15 @@ func KeepListeners(current []Listener, needed ...*Manifest) []Listener {
 func hasPort(m *Manifest, port int) bool {
 	for _, p := range m.Proxy.Entrypoints {
 		if p == port {
+			return true
+		}
+	}
+	return false
+}
+
+func nameTaken(list []Listener, name string) bool {
+	for _, l := range list {
+		if l.Name == name {
 			return true
 		}
 	}

@@ -52,7 +52,7 @@ func (s *Service) servedMultiverses(ctx context.Context, self bool) []servedMult
 	}
 	for _, name := range slices.Sorted(maps.Keys(cfg.Multiverses)) {
 		entry := cfg.Multiverses[name]
-		if entry.Root == "" || samePath(entry.Root, s.Multiverse) || samePath(entry.Manifest, s.Manifest.Path) {
+		if entry.Root == "" || samePath(entry.Root, s.Multiverse) || (s.Manifest != nil && samePath(entry.Manifest, s.Manifest.Path)) {
 			continue
 		}
 		other, err := s.Manifests.Load(entry.Manifest)
@@ -188,7 +188,11 @@ func mergeCertificates(have, want []domain.Certificate) []domain.Certificate {
 // another multiverse gave it, and the router's label has to use that one.
 func (s *Service) onProxyListeners(ctx context.Context, routes []Route) []Route {
 	status, err := s.Proxy.Status(ctx)
-	if err != nil || len(status.Listeners) == 0 {
+	if err != nil {
+		s.Out.Warn("could not read what the shared proxy listens on, so routes use this multiverse's own entrypoint names, which the proxy may call differently: %v", err)
+		return routes
+	}
+	if len(status.Listeners) == 0 {
 		return routes
 	}
 	out := append([]Route(nil), routes...)
@@ -202,8 +206,10 @@ func (s *Service) onProxyListeners(ctx context.Context, routes []Route) []Route 
 
 // trimProxy takes off the proxy what no running multiverse needs once a universe
 // has stopped: a port opened on the network for a multiverse that is no longer
-// running should not stay open under one that keeps to the loopback address. With
-// nothing running the proxy is left as it is, as it always was.
+// running should not stay open under one that keeps to the loopback address, and
+// the ports that stay are published the way the multiverses still running ask
+// for. With no universe running at all the proxy is stopped, since nothing is
+// served through it; it comes back with the next start.
 func (s *Service) trimProxy(ctx context.Context) {
 	if s.Proxy == nil {
 		return
@@ -216,17 +222,50 @@ func (s *Service) trimProxy(ctx context.Context) {
 	}
 	served := s.servedMultiverses(ctx, true)
 	if len(served) == 0 {
+		// The manifests say nothing runs, but a multiverse whose manifest cannot be
+		// read, or one of another user, would not show there. The containers
+		// themselves say whether anything is still routed through the proxy, and
+		// when that cannot be told the proxy stays up.
+		routed, err := s.Proxy.Serving(ctx)
+		if err != nil {
+			s.Out.Warn("the shared proxy keeps running: could not tell whether a container still uses it: %v", err)
+			return
+		}
+		if len(routed) > 0 {
+			s.Out.Info("the shared proxy keeps running: it still serves %s", strings.Join(routed, ", "))
+			return
+		}
+		if err := s.Proxy.Down(ctx); err != nil {
+			s.Out.Warn("the shared proxy keeps running with no universe up: %v", err)
+			return
+		}
+		s.Out.Info("the shared proxy stopped: no universe is running; it starts again with the next one")
 		return
 	}
 	keep := domain.KeepListeners(status.Listeners, manifestsOf(served)...)
-	if len(keep) == len(status.Listeners) {
+	if len(keep) == 0 {
+		// The proxy does not list the ports the running multiverses ask for, so
+		// there is nothing to trim to; leave it as it is rather than empty it.
+		return
+	}
+	for _, m := range served {
+		keep = domain.PlanListeners(keep, domain.KeepListeners(m.Manifest.Listeners(), m.Manifest))
+	}
+	change := proxyChange(status.Listeners, keep)
+	dropped := addedListeners(keep, status.Listeners)
+	if change == "" && dropped == "" {
 		return
 	}
 	if err := s.Proxy.EnsureUp(ctx, ProxyRequest{Network: s.proxyNetwork(), Listeners: keep, Certificates: status.Certificates}); err != nil {
 		s.Out.Warn("the shared proxy keeps listening on ports no running universe needs: %v", err)
 		return
 	}
-	s.Out.Info("the shared proxy stopped listening on %s: no running universe needs it", addedListeners(keep, status.Listeners))
+	if dropped != "" {
+		s.Out.Info("the shared proxy stopped listening on %s: no running universe needs it", dropped)
+	}
+	if change != "" {
+		s.Out.Info("the shared proxy now serves what the running universes ask for: %s", change)
+	}
 }
 
 func (s *Service) proxyNetwork() string {
