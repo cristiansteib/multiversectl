@@ -91,7 +91,7 @@ func (h *hub) join(c *client) (snap [][]byte, looked bool) {
 	defer h.mu.Unlock()
 	h.clients[c] = struct{}{}
 	_, looked = h.last["fleet"]
-	for _, t := range []string{"overview", "fleet", "update"} {
+	for _, t := range []string{"overview", "fleet", "pulse", "update"} {
 		if d, ok := h.last[t]; ok {
 			snap = append(snap, d)
 		}
@@ -118,9 +118,11 @@ func (s *Server) watch(ctx context.Context) {
 			return
 		case <-s.look:
 			s.look1(ctx, true, true)
+			s.samplePulse(ctx)
 		case <-fleet.C:
 			if s.hub.count() > 0 {
 				s.look1(ctx, true, false)
+				s.samplePulse(ctx)
 			}
 		case <-status.C:
 			if s.hub.count() > 0 {

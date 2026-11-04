@@ -146,6 +146,9 @@ func (f *fake) FleetStats(_ context.Context, ws string) (fleetStatsView, error) 
 	f.ask("fleetstats:" + ws)
 	return f.fleetStats, f.err
 }
+func (f *fake) PulseSample(context.Context) ([]pulseSample, error)      { return nil, f.err }
+func (f *fake) PulseDisk(context.Context) (map[string]pulseDisk, error) { return nil, f.err }
+
 func (f *fake) Logs(ctx context.Context, ws, u, appKey, service string, tail int, follow bool, w io.Writer) error {
 	f.ask(fmt.Sprintf("logs:%s:%s:%s/%s:%d:%v", ws, u, appKey, service, tail, follow))
 	if f.err != nil {

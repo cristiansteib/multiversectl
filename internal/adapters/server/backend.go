@@ -74,6 +74,11 @@ type Backend interface {
 	Logs(ctx context.Context, multiverse, universe, appKey, service string, tail int, follow bool, w io.Writer) error
 	// FleetStats reads every running container of one multiverse, or of all.
 	FleetStats(ctx context.Context, multiverse string) (fleetStatsView, error)
+	// PulseSample reads every running universe's current use, across all
+	// installed multiverses, summed per universe with the caps that bound it.
+	// PulseDisk reads the slower volume sizes, keyed "multiverse/universe".
+	PulseSample(ctx context.Context) ([]pulseSample, error)
+	PulseDisk(ctx context.Context) (map[string]pulseDisk, error)
 	// Do carries out an action, reporting to the sink as it goes.
 	Do(ctx context.Context, r opRequest, k Sink) error
 }
@@ -522,6 +527,76 @@ func (s Services) FleetStats(ctx context.Context, multiverse string) (fleetStats
 		}
 	}
 	return v, nil
+}
+
+// PulseSample asks every multiverse at once, as FleetStats does, and drops a
+// multiverse that cannot answer rather than failing the whole reading: one
+// slow or broken multiverse must not blank the tiles of the others.
+func (s Services) PulseSample(ctx context.Context) ([]pulseSample, error) {
+	list, err := s.infos("")
+	if err != nil {
+		return nil, err
+	}
+	out := make([][]pulseSample, len(list))
+	var wg sync.WaitGroup
+	for i, w := range list {
+		wg.Add(1)
+		go func(i int, w app.MultiverseInfo) {
+			defer wg.Done()
+			svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+			if err != nil {
+				return
+			}
+			ps, err := svc.ProjectPulse(ctx)
+			if err != nil {
+				return
+			}
+			rows := make([]pulseSample, len(ps))
+			for j, p := range ps {
+				rows[j] = pulseSample{Multiverse: w.Name, Universe: p.Universe,
+					CPU: p.CPU, CPUCap: p.CPUCap, Mem: p.Mem, MemCap: p.MemCap, Rx: p.Rx, Tx: p.Tx}
+			}
+			out[i] = rows
+		}(i, w)
+	}
+	wg.Wait()
+	var all []pulseSample
+	for _, rows := range out {
+		all = append(all, rows...)
+	}
+	return all, nil
+}
+
+// PulseDisk reads the volume sizes each universe holds, keyed by multiverse and
+// universe so the ring can match them to the live samples.
+func (s Services) PulseDisk(ctx context.Context) (map[string]pulseDisk, error) {
+	list, err := s.infos("")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]app.UniverseDisk, len(list))
+	var wg sync.WaitGroup
+	for i, w := range list {
+		wg.Add(1)
+		go func(i int, w app.MultiverseInfo) {
+			defer wg.Done()
+			svc, err := s.At(&collector{}, nil, nil, w.Root, w.Manifest)
+			if err != nil {
+				return
+			}
+			if d, err := svc.ProjectDisk(ctx); err == nil {
+				out[i] = d
+			}
+		}(i, w)
+	}
+	wg.Wait()
+	disk := map[string]pulseDisk{}
+	for i, w := range list {
+		for universe, d := range out[i] {
+			disk[w.Name+"/"+universe] = pulseDisk{Data: d.Data, Src: d.Src}
+		}
+	}
+	return disk, nil
 }
 
 func (s Services) Logs(ctx context.Context, multiverse, universe, appKey, service string, tail int, follow bool, w io.Writer) error {

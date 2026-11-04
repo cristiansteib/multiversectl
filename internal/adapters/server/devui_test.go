@@ -54,6 +54,34 @@ func (d demo) Stats(_ context.Context, _, universe string) ([]statView, error) {
 	return out, nil
 }
 
+// PulseSample animates a per-universe reading: universe 3 and 7 are capped (so
+// the tile shows used / cap), universe 4 has no memory limit (so it shows the
+// figure alone), and 7 runs near its cap, to show the warning colour.
+func (d demo) PulseSample(context.Context) ([]pulseSample, error) {
+	t := float64(time.Now().UnixMilli()) / 1000
+	wob := func(base, swing, seed float64) float64 {
+		if v := base + swing*math.Sin(t/9+seed); v > 0 {
+			return v
+		}
+		return 0
+	}
+	const gib = 1 << 30
+	return []pulseSample{
+		{Multiverse: "acme", Universe: "3", CPU: wob(1.2, 0.5, 0), CPUCap: 4, Mem: wob(1.7, 0.2, 1) * gib, MemCap: 8 * gib, Rx: 124 << 20, Tx: 31 << 20},
+		{Multiverse: "acme", Universe: "4", CPU: wob(0.4, 0.3, 2), CPUCap: 16, Mem: wob(1.2, 0.15, 3) * gib, Rx: 42 << 20, Tx: 9 << 20},
+		{Multiverse: "acme", Universe: "7", CPU: wob(1.1, 0.4, 4), CPUCap: 2, Mem: wob(3.6, 0.15, 5) * gib, MemCap: 4 * gib, Rx: 210 << 20, Tx: 56 << 20},
+	}, nil
+}
+
+func (d demo) PulseDisk(context.Context) (map[string]pulseDisk, error) {
+	gib := float64(1 << 30)
+	return map[string]pulseDisk{
+		"acme/3": {Data: int64(3.4 * gib), Src: int64(0.82 * gib)},
+		"acme/4": {Data: int64(2.1 * gib), Src: int64(1.4 * gib)},
+		"acme/7": {Data: int64(5.2 * gib), Src: int64(0.64 * gib)},
+	}, nil
+}
+
 // Logs writes the kind of thing a dev server writes: colour, a table, and a
 // spinner that rewrites its own line.
 func (d demo) Logs(ctx context.Context, _, _, appKey, service string, tail int, follow bool, w io.Writer) error {

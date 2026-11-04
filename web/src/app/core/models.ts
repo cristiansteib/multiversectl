@@ -87,6 +87,21 @@ export interface StatView { name: string; cpu: number; memory: number; memUsage:
 export interface FleetStatRow extends StatView { multiverse: string; universe: string; app: string; service: string }
 export interface FleetStatsView { at: string; rows: FleetStatRow[]; sources?: { multiverse: string; error: string }[] }
 
+/**
+ * One universe's live resource use for its fleet tile: CPU in cores, memory and
+ * network in bytes, with the caps that bound them (a cap of 0/absent means no
+ * limit is set, so there is no proportion to draw). cpuSeries/memSeries are the
+ * last minute, oldest first, for the tile's sparklines. disk is the volume bytes
+ * it holds, read on a slower clock.
+ */
+export interface PulseUniverse {
+  multiverse: string; universe: string;
+  cpu: number; cpuCap: number; mem: number; memCap?: number;
+  rx: number; tx: number; data?: number; src?: number;
+  cpuSeries: number[]; memSeries: number[];
+}
+export interface PulseView { at: string; universes: PulseUniverse[] }
+
 export type OpAction = 'up' | 'down' | 'rm' | 'sync' | 'restart' | 'new' | 'checkout' | 'update' | 'selfupdate' | 'install';
 export interface OpRequest {
   action: OpAction; multiverse?: string; universe?: string; app?: string; service?: string; name?: string; note?: string;

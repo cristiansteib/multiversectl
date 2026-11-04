@@ -18,6 +18,12 @@
   /* Radius says what a thing is: controls are small, panels larger, tiles largest. */
   --r-sm: 5px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
   --rail: 208px; --top: 52px;
+  /* Type scale — the one place font sizes live. Components reference these tokens
+     (rem, so they respect the browser's base size), never a bare rem, so text is
+     tuned here. Ask for a step to grow and it grows everywhere it is used. */
+  --fs-3xs: .68rem; --fs-2xs: .75rem; --fs-xs: .8rem; --fs-sm: .875rem;
+  --fs-base: .9375rem; --fs-md: 1rem; --fs-lg: 1.125rem; --fs-xl: 1.25rem;
+  --fs-2xl: 1.6rem; --fs-hero: 2.6rem;
   --s1: #3d80dc; --s2: #dc6a3a; --s3: #17a578; --s4: #d4a017; --s5: #d4639a; --s6: #5e8f1f; --s7: #7b6be0; --s8: #d9534f;
   color-scheme: light;
 }
@@ -34,7 +40,7 @@
 /* ── base ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 400 15px/1.55 var(--sans); font-feature-settings: 'tnum' 1; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 var(--fs-base)/1.55 var(--sans); font-feature-settings: 'tnum' 1; }
 h1, h2, h3, h4, p { margin-top: 0; }
 h1 { font-size: 1.75rem; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; margin-bottom: 4px; }
 h2 { font-size: 1.05rem; font-weight: 600; letter-spacing: -.005em; margin: 28px 0 10px; }
