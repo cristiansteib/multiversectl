@@ -19,8 +19,14 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="tile" [class.stopped]="state() === 'stopped'" [routerLink]="link()">
-      @if (!edited()) { <span class="clean">no changes</span> }
-      <span class="num" [class.word]="!isNumber()">{{ universe().name }}</span>
+      <span class="head">
+        <span class="num" [class.word]="!isNumber()" [attr.title]="isNumber() ? null : universe().name">{{ universe().name }}</span>
+        @if (edited()) {
+          <span class="wt dirty" [attr.title]="'uncommitted changes in ' + dirty().join(', ')">{{ dirty().length }} changed</span>
+        } @else {
+          <span class="wt">no changes</span>
+        }
+      </span>
       @if (where()) { <span class="where mono" [attr.title]="where()">{{ where() }}</span> }
       @if (universe().note) { <span class="note">{{ universe().note }}</span> }
       <span class="foot">
@@ -73,9 +79,11 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
     .run { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted) }
     .run.ok { color: var(--ok) } .run.warn { color: var(--warn) }
     .dot { width: 10px; height: 10px; flex: none }
-    .clean { position: absolute; top: 14px; right: 16px; font-size: var(--fs-2xs); font-weight: 500; color: var(--faint) }
-    .num { font: 300 var(--fs-hero)/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
-    .num.word { font: 600 var(--fs-xl)/1.2 var(--sans); letter-spacing: -.015em }
+    .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px }
+    .wt { flex: none; margin-top: 3px; font-size: var(--fs-2xs); font-weight: 500; color: var(--faint); white-space: nowrap }
+    .wt.dirty { color: var(--warn) }
+    .num { min-width: 0; font: 300 var(--fs-hero)/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+    .num.word { font: 600 var(--fs-xl)/1.2 var(--sans); letter-spacing: -.015em; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
     .behind { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; color: var(--warn);
       font: 600 var(--fs-2xs)/1 var(--sans); font-variant-numeric: tabular-nums }
     .behind mv-icon { font-size: 1.15em }
@@ -115,8 +123,9 @@ export class UniverseCard {
   });
   /** Commits the checkouts are behind what they follow; `sync` brings them forward. */
   protected readonly behind = computed(() => this.universe().behind ?? 0);
-  /** Whether any checkout has uncommitted work. */
-  protected readonly edited = computed(() => dirtyCheckouts(this.universe()).length > 0);
+  /** The checkouts with uncommitted work, and whether there are any. */
+  protected readonly dirty = computed(() => dirtyCheckouts(this.universe()));
+  protected readonly edited = computed(() => this.dirty().length > 0);
   /** The branch it is on: one name when every repository is on the same. */
   protected readonly where = computed(() => {
     const names = [...new Set(Object.values(this.universe().branches ?? {}).filter(Boolean))];

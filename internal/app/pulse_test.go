@@ -17,18 +17,23 @@ func TestAggregatePulseSumsUseAndCapsOnlyWhenEveryContainerIsLimited(t *testing.
 		// "mixed": one limited, one not.
 		row("mixed", "mixed-web", 25, 200, 3, 0),
 		row("mixed", "mixed-worker", 75, 300, 0, 0),
+		// "oversub": every container limited, but the limits sum past the machine.
+		row("oversub", "oversub-a", 10, 100, 0, 0),
+		row("oversub", "oversub-b", 10, 100, 0, 0),
 	}
 	caps := map[string]Caps{
 		"capped-web":   {CPUs: 1, Mem: 200},
 		"capped-db":    {CPUs: 2, Mem: 300},
 		"mixed-web":    {CPUs: 1, Mem: 256},
 		"mixed-worker": {}, // no limit
+		"oversub-a":    {CPUs: 5, Mem: 10 << 30},
+		"oversub-b":    {CPUs: 6, Mem: 8 << 30},
 	}
 	host := HostCapacity{Cores: 8, Mem: 1 << 34}
 
 	got := aggregatePulse(rows, caps, host)
-	if len(got) != 2 {
-		t.Fatalf("want 2 universes, got %d", len(got))
+	if len(got) != 3 {
+		t.Fatalf("want 3 universes, got %d", len(got))
 	}
 	byName := map[string]UniversePulse{}
 	for _, p := range got {
@@ -66,5 +71,14 @@ func TestAggregatePulseSumsUseAndCapsOnlyWhenEveryContainerIsLimited(t *testing.
 	}
 	if m.MemCap != 0 {
 		t.Errorf("mixed MemCap = %v, want 0 (unlimited)", m.MemCap)
+	}
+
+	// Every container limited but the sum exceeds the host: the cap is the machine.
+	o := byName["oversub"]
+	if o.CPUCap != 8 {
+		t.Errorf("oversub CPUCap = %v, want 8 (clamped to host cores)", o.CPUCap)
+	}
+	if o.MemCap != float64(host.Mem) {
+		t.Errorf("oversub MemCap = %v, want %v (clamped to host mem)", o.MemCap, float64(host.Mem))
 	}
 }
