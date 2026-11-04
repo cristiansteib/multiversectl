@@ -111,12 +111,29 @@ api-fix-login.example.test  <span class="c"># host api, universe fix/login</span
 </section>
 
 <section id="shared">
-  <h2 id="shared"><a href="#shared">One proxy, several multiverses</a></h2>
-  <p>The proxy belongs to the machine, so two multiverses wanting different entrypoints or a different <code>expose</code> compete for it: starting a universe in the second reconfigures it, and the first multiverse's universes stop answering until something is started there again. Starting says so:</p>
-  <Terminal kind="output"><pre>! the shared proxy is being reconfigured: published on 127.0.0.1 instead of
-  0.0.0.0, entrypoints web:80 instead of devapi:8001 web:80 — universes of any
-  other multiverse on this machine stop answering until it is started from
-  there again</pre></Terminal>
-  <p class="muted">Multiverses that run side by side want the same entrypoints and the same exposure.</p>
+  <h2 id="shared"><a href="#shared">Running several multiverses at once</a></h2>
+  <p>The proxy belongs to the machine and serves every multiverse. It listens on the <strong>union</strong> of what the multiverses with universes running ask for, each port published the way that multiverse's <code>expose</code> says: a <code>local</code> multiverse's entrypoints stay on <code>127.0.0.1</code>, a <code>lan</code> one's on every interface. Starting a universe adds its multiverse's ports and moves nothing that another multiverse's universes use. With one multiverse nothing changes: the same ports, the same URLs.</p>
+  <p>So two multiverses coexist as long as they do not want the <em>same port</em> published two ways. Give them entrypoint ports of their own:</p>
+  <Terminal kind="file"><pre><span class="c"># alpha's multiverse.yaml</span>
+<span class="k">spec</span>:
+  <span class="k">expose</span>: local
+  <span class="k">proxy</span>:
+    <span class="k">entrypoints</span>:
+      <span class="k">web</span>: 80
+
+<span class="c"># beta's multiverse.yaml</span>
+<span class="k">spec</span>:
+  <span class="k">expose</span>: lan
+  <span class="k">proxy</span>:
+    <span class="k">entrypoints</span>:
+      <span class="k">web</span>: 8080</pre></Terminal>
+  <p>Their names may be the same: the proxy tells the ports apart, and routes use the proxy's name for the port. When the last universe of a multiverse stops, the ports only it needed are closed, so a port opened to the network does not outlive the universe that asked for it. With nothing running at all the proxy is left as it is.</p>
+  <p>When they do want the same port, the clash is reported before anything is built, by <code>universe new</code>, <code>universe up</code>, <code>system proxy status</code> and <code>doctor</code>, naming both sides:</p>
+  <Terminal kind="output"><pre><span class="err">error: universe 3 of beta cannot be served by the shared proxy together with the universes that run now: nothing was changed.</span>
+  - universe 3 of beta (expose lan) and universes 1, 2 of alpha (expose local) both want port 80, on
+    0.0.0.0 and on 127.0.0.1, and a port can only be published one way; give one of beta and alpha other
+    proxy entrypoint ports (spec.proxy.entrypoints), give them the same `expose`, or stop the universes of
+    one of them first</pre></Terminal>
+  <p class="muted">Different TLS settings on one port clash the same way. Certificates never do: the proxy presents all of them. Different proxy networks still cannot share the one proxy; <code>doctor</code> says so.</p>
 </section>
 </Page>

@@ -196,6 +196,14 @@ routing labels and the dropping of published ports are generated per universe,
 so your compose files stay the ones you already run. The proxy joins each app's
 own network, so no universe sees another's services by name.
 
+The proxy is one for the machine and serves every multiverse at once. It listens
+on the union of what the running multiverses ask for, each port published the way
+that multiverse's `expose` says, so a `local` multiverse and a `lan` one run side
+by side (on entrypoint ports of their own). The one thing they cannot share is a
+port published two ways; `universe new`, `universe up`, `system proxy status` and
+`doctor` say so before anything is built. See
+[running several multiverses at once](https://multiversectl.dev/docs/concepts/networking/#shared).
+
 The documentation goes into
 [networking](https://multiversectl.dev/docs/concepts/networking/),
 [storage and data](https://multiversectl.dev/docs/concepts/storage/),

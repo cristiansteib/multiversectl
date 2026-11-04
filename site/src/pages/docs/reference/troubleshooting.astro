@@ -75,10 +75,10 @@ import Terminal from '../../../components/Terminal.astro';
 </section>
 
 <section id="ts-rebind">
-  <h2 id="ts-rebind"><a href="#ts-rebind">Starting a universe would reconfigure the shared proxy for other multiverses</a></h2>
-  <p>One machine has one shared proxy. A multiverse whose <code>expose</code>, proxy entrypoints or TLS differ from the running proxy's would rebind it, and every universe of any other multiverse served through it would stop answering. When another multiverse has containers running, <code>up</code> refuses, says what would change and who would be affected, and changes nothing:</p>
-  <Terminal kind="output"><pre><span class="err">error: this multiverse needs the shared proxy published on 127.0.0.1 instead of 0.0.0.0, which would stop</span>
-universes of beta from answering: nothing was changed. …</pre></Terminal>
-  <p>Match the settings (the multiverse's <code>expose</code>, entrypoints and certificates), stop the other universes first, or pass <code>--rebind-proxy</code> (on <code>universe up</code>, <code>start</code> and <code>system proxy up</code>) to reconfigure it anyway; the others answer again when started from their own multiverse. With nothing else running the proxy is rebound with a warning, as before.</p>
+  <h2 id="ts-rebind"><a href="#ts-rebind">A universe cannot be served next to the ones that run</a></h2>
+  <p>The shared proxy listens on the union of what every running multiverse asks for, so most multiverses coexist with no setting at all. What it cannot do is publish one port two ways: <code>expose: local</code> (<code>127.0.0.1</code>) for one multiverse and <code>expose: lan</code> (every interface) for another on the same port, or the same port with and without TLS. When another multiverse has containers running, <code>universe new</code> warns, and <code>up</code> refuses before anything is built, naming both sides and changing nothing:</p>
+  <Terminal kind="output"><pre><span class="err">error: universe 3 of beta cannot be served by the shared proxy together with the universes that run now: nothing was changed.</span>
+  - universe 3 of beta (expose lan) and universe 1 of alpha (expose local) both want port 80, …</pre></Terminal>
+  <p>Give one of the multiverses another entrypoint port in <code>spec.proxy.entrypoints</code> (see <a href="/docs/concepts/networking/#shared">running several multiverses at once</a>), give them the same <code>expose</code>, stop the other universes first, or pass <code>--rebind-proxy</code> (on <code>universe up</code>, <code>start</code> and <code>system proxy up</code>) to publish the port the way this multiverse asks anyway; the others answer again when started from their own multiverse. A port no running universe uses is replaced with a warning, with no flag.</p>
 </section>
 </Page>
