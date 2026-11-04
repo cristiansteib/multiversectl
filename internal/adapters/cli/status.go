@@ -102,7 +102,7 @@ func (r runner) collectStatus(ctx context.Context, fetch bool) (statusReport, er
 		return st, err
 	}
 	if ps, err := bare.Proxy.Status(ctx); err == nil {
-		st.Proxy = proxyLine{Running: ps.Running, Entrypoints: ps.Entrypoints}
+		st.Proxy = proxyLine{Running: ps.Running, Entrypoints: ps.Entrypoints()}
 	}
 	if p, err := r.f.Server(); err == nil {
 		if info, err := p.Status(ctx); err == nil {

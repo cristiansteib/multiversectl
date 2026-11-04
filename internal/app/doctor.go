@@ -137,22 +137,16 @@ func (s *Service) checkProxy(ctx context.Context, add addCheck) {
 	if status.Running {
 		// A published port with no address written in front of it is every
 		// interface, which is how the proxy was configured before exposure
-		// was a choice.
-		where := status.Bind
-		if where == "" {
-			where = "0.0.0.0"
-		}
-		reach := "reachable from this network"
-		if where == "127.0.0.1" {
-			reach = "this machine only"
-		}
-		if want := s.Manifest.BindAddress(); want != where {
-			add("proxy", StatusWarn,
-				"running on %s (%s), but this multiverse asks for %s — starting a universe moves it",
-				where, reach, want)
+		// was a choice; the adapter reads it as that.
+		clashes := s.ProxyConflicts(ctx)
+		if moved := proxyChange(status.Listeners, domain.PlanListeners(status.Listeners, s.Manifest.Listeners())); moved != "" && len(clashes) == 0 {
+			add("proxy", StatusWarn, "listening on %s, but this multiverse asks for %s — starting a universe moves it", describeListeners(status.Listeners), moved)
 			return
 		}
-		add("proxy", StatusOK, "running on %s — %s", where, reach)
+		add("proxy", StatusOK, "listening on %s", describeListeners(status.Listeners))
+		for _, c := range clashes {
+			add("proxy", StatusWarn, "%s", c)
+		}
 		return
 	}
 	add("proxy", StatusIdle, "not running; the first start brings it up")

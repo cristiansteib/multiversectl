@@ -68,7 +68,7 @@ func (r runner) startCmd() *cobra.Command {
 	cmd.Flags().StringVar(&as, "as", "", "the name to install it under (default: the one it defines, or its repository's)")
 	cmd.Flags().StringVarP(&universe, "universe", "u", "", "the universe to start (default: the only one, or a new one)")
 	wait := waitFlags(cmd)
-	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "reconfigure the shared proxy even though universes of other multiverses are served through it")
+	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "publish the shared proxy the way this multiverse asks even though a port is published another way for universes of other multiverses that are served through it")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others and report the failures at the end)")
 	cmd.Flags().BoolVar(&skipPreflight, "skip-preflight", false, "do not check docker, compose, buildx, disk space, the repositories and the secret files before cloning anything")
 	cmd.Flags().BoolVar(&open, "open", false, "open the first address in a browser")

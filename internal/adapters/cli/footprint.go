@@ -102,8 +102,8 @@ func (r runner) collectFootprint(ctx context.Context) ([]app.Item, error) {
 		if !proxySeen {
 			proxySeen = true
 			if ps, err := svc.Proxy.Status(ctx); err == nil && ps.Running {
-				names := make([]string, 0, len(ps.Entrypoints))
-				for n, p := range ps.Entrypoints {
+				names := make([]string, 0, len(ps.Entrypoints()))
+				for n, p := range ps.Entrypoints() {
 					names = append(names, fmt.Sprintf("%s:%d", n, p))
 				}
 				sort.Strings(names)
@@ -121,8 +121,8 @@ func (r runner) collectFootprint(ctx context.Context) ([]app.Item, error) {
 	if !proxySeen {
 		// With no multiverse installed the proxy may still be up from one that was.
 		if ps, err := bare.Proxy.Status(ctx); err == nil && ps.Running {
-			names := make([]string, 0, len(ps.Entrypoints))
-			for n, p := range ps.Entrypoints {
+			names := make([]string, 0, len(ps.Entrypoints()))
+			for n, p := range ps.Entrypoints() {
 				names = append(names, fmt.Sprintf("%s:%d", n, p))
 			}
 			sort.Strings(names)

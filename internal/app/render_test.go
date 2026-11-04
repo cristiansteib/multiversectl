@@ -386,7 +386,7 @@ func (startProxy) EnsureNetwork(context.Context, string) error     { return nil 
 func (startProxy) ConnectNetwork(context.Context, string) error    { return nil }
 func (startProxy) DisconnectProject(context.Context, string) error { return nil }
 func (startProxy) Status(context.Context) (app.ProxyStatus, error) {
-	return app.ProxyStatus{Running: true, Bind: "0.0.0.0", Entrypoints: map[string]int{"web": 80}}, nil
+	return app.ProxyStatus{Running: true, Listeners: []domain.Listener{{Name: "web", Port: 80, Bind: "0.0.0.0"}}}, nil
 }
 func (startProxy) EnsureUp(context.Context, app.ProxyRequest) error { return nil }
 

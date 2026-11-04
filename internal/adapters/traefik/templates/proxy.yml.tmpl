@@ -21,10 +21,10 @@ services:
       - --providers.file.filename=/etc/multiversectl/tls.yml
 {{- end}}
     ports:
-{{- range $.Entrypoints}}
-      # Published on {{$.Bind}}: the loopback address is what keeps universes
-      # off the network when the workspace asks to stay local.
-      - "{{$.Bind}}:{{.Port}}:{{.Port}}"
+{{- range .Entrypoints}}
+      # Published on {{.Bind}}: the loopback address is what keeps universes
+      # off the network when the multiverse asks to stay local.
+      - "{{.Bind}}:{{.Port}}:{{.Port}}"
 {{- end}}
     volumes:
       - {{.Socket}}:/var/run/docker.sock:ro

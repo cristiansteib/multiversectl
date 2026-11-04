@@ -176,19 +176,12 @@ func (t *Traefik) EnsureUp(ctx context.Context, r app.ProxyRequest) error {
 	if err != nil {
 		return err
 	}
-	bind := r.Bind
-	if bind == "" {
-		bind = "0.0.0.0"
-	}
-	eps := sortedEntrypoints(r.Entrypoints)
-	for i := range eps {
-		eps[i].TLS = r.TLS[eps[i].Name]
-	}
+	eps := entrypointsOf(r.Listeners)
 	certs, err := mountCertificates(r.Certificates)
 	if err != nil {
 		return err
 	}
-	data := proxyData{Network: r.Network, Socket: dockerSocket(), Bind: bind, Entrypoints: eps,
+	data := proxyData{Network: r.Network, Socket: dockerSocket(), Entrypoints: eps,
 		Certificates: certs, TLSFile: filepath.Join(filepath.Dir(file), "tls.yml")}
 	if len(certs) > 0 {
 		tls, err := render("tls.yml.tmpl", data)
@@ -233,10 +226,8 @@ func (t *Traefik) Status(ctx context.Context) (app.ProxyStatus, error) {
 	if err != nil {
 		return st, nil
 	}
-	st.Entrypoints = parseEntrypoints(string(content))
-	st.Bind = parseBind(string(content))
-	st.TLS = parseTLS(string(content))
-	st.Certificates = parseCertificates(string(content))
+	st.Listeners = parseListeners(string(content))
+	st.Certificates = parseCertificatePairs(string(content))
 
 	var stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "docker", "compose", "--project-name", proxyProject(), "-f", file, "ps", "--format", "{{json .}}")
@@ -272,13 +263,13 @@ func (t *Traefik) Materialize(ctx context.Context, r app.OverrideRequest) ([]str
 type entrypoint struct {
 	Name string
 	Port int
+	Bind string // the host address it is published on; each entrypoint has its own
 	TLS  bool
 }
 
 type proxyData struct {
 	Network      string
 	Socket       string
-	Bind         string
 	Entrypoints  []entrypoint
 	Certificates []mountedCert
 	TLSFile      string // the proxy's dynamic TLS configuration, on this machine
@@ -310,25 +301,40 @@ func mountCertificates(certs []domain.Certificate) ([]mountedCert, error) {
 	return out, nil
 }
 
-func sortedEntrypoints(m map[string]int) []entrypoint {
-	out := make([]entrypoint, 0, len(m))
-	for name, port := range m {
-		out = append(out, entrypoint{Name: name, Port: port})
+func entrypointsOf(listeners []domain.Listener) []entrypoint {
+	out := make([]entrypoint, 0, len(listeners))
+	for _, l := range listeners {
+		bind := l.Bind
+		if bind == "" {
+			bind = "0.0.0.0"
+		}
+		out = append(out, entrypoint{Name: l.Name, Port: l.Port, Bind: bind, TLS: l.TLS})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
-var bindRe = regexp.MustCompile(`- "([0-9.]+):[0-9]+:[0-9]+"`)
+// bindRe reads the address each port is published on. A proxy written before the
+// ports had addresses of their own has one for all of them, and one written before
+// exposure was a choice has none: a port with nothing in front of it is every
+// interface.
+var bindRe = regexp.MustCompile(`- "(?:([0-9.]+):)?([0-9]+):[0-9]+"`)
 
 var entrypointRe = regexp.MustCompile(`--entrypoints\.([^.\s]+)\.address=:(\d+)`)
 
 var certRe = regexp.MustCompile(`- "(.+):/certs/\d+/cert\.pem:ro"`)
 
-func parseCertificates(content string) []string {
-	var out []string
-	for _, m := range certRe.FindAllStringSubmatch(content, -1) {
-		out = append(out, m[1])
+var keyRe = regexp.MustCompile(`- "(.+):/certs/\d+/key\.pem:ro"`)
+
+// parseCertificatePairs reads the certificates the proxy presents back out of
+// its own file, so adding one multiverse's does not drop another's.
+func parseCertificatePairs(content string) []domain.Certificate {
+	certs, keys := certRe.FindAllStringSubmatch(content, -1), keyRe.FindAllStringSubmatch(content, -1)
+	var out []domain.Certificate
+	for i, c := range certs {
+		if i < len(keys) {
+			out = append(out, domain.Certificate{CertFile: c[1], KeyFile: keys[i][1]})
+		}
 	}
 	return out
 }
@@ -343,21 +349,25 @@ func parseTLS(content string) map[string]bool {
 	return out
 }
 
-// parseBind reads the address the proxy publishes on out of its own compose
-// file, so a caller can tell that starting would move it.
-func parseBind(content string) string {
-	if m := bindRe.FindStringSubmatch(content); m != nil {
-		return m[1]
+// parseListeners reads what the proxy listens on out of its own compose file,
+// so a caller can tell what starting would add to it or move.
+func parseListeners(content string) []domain.Listener {
+	binds := map[int]string{}
+	for _, m := range bindRe.FindAllStringSubmatch(content, -1) {
+		port, _ := strconv.Atoi(m[2])
+		binds[port] = m[1]
 	}
-	return ""
-}
-
-func parseEntrypoints(content string) map[string]int {
-	out := map[string]int{}
+	tls := parseTLS(content)
+	var out []domain.Listener
 	for _, m := range entrypointRe.FindAllStringSubmatch(content, -1) {
 		port, _ := strconv.Atoi(m[2])
-		out[m[1]] = port
+		bind := binds[port]
+		if bind == "" {
+			bind = "0.0.0.0"
+		}
+		out = append(out, domain.Listener{Name: m[1], Port: port, Bind: bind, TLS: tls[m[1]]})
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 

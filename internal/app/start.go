@@ -113,7 +113,7 @@ func (s *Service) Start(ctx context.Context, in StartInput) error {
 		return err
 	}
 	s.say(1, "making sure the proxy and its network are up")
-	if err := s.EnsureProxy(ctx, st.Domain, in.RebindProxy); err != nil {
+	if err := s.ensureProxyFor(ctx, st, in.RebindProxy); err != nil {
 		return err
 	}
 
@@ -209,7 +209,7 @@ func (s *Service) startApp(ctx context.Context, u domain.Universe, st domain.Uni
 	if err != nil {
 		return st, fmt.Errorf("%s: %w", appKey, err)
 	}
-	routes := onTheirOwnNetworks(s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg), cfg)
+	routes := s.onProxyListeners(ctx, onTheirOwnNetworks(s.withoutUnroutable(appKey, s.Routes(st, appKey), cfg), cfg))
 	extraFiles, err := s.Router.Materialize(ctx, OverrideRequest{
 		Dir:       u.Dir(),
 		App:       appKey,
@@ -342,128 +342,89 @@ func (s *Service) EnsureProxy(ctx context.Context, dom string, rebind bool) erro
 // across every universe started from this process.
 var proxyMu sync.Mutex
 
+// ensureProxyFor is EnsureProxy for one universe's start, so that a refusal
+// names it.
+func (s *Service) ensureProxyFor(ctx context.Context, st domain.UniverseState, rebind bool) error {
+	proxyMu.Lock()
+	defer proxyMu.Unlock()
+	return s.ensureProxyAs(ctx, st.Domain, rebind, fmt.Sprintf("universe %s of %s", st.Name, s.Manifest.Name))
+}
+
 func (s *Service) ensureProxy(ctx context.Context, dom string, rebind bool) error {
-	network := s.Manifest.Proxy.Network
-	if network == "" {
-		network = "multiversenet"
-	}
+	return s.ensureProxyAs(ctx, dom, rebind, "this multiverse")
+}
+
+func (s *Service) ensureProxyAs(ctx context.Context, dom string, rebind bool, who string) error {
+	network := s.proxyNetwork()
 	if err := s.Proxy.EnsureNetwork(ctx, network); err != nil {
 		return err
 	}
-	want := ProxyRequest{
-		Domain:       dom,
-		Entrypoints:  s.Manifest.Proxy.Entrypoints,
-		Network:      network,
-		Bind:         s.Manifest.BindAddress(),
-		TLS:          s.Manifest.Proxy.TLS,
-		Certificates: s.Manifest.Proxy.Certificates,
+	// One machine has one shared proxy, and it listens on the union of what the
+	// multiverses served through it ask for: a local one and a LAN one run side by
+	// side as long as they do not want the same port published two ways.
+	served := s.servedMultiverses(ctx, false)
+	if clashes := listenerClashes(s.Manifest, s.Manifest.Name, who, served); len(clashes) > 0 {
+		if !rebind {
+			return fmt.Errorf("%s cannot be served by the shared proxy together with the universes that run now: nothing was changed.\n  - %s\n"+
+				"Or pass --rebind-proxy to publish the proxy the way this multiverse asks anyway; those universes stop answering until they are started again",
+				who, strings.Join(clashes, "\n  - "))
+		}
+		s.Out.Warn("the shared proxy is being reconfigured against %s: their universes stop answering until they are started again", servedNames(served))
 	}
-	// One machine has one shared proxy, so a second multiverse with different
-	// entrypoints or a different exposure takes it over. Say so: the other
-	// multiverse's universes stop answering, and nothing else would tell you.
 	status, err := s.Proxy.Status(ctx)
-	if err == nil && !status.Running {
+	if err != nil {
+		status = ProxyStatus{}
+	}
+	current := status.Listeners
+	if !status.Running {
+		// A stopped proxy comes back for the multiverses that run, not for whatever
+		// its file last listened on.
+		current = domain.KeepListeners(current, manifestsOf(served)...)
+	}
+	plan := domain.PlanListeners(current, s.Manifest.Listeners())
+	if status.Running {
+		if change := proxyChange(current, plan); change != "" {
+			s.Out.Warn("the shared proxy is being reconfigured: %s", change)
+		}
+		if added := addedListeners(current, plan); added != "" {
+			s.Out.Info("the shared proxy also listens on %s, for this multiverse; the others keep their ports", added)
+		}
+	} else if err == nil {
 		// Docker's own refusal arrives after it has created the container,
 		// and names neither the entrypoint nor what to run to find the culprit.
-		if err := s.checkProxyPorts(ctx); err != nil {
+		if err := s.checkProxyPorts(ctx, plan); err != nil {
 			return err
 		}
 	}
-	if err == nil && status.Running {
-		if status.Bind == "" {
-			// No address in front of a published port means every interface.
-			status.Bind = "0.0.0.0"
-		}
-		if change := proxyChange(status, want); change != "" {
-			if others := s.otherMultiversesServed(ctx); len(others) > 0 && !rebind {
-				return fmt.Errorf("this multiverse needs the shared proxy %s, which would stop universes of %s from answering: nothing was changed. "+
-					"Make this multiverse match the running proxy (its `expose`, proxy entrypoints and TLS), stop those universes first, "+
-					"or pass --rebind-proxy to reconfigure it anyway; they answer again when started from their own multiverse",
-					change, strings.Join(others, ", "))
-			}
-			s.Out.Warn("the shared proxy is being reconfigured: %s — universes of any other multiverse on this machine stop answering until it is started from there again", change)
-		}
+	return s.Proxy.EnsureUp(ctx, ProxyRequest{
+		Domain:       dom,
+		Network:      network,
+		Listeners:    plan,
+		Certificates: mergeCertificates(status.Certificates, s.Manifest.Proxy.Certificates),
+	})
+}
+
+func servedNames(served []servedMultiverse) string {
+	names := make([]string, len(served))
+	for i, m := range served {
+		names[i] = m.who()
 	}
-	return s.Proxy.EnsureUp(ctx, want)
+	return strings.Join(names, ", ")
 }
 
 // checkProxyPorts fails before the proxy is started when another process
-// already holds one of its entrypoint ports. A running proxy holds them itself,
+// already holds one of its listener ports. A running proxy holds them itself,
 // so this only runs when it is down.
-func (s *Service) checkProxyPorts(ctx context.Context) error {
-	names := make([]string, 0, len(s.Manifest.Proxy.Entrypoints))
-	for name := range s.Manifest.Proxy.Entrypoints {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		port := s.Manifest.Proxy.Entrypoints[name]
+func (s *Service) checkProxyPorts(ctx context.Context, listeners []domain.Listener) error {
+	for _, l := range listeners {
 		// A check that cannot run is not a conflict; Docker will say if it is.
-		if free, err := s.System.PortFree(ctx, port); err == nil && !free {
+		if free, err := s.System.PortFree(ctx, l.Port); err == nil && !free {
 			return fmt.Errorf("proxy entrypoint %q needs port %d, which another process is using (find it with: lsof -nP -iTCP:%d -sTCP:LISTEN). "+
 				"When it is another multiversectl proxy (docker ps --filter name=multiverse-proxy), such as the real one during a rehearsal with --state-dir, "+
-				"stop it with `multiversectl system proxy down`, given the same --state-dir it was started with", name, port, port)
+				"stop it with `multiversectl system proxy down`, given the same --state-dir it was started with", l.Name, l.Port, l.Port)
 		}
 	}
 	return nil
-}
-
-// proxyChange describes how a running proxy differs from what this multiverse
-// needs, or "" when it already matches.
-func proxyChange(status ProxyStatus, want ProxyRequest) string {
-	var changes []string
-	if status.Bind != want.Bind {
-		changes = append(changes, fmt.Sprintf("published on %s instead of %s", want.Bind, status.Bind))
-	}
-	if !samePorts(status.Entrypoints, want.Entrypoints) {
-		changes = append(changes, fmt.Sprintf("entrypoints %s instead of %s",
-			describePorts(want.Entrypoints), describePorts(status.Entrypoints)))
-	}
-	var certs []string
-	for _, c := range want.Certificates {
-		certs = append(certs, c.CertFile)
-	}
-	if !slices.Equal(status.Certificates, certs) {
-		changes = append(changes, fmt.Sprintf("certificates %s instead of %s", orNone(certs), orNone(status.Certificates)))
-	}
-	for _, name := range slices.Sorted(maps.Keys(want.Entrypoints)) {
-		if status.TLS[name] != want.TLS[name] && status.Entrypoints[name] != 0 {
-			changes = append(changes, fmt.Sprintf("entrypoint %s %s TLS", name, map[bool]string{true: "with", false: "without"}[want.TLS[name]]))
-		}
-	}
-	return strings.Join(changes, ", ")
-}
-
-func orNone(list []string) string {
-	if len(list) == 0 {
-		return "none"
-	}
-	return strings.Join(list, ", ")
-}
-
-func samePorts(a, b map[string]int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for name, port := range a {
-		if b[name] != port {
-			return false
-		}
-	}
-	return true
-}
-
-func describePorts(ports map[string]int) string {
-	names := make([]string, 0, len(ports))
-	for name := range ports {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	out := make([]string, 0, len(names))
-	for _, name := range names {
-		out = append(out, fmt.Sprintf("%s:%d", name, ports[name]))
-	}
-	return strings.Join(out, " ")
 }
 
 // RunInput is a command inside one of a universe's services, for the things a
@@ -613,43 +574,6 @@ func (s *Service) sayRules(rules map[string]domain.RouteRule) {
 	for _, key := range slices.Sorted(maps.Keys(rules)) {
 		s.say(3, "address %s: %s", key, rules[key].Hostname)
 	}
-}
-
-// otherMultiversesServed names the other multiverses on this machine that have
-// containers running: those are the ones a reconfigured shared proxy would stop
-// answering. A multiverse is told apart by where its containers were started
-// from, so a container that carries no such label is not counted; and one whose
-// manifest cannot be read has no name to look its containers up by.
-func (s *Service) otherMultiversesServed(ctx context.Context) []string {
-	if s.Config == nil || s.Manifests == nil {
-		return nil
-	}
-	cfg, err := s.Config.Load()
-	if err != nil {
-		return nil
-	}
-	var out []string
-	for _, name := range slices.Sorted(maps.Keys(cfg.Multiverses)) {
-		entry := cfg.Multiverses[name]
-		if entry.Root == "" || samePath(entry.Root, s.Multiverse) || samePath(entry.Manifest, s.Manifest.Path) {
-			continue
-		}
-		other, err := s.Manifests.Load(entry.Manifest)
-		if err != nil {
-			continue
-		}
-		containers, err := s.Runtime.Containers(ctx, other.Name)
-		if err != nil {
-			continue
-		}
-		for _, c := range containers {
-			if isRunning(c) && (within(c.WorkingDir, entry.Root) || within(c.ConfigFile, entry.Root)) {
-				out = append(out, name)
-				break
-			}
-		}
-	}
-	return out
 }
 
 // joinProxy connects the proxy to the network each routed service of the app is on.

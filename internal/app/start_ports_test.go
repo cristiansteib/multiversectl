@@ -18,6 +18,7 @@ func (p portSystem) PortFree(_ context.Context, port int) (bool, error) { return
 type quietOut struct{ Output }
 
 func (quietOut) Warn(string, ...any) {}
+func (quietOut) Info(string, ...any) {}
 
 type portProxy struct {
 	Proxy

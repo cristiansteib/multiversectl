@@ -94,8 +94,8 @@ services:
 
 func TestProxyTemplateRoundTrip(t *testing.T) {
 	for _, bind := range []string{"0.0.0.0", "127.0.0.1"} {
-		data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Bind: bind,
-			Entrypoints: sortedEntrypoints(map[string]int{"web": 80, "devapi": 8001})}
+		data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock",
+			Entrypoints: entrypointsOf([]domain.Listener{{Name: "web", Port: 80, Bind: bind}, {Name: "devapi", Port: 8001, Bind: bind}})}
 		got, err := render("proxy.yml.tmpl", data)
 		if err != nil {
 			t.Fatal(err)
@@ -103,9 +103,9 @@ func TestProxyTemplateRoundTrip(t *testing.T) {
 		if !strings.Contains(string(got), "--serverstransport.insecureskipverify=true") {
 			t.Error("a service behind scheme: https is reached with a self-signed certificate; the proxy must not refuse it")
 		}
-		eps := parseEntrypoints(string(got))
-		if eps["web"] != 80 || eps["devapi"] != 8001 || len(eps) != 2 {
-			t.Fatalf("entrypoints = %v", eps)
+		ls := parseListeners(string(got))
+		if len(ls) != 2 || ls[0] != (domain.Listener{Name: "devapi", Port: 8001, Bind: bind}) || ls[1] != (domain.Listener{Name: "web", Port: 80, Bind: bind}) {
+			t.Fatalf("listeners = %+v", ls)
 		}
 		// A universe stays off the network only if the port is published on
 		// the loopback address, so the published form is the thing to assert.
@@ -175,8 +175,8 @@ func TestProxyTemplateServesTLSWithTheGivenCertificates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eps := []entrypoint{{Name: "web", Port: 443, TLS: true}, {Name: "devapi", Port: 8001}}
-	data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Bind: "0.0.0.0", Entrypoints: eps,
+	eps := []entrypoint{{Name: "web", Port: 443, Bind: "0.0.0.0", TLS: true}, {Name: "devapi", Port: 8001, Bind: "0.0.0.0"}}
+	data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Entrypoints: eps,
 		Certificates: certs, TLSFile: filepath.Join(dir, "tls.yml")}
 	proxy, err := render("proxy.yml.tmpl", data)
 	if err != nil {
@@ -250,5 +250,48 @@ func TestARoutedServiceJoinsNoSharedNetwork(t *testing.T) {
 	}
 	if strings.Contains(string(text), "multiversenet") || strings.Contains(string(text), "external: true") {
 		t.Errorf("a shared or external network is still in the fragment:\n%s", text)
+	}
+}
+
+// Each port is published on the address of the multiverse that asked for it, so a
+// local and a LAN multiverse share the proxy without the loopback one being opened up.
+func TestEachListenerIsPublishedOnItsOwnAddress(t *testing.T) {
+	want := []domain.Listener{
+		{Name: "web", Port: 80, Bind: "127.0.0.1"},
+		{Name: "web-8080", Port: 8080, Bind: "0.0.0.0", TLS: true},
+	}
+	got, err := render("proxy.yml.tmpl", proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Entrypoints: entrypointsOf(want)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{`"127.0.0.1:80:80"`, `"0.0.0.0:8080:8080"`} {
+		if !strings.Contains(string(got), line) {
+			t.Errorf("want %s published:\n%s", line, got)
+		}
+	}
+	if read := parseListeners(string(got)); len(read) != 2 || read[0] != want[0] || read[1] != want[1] {
+		t.Errorf("read back %+v, want %+v", read, want)
+	}
+}
+
+// A proxy written by an earlier release has one address for every port, or none at
+// all (every interface); an install keeps working with no migration.
+func TestAnEarlierReleasesProxyFileIsReadAsListeners(t *testing.T) {
+	old := "command:\n  - --entrypoints.web.address=:80\n  - --entrypoints.devapi.address=:8001\nports:\n  - \"127.0.0.1:80:80\"\n  - \"127.0.0.1:8001:8001\"\n"
+	read := parseListeners(old)
+	if len(read) != 2 || read[0] != (domain.Listener{Name: "devapi", Port: 8001, Bind: "127.0.0.1"}) {
+		t.Errorf("listeners = %+v", read)
+	}
+	bare := "command:\n  - --entrypoints.web.address=:80\nports:\n  - \"80:80\"\n"
+	if read := parseListeners(bare); len(read) != 1 || read[0].Bind != "0.0.0.0" {
+		t.Errorf("a port with no address is every interface: %+v", read)
+	}
+}
+
+func TestCertificatePairsAreReadBackFromTheFile(t *testing.T) {
+	content := "volumes:\n  - \"/a/cert.pem:/certs/0/cert.pem:ro\"\n  - \"/a/key.pem:/certs/0/key.pem:ro\"\n  - \"/b/cert.pem:/certs/1/cert.pem:ro\"\n  - \"/b/key.pem:/certs/1/key.pem:ro\"\n"
+	got := parseCertificatePairs(content)
+	if len(got) != 2 || got[1] != (domain.Certificate{CertFile: "/b/cert.pem", KeyFile: "/b/key.pem"}) {
+		t.Errorf("certificates = %+v", got)
 	}
 }

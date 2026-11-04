@@ -10,12 +10,12 @@ import (
 )
 
 // rebindRig is a start whose multiverse is published on the loopback address
-// while the running shared proxy is on every interface, and another multiverse
-// is installed beside it.
+// on port 80 while another multiverse, open to the network, wants the same port.
 func rebindRig(t *testing.T, otherRunning bool) (*renderRig, *startRuntime) {
 	t.Helper()
 	r, rt := startRig(t, "{}")
-	other := &domain.Manifest{Name: "beta", Path: "/other/multiverse.yaml"}
+	other := &domain.Manifest{Name: "beta", Path: "/other/multiverse.yaml", Expose: domain.ExposeLAN, Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80}}}
+	r.svc.Manifest.Proxy.Entrypoints = map[string]int{"web": 80}
 	r.svc.Manifests = fakeLoader{other.Path: other}
 	r.svc.Config = installConfig{app.Config{Multiverses: map[string]app.MultiverseEntry{
 		"acme": {Root: r.svc.Multiverse, Manifest: r.svc.Manifest.Path},
@@ -31,8 +31,9 @@ func rebindRig(t *testing.T, otherRunning bool) (*renderRig, *startRuntime) {
 func TestStartingDoesNotRebindTheSharedProxyUnderAnotherMultiversesUniverses(t *testing.T) {
 	r, rt := rebindRig(t, true)
 	err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"})
-	if err == nil || !strings.Contains(err.Error(), "published on 127.0.0.1 instead of 0.0.0.0") ||
-		!strings.Contains(err.Error(), "beta") || !strings.Contains(err.Error(), "--rebind-proxy") {
+	if err == nil || !strings.Contains(err.Error(), "universe 1 of acme") || !strings.Contains(err.Error(), "universe 1 of beta") ||
+		!strings.Contains(err.Error(), "port 80, on 127.0.0.1 and on 0.0.0.0") || !strings.Contains(err.Error(), "--rebind-proxy") ||
+		!strings.Contains(err.Error(), "other proxy entrypoint ports") {
 		t.Fatalf("err = %v", err)
 	}
 	if len(rt.ups) != 0 {
@@ -42,7 +43,7 @@ func TestStartingDoesNotRebindTheSharedProxyUnderAnotherMultiversesUniverses(t *
 	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1", RebindProxy: true}); err != nil {
 		t.Fatalf("with --rebind-proxy: %v", err)
 	}
-	if !strings.Contains(r.out.text(), "the shared proxy is being reconfigured") {
+	if !strings.Contains(r.out.text(), "the shared proxy is being reconfigured") || !strings.Contains(r.out.text(), "port 80 published on 127.0.0.1 instead of 0.0.0.0") {
 		t.Errorf("no warning:\n%s", r.out.text())
 	}
 }
