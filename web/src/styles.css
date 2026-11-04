@@ -21,9 +21,9 @@
   /* Type scale — the one place font sizes live. Components reference these tokens
      (rem, so they respect the browser's base size), never a bare rem, so text is
      tuned here. Ask for a step to grow and it grows everywhere it is used. */
-  --fs-3xs: .68rem; --fs-2xs: .75rem; --fs-xs: .8rem; --fs-sm: .875rem;
-  --fs-base: .9375rem; --fs-md: 1rem; --fs-lg: 1.125rem; --fs-xl: 1.25rem;
-  --fs-2xl: 1.6rem; --fs-hero: 2.6rem;
+  --fs-3xs: .72rem; --fs-2xs: .8rem; --fs-xs: .85rem; --fs-sm: .92rem;
+  --fs-base: .98rem; --fs-md: 1.06rem; --fs-lg: 1.2rem; --fs-xl: 1.32rem;
+  --fs-2xl: 1.7rem; --fs-hero: 2.72rem;
   --s1: #3d80dc; --s2: #dc6a3a; --s3: #17a578; --s4: #d4a017; --s5: #d4639a; --s6: #5e8f1f; --s7: #7b6be0; --s8: #d9534f;
   color-scheme: light;
 }
