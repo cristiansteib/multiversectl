@@ -49,7 +49,8 @@ func (s *Service) ProjectPulse(ctx context.Context) ([]UniversePulse, error) {
 // plain sum; the cap is the sum of the limits, but only while every container
 // has one — a single unlimited container makes the CPU ceiling the machine and
 // the memory ceiling unknowable (zero), since the rest's limits are no honest
-// total to draw against.
+// total to draw against. A sum of limits is capped at the machine's own total,
+// which no configuration can let the universe exceed.
 func aggregatePulse(rows []StatRow, caps map[string]Caps, host HostCapacity) []UniversePulse {
 	type acc struct {
 		p                        UniversePulse
@@ -85,9 +86,13 @@ func aggregatePulse(rows []StatRow, caps map[string]Caps, host HostCapacity) []U
 		a := by[name]
 		if a.cpuUncapped {
 			a.p.CPUCap = float64(host.Cores)
+		} else if host.Cores > 0 && a.p.CPUCap > float64(host.Cores) {
+			a.p.CPUCap = float64(host.Cores)
 		}
 		if a.memUncapped {
 			a.p.MemCap = 0
+		} else if host.Mem > 0 && a.p.MemCap > float64(host.Mem) {
+			a.p.MemCap = float64(host.Mem)
 		}
 		out = append(out, a.p)
 	}
