@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 import { Api } from './api.service';
-import { CatalogProgress, FleetView, Hello, Op, OpLine, OverviewView, UpdateNotice } from './models';
+import { CatalogProgress, FleetView, Hello, Op, OpLine, OverviewView, PulseUniverse, PulseView, UpdateNotice } from './models';
 
 const POLL_MS = 10_000;
 
@@ -19,6 +19,13 @@ const named = (f: FleetView): FleetView => ({
   multiverses: (f.multiverses ?? []).map((m) => ({ ...m, universes: (m.universes ?? []).map((u) => ({ ...u, multiverse: m.name })) })),
 });
 
+/** The live readings keyed the way a tile looks itself up: "<multiverse>/<universe>". */
+const indexPulse = (p: PulseView): Record<string, PulseUniverse> => {
+  const out: Record<string, PulseUniverse> = {};
+  for (const u of p.universes ?? []) out[`${u.multiverse}/${u.universe}`] = u;
+  return out;
+};
+
 /**
  * What the page knows about the machine, fed by the websocket. Screens read the
  * signals and are redrawn when a piece changes. While the socket is down the
@@ -34,6 +41,8 @@ export class Events {
   readonly readOnly = computed(() => this.hello()?.readOnly ?? this.overview()?.readOnly ?? false);
   readonly overview = signal<OverviewView | null>(null);
   readonly fleet = signal<FleetView | null>(null);
+  /** Live resource use per universe, by "<multiverse>/<universe>"; a tile reads its own. */
+  readonly pulse = signal<Record<string, PulseUniverse>>({});
   readonly update = signal<UpdateNotice | null>(null);
   readonly updatedAt = signal<Date | null>(null);
   readonly error = signal<string | null>(null);
@@ -116,6 +125,7 @@ export class Events {
         break;
       }
       case 'fleet': this.fleet.set(named(e.data)); this.updatedAt.set(new Date()); break;
+      case 'pulse': this.pulse.set(indexPulse(e.data as PulseView)); break;
       case 'overview': this.overview.set(whole(e.data)); this.updatedAt.set(new Date()); break;
       case 'update': this.update.set((e.data as { notice?: UpdateNotice }).notice ?? null); break;
       case 'catalogProgress': this.catalogProgress$.next(e.data); break;

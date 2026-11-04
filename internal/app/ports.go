@@ -205,7 +205,25 @@ type ContainerStats struct {
 	MemBytes float64
 	MemLimit float64
 	NetIO    string
-	PIDs     int
+	// RxBytes and TxBytes are NetIO read as bytes: what the container has
+	// received and sent since it started, so a page can total and rate it.
+	RxBytes float64
+	TxBytes float64
+	PIDs    int
+}
+
+// Caps is one container's resource limits as the runtime enforces them. A zero
+// field is no limit set: the container may use the whole machine.
+type Caps struct {
+	CPUs float64 // cores
+	Mem  int64   // bytes
+}
+
+// HostCapacity is the machine the runtime runs on: the denominator for a
+// universe that sets no limit of its own.
+type HostCapacity struct {
+	Cores int
+	Mem   int64
 }
 
 // Volume is one named volume the runtime holds for a multiverse. A universe's
@@ -242,6 +260,16 @@ type Runtime interface {
 	Logs(ctx context.Context, container string, tail int, follow bool, w io.Writer) error
 	// Stats takes one reading of the named containers' resource use.
 	Stats(ctx context.Context, containers []string) ([]ContainerStats, error)
+	// ContainerCaps reports each named container's resource limits, by container
+	// name, as the runtime enforces them; a zero Caps field is no limit set.
+	ContainerCaps(ctx context.Context, containers []string) (map[string]Caps, error)
+	// HostCapacity is the machine's cores and memory: the denominator for use
+	// that has no limit of its own.
+	HostCapacity(ctx context.Context) (HostCapacity, error)
+	// VolumeSizes is the bytes each named volume holds, for volumes whose name
+	// starts with the prefix. It is a slow reading — the runtime walks each
+	// volume — so a caller takes it rarely and keeps the answer.
+	VolumeSizes(ctx context.Context, namePrefix string) (map[string]int64, error)
 	// Inspect reports the merged configuration of the given files: the
 	// services defined for the active profiles, their labels and whether they
 	// build an image. It is what lets a compose file describe itself instead

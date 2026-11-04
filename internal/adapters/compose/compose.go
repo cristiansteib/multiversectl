@@ -194,9 +194,11 @@ func parseStats(out []byte) ([]app.ContainerStats, error) {
 		}
 		pids, _ := strconv.Atoi(row.PIDs)
 		used, limit := sizePair(row.MemUsage)
+		rx, tx := sizePair(row.NetIO)
 		stats = append(stats, app.ContainerStats{
 			Name: row.Name, CPU: percent(row.CPUPerc), Memory: percent(row.MemPerc),
-			MemUsage: row.MemUsage, MemBytes: used, MemLimit: limit, NetIO: row.NetIO, PIDs: pids,
+			MemUsage: row.MemUsage, MemBytes: used, MemLimit: limit,
+			NetIO: row.NetIO, RxBytes: rx, TxBytes: tx, PIDs: pids,
 		})
 	}
 	return stats, scanner.Err()
@@ -340,6 +342,76 @@ func (c *Compose) Volumes(ctx context.Context, namePrefix string) ([]app.Volume,
 		})
 	}
 	return volumes, scanner.Err()
+}
+
+// ContainerCaps asks docker what each container's CPU and memory limits are, as
+// the daemon enforces them (HostConfig), rather than what a compose file asked
+// for: zero is no limit. One inspect covers them all.
+func (c *Compose) ContainerCaps(ctx context.Context, containers []string) (map[string]app.Caps, error) {
+	if len(containers) == 0 {
+		return nil, nil
+	}
+	args := append([]string{"inspect", "--format", "{{.Name}}\t{{.HostConfig.NanoCpus}}\t{{.HostConfig.Memory}}"}, containers...)
+	out, err := c.capture(ctx, "docker", args...)
+	if err != nil {
+		return nil, err
+	}
+	caps := make(map[string]app.Caps, len(containers))
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		name, rest, ok := strings.Cut(strings.TrimSpace(scanner.Text()), "\t")
+		if !ok {
+			continue
+		}
+		// docker reports a container's name with a leading slash.
+		name = strings.TrimPrefix(name, "/")
+		nano, mem, _ := strings.Cut(rest, "\t")
+		var cp app.Caps
+		if n, err := strconv.ParseInt(strings.TrimSpace(nano), 10, 64); err == nil && n > 0 {
+			cp.CPUs = float64(n) / 1e9
+		}
+		if m, err := strconv.ParseInt(strings.TrimSpace(mem), 10, 64); err == nil && m > 0 {
+			cp.Mem = m
+		}
+		caps[name] = cp
+	}
+	return caps, scanner.Err()
+}
+
+// HostCapacity reads the daemon's own cores and memory, the denominator for a
+// container that sets no limit of its own.
+func (c *Compose) HostCapacity(ctx context.Context) (app.HostCapacity, error) {
+	out, err := c.capture(ctx, "docker", "info", "--format", "{{.NCPU}}\t{{.MemTotal}}")
+	if err != nil {
+		return app.HostCapacity{}, err
+	}
+	cores, mem, _ := strings.Cut(strings.TrimSpace(string(out)), "\t")
+	var hc app.HostCapacity
+	hc.Cores, _ = strconv.Atoi(strings.TrimSpace(cores))
+	hc.Mem, _ = strconv.ParseInt(strings.TrimSpace(mem), 10, 64)
+	return hc, nil
+}
+
+// VolumeSizes reads how much each volume holds. `docker system df -v` walks
+// every volume on the machine, so it is slow; the prefix keeps only the ones a
+// multiverse owns, and the caller asks for it rarely.
+func (c *Compose) VolumeSizes(ctx context.Context, namePrefix string) (map[string]int64, error) {
+	out, err := c.capture(ctx, "docker", "system", "df", "-v", "--format", "{{json .Volumes}}")
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct{ Name, Size string }
+	if err := json.Unmarshal(bytes.TrimSpace(out), &rows); err != nil {
+		return nil, fmt.Errorf("parsing docker system df output: %w", err)
+	}
+	sizes := make(map[string]int64)
+	for _, r := range rows {
+		if !strings.HasPrefix(r.Name, namePrefix) {
+			continue
+		}
+		sizes[r.Name] = int64(size(r.Size))
+	}
+	return sizes, nil
 }
 
 // Inspect reads the merged configuration: which services exist for the active

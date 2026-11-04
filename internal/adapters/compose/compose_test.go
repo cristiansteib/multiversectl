@@ -80,7 +80,11 @@ func TestStatsLinesAreParsed(t *testing.T) {
 	if got[0].CPU != 12.34 || got[0].MemBytes != 64<<20 || got[0].PIDs != 7 {
 		t.Errorf("first row = %+v", got[0])
 	}
-	if got[1].CPU != 0 || got[1].MemBytes != 0 {
+	// NetIO is read as cumulative bytes: received / sent.
+	if got[0].RxBytes != 1200 || got[0].TxBytes != 3400 {
+		t.Errorf("first row net = %v/%v, want 1200/3400", got[0].RxBytes, got[0].TxBytes)
+	}
+	if got[1].CPU != 0 || got[1].MemBytes != 0 || got[1].RxBytes != 0 {
 		t.Errorf("a container with no reading = %+v", got[1])
 	}
 }

@@ -1,8 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { UniverseView } from '../../core/models';
+import { Events } from '../../core/events.service';
+import { PulseUniverse, UniverseView } from '../../core/models';
 import { universeLink } from '../../core/util';
-import { Badge } from '../../shared/ui/badge';
+import { bytes } from '../../shared/chart/chart-math';
+import { Sparkline } from '../../shared/chart/sparkline';
+import { Icon } from '../../shared/ui/icon';
 import { dirtyCheckouts, expectedOf, runState } from './universe-state';
 
 /**
@@ -12,39 +15,93 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
  */
 @Component({
   selector: 'mv-universe-card',
-  imports: [RouterLink, Badge],
+  imports: [RouterLink, Sparkline, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="tile" [class.stopped]="state() === 'stopped'" [routerLink]="link()">
-      <span class="top">
-        <span class="dot" [class]="tone()" [class.pulse]="state() === 'partial'"></span>
-        <span class="num" [class.word]="!isNumber()">{{ universe().name }}</span>
-      </span>
-      <span class="status" [class]="tone()">{{ status() }}</span>
-      @if (flags().length) {
-        <span class="flags">@for (f of flags(); track f) { <mv-badge tone="warn">{{ f }}</mv-badge> }</span>
-      }
+      @if (!edited()) { <span class="clean">no changes</span> }
+      <span class="num" [class.word]="!isNumber()">{{ universe().name }}</span>
       @if (where()) { <span class="where mono" [attr.title]="where()">{{ where() }}</span> }
       @if (universe().note) { <span class="note">{{ universe().note }}</span> }
+      <span class="foot">
+      @if (metrics(); as m) {
+        <span class="load">
+          @if (state() !== 'stopped') {
+            <span class="line">
+              <span class="cell">
+                <span class="k">CPU</span>
+                <mv-sparkline [values]="m.cpuSeries" [max]="m.cpuCap" />
+                <span class="v">{{ cores(m.cpu) }}<span class="u">/{{ cores(m.cpuCap) }}</span></span>
+              </span>
+              <span class="cell">
+                <span class="k">RAM</span>
+                <mv-sparkline [values]="m.memSeries" [max]="m.memCap || 0" />
+                <span class="v" [class.warn]="ramWarn(m)">{{ bytes(m.mem) }}<span class="u">{{ m.memCap ? ' / ' + bytes(m.memCap) : '' }}</span></span>
+              </span>
+            </span>
+            <span class="line sub">
+              <span class="cell"><span class="k">Net</span><span class="v">↓ {{ bytes(m.rx) }} ↑ {{ bytes(m.tx) }}</span></span>
+              @if (m.data) { <span class="cell"><span class="k">Data</span><span class="v">{{ bytes(m.data) }}</span></span> }
+              @if (m.src) { <span class="cell"><span class="k">Src</span><span class="v">{{ bytes(m.src) }}</span></span> }
+            </span>
+          } @else if (m.data || m.src) {
+            <span class="line sub">
+              @if (m.data) { <span class="cell"><span class="k">Data</span><span class="v">{{ bytes(m.data) }}</span></span> }
+              @if (m.src) { <span class="cell"><span class="k">Src</span><span class="v">{{ bytes(m.src) }}</span></span> }
+            </span>
+          }
+        </span>
+      }
+      <span class="run" [class]="tone()">
+        <span class="dot" [class]="tone()" [class.pulse]="state() === 'partial'"></span>
+        <span>{{ status() }}</span>
+        @if (behind(); as n) {
+          <span class="behind" [attr.title]="n + (n === 1 ? ' commit behind the branch it follows' : ' commits behind the branch it follows')">
+            <mv-icon name="branch" /><span>&#x2193;{{ n }}</span>
+          </span>
+        }
+      </span>
+      </span>
     </a>`,
   styles: `
     :host { display: block; min-width: 0 }
-    .tile { display: flex; flex-direction: column; gap: 6px; height: 100%; min-height: 128px; padding: 14px 16px 14px; color: var(--text); text-decoration: none;
+    .tile { position: relative; display: flex; flex-direction: column; gap: 6px; height: 100%; min-height: 128px; padding: 14px 16px 14px; color: var(--text); text-decoration: none;
       background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-xl); transition: border-color .12s, transform .12s }
     .tile:hover { border-color: var(--accent); transform: translateY(-1px) }
     .tile.stopped { background: transparent }
-    .top { display: flex; align-items: center; gap: 10px; min-width: 0 }
+    .foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px }
+    .run { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted) }
+    .run.ok { color: var(--ok) } .run.warn { color: var(--warn) }
     .dot { width: 10px; height: 10px; flex: none }
-    .num { font: 300 2.6rem/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
-    .num.word { font: 600 1.25rem/1.2 var(--sans); letter-spacing: -.015em }
-    .status { font-size: .88rem; color: var(--muted) } .status.ok { color: var(--ok) } .status.warn { color: var(--warn) }
-    .flags { display: flex; gap: 6px; flex-wrap: wrap }
-    .where { color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-    .note { color: var(--muted); font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+    .clean { position: absolute; top: 14px; right: 16px; font-size: var(--fs-2xs); font-weight: 500; color: var(--faint) }
+    .num { font: 300 var(--fs-hero)/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+    .num.word { font: 600 var(--fs-xl)/1.2 var(--sans); letter-spacing: -.015em }
+    .behind { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; color: var(--warn);
+      font: 600 var(--fs-2xs)/1 var(--sans); font-variant-numeric: tabular-nums }
+    .behind mv-icon { font-size: 1.15em }
+    .where { color: var(--muted); font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+    .note { color: var(--muted); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+    .load { display: flex; flex-direction: column; gap: 5px; padding-top: 9px; border-top: 1px solid var(--line-soft) }
+    .line { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center }
+    .cell { display: inline-flex; align-items: center; gap: 6px; min-width: 0 }
+    .k { font: 500 var(--fs-3xs)/1 var(--sans); text-transform: uppercase; letter-spacing: .07em; color: var(--faint) }
+    .v { font: 500 var(--fs-2xs)/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--text) }
+    .v.warn { color: var(--warn) }
+    .v .u { color: var(--faint); font-weight: 400 }
+    .load mv-sparkline { display: inline-block; width: 42px; height: 16px }
     @media (prefers-reduced-motion: reduce) { .tile { transition: none } .tile:hover { transform: none } }`,
 })
 export class UniverseCard {
+  private readonly events = inject(Events);
   readonly universe = input.required<UniverseView>();
+
+  protected readonly bytes = bytes;
+  /** This universe's live reading, by the same key the server sends it under. */
+  protected readonly metrics = computed<PulseUniverse | null>(
+    () => this.events.pulse()[`${this.universe().multiverse}/${this.universe().name}`] ?? null,
+  );
+  protected cores(n: number): string { return n >= 10 ? n.toFixed(0) : n.toFixed(1); }
+  protected ramWarn(m: PulseUniverse): boolean { return !!m.memCap && m.mem / m.memCap > 0.85; }
 
   protected readonly link = computed(() => universeLink(this.universe().multiverse, this.universe().name));
   protected readonly state = computed(() => runState(this.universe()));
@@ -56,10 +113,10 @@ export class UniverseCard {
     const total = expectedOf(u);
     return this.state() === 'stopped' ? 'Stopped' : this.state() === 'partial' ? `${u.running} of ${total} up` : `Running${total ? ` · ${u.running}/${total}` : ''}`;
   });
-  protected readonly flags = computed(() => {
-    const u = this.universe();
-    return [u.behind ? `${u.behind} behind` : '', dirtyCheckouts(u).length ? 'edited' : ''].filter(Boolean);
-  });
+  /** Commits the checkouts are behind what they follow; `sync` brings them forward. */
+  protected readonly behind = computed(() => this.universe().behind ?? 0);
+  /** Whether any checkout has uncommitted work. */
+  protected readonly edited = computed(() => dirtyCheckouts(this.universe()).length > 0);
   /** The branch it is on: one name when every repository is on the same. */
   protected readonly where = computed(() => {
     const names = [...new Set(Object.values(this.universe().branches ?? {}).filter(Boolean))];

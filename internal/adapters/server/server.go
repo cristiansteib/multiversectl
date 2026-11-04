@@ -70,6 +70,10 @@ type Server struct {
 	wg      sync.WaitGroup
 	// logSlots caps the log streams open at once (see maxLogStreams).
 	logSlots chan struct{}
+	// pulse holds the last minute of each universe's resource use, sampled by
+	// the watch loop; diskAt is when the slow volume sizes were last read.
+	pulse  *pulseRing
+	diskAt time.Time
 	// pair is the code that lets a second machine in without the link.
 	pair pairing
 	// restarting is set once an update has replaced the program: the server is
@@ -87,6 +91,7 @@ func New(b Backend, o Options) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{b: b, o: o, started: time.Now(), look: make(chan struct{}, 1), runCtx: ctx, cancel: cancel, logSlots: make(chan struct{}, maxLogStreams)}
 	s.hub = newHub()
+	s.pulse = newPulseRing()
 	s.ops = newOps(s)
 	s.wg.Add(1)
 	go func() { defer s.wg.Done(); s.watch(ctx) }()
@@ -131,6 +136,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/universe/diff", s.diff)
 	mux.HandleFunc("/api/pair", s.pairNew)
 	mux.HandleFunc("/api/stats", s.fleetStats)
+	mux.HandleFunc("/api/pulse", s.pulseEndpoint)
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) { fail(w, http.StatusNotFound, "no such endpoint") })
 	mux.HandleFunc("/ws", s.ws)
 

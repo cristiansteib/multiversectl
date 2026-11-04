@@ -468,6 +468,30 @@ type fleetStatError struct {
 	Error      string `json:"error"`
 }
 
+// pulseView is what every universe on the fleet page is using right now, with
+// the last minute of CPU and memory as a short series the tile draws. The
+// server keeps the series (a ring), so a page that joins gets a full sparkline
+// at once rather than one that fills from empty.
+type pulseView struct {
+	At        string          `json:"at"`
+	Universes []pulseUniverse `json:"universes"`
+}
+
+type pulseUniverse struct {
+	Multiverse string    `json:"multiverse"`
+	Universe   string    `json:"universe"`
+	CPU        float64   `json:"cpu"`              // cores in use
+	CPUCap     float64   `json:"cpuCap"`           // cores it may use
+	Mem        float64   `json:"mem"`              // bytes in use
+	MemCap     float64   `json:"memCap,omitempty"` // bytes, absent when no limit is set
+	Rx         float64   `json:"rx"`               // bytes received since the containers started
+	Tx         float64   `json:"tx"`               // bytes sent
+	Data       int64     `json:"data,omitempty"`   // volume bytes the universe holds (its own data)
+	Src        int64     `json:"src,omitempty"`    // checkout bytes on disk (its worktrees)
+	CPUSeries  []float64 `json:"cpuSeries"`
+	MemSeries  []float64 `json:"memSeries"`
+}
+
 // noteView is one line of a universe's journal, as a page reads it. The time
 // is RFC 3339 in UTC, like every other time this server sends.
 type noteView struct {
