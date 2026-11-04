@@ -19,14 +19,14 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="tile" [class.stopped]="state() === 'stopped'" [routerLink]="link()">
-      <span class="head">
-        <span class="num" [class.word]="!isNumber()" [attr.title]="isNumber() ? null : universe().name">{{ universe().name }}</span>
+      <span class="wtrow">
         @if (edited()) {
           <span class="wt dirty" [attr.title]="'uncommitted changes in ' + dirty().join(', ')">{{ dirty().length }} changed</span>
         } @else {
           <span class="wt">no changes</span>
         }
       </span>
+      <span class="num" [class.word]="!isNumber()" [attr.title]="isNumber() ? null : universe().name">{{ universe().name }}</span>
       @if (where()) { <span class="where mono" [attr.title]="where()">{{ where() }}</span> }
       @if (universe().note) { <span class="note">{{ universe().note }}</span> }
       <span class="foot">
@@ -79,8 +79,8 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
     .run { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted) }
     .run.ok { color: var(--ok) } .run.warn { color: var(--warn) }
     .dot { width: 10px; height: 10px; flex: none }
-    .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px }
-    .wt { flex: none; margin-top: 3px; font-size: var(--fs-2xs); font-weight: 500; color: var(--faint); white-space: nowrap }
+    .wtrow { display: flex; justify-content: flex-end; min-height: 1em }
+    .wt { font-size: var(--fs-2xs); font-weight: 500; color: var(--faint); white-space: nowrap }
     .wt.dirty { color: var(--warn) }
     .num { min-width: 0; font: 300 var(--fs-hero)/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
     .num.word { font: 600 var(--fs-xl)/1.2 var(--sans); letter-spacing: -.015em; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
