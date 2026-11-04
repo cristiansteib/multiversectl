@@ -130,6 +130,8 @@ func (s *Service) Remove(ctx context.Context, in RemoveInput) error {
 		}
 	}
 
+	s.trimProxy(ctx)
+
 	// Every repository is attempted, whatever the one before it did. By this
 	// point the containers and the volumes are already gone, so stopping at
 	// the first worktree that will not go would leave the universe destroyed

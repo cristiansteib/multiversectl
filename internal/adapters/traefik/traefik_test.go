@@ -94,8 +94,8 @@ services:
 
 func TestProxyTemplateRoundTrip(t *testing.T) {
 	for _, bind := range []string{"0.0.0.0", "127.0.0.1"} {
-		data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Bind: bind,
-			Entrypoints: sortedEntrypoints(map[string]int{"web": 80, "devapi": 8001})}
+		data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock",
+			Entrypoints: entrypointsOf([]domain.Listener{{Name: "web", Port: 80, Bind: bind}, {Name: "devapi", Port: 8001, Bind: bind}})}
 		got, err := render("proxy.yml.tmpl", data)
 		if err != nil {
 			t.Fatal(err)
@@ -103,9 +103,9 @@ func TestProxyTemplateRoundTrip(t *testing.T) {
 		if !strings.Contains(string(got), "--serverstransport.insecureskipverify=true") {
 			t.Error("a service behind scheme: https is reached with a self-signed certificate; the proxy must not refuse it")
 		}
-		eps := parseEntrypoints(string(got))
-		if eps["web"] != 80 || eps["devapi"] != 8001 || len(eps) != 2 {
-			t.Fatalf("entrypoints = %v", eps)
+		ls := parseListeners(string(got))
+		if len(ls) != 2 || ls[0] != (domain.Listener{Name: "devapi", Port: 8001, Bind: bind}) || ls[1] != (domain.Listener{Name: "web", Port: 80, Bind: bind}) {
+			t.Fatalf("listeners = %+v", ls)
 		}
 		// A universe stays off the network only if the port is published on
 		// the loopback address, so the published form is the thing to assert.
@@ -175,8 +175,8 @@ func TestProxyTemplateServesTLSWithTheGivenCertificates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	eps := []entrypoint{{Name: "web", Port: 443, TLS: true}, {Name: "devapi", Port: 8001}}
-	data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Bind: "0.0.0.0", Entrypoints: eps,
+	eps := []entrypoint{{Name: "web", Port: 443, Bind: "0.0.0.0", TLS: true}, {Name: "devapi", Port: 8001, Bind: "0.0.0.0"}}
+	data := proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Entrypoints: eps,
 		Certificates: certs, TLSFile: filepath.Join(dir, "tls.yml")}
 	proxy, err := render("proxy.yml.tmpl", data)
 	if err != nil {
@@ -250,5 +250,110 @@ func TestARoutedServiceJoinsNoSharedNetwork(t *testing.T) {
 	}
 	if strings.Contains(string(text), "multiversenet") || strings.Contains(string(text), "external: true") {
 		t.Errorf("a shared or external network is still in the fragment:\n%s", text)
+	}
+}
+
+// Each port is published on the address of the multiverse that asked for it, so a
+// local and a LAN multiverse share the proxy without the loopback one being opened up.
+func TestEachListenerIsPublishedOnItsOwnAddress(t *testing.T) {
+	want := []domain.Listener{
+		{Name: "web", Port: 80, Bind: "127.0.0.1"},
+		{Name: "web-8080", Port: 8080, Bind: "0.0.0.0", TLS: true},
+	}
+	got, err := render("proxy.yml.tmpl", proxyData{Network: "multiversenet", Socket: "/var/run/docker.sock", Entrypoints: entrypointsOf(want)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{`"127.0.0.1:80:80"`, `"0.0.0.0:8080:8080"`} {
+		if !strings.Contains(string(got), line) {
+			t.Errorf("want %s published:\n%s", line, got)
+		}
+	}
+	if read := parseListeners(string(got)); len(read) != 2 || read[0] != want[0] || read[1] != want[1] {
+		t.Errorf("read back %+v, want %+v", read, want)
+	}
+}
+
+// A proxy written by an earlier release has one address for every port, or none at
+// all (every interface); an install keeps working with no migration.
+func TestAnEarlierReleasesProxyFileIsReadAsListeners(t *testing.T) {
+	old := "command:\n  - --entrypoints.web.address=:80\n  - --entrypoints.devapi.address=:8001\nports:\n  - \"127.0.0.1:80:80\"\n  - \"127.0.0.1:8001:8001\"\n"
+	read := parseListeners(old)
+	if len(read) != 2 || read[0] != (domain.Listener{Name: "devapi", Port: 8001, Bind: "127.0.0.1"}) {
+		t.Errorf("listeners = %+v", read)
+	}
+	bare := "command:\n  - --entrypoints.web.address=:80\nports:\n  - \"80:80\"\n"
+	if read := parseListeners(bare); len(read) != 1 || read[0].Bind != "0.0.0.0" {
+		t.Errorf("a port with no address is every interface: %+v", read)
+	}
+}
+
+func TestCertificatePairsAreReadBackFromTheFile(t *testing.T) {
+	content := "volumes:\n  - \"/a/cert.pem:/certs/0/cert.pem:ro\"\n  - \"/a/key.pem:/certs/0/key.pem:ro\"\n  - \"/b/cert.pem:/certs/1/cert.pem:ro\"\n  - \"/b/key.pem:/certs/1/key.pem:ro\"\n"
+	got := parseCertificatePairs(content)
+	if len(got) != 2 || got[1] != (domain.Certificate{CertFile: "/b/cert.pem", KeyFile: "/b/key.pem"}) {
+		t.Errorf("certificates = %+v", got)
+	}
+}
+
+// A running proxy is read from its container, so another user's file is not
+// needed to know what it listens on, who can reach each port, and which
+// certificates it presents.
+func TestParseInspectReadsWhatTheRunningProxyListensOn(t *testing.T) {
+	out := []byte(`[{
+	  "Config": {"Cmd": ["--providers.docker=true",
+	    "--entrypoints.web.address=:80", "--entrypoints.websecure.address=:443",
+	    "--entrypoints.websecure.http.tls=true", "--entrypoints.alt.address=:8080"]},
+	  "HostConfig": {"PortBindings": {
+	    "80/tcp": [{"HostIp": "127.0.0.1", "HostPort": "80"}],
+	    "443/tcp": [{"HostIp": "", "HostPort": "443"}],
+	    "8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "8080"}]}},
+	  "Mounts": [
+	    {"Source": "/home/a/c1.pem", "Destination": "/certs/1/cert.pem"},
+	    {"Source": "/home/a/k1.pem", "Destination": "/certs/1/key.pem"},
+	    {"Source": "/home/a/c0.pem", "Destination": "/certs/0/cert.pem"},
+	    {"Source": "/home/a/k0.pem", "Destination": "/certs/0/key.pem"},
+	    {"Source": "/var/run/docker.sock", "Destination": "/var/run/docker.sock"}]}]`)
+	listeners, certs, err := parseInspect(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []domain.Listener{
+		{Name: "alt", Port: 8080, Bind: "0.0.0.0"},
+		{Name: "web", Port: 80, Bind: "127.0.0.1"},
+		{Name: "websecure", Port: 443, Bind: "0.0.0.0", TLS: true},
+	}
+	if len(listeners) != 3 || listeners[0] != want[0] || listeners[1] != want[1] || listeners[2] != want[2] {
+		t.Errorf("listeners = %+v", listeners)
+	}
+	if len(certs) != 2 || certs[0].CertFile != "/home/a/c0.pem" || certs[1].KeyFile != "/home/a/k1.pem" {
+		t.Errorf("certs = %+v", certs)
+	}
+	if _, _, err := parseInspect([]byte(`[]`)); err == nil {
+		t.Errorf("an empty inspect must be an error, not a proxy that listens on nothing")
+	}
+}
+
+// The proxy sees the containers of every multiverse: two that each have a host
+// `web` in universe 1 must not be one router defined twice.
+func TestRoutersAreNamedApartAcrossMultiverses(t *testing.T) {
+	label := func(router string) string {
+		content, err := render("routes.yml.tmpl", buildOverride(app.OverrideRequest{Routes: []app.Route{
+			{Name: "web-u1", Router: router, Hostname: "web-u1.localhost", Service: "web", Port: 80, Entrypoint: "web", Network: "n"},
+		}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(content)
+	}
+	a, b := label("acme-web-u1"), label("beta-web-u1")
+	if !strings.Contains(a, "traefik.http.routers.acme-web-u1.rule") || strings.Contains(a, "routers.web-u1.") {
+		t.Errorf("acme's router is not named for acme:\n%s", a)
+	}
+	if !strings.Contains(b, "traefik.http.services.beta-web-u1.loadbalancer.server.port") {
+		t.Errorf("beta's service is not named for beta:\n%s", b)
+	}
+	if !strings.Contains(label(""), "traefik.http.routers.web-u1.rule") {
+		t.Errorf("a route with no router id keeps its name")
 	}
 }

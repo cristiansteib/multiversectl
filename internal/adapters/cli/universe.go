@@ -102,7 +102,7 @@ func (r runner) upCmd() *cobra.Command {
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
 	wait := waitFlags(cmd)
-	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "reconfigure the shared proxy even though universes of other multiverses are served through it")
+	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "publish the shared proxy the way this multiverse asks even though a port is published another way for universes of other multiverses that are served through it")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others, report the failures at the end, exit non-zero)")
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return r.withService(func(ctx context.Context, s *app.Service) error {

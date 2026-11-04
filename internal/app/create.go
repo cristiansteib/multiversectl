@@ -349,6 +349,11 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.UniverseSt
 		return domain.UniverseState{}, err
 	}
 	s.say(1, "domain: %s", dom)
+	// Before a worktree is made or an image built: it is the earliest moment
+	// anyone can be told that this universe will not start next to the ones running.
+	for _, c := range s.proxyConflictsFor(ctx, fmt.Sprintf("universe %s of %s", u.Name, s.Manifest.Name)) {
+		s.Out.Warn("%s", c)
+	}
 	plans, err := s.plan(ctx, u, in)
 	if err != nil {
 		return domain.UniverseState{}, err

@@ -386,9 +386,11 @@ func (startProxy) EnsureNetwork(context.Context, string) error     { return nil 
 func (startProxy) ConnectNetwork(context.Context, string) error    { return nil }
 func (startProxy) DisconnectProject(context.Context, string) error { return nil }
 func (startProxy) Status(context.Context) (app.ProxyStatus, error) {
-	return app.ProxyStatus{Running: true, Bind: "0.0.0.0", Entrypoints: map[string]int{"web": 80}}, nil
+	return app.ProxyStatus{Running: true, Listeners: []domain.Listener{{Name: "web", Port: 80, Bind: "0.0.0.0"}}}, nil
 }
 func (startProxy) EnsureUp(context.Context, app.ProxyRequest) error { return nil }
+func (startProxy) Serving(context.Context) ([]string, error)        { return nil, nil }
+func (startProxy) Down(context.Context) error                       { return nil }
 
 type startRouter struct{}
 
@@ -424,7 +426,7 @@ func TestTheFileExistsWhenTheServicesStart(t *testing.T) {
 	if err := r.svc.Start(context.Background(), app.StartInput{Universe: "1"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(rt.configAtUp) != 1 || rt.configAtUp[0] != `{"api": "http://api-u1.example.test"}` {
+	if len(rt.configAtUp) != 1 || rt.configAtUp[0] != `{"api": "http://acme-u1-api.example.test"}` {
 		t.Errorf("at start the file held %q", rt.configAtUp)
 	}
 }

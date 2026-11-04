@@ -49,10 +49,10 @@ func TestUniverseIdentity(t *testing.T) {
 
 func TestUniverseHostname(t *testing.T) {
 	m := &Manifest{Name: "acme"}
-	if got := (Universe{Name: "fix/login", Manifest: m}).Hostname("api", "example.test"); got != "api-fix-login.example.test" {
+	if got := (Universe{Name: "fix/login", Manifest: m}).Hostname("api", "example.test"); got != "acme-fix-login-api.example.test" {
 		t.Errorf("got %q", got)
 	}
-	if got := (Universe{Name: "3", Manifest: m}).Hostname("api", "example.test"); got != "api-u3.example.test" {
+	if got := (Universe{Name: "3", Manifest: m}).Hostname("api", "example.test"); got != "acme-u3-api.example.test" {
 		t.Errorf("got %q", got)
 	}
 }
@@ -81,30 +81,20 @@ func TestProxyClashes(t *testing.T) {
 	a := &Manifest{Name: "acme", Proxy: Proxy{Network: "multiversenet", Entrypoints: map[string]int{"web": 80, "devapi": 8001}}}
 	b := &Manifest{Name: "beta", Proxy: Proxy{Network: "multiversenet", Entrypoints: web}}
 
-	got := strings.Join(ProxyClashes("acme", a, "beta", b), "\n")
-	if !strings.Contains(got, `acme needs proxy entrypoint "devapi" (port 8001); starting beta reconfigures`) {
-		t.Errorf("a missing entrypoint is the real clash: %q", got)
-	}
-	if strings.Contains(got, "network") || strings.Contains(got, "(port 80)") {
-		t.Errorf("sharing the default network and port 80 is the design, not a clash: %q", got)
-	}
-
-	same := &Manifest{Name: "gamma", Proxy: Proxy{Network: "multiversenet", Entrypoints: web}}
-	if c := ProxyClashes("beta", b, "gamma", same); len(c) != 0 {
-		t.Errorf("two default projects must not warn: %v", c)
+	// The proxy listens on the union, so an entrypoint only one of them has is not a clash.
+	if c := ProxyClashes("acme", a, "beta", b); len(c) != 0 {
+		t.Errorf("sharing the default network and port 80 is the design, not a clash: %v", c)
 	}
 
 	other := &Manifest{Name: "delta", Proxy: Proxy{Network: "edge", Entrypoints: map[string]int{"web": 8080}}}
-	got = strings.Join(ProxyClashes("beta", b, "delta", other), "\n")
-	for _, want := range []string{"different proxy networks (multiversenet, edge)", `entrypoint "web" is port 80 for beta and 8080 for delta`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %q in %q", want, got)
-		}
+	got := strings.Join(ProxyClashes("beta", b, "delta", other), "\n")
+	if !strings.Contains(got, "different proxy networks (multiversenet, edge)") || strings.Contains(got, "port") {
+		t.Errorf("clashes = %q", got)
 	}
 
 	local := &Manifest{Name: "eps", Expose: ExposeLocal, Proxy: Proxy{Network: "multiversenet", Entrypoints: web}}
-	if c := strings.Join(ProxyClashes("beta", b, "eps", local), "\n"); !strings.Contains(c, "moves it") {
-		t.Errorf("a different bind address moves the proxy: %q", c)
+	if c := strings.Join(ProxyClashes("beta", b, "eps", local), "\n"); !strings.Contains(c, "port 80, on 0.0.0.0 and on 127.0.0.1") {
+		t.Errorf("one port published two ways: %q", c)
 	}
 }
 
@@ -163,5 +153,17 @@ func TestTheProxyReachesAnAppOnItsOwnNetwork(t *testing.T) {
 	recorded := Universe{Manifest: m, Name: "3", Recorded: "acme-old-u3"}
 	if got := recorded.ProxyNetwork("web"); got != "acme-old-u3-web_default" {
 		t.Fatalf("recorded ProxyNetwork = %q", got)
+	}
+}
+
+// Two multiverses with a host of the same name in the same universe get two
+// hostnames, which is what lets one proxy route for both.
+func TestHostnamesDifferAcrossMultiverses(t *testing.T) {
+	a := &Manifest{Name: "acme", Apps: map[string]App{"web": {Hosts: map[string]HostRule{"web": {}}}}}
+	b := &Manifest{Name: "beta", Apps: a.Apps}
+	ha := (Universe{Name: "1", Manifest: a}).Hostname("web", "localhost")
+	hb := (Universe{Name: "1", Manifest: b}).Hostname("web", "localhost")
+	if ha == hb || ha != "acme-u1-web.localhost" {
+		t.Errorf("acme %q, beta %q", ha, hb)
 	}
 }

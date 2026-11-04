@@ -42,7 +42,7 @@ func TestAServiceWithNetworkModeIsNotRoutedAndTheAppStillStarts(t *testing.T) {
 		t.Errorf("the app was not started: %v", rt.ups)
 	}
 	out := r.out.text()
-	for _, want := range []string{`warn: api: service "web" sets network_mode "host"`, "api-u1.example.test", "cannot be reached through the proxy"} {
+	for _, want := range []string{`warn: api: service "web" sets network_mode "host"`, "acme-u1-api.example.test", "cannot be reached through the proxy"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}

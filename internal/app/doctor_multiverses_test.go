@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -26,10 +27,11 @@ func (f fakeConfig) Load() (Config, error) { return f.c, nil }
 func (fakeConfig) Save(Config) error       { return nil }
 func (fakeConfig) Path() string            { return "" }
 
-func TestDoctorWarnsAboutAnotherMultiverseThatWouldDropAnEntrypoint(t *testing.T) {
-	mine := &domain.Manifest{Name: "acme", Path: "/a/multiverse.yaml", Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80, "devapi": 8001}}}
-	other := &domain.Manifest{Name: "beta", Path: "/b/multiverse.yaml", Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80}}}
-	quiet := &domain.Manifest{Name: "gamma", Path: "/c/multiverse.yaml", Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80, "devapi": 8001}}}
+func TestDoctorWarnsAboutAnotherMultiverseThatWantsTheSamePortAnotherWay(t *testing.T) {
+	mine := &domain.Manifest{Name: "acme", Expose: domain.ExposeLocal, Path: "/a/multiverse.yaml", Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80, "devapi": 8001}}}
+	other := &domain.Manifest{Name: "beta", Expose: domain.ExposeLAN, Path: "/b/multiverse.yaml", Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80}}}
+	// An entrypoint the other lacks is no clash: the proxy listens on both.
+	quiet := &domain.Manifest{Name: "gamma", Expose: domain.ExposeLocal, Path: "/c/multiverse.yaml", Proxy: domain.Proxy{Entrypoints: map[string]int{"web": 80}}}
 	s := &Service{Deps: Deps{
 		Config: fakeConfig{Config{Multiverses: map[string]MultiverseEntry{
 			"acme": {Manifest: mine.Path}, "beta": {Manifest: other.Path}, "gamma": {Manifest: quiet.Path}, "broken": {Manifest: "/nope"},
@@ -39,9 +41,9 @@ func TestDoctorWarnsAboutAnotherMultiverseThatWouldDropAnEntrypoint(t *testing.T
 
 	var got []Check
 	s.checkMultiverses(func(name string, st Status, f string, a ...any) {
-		got = append(got, Check{Name: name, Status: st, Detail: f})
+		got = append(got, Check{Name: name, Status: st, Detail: fmt.Sprintf(f, a...)})
 	})
-	if len(got) != 1 || got[0].Status != StatusWarn || !strings.Contains(got[0].Detail, "%s") {
+	if len(got) != 1 || got[0].Status != StatusWarn || !strings.Contains(got[0].Detail, "acme (expose local) and beta (expose lan) both want port 80") {
 		t.Fatalf("want one warning, about beta, got %+v", got)
 	}
 }

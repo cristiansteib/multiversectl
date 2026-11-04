@@ -588,39 +588,30 @@ func (m *Manifest) ComposeFiles(appKey, repoDir string) []string {
 	return out
 }
 
-// ProxyClashes says where two multiverses disagree about the proxy. There is
-// one proxy per machine, so sharing its network and its ports is the design:
-// the trouble is that starting a multiverse rewrites the proxy from its own
-// manifest, which drops what another multiverse needs from it. aName and bName
-// are what the user calls the multiverses, which is not always metadata.name.
+// ProxyClashes says where two multiverses cannot be served by the one proxy a
+// machine has. They share its network and listen side by side on the union of
+// their entrypoints, so differing names, ports and certificates are fine; what is
+// not is one port published two ways (see ListenerClashes) and two networks.
+// aName and bName are what the user calls the multiverses, which is not always
+// metadata.name.
 func ProxyClashes(aName string, a *Manifest, bName string, b *Manifest) []string {
 	var out []string
-	if a.Proxy.Network != "" && b.Proxy.Network != "" && a.Proxy.Network != b.Proxy.Network {
+	if an, bn := networkOf(a), networkOf(b); an != bn {
 		out = append(out, fmt.Sprintf("%s and %s want different proxy networks (%s, %s) but a machine has one proxy; only one is reachable",
-			aName, bName, a.Proxy.Network, b.Proxy.Network))
+			aName, bName, an, bn))
 	}
-	for _, n := range sortedEntrypoints(a.Proxy.Entrypoints) {
-		ap := a.Proxy.Entrypoints[n]
-		if bp, ok := b.Proxy.Entrypoints[n]; !ok {
-			out = append(out, fmt.Sprintf("%s needs proxy entrypoint %q (port %d); starting %s reconfigures the proxy without it", aName, n, ap, bName))
-		} else if bp != ap {
-			out = append(out, fmt.Sprintf("entrypoint %q is port %d for %s and %d for %s; the proxy can only have one", n, ap, aName, bp, bName))
-		} else if a.Proxy.TLS[n] != b.Proxy.TLS[n] {
-			out = append(out, fmt.Sprintf("entrypoint %q is served over TLS for one of %s and %s and not the other; the proxy can only do one", n, aName, bName))
-		}
-	}
-	for _, n := range sortedEntrypoints(b.Proxy.Entrypoints) {
-		if _, ok := a.Proxy.Entrypoints[n]; !ok {
-			out = append(out, fmt.Sprintf("%s needs proxy entrypoint %q (port %d); starting %s reconfigures the proxy without it", bName, n, b.Proxy.Entrypoints[n], aName))
-		}
-	}
-	if !slices.Equal(a.Proxy.Certificates, b.Proxy.Certificates) && (len(a.Proxy.Certificates) > 0 || len(b.Proxy.Certificates) > 0) {
-		out = append(out, fmt.Sprintf("%s and %s give the proxy different certificates; starting either one replaces the other's", aName, bName))
-	}
-	if x, y := a.BindAddress(), b.BindAddress(); x != y {
-		out = append(out, fmt.Sprintf("%s publishes the proxy on %s and %s on %s; starting either one moves it", aName, x, bName, y))
+	for _, c := range ListenerClashes(aName, a, bName, b) {
+		out = append(out, c+"; "+ClashFix(aName, bName))
 	}
 	return out
+}
+
+// networkOf is the proxy network a multiverse uses, the default included.
+func networkOf(m *Manifest) string {
+	if m.Proxy.Network == "" {
+		return "multiversenet"
+	}
+	return m.Proxy.Network
 }
 
 func sortedEntrypoints(m map[string]int) []string {

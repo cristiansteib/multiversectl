@@ -97,11 +97,11 @@ func TestAHostCanAskToBeReachedByIPAlone(t *testing.T) {
 	if got := urls["keycloak"]; len(got) != 1 || got[0] != "http://192.0.2.7:43791" {
 		t.Errorf("keycloak is at %v, want its forwarded address alone", got)
 	}
-	if got := urls["api"]; len(got) != 1 || got[0] != "http://api-u1.192-0-2-7.example.test" {
+	if got := urls["api"]; len(got) != 1 || got[0] != "http://acme-u1-api.192-0-2-7.example.test" {
 		t.Errorf("api is at %v, want its name (and its forward, listed beside it)", got)
 	}
 	env := svc.runtimeEnv(svc.Universe("1"), st)
-	if env["KEYCLOAK_URL"] != "http://192.0.2.7:43791" || env["KEYCLOAK_HOST"] != "192.0.2.7" || env["API_URL"] != "http://api-u1.192-0-2-7.example.test" {
+	if env["KEYCLOAK_URL"] != "http://192.0.2.7:43791" || env["KEYCLOAK_HOST"] != "192.0.2.7" || env["API_URL"] != "http://acme-u1-api.192-0-2-7.example.test" {
 		t.Errorf("env: %v %v %v", env["KEYCLOAK_URL"], env["KEYCLOAK_HOST"], env["API_URL"])
 	}
 	// The summaries list the forwarded address once for a host that has no name.

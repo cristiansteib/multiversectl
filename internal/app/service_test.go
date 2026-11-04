@@ -279,16 +279,18 @@ func TestAnAppsEnvIsOverTheMultiversesAndOnlyItsOwn(t *testing.T) {
 
 // Starting from a multiverse with other certificates, or another entrypoint's
 // TLS, takes the proxy from whoever set it up: that is said, like a port is.
-func TestAProxyChangeNamesCertificatesAndTLS(t *testing.T) {
-	status := ProxyStatus{Bind: "0.0.0.0", Entrypoints: map[string]int{"web": 443}, TLS: map[string]bool{"web": true}, Certificates: []string{"/a.pem"}}
-	want := ProxyRequest{Bind: "0.0.0.0", Entrypoints: map[string]int{"web": 443}}
-	got := proxyChange(status, want)
-	if !strings.Contains(got, "certificates none instead of /a.pem") || !strings.Contains(got, "web without TLS") {
+func TestAProxyChangeNamesTheBindAndTLSOfAListenerThatIsMoved(t *testing.T) {
+	current := []domain.Listener{{Name: "web", Port: 443, Bind: "0.0.0.0", TLS: true}, {Name: "devapi", Port: 8001, Bind: "0.0.0.0"}}
+	plan := []domain.Listener{{Name: "web", Port: 443, Bind: "127.0.0.1"}, {Name: "devapi", Port: 8001, Bind: "0.0.0.0"}, {Name: "grpc", Port: 50051, Bind: "0.0.0.0"}}
+	got := proxyChange(current, plan)
+	if !strings.Contains(got, "port 443 published on 127.0.0.1 instead of 0.0.0.0") || !strings.Contains(got, "web without TLS") || strings.Contains(got, "50051") {
 		t.Errorf("change = %q", got)
 	}
-	want.TLS, want.Certificates = map[string]bool{"web": true}, []domain.Certificate{{CertFile: "/a.pem", KeyFile: "/k.pem"}}
-	if got := proxyChange(status, want); got != "" {
+	if got := proxyChange(current, current); got != "" {
 		t.Errorf("no change, yet %q", got)
+	}
+	if got := addedListeners(current, plan); got != "grpc:50051 on 0.0.0.0" {
+		t.Errorf("added = %q", got)
 	}
 }
 

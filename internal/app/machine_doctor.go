@@ -84,20 +84,7 @@ func (s *Service) checkProxyFree(ctx context.Context, add addCheck, ports map[in
 		add("proxy", StatusFail, "%v", err)
 		return
 	} else if status.Running {
-		where := status.Bind
-		if where == "" {
-			where = "0.0.0.0"
-		}
-		reach := "reachable from this network"
-		if where == "127.0.0.1" {
-			reach = "this machine only"
-		}
-		names := make([]string, 0, len(status.Entrypoints))
-		for n, p := range status.Entrypoints {
-			names = append(names, fmt.Sprintf("%s:%d", n, p))
-		}
-		sort.Strings(names)
-		add("proxy", StatusOK, "running on %s, %s · %s", where, reach, strings.Join(names, ", "))
+		add("proxy", StatusOK, "listening on %s", describeListeners(status.Listeners))
 		return
 	}
 	add("proxy", StatusIdle, "not running; the first start brings it up")

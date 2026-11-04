@@ -444,6 +444,7 @@ func (s *Service) Routes(st domain.UniverseState, appKey string) []Route {
 		}
 		routes = append(routes, Route{
 			Name:       hostKey + "-" + st.Slug,
+			Router:     s.Manifest.Name + "-" + hostKey + "-" + st.Slug,
 			Hostname:   rule.Hostname,
 			Aliases:    aliases,
 			Service:    rule.Service,

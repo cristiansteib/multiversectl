@@ -165,9 +165,9 @@ func (s *Service) resolveRules(ctx context.Context, u domain.Universe, dom strin
 			return nil
 		}
 		// With no domain the name is only the proxy's own, and no resolver sees it.
-		if n := len(hostKey) + 1 + len(u.Slug()); n > domain.DNSLabelLimit && !s.Manifest.IPOnly() {
-			s.Out.Warn("host %s (%s/%s) gets no address: %s-%s is %d characters, over the %d a hostname's part has room for; shorten the host or the universe's name",
-				hostKey, rule.App, rule.Service, hostKey, u.Slug(), n, domain.DNSLabelLimit)
+		if label, _, _ := strings.Cut(u.Hostname(hostKey, "x"), "."); len(label) > domain.DNSLabelLimit && !s.Manifest.IPOnly() {
+			s.Out.Warn("host %s (%s/%s) gets no address: %s is %d characters, over the %d a hostname's part has room for; shorten the host, the universe's name or the multiverse's",
+				hostKey, rule.App, rule.Service, label, len(label), domain.DNSLabelLimit)
 			return nil
 		}
 		if rule.PortForward != "" && !domain.Forwarded(rule.PortForward) {

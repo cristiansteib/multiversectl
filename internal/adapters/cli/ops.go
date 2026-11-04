@@ -107,7 +107,7 @@ func (r runner) proxyCmd() *cobra.Command {
 			return nil
 		}),
 	}
-	up.Flags().BoolVar(&rebind, "rebind-proxy", false, "reconfigure a running proxy even though universes of other multiverses are served through it")
+	up.Flags().BoolVar(&rebind, "rebind-proxy", false, "publish the proxy the way this multiverse asks even though a port is published another way for universes of other multiverses that are served through it")
 	proxy.AddCommand(
 		up,
 		&cobra.Command{
@@ -132,8 +132,13 @@ func (r runner) proxyCmd() *cobra.Command {
 					return nil
 				}
 				s.Out.OK("proxy is running")
-				for _, name := range sortedKeys(st.Entrypoints) {
-					s.Out.Plain("  %s  :%d", name, st.Entrypoints[name])
+				for _, l := range st.Listeners {
+					s.Out.Plain("  %s  :%d  on %s, %s", l.Name, l.Port, l.Bind, domain.Reach(l.Bind))
+				}
+				// Said here as well as at `universe new` and `universe up`, so it is
+				// known before an image is built.
+				for _, c := range s.ProxyConflicts(ctx) {
+					s.Out.Warn("%s", c)
 				}
 				return nil
 			}),

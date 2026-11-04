@@ -59,6 +59,7 @@ func (s *Service) Stop(ctx context.Context, in StopInput) error {
 			return err
 		}
 	}
+	s.trimProxy(ctx)
 	_, err = s.fire(ctx, domain.PostDown, st, multiverseHooks, nil, nil)
 	return err
 }

@@ -289,27 +289,33 @@ func (p ProjectConfig) Names() []string {
 
 // ProxyRequest is the shared ingress every universe is reached through.
 type ProxyRequest struct {
-	Domain      string
-	Entrypoints map[string]int
-	Network     string
-	// Bind is the host address the entrypoints are published on. The loopback
-	// address is what keeps universes off the network; it is not the
-	// hostnames' job.
-	Bind string
-	// TLS names the entrypoints served over https, and Certificates are what
-	// they present.
-	TLS          map[string]bool
+	Domain  string
+	Network string
+	// Listeners are every port it listens on, each published on an address of
+	// its own: the loopback address is what keeps universes off the network, and
+	// it is not the hostnames' job. They are the union of what the multiverses it
+	// serves ask for, so one that stays local and one that is open to the network
+	// are served at once.
+	Listeners []domain.Listener
+	// Certificates are what the TLS listeners present.
 	Certificates []domain.Certificate
 }
 
 // ProxyStatus is what Doctor reports about the ingress.
 type ProxyStatus struct {
-	Running     bool
-	Entrypoints map[string]int
-	Bind        string // the host address its ports are published on
-	TLS         map[string]bool
-	// Certificates are the certificate files it presents, on this machine.
-	Certificates []string
+	Running   bool
+	Listeners []domain.Listener
+	// Certificates are the certificates it presents, as files on this machine.
+	Certificates []domain.Certificate
+}
+
+// Entrypoints are the listeners' ports by name.
+func (p ProxyStatus) Entrypoints() map[string]int {
+	out := make(map[string]int, len(p.Listeners))
+	for _, l := range p.Listeners {
+		out[l.Name] = l.Port
+	}
+	return out
 }
 
 // Proxy is the ingress port.
@@ -324,11 +330,21 @@ type Proxy interface {
 	EnsureUp(ctx context.Context, r ProxyRequest) error
 	Down(ctx context.Context) error
 	Status(ctx context.Context) (ProxyStatus, error)
+	// Serving names the running containers that are labelled as served by this
+	// proxy, whichever multiverse or user on the machine started them. It asks the
+	// container runtime, not a manifest, so it knows of what no manifest can be
+	// read for.
+	Serving(ctx context.Context) ([]string, error)
 }
 
 // Route is one hostname the proxy must send to one service port.
 type Route struct {
-	Name       string // unique per universe, e.g. "app-u3"
+	Name string // unique per universe, e.g. "app-u3"
+	// Router is what the proxy calls the route: unique on the machine, since the
+	// proxy sees the containers of every multiverse and two with a host of the
+	// same name in the same universe would be one router defined twice, which it
+	// answers for neither. Empty means Name.
+	Router     string
 	Hostname   string
 	Aliases    []string // further hostnames routed to the same service
 	Service    string
