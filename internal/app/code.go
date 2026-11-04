@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -361,4 +362,91 @@ func (s *Service) diffTarget(ctx context.Context, name, repo, scope, base string
 		}
 	}
 	return "", "", fmt.Errorf("repository %s is not checked out in universe %s: %w", repo, name, domain.ErrNotFound)
+}
+
+// MaxFileBytes is how much of a file's current content the viewer is sent: a
+// file read to look at or render, not a diff, but still not a place to stream a
+// multi-megabyte generated file.
+const MaxFileBytes = 512 << 10
+
+// FileContent is a file of a universe's checkout as it stands on disk now: its
+// text (empty when it is binary), whether it was cut at the limit, and its
+// size. It is what the viewer's "raw" and "rendered" modes read, where the diff
+// shows only what changed.
+type FileContent struct {
+	Text      string
+	Binary    bool
+	Truncated bool
+	Bytes     int64
+}
+
+// UniverseFile reads one file of a repository's checkout as it is now. The path
+// is relative to the checkout and may not climb out of it, so a caller cannot
+// read anything but a file of that repository.
+func (s *Service) UniverseFile(ctx context.Context, name, repo, file string, limit int) (FileContent, error) {
+	st, err := s.Resolve(name)
+	if err != nil {
+		return FileContent{}, err
+	}
+	var dir string
+	for _, c := range s.checkouts(st) {
+		if c.Repo == repo {
+			dir = c.Path
+			break
+		}
+	}
+	if dir == "" {
+		return FileContent{}, fmt.Errorf("repository %s is not checked out in universe %s: %w", repo, name, domain.ErrNotFound)
+	}
+	full, ok := safeJoin(dir, file)
+	if !ok {
+		return FileContent{}, fmt.Errorf("%q is outside the repository", file)
+	}
+	if !s.Files.Exists(full) {
+		return FileContent{}, fmt.Errorf("%s: %w", file, domain.ErrNotFound)
+	}
+	if n, err := s.Files.Size(full); err == nil && n > 8<<20 {
+		return FileContent{Bytes: n}, fmt.Errorf("%s is too large to show here (%d bytes)", file, n)
+	}
+	data, err := s.Files.ReadFile(full)
+	if err != nil {
+		return FileContent{}, err
+	}
+	fc := FileContent{Bytes: int64(len(data))}
+	if isBinary(data) {
+		fc.Binary = true
+		return fc, nil
+	}
+	if limit > 0 && len(data) > limit {
+		data = data[:limit]
+		fc.Truncated = true
+	}
+	fc.Text = string(data)
+	return fc, nil
+}
+
+// safeJoin joins a repository's directory and a path relative to it, refusing
+// one that climbs out of the repository with "..": a caller may read a file of
+// the checkout, never anything above it.
+func safeJoin(dir, file string) (string, bool) {
+	full := filepath.Join(dir, file)
+	rel, err := filepath.Rel(dir, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return full, true
+}
+
+// isBinary says a file is not text when a NUL byte turns up early, the same
+// cheap test git uses: a text file does not carry one.
+func isBinary(data []byte) bool {
+	if len(data) > 8000 {
+		data = data[:8000]
+	}
+	for _, b := range data {
+		if b == 0 {
+			return true
+		}
+	}
+	return false
 }

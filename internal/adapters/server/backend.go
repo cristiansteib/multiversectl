@@ -71,6 +71,9 @@ type Backend interface {
 	// base is what the page showed the change against; empty works it out.
 	Diff(ctx context.Context, multiverse, universe, repo, scope, base string) (diffFilesView, error)
 	Patch(ctx context.Context, multiverse, universe, repo, scope, base, file string) (patchView, error)
+	// File is a repository file's current content (not a diff), for the viewer's
+	// raw and rendered modes.
+	File(ctx context.Context, multiverse, universe, repo, file string) (fileContentView, error)
 	Logs(ctx context.Context, multiverse, universe, appKey, service string, tail int, follow bool, w io.Writer) error
 	// FleetStats reads every running container of one multiverse, or of all.
 	FleetStats(ctx context.Context, multiverse string) (fleetStatsView, error)
@@ -454,6 +457,19 @@ func (s Services) Patch(ctx context.Context, multiverse, universe, repo, scope, 
 		return patchView{}, err
 	}
 	return patchView{Path: file, Patch: patch, Truncated: truncated}, nil
+}
+
+// File is a repository file's current content for the viewer's raw and rendered modes.
+func (s Services) File(ctx context.Context, multiverse, universe, repo, file string) (fileContentView, error) {
+	svc, err := s.service(multiverse)
+	if err != nil {
+		return fileContentView{}, err
+	}
+	fc, err := svc.UniverseFile(ctx, universe, repo, file, app.MaxFileBytes)
+	if err != nil {
+		return fileContentView{}, err
+	}
+	return fileContentView{Path: file, Text: fc.Text, Binary: fc.Binary, Truncated: fc.Truncated, Bytes: fc.Bytes}, nil
 }
 
 // diffOf leaves out a change of nothing, so a page can ask whether there is one.
