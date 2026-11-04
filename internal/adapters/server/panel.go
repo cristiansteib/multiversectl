@@ -140,6 +140,23 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 // diff is the files of one repository's change, or with a file, that file's
 // diff. A read, like the rest of the panel, and it names no path of its own:
 // the backend only answers for files that are in the change.
+func (s *Server) file(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	project, universe, repo, file := q.Get("multiverse"), q.Get("universe"), q.Get("repo"), q.Get("file")
+	if project == "" || universe == "" || repo == "" || file == "" {
+		fail(w, http.StatusBadRequest, "multiverse, universe, repo and file are required")
+		return
+	}
+	ctx, cancel := s.ctx(r)
+	defer cancel()
+	v, err := s.b.File(ctx, project, universe, repo, file)
+	if err != nil {
+		failErr(w, err)
+		return
+	}
+	reply(w, v)
+}
+
 func (s *Server) diff(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	project, universe, repo, scope := q.Get("multiverse"), q.Get("universe"), q.Get("repo"), q.Get("scope")

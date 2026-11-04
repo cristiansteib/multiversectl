@@ -35,6 +35,26 @@
 .fpath { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .86rem; font-weight: 600 }
 .steps { display: inline-flex; align-items: center; gap: 2px }
 
+/* Diff | Raw | Rendered, how the picked file is shown. */
+.modes { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; flex: none }
+.modes button { font: 500 .78rem var(--sans); color: var(--muted); background: none; border: 0; padding: 4px 9px; min-height: 26px; cursor: pointer }
+.modes button + button { border-left: 1px solid var(--line) }
+.modes button.on { background: var(--accent-soft); color: var(--text) }
+.modes button:hover:not(.on) { color: var(--text) }
+.wrapbtn.on { color: var(--accent); background: var(--accent-soft) }
+.empty { padding: 14px; margin: 0 }
+/* The bar carries a few controls; let them wrap rather than overflow when narrow. */
+.filebar { flex-wrap: wrap; row-gap: 6px }
+
+/* Expanded: the tree and the viewer lifted to fill the screen. */
+.layout.expanded { position: fixed; inset: 0; z-index: 60; height: 100vh; height: 100dvh; margin: 0; padding: 12px;
+  gap: 12px; background: var(--bg); grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); align-items: stretch; overflow: hidden }
+.layout.expanded.single { grid-template-columns: minmax(0, 1fr) }
+.layout.expanded .tree { position: static; top: auto; max-height: none; height: 100%; overflow: auto; padding-right: 8px; border-right: 1px solid var(--line) }
+.layout.expanded .pane { height: 100%; overflow: auto }
+.layout.expanded .filebar { top: 0 }
+.expand { flex: none }
+
 .commits { list-style: none; margin: 0; padding: 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg) }
 .commits li + li { border-top: 1px solid var(--line) }
 .commits .line, .commits summary { display: flex; align-items: center; gap: 10px; padding: 8px 0; min-width: 0 }

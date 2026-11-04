@@ -261,6 +261,16 @@ type patchView struct {
 	Truncated bool   `json:"truncated,omitempty"`
 }
 
+// fileContentView is a file of a checkout as it stands now, for the viewer's raw
+// and rendered modes. Text is empty for a binary file.
+type fileContentView struct {
+	Path      string `json:"path"`
+	Text      string `json:"text"`
+	Binary    bool   `json:"binary,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
+	Bytes     int64  `json:"bytes"`
+}
+
 type multiverseView struct {
 	Name string `json:"name"`
 	Root string `json:"root"`

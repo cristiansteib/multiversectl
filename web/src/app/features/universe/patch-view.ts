@@ -36,7 +36,7 @@ interface Drawn {
     @if (!patch()) { <mv-skeleton height="4rem" /> }
     @else if (failure(); as e) { <mv-error [message]="e" /> }
     @else {
-      <div class="patch mono" [class.full]="full()" tabindex="0" role="region" aria-label="Diff">
+      <div class="patch mono" [class.full]="full()" [class.wrap]="wrap()" tabindex="0" role="region" aria-label="Diff">
         @for (l of lines(); track $index) {
           @if (l.html !== null) {
             <div class="pl lit" [class]="l.kind"><span class="mk">{{ l.mark }}</span><span [innerHTML]="l.html"></span></div>
@@ -52,6 +52,9 @@ interface Drawn {
     /* Alone on its pane, the diff runs at its own length and the page scrolls. */
     .patch.full { max-height: none; border-top: 0; border-radius: 0 0 var(--r-lg) var(--r-lg) }
     .pl { white-space: pre; padding: 0 14px; width: max-content; min-width: 100% }
+    /* Wrapped: a long line breaks at a space, a long token anywhere, with its
+       continuation hung past the +/− mark so it still reads as one line. */
+    .patch.wrap .pl { white-space: pre-wrap; overflow-wrap: anywhere; width: auto; min-width: 0; padding-left: 28px; text-indent: -14px }
     .ins { background: var(--ok-bg); color: var(--ok) } .rem { background: var(--bad-bg); color: var(--bad) }
     .hunk { color: var(--info); background: var(--info-bg) } .meta { color: var(--faint) }
     /* A coloured line says what it is with its background and its mark; the
@@ -87,6 +90,8 @@ export class PatchViewer {
   readonly path = input<string>('');
   /** Alone on its pane: no height of its own, the page scrolls it. */
   readonly full = input(false);
+  /** Soft-wrap long lines instead of scrolling them sideways. */
+  readonly wrap = input(false);
 
   protected readonly failure = computed(() => { const p = this.patch(); return p && 'error' in p ? p.error : null; });
   private readonly real = computed(() => { const p = this.patch(); return p && !('error' in p) ? p : null; });

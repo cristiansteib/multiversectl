@@ -93,3 +93,18 @@ export function highlightLine(text: string, language: string | null): string | n
     return null;   // an unregistered language, or anything else: plain text
   }
 }
+
+/**
+ * A whole file as HTML, for the raw view. Unlike a diff, a file is one text with
+ * a beginning, so a multi-line comment or template literal is coloured as one —
+ * this is where highlight.js is at its best. The same escaping guarantees as
+ * highlightLine hold: the output is escaped and carries only hljs's own classes.
+ */
+export function highlightAll(text: string, language: string | null): string | null {
+  if (!language || !text) return null;
+  try {
+    return hljs.highlight(text, { language, ignoreIllegals: true }).value;
+  } catch {
+    return null;
+  }
+}

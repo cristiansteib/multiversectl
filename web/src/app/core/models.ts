@@ -34,6 +34,8 @@ export interface FileView { path: string; oldPath?: string; status: string; adde
 export interface CommitView { sha: string; author?: string; at?: string; subject: string; body?: string }
 export interface DiffFilesView { base?: string; files: FileView[]; commits?: CommitView[] }
 export interface PatchView { path: string; patch: string; truncated?: boolean }
+/** A checkout file's current content, for the viewer's raw and rendered modes. Text is empty when binary. */
+export interface FileContentView { path: string; text: string; binary?: boolean; truncated?: boolean; bytes: number }
 
 export interface RepoView { key: string; clone?: string; loc?: LocView; url: string; dir: string; cloned: boolean; follows?: string; behind?: number; ahead?: number; dirty?: boolean }
 export interface HostDefView {

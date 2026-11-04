@@ -138,6 +138,9 @@ func (f *fake) Diff(_ context.Context, ws, u, repo, scope, base string) (diffFil
 	f.ask("diff:" + ws + ":" + u + ":" + repo + ":" + scope + ":" + base)
 	return f.files, f.err
 }
+func (f *fake) File(_ context.Context, ws, u, repo, file string) (fileContentView, error) {
+	return fileContentView{Path: file}, f.err
+}
 func (f *fake) Patch(_ context.Context, ws, u, repo, scope, base, file string) (patchView, error) {
 	f.ask("patch:" + ws + ":" + u + ":" + repo + ":" + scope + ":" + base + ":" + file)
 	return f.patch, f.err

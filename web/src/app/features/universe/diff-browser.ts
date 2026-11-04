@@ -1,16 +1,20 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, HostListener, Injector, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Api } from '../../core/api.service';
-import { CommitView, DiffFilesView, FileView, PatchView } from '../../core/models';
+import { CommitView, DiffFilesView, FileContentView, FileView, PatchView } from '../../core/models';
 import { AgoPipe } from '../../shared/ui/ago.pipe';
 import { CopyButton } from '../../shared/ui/copy-button';
 import { ErrorBox } from '../../shared/ui/error-box';
 import { Icon } from '../../shared/ui/icon';
 import { Skeleton } from '../../shared/ui/skeleton';
+import { FileViewer } from './file-view';
 import { PatchViewer } from './patch-view';
 import { STATUS_MARK, fileTree } from './patch';
 
 type Loaded = PatchView | { error: string };
+type Content = FileContentView | { error: string };
 type View = 'files' | 'commits';
+/** How the picked file is shown: the diff, the file as it is now, or markdown rendered. */
+type Mode = 'diff' | 'raw' | 'rendered';
 
 /**
  * One change, read the way a review is: its commits in one tab, its files in
@@ -22,7 +26,7 @@ type View = 'files' | 'commits';
  */
 @Component({
   selector: 'mv-diff-browser',
-  imports: [Icon, ErrorBox, Skeleton, PatchViewer, AgoPipe, CopyButton],
+  imports: [Icon, ErrorBox, Skeleton, PatchViewer, FileViewer, AgoPipe, CopyButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './diff-browser.html',
   styleUrl: './diff-browser.css',
@@ -54,6 +58,13 @@ export class DiffBrowser {
   protected readonly patches = signal<Record<string, Loaded>>({});
   protected readonly collapsed = signal<ReadonlySet<string>>(new Set());
   protected readonly filter = signal('');
+  /** How the file is shown, and whether the browser is lifted to fill the screen. */
+  protected readonly mode = signal<Mode>('diff');
+  protected readonly expanded = signal(false);
+  /** Soft-wrap long lines instead of scrolling them sideways. On by default. */
+  protected readonly wrap = signal(true);
+  /** The current content of files, for the raw and rendered modes; read on demand. */
+  protected readonly contents = signal<Record<string, Content>>({});
 
   protected readonly mark = STATUS_MARK;
   protected readonly hasCommits = computed(() => this.scope() === 'branch');
@@ -68,6 +79,13 @@ export class DiffBrowser {
     const f = this.file(), root = this.root().replace(/\/+$/, '');
     return f && root ? `${root}/${f.path}` : '';
   });
+  protected readonly isMarkdown = computed(() => /\.(md|markdown)$/i.test(this.file()?.path ?? ''));
+  /** The shown file's current content, for the raw and rendered modes. */
+  protected readonly content = computed<Content | null>(() => { const f = this.file(); return f ? this.contents()[f.path] ?? null : null; });
+  /** The file-view only knows raw or rendered; diff never reaches it. */
+  protected readonly fileMode = computed<'raw' | 'rendered'>(() => (this.mode() === 'rendered' ? 'rendered' : 'raw'));
+  protected readonly contentError = computed(() => { const c = this.content(); return c && 'error' in c ? c.error : null; });
+  protected readonly fileText = computed(() => { const c = this.content(); return c && !('error' in c) ? c : null; });
 
   private sig = '';
   private busy = false;
@@ -86,6 +104,8 @@ export class DiffBrowser {
     });
     // The same change, read again.
     effect(() => { this.tick(); untracked(() => { if (this.files() !== null) void this.load(); }); });
+    // Rendered is markdown's own: a file that is not markdown falls back to raw.
+    effect(() => { if (this.mode() === 'rendered' && !this.isMarkdown()) untracked(() => this.mode.set('raw')); });
   }
 
   private params(extra: Record<string, string> = {}) {
@@ -122,6 +142,7 @@ export class DiffBrowser {
       // What was on screen is as old as the list: drop it, and read the file
       // again — the same one if it is still in the change, else the first.
       this.patches.set({});
+      this.contents.set({});
       const keep = files.find((f) => f.path === this.active())?.path ?? this.ordered()[0]?.path ?? null;
       this.active.set(keep);
       if (!keep) { this.shown.set(null); return; }
@@ -153,6 +174,7 @@ export class DiffBrowser {
     if (!this.patches()[path]) await this.fetchPatch(path);
     if (path !== this.active()) return;   // something else was picked meanwhile
     this.shown.set(path);
+    if (this.mode() !== 'diff') void this.ensureContent();
     // Once the new diff is drawn, and before it is painted.
     afterNextRender(() => {
       const pane = this.host.nativeElement.querySelector<HTMLElement>('.pane');
@@ -167,6 +189,28 @@ export class DiffBrowser {
     const list = this.ordered(), i = this.index() + by;
     if (i >= 0 && i < list.length) void this.show(list[i].path);
   }
+
+  protected async setMode(m: Mode): Promise<void> {
+    this.mode.set(m);
+    if (m !== 'diff') await this.ensureContent();
+  }
+
+  /** Read the shown file's current content once, for the raw and rendered modes. */
+  private async ensureContent(): Promise<void> {
+    const f = this.file();
+    if (!f || this.contents()[f.path]) return;
+    const path = f.path;
+    let got: Content;
+    try { got = await this.api.get<FileContentView>('universe/file', this.params({ file: path })); }
+    catch (e) { got = { error: (e as Error).message }; }
+    if (this.file()?.path === path) this.contents.update((c) => ({ ...c, [path]: got }));
+  }
+
+  protected toggleExpand(): void { this.expanded.update((e) => !e); }
+  protected toggleWrap(): void { this.wrap.update((w) => !w); }
+
+  @HostListener('document:keydown.escape')
+  protected onEscape(): void { if (this.expanded()) this.expanded.set(false); }
 
   protected fold(full: string): void {
     this.collapsed.update((o) => { const n = new Set(o); if (n.has(full)) n.delete(full); else n.add(full); return n; });

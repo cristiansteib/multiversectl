@@ -36,7 +36,7 @@
   } @else if (!files()!.length) {
     <p class="muted">Nothing changed.</p>
   } @else {
-    <div class="layout" [class.single]="!navigable()">
+    <div class="layout" [class.single]="!navigable()" [class.expanded]="expanded()">
       @if (navigable()) {
         <nav class="tree" aria-label="Changed files">
           <input type="search" name="filter-files" placeholder="Filter files" aria-label="Filter the changed files" [value]="filter()" (input)="filter.set($any($event.target).value)" />
@@ -67,6 +67,14 @@
             @if (f.binary) { <span class="muted small">binary</span> } @else { <b class="add">+{{ f.added }}</b><b class="del">−{{ f.removed }}</b> }
                         <mv-copy [text]="f.path" label="Path" />
             @if (fullPath()) { <mv-copy [text]="fullPath()" label="Full path" /> }
+            <span class="modes seg" role="group" aria-label="View mode">
+              <button type="button" [class.on]="mode() === 'diff'" (click)="setMode('diff')">Diff</button>
+              <button type="button" [class.on]="mode() === 'raw'" (click)="setMode('raw')">Raw</button>
+              @if (isMarkdown()) { <button type="button" [class.on]="mode() === 'rendered'" (click)="setMode('rendered')">Rendered</button> }
+            </span>
+            @if (mode() !== 'rendered') {
+              <button type="button" class="btn small ghost wrapbtn" [class.on]="wrap()" (click)="toggleWrap()" [attr.aria-pressed]="wrap()" title="Wrap long lines">Wrap</button>
+            }
             @if (navigable()) {
               <span class="steps">
                 <button type="button" class="btn small ghost" [disabled]="index() <= 0" title="Previous file" aria-label="Previous file" (click)="step(-1)"><mv-icon name="chevronLeft" /></button>
@@ -74,8 +82,22 @@
                 <button type="button" class="btn small ghost" [disabled]="index() >= files()!.length - 1" title="Next file" aria-label="Next file" (click)="step(1)"><mv-icon name="chevron" /></button>
               </span>
             }
+            <button type="button" class="btn small ghost expand" (click)="toggleExpand()" [attr.aria-pressed]="expanded()" [title]="expanded() ? 'Exit full screen (Esc)' : 'Expand to full screen'">
+              <mv-icon [name]="expanded() ? 'x' : 'external'" />
+            </button>
           </header>
-          <mv-patch-view [patch]="patches()[f.path]" [path]="f.path" [full]="true" />
+          @if (mode() === 'diff') {
+            <mv-patch-view [patch]="patches()[f.path]" [path]="f.path" [full]="true" [wrap]="wrap()" />
+          } @else if (f.binary) {
+            <p class="muted small empty">Binary file — not shown.</p>
+          } @else if (contentError(); as e) {
+            <mv-error [message]="e" />
+          } @else if (fileText(); as c) {
+            <mv-file-view [content]="c.text" [path]="f.path" [mode]="fileMode()" [wrap]="wrap()" />
+            @if (c.truncated) { <p class="muted small empty">… truncated at the preview limit.</p> }
+          } @else {
+            <mv-skeleton height="8rem" />
+          }
         } @else {
           <mv-skeleton height="2.4rem" /><mv-skeleton height="12rem" />
         }
