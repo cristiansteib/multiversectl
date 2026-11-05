@@ -61,7 +61,11 @@
 .rtab:hover { color: var(--text); background: var(--sunk) } .rtab.on { color: var(--text); background: var(--accent-soft) }
 .emptybody { padding: 28px 4px; color: var(--muted) }
 .emptybody p { margin: 0 }
+.loadbody { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 }
 .layout.expanded .emptybody { flex: 1; min-height: 0; display: grid; place-items: center }
+.layout.expanded .loadbody { flex: 1; min-height: 0 }
+.layout.expanded .commits { flex: 1; min-height: 0; overflow: auto }
+.layout.expanded .views { flex: none }
 
 .commits { list-style: none; margin: 0; padding: 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg) }
 .commits li + li { border-top: 1px solid var(--line) }
