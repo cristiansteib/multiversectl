@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { Api } from '../../core/api.service';
@@ -63,6 +63,8 @@ export class CodeTab {
   protected readonly error = signal<string | null>(null);
   /** Bumped when the rows are read again, so the open change is read again with them. */
   protected readonly tick = signal(0);
+  /** The diff browser, so the "Full view" button can lift it to full screen. */
+  protected readonly browser = viewChild(DiffBrowser);
 
   /** An order dragged by hand, by repository name. Null means the automatic one. */
   protected readonly manual = signal<string[] | null>(null);

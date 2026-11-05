@@ -30,6 +30,7 @@ const STROKED: Record<string, string> = {
   moon: 'M13.5 9.6A5.7 5.7 0 0 1 6.4 2.5 5.7 5.7 0 1 0 13.5 9.6z',
   copy: 'M5.5 5.5h7v8h-7zM3.5 10.5v-8h7',
   external: 'M9.5 2.5h4v4M13.5 2.5L7 9M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1H6.5',
+  expand: 'M2.5 6V2.5H6M14 6V2.5h-3.5M2.5 10v3.5H6M14 10v3.5h-3.5',
   play: 'M4.5 2.8v10.4L13 8z',
   stop: 'M3.5 3.5h9v9h-9z',
   plus: 'M8 3v10M3 8h10',

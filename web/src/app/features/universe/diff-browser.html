@@ -33,8 +33,6 @@
     } @else {
       <p class="muted">No commits on this branch yet.</p>
     }
-  } @else if (!files()!.length) {
-    <p class="muted">Nothing changed.</p>
   } @else {
     <div class="layout" [class.expanded]="expanded()">
       @if (expanded() && repos().length) {
@@ -43,9 +41,12 @@
             <button type="button" role="tab" class="rtab" [class.on]="rp === repo()" [attr.aria-selected]="rp === repo()" (click)="pickRepo(rp)">{{ rp }}</button>
           }
           <span class="grow"></span>
-          <button type="button" class="btn small ghost" (click)="toggleExpand()" title="Exit full screen (Esc)" aria-label="Exit full screen"><mv-icon name="x" /></button>
+          <button type="button" class="btn small ghost" (click)="expanded.set(false)" title="Exit full screen (Esc)" aria-label="Exit full screen"><mv-icon name="x" /></button>
         </div>
       }
+      @if (!files()!.length) {
+        <div class="emptybody"><p class="muted">{{ emptyMessage() || 'Nothing changed.' }}</p></div>
+      } @else {
       <div class="body" [class.single]="!navigable()">
       @if (navigable()) {
         <nav class="tree" aria-label="Changed files">
@@ -92,9 +93,6 @@
                 <button type="button" class="btn small ghost" [disabled]="index() >= files()!.length - 1" title="Next file" aria-label="Next file" (click)="step(1)"><mv-icon name="chevron" /></button>
               </span>
             }
-            <button type="button" class="btn small ghost expand" (click)="toggleExpand()" [attr.aria-pressed]="expanded()" [title]="expanded() ? 'Exit full screen (Esc)' : 'Expand to full screen'">
-              <mv-icon [name]="expanded() ? 'x' : 'external'" />
-            </button>
           </header>
           @if (mode() === 'diff') {
             <mv-patch-view [patch]="patches()[f.path]" [path]="f.path" [full]="true" [wrap]="wrap()" />
@@ -113,6 +111,7 @@
         }
       </section>
       </div>
+      }
     </div>
   }
 }

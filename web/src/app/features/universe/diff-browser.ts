@@ -44,6 +44,8 @@ export class DiffBrowser {
   /** The repositories offered in the expanded toolbar; the parent switches on repoChange. */
   readonly repos = input<string[]>([]);
   readonly repoChange = output<string>();
+  /** What to say when nothing changed: the parent's wording for this repository. */
+  readonly emptyMessage = input('');
 
   private readonly api = inject(Api);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -62,8 +64,12 @@ export class DiffBrowser {
   protected readonly patches = signal<Record<string, Loaded>>({});
   protected readonly collapsed = signal<ReadonlySet<string>>(new Set());
   protected readonly filter = signal('');
-  /** How the file is shown, and whether the browser is lifted to fill the screen. */
+  /** How the file is shown. */
   protected readonly mode = signal<Mode>('diff');
+  /** Whether the browser is lifted to fill the screen. Kept here so it survives
+   * switching repositories — the component is not torn down on a switch, where a
+   * parent-owned input would not reach it through the reload. The code tab's
+   * "Full view" calls open(); this overlay's own close and Esc clear it. */
   protected readonly expanded = signal(false);
   /** Soft-wrap long lines instead of scrolling them sideways. On by default. */
   protected readonly wrap = signal(true);
@@ -217,9 +223,10 @@ export class DiffBrowser {
     if (this.file()?.path === path) this.contents.update((c) => ({ ...c, [path]: got }));
   }
 
-  protected toggleExpand(): void { this.expanded.update((e) => !e); }
   protected toggleWrap(): void { this.wrap.update((w) => !w); }
   protected pickRepo(repo: string): void { if (repo !== this.repo()) this.repoChange.emit(repo); }
+  /** Lift the browser to fill the screen; the code tab's "Full view" calls this. */
+  open(): void { this.expanded.set(true); }
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void { if (this.expanded()) this.expanded.set(false); }
