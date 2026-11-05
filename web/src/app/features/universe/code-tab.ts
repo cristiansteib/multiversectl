@@ -355,6 +355,8 @@ export class CodeTab {
     this.moved.set('Tab order reset: repositories with changes first');
   }
 
+  /** Just the repository names, for the expanded diff browser's own toolbar. */
+  protected readonly repoNames = computed(() => this.ordered().map((r) => r.repo));
   protected repoIndex(): number { return this.ordered().findIndex((r) => r.repo === this.row()?.repo); }
   protected pickRepo(i: number): void { const r = this.ordered()[i]; if (r) this.select(r.repo); }
   protected scopeIndex(): number { return this.scopes().indexOf(this.activeScope()); }
