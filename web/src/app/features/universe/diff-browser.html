@@ -1,21 +1,29 @@
-@if (error(); as e) {
-  <mv-error [message]="e" />
-} @else if (files() === null) {
-  <div class="stack"><mv-skeleton height="2.2rem" /><mv-skeleton height="2.2rem" /><mv-skeleton width="60%" height="2.2rem" /></div>
-} @else {
+<div class="layout" [class.expanded]="expanded()">
+  @if (expanded() && repos().length) {
+    <div class="repobar" role="tablist" aria-label="Repository">
+      @for (rp of repos(); track rp) {
+        <button type="button" role="tab" class="rtab" [class.on]="rp === repo()" [attr.aria-selected]="rp === repo()" (click)="pickRepo(rp)">{{ rp }}</button>
+      }
+      <span class="grow"></span>
+      <button type="button" class="btn small ghost" (click)="expanded.set(false)" title="Exit full screen (Esc)" aria-label="Exit full screen"><mv-icon name="x" /></button>
+    </div>
+  }
+
   @if (hasCommits()) {
     <div class="views" role="tablist" aria-label="Commits or files">
       <button type="button" role="tab" class="view" [class.on]="view() === 'commits'" [attr.aria-selected]="view() === 'commits'" (click)="view.set('commits')">
         <mv-icon name="git" /> Commits <span class="count">{{ commits().length }}</span>
       </button>
       <button type="button" role="tab" class="view" [class.on]="view() === 'files'" [attr.aria-selected]="view() === 'files'" (click)="view.set('files')">
-        <mv-icon name="doc" /> Files changed <span class="count">{{ files()!.length }}</span>
+        <mv-icon name="doc" /> Files changed <span class="count">{{ files()?.length ?? 0 }}</span>
       </button>
     </div>
   }
 
   @if (view() === 'commits' && hasCommits()) {
-    @if (commits().length) {
+    @if (files() === null && !commits().length) {
+      <div class="loadbody"><mv-skeleton height="2.2rem" /><mv-skeleton height="2.2rem" /><mv-skeleton width="60%" height="2.2rem" /></div>
+    } @else if (commits().length) {
       <ol class="commits" aria-label="Commits on this branch">
         @for (c of commits(); track c.sha) {
           <li>
@@ -31,23 +39,16 @@
         }
       </ol>
     } @else {
-      <p class="muted">No commits on this branch yet.</p>
+      <div class="emptybody"><p class="muted">No commits on this branch yet.</p></div>
     }
+  } @else if (error(); as e) {
+    <div class="emptybody"><mv-error [message]="e" /></div>
+  } @else if (files() === null) {
+    <div class="loadbody"><mv-skeleton height="2.2rem" /><mv-skeleton height="2.2rem" /><mv-skeleton width="60%" height="2.2rem" /></div>
+  } @else if (!files()!.length) {
+    <div class="emptybody"><p class="muted">{{ emptyMessage() || 'Nothing changed.' }}</p></div>
   } @else {
-    <div class="layout" [class.expanded]="expanded()">
-      @if (expanded() && repos().length) {
-        <div class="repobar" role="tablist" aria-label="Repository">
-          @for (rp of repos(); track rp) {
-            <button type="button" role="tab" class="rtab" [class.on]="rp === repo()" [attr.aria-selected]="rp === repo()" (click)="pickRepo(rp)">{{ rp }}</button>
-          }
-          <span class="grow"></span>
-          <button type="button" class="btn small ghost" (click)="expanded.set(false)" title="Exit full screen (Esc)" aria-label="Exit full screen"><mv-icon name="x" /></button>
-        </div>
-      }
-      @if (!files()!.length) {
-        <div class="emptybody"><p class="muted">{{ emptyMessage() || 'Nothing changed.' }}</p></div>
-      } @else {
-      <div class="body" [class.single]="!navigable()">
+    <div class="body" [class.single]="!navigable()">
       @if (navigable()) {
         <nav class="tree" aria-label="Changed files">
           <input type="search" name="filter-files" placeholder="Filter files" aria-label="Filter the changed files" [value]="filter()" (input)="filter.set($any($event.target).value)" />
@@ -76,7 +77,7 @@
             <span class="mark" [class]="f.status" [title]="f.status">{{ mark[f.status] || '?' }}</span>
             <span class="fpath mono" [title]="title(f)">{{ title(f) }}</span>
             @if (f.binary) { <span class="muted small">binary</span> } @else { <b class="add">+{{ f.added }}</b><b class="del">−{{ f.removed }}</b> }
-                        <mv-copy [text]="f.path" label="Path" />
+            <mv-copy [text]="f.path" label="Path" />
             @if (fullPath()) { <mv-copy [text]="fullPath()" label="Full path" /> }
             <span class="modes seg" role="group" aria-label="View mode">
               <button type="button" [class.on]="mode() === 'diff'" (click)="setMode('diff')">Diff</button>
@@ -110,8 +111,6 @@
           <mv-skeleton height="2.4rem" /><mv-skeleton height="12rem" />
         }
       </section>
-      </div>
-      }
     </div>
   }
-}
+</div>
