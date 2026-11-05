@@ -43,6 +43,9 @@
   <span class="grow"></span>
   <span class="muted small" title="The last time the clones asked their remotes, which is how old what is measured against them can be.">{{ age() }}</span>
   @if (store.universe(); as u) { <mv-copy [text]="u.dir" label="Folder" /> }
+  <button type="button" class="btn small" (click)="browser()?.open()" [disabled]="!browser()" title="Browse the diff full screen">
+    <mv-icon name="expand" /> Full view
+  </button>
   <button type="button" class="btn small" [disabled]="loading()" [attr.aria-busy]="loading()" title="Ask the remotes, then read the branches and their requests again" (click)="reread()">
     <mv-icon name="refresh" /> Reread
   </button>
@@ -69,10 +72,8 @@
           </button>
         }
       </div>
-      <mv-diff-browser [multiverse]="store.multiverse()" [universe]="store.name()" [repo]="r.repo" [scope]="activeScope()" [base]="r.base ?? ''" [root]="r.path ?? ''" [tick]="tick()" [repos]="repoNames()" (repoChange)="select($event)" />
-    } @else {
-      <p class="muted">{{ nothingToRead() }}</p>
     }
+    <mv-diff-browser [multiverse]="store.multiverse()" [universe]="store.name()" [repo]="r.repo" [scope]="activeScope()" [base]="r.base ?? ''" [root]="r.path ?? ''" [tick]="tick()" [repos]="repoNames()" (repoChange)="select($event)" [emptyMessage]="nothingToRead()" />
   </section>
 } @else if (rows() && !rows()!.length) {
   <p class="muted">This universe has no repositories checked out.</p>

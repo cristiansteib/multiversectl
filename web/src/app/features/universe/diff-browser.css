@@ -59,7 +59,9 @@
 .repobar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; flex: none }
 .rtab { font: 500 .88rem var(--sans); color: var(--muted); background: none; border: 1px solid transparent; border-radius: var(--r-md); padding: 5px 11px; cursor: pointer }
 .rtab:hover { color: var(--text); background: var(--sunk) } .rtab.on { color: var(--text); background: var(--accent-soft) }
-.expand { flex: none }
+.emptybody { padding: 28px 4px; color: var(--muted) }
+.emptybody p { margin: 0 }
+.layout.expanded .emptybody { flex: 1; min-height: 0; display: grid; place-items: center }
 
 .commits { list-style: none; margin: 0; padding: 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg) }
 .commits li + li { border-top: 1px solid var(--line) }
