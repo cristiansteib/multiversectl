@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, HostListener, Injector, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { Api } from '../../core/api.service';
 import { CommitView, DiffFilesView, FileContentView, FileView, PatchView } from '../../core/models';
 import { AgoPipe } from '../../shared/ui/ago.pipe';
@@ -41,10 +41,14 @@ export class DiffBrowser {
   /** The checkout's folder, which a file's full path starts with. */
   readonly root = input('');
   readonly tick = input(0);
+  /** The repositories offered in the expanded toolbar; the parent switches on repoChange. */
+  readonly repos = input<string[]>([]);
+  readonly repoChange = output<string>();
 
   private readonly api = inject(Api);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly files = signal<FileView[] | null>(null);
   /** The branch's commits, newest first: what the work says of itself. */
@@ -106,6 +110,13 @@ export class DiffBrowser {
     effect(() => { this.tick(); untracked(() => { if (this.files() !== null) void this.load(); }); });
     // Rendered is markdown's own: a file that is not markdown falls back to raw.
     effect(() => { if (this.mode() === 'rendered' && !this.isMarkdown()) untracked(() => this.mode.set('raw')); });
+    // While the browser fills the screen, lock the page behind it so a scroll
+    // lands in the overlay and not in the page under it.
+    effect(() => {
+      const on = this.expanded();
+      untracked(() => lockScroll(on));
+    });
+    this.destroyRef.onDestroy(() => lockScroll(false));
   }
 
   private params(extra: Record<string, string> = {}) {
@@ -208,6 +219,7 @@ export class DiffBrowser {
 
   protected toggleExpand(): void { this.expanded.update((e) => !e); }
   protected toggleWrap(): void { this.wrap.update((w) => !w); }
+  protected pickRepo(repo: string): void { if (repo !== this.repo()) this.repoChange.emit(repo); }
 
   @HostListener('document:keydown.escape')
   protected onEscape(): void { if (this.expanded()) this.expanded.set(false); }
@@ -217,4 +229,11 @@ export class DiffBrowser {
   }
 
   protected title(f: FileView): string { return f.oldPath ? `${f.oldPath} → ${f.path}` : f.path; }
+}
+
+/** Hold or release the page scroll, so a scroll over the full-screen overlay stays in it. */
+function lockScroll(on: boolean): void {
+  try {
+    document.documentElement.style.overflow = on ? 'hidden' : '';
+  } catch { /* no document, e.g. server-side */ }
 }

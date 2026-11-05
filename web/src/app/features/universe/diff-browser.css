@@ -1,9 +1,9 @@
 :host { display: block; container-type: inline-size }
-.layout { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 16px; align-items: start }
-.layout.single { grid-template-columns: minmax(0, 1fr) }
+.body { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 16px; align-items: start }
+.body.single { grid-template-columns: minmax(0, 1fr) }
 /* Too narrow for both side by side: the tree goes above, short, and scrolls. */
 @container (max-width: 720px) {
-  .layout { grid-template-columns: minmax(0, 1fr) }
+  .body { grid-template-columns: minmax(0, 1fr) }
   .tree { position: static; max-height: 14rem }
 }
 .tree ul { list-style: none; margin: 0; padding: 0 }
@@ -46,13 +46,19 @@
 /* The bar carries a few controls; let them wrap rather than overflow when narrow. */
 .filebar { flex-wrap: wrap; row-gap: 6px }
 
-/* Expanded: the tree and the viewer lifted to fill the screen. */
+/* Expanded: a repo toolbar on top, the tree and the viewer filling the rest. */
 .layout.expanded { position: fixed; inset: 0; z-index: 60; height: 100vh; height: 100dvh; margin: 0; padding: 12px;
-  gap: 12px; background: var(--bg); grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); align-items: stretch; overflow: hidden }
-.layout.expanded.single { grid-template-columns: minmax(0, 1fr) }
+  display: flex; flex-direction: column; gap: 10px; background: var(--bg); overflow: hidden }
+.layout.expanded .body { flex: 1; min-height: 0; gap: 12px; align-items: stretch; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr) }
+.layout.expanded .body.single { grid-template-columns: minmax(0, 1fr) }
 .layout.expanded .tree { position: static; top: auto; max-height: none; height: 100%; overflow: auto; padding-right: 8px; border-right: 1px solid var(--line) }
+/* The file filter stays put while the list under it scrolls. */
+.layout.expanded .tree input { position: sticky; top: 0; z-index: 2 }
 .layout.expanded .pane { height: 100%; overflow: auto }
 .layout.expanded .filebar { top: 0 }
+.repobar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; flex: none }
+.rtab { font: 500 .88rem var(--sans); color: var(--muted); background: none; border: 1px solid transparent; border-radius: var(--r-md); padding: 5px 11px; cursor: pointer }
+.rtab:hover { color: var(--text); background: var(--sunk) } .rtab.on { color: var(--text); background: var(--accent-soft) }
 .expand { flex: none }
 
 .commits { list-style: none; margin: 0; padding: 0 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg) }

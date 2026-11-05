@@ -36,7 +36,17 @@
   } @else if (!files()!.length) {
     <p class="muted">Nothing changed.</p>
   } @else {
-    <div class="layout" [class.single]="!navigable()" [class.expanded]="expanded()">
+    <div class="layout" [class.expanded]="expanded()">
+      @if (expanded() && repos().length) {
+        <div class="repobar" role="tablist" aria-label="Repository">
+          @for (rp of repos(); track rp) {
+            <button type="button" role="tab" class="rtab" [class.on]="rp === repo()" [attr.aria-selected]="rp === repo()" (click)="pickRepo(rp)">{{ rp }}</button>
+          }
+          <span class="grow"></span>
+          <button type="button" class="btn small ghost" (click)="toggleExpand()" title="Exit full screen (Esc)" aria-label="Exit full screen"><mv-icon name="x" /></button>
+        </div>
+      }
+      <div class="body" [class.single]="!navigable()">
       @if (navigable()) {
         <nav class="tree" aria-label="Changed files">
           <input type="search" name="filter-files" placeholder="Filter files" aria-label="Filter the changed files" [value]="filter()" (input)="filter.set($any($event.target).value)" />
@@ -102,6 +112,7 @@
           <mv-skeleton height="2.4rem" /><mv-skeleton height="12rem" />
         }
       </section>
+      </div>
     </div>
   }
 }

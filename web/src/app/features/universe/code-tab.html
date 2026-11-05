@@ -69,7 +69,7 @@
           </button>
         }
       </div>
-      <mv-diff-browser [multiverse]="store.multiverse()" [universe]="store.name()" [repo]="r.repo" [scope]="activeScope()" [base]="r.base ?? ''" [root]="r.path ?? ''" [tick]="tick()" />
+      <mv-diff-browser [multiverse]="store.multiverse()" [universe]="store.name()" [repo]="r.repo" [scope]="activeScope()" [base]="r.base ?? ''" [root]="r.path ?? ''" [tick]="tick()" [repos]="repoNames()" (repoChange)="select($event)" />
     } @else {
       <p class="muted">{{ nothingToRead() }}</p>
     }
