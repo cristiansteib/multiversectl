@@ -18,8 +18,9 @@ import (
 // universe is for; these are what the next reader needs to know.
 func (r runner) notesCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "notes <universe>",
-		Short: "Short messages left in a universe for the user and other agents",
+		Use:               "notes <universe>",
+		ValidArgsFunction: r.completeUniverse,
+		Short:             "Short messages left in a universe for the user and other agents",
 		Long: "Every note with its id, when it was added and who by. A note is a line or two\n" +
 			"the next reader needs — what is blocked, what is asked of someone, a decision,\n" +
 			"where things stand — not an account of the work, which the commits already\n" +
@@ -59,8 +60,9 @@ func (r runner) notesCmd() *cobra.Command {
 func (r runner) notesAddCmd() *cobra.Command {
 	var by string
 	cmd := &cobra.Command{
-		Use:   "add <universe> <text>",
-		Short: "Leave a note in a universe for the user or another agent",
+		Use:               "add <universe> <text>",
+		ValidArgsFunction: r.completeUniverse,
+		Short:             "Leave a note in a universe for the user or another agent",
 		Long: "The id and the time are the tool's to fill in. `-` as the text reads it from\n" +
 			"standard input, for a note longer than a command line wants.",
 		Example: "  multiversectl universe notes add 3 \"migrations run, mail still failing\"\n" +
@@ -179,7 +181,10 @@ func noteText(cmd *cobra.Command, args []string) (string, error) {
 // says, so an id never has to be looked up first. Like every completion here
 // it reads what is on this machine and nothing else: no manifest notice on the
 // candidate list the shell parses, and no fetch behind a tab key.
-func (r runner) completeNoteIDs(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+func (r runner) completeNoteIDs(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) == 0 {
+		return r.completeUniverse(cmd, args, toComplete)
+	}
 	if len(args) != 1 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}

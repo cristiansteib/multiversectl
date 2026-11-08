@@ -109,8 +109,9 @@ func (r runner) doctorCmd() *cobra.Command {
 func (r runner) universeDoctorCmd() *cobra.Command {
 	var format string
 	cmd := &cobra.Command{
-		Use:   "doctor [universe]",
-		Short: "Check the multiverse and optionally one universe: its clones, domain, git host, secrets, apps and addresses",
+		Use:               "doctor [universe]",
+		ValidArgsFunction: r.completeUniverse,
+		Short:             "Check the multiverse and optionally one universe: its clones, domain, git host, secrets, apps and addresses",
 		Long: "Checks the multiverse: that its shared clones are up to date with their remotes,\n" +
 			"the proxy it asks for, a proxy it would clash with, that its domain resolves to this\n" +
 			"machine and that its git host is signed in. Name a universe and it is checked too:\n" +
