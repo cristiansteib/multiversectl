@@ -61,10 +61,11 @@ func IsSilent(err error) bool { return errors.Is(err, errChecksFailed) }
 
 func (r runner) envCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "env <universe>",
-		Short:   "Print a universe's environment as export lines for your shell",
-		Example: `  eval "$(multiversectl universe env 3)"`,
-		Args:    cobra.MaximumNArgs(1),
+		Use:               "env <universe>",
+		ValidArgsFunction: r.completeUniverse,
+		Short:             "Print a universe's environment as export lines for your shell",
+		Example:           `  eval "$(multiversectl universe env 3)"`,
+		Args:              cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
 				args, err := r.universeArgs(cmd, args, s)
@@ -235,6 +236,14 @@ func (r runner) runCmd() *cobra.Command {
 	// Where `universe hooks run` went; the name does not run.
 	cmd.SuggestFor = []string{"hooks"}
 	var hook string
+	// With --hook what follows the universe is any number of apps, not one.
+	byApp, anyApps := r.completeUniverseThen(true, false), r.completeUniverseThen(true, true)
+	cmd.ValidArgsFunction = func(c *cobra.Command, a []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if c.Flags().Changed("hook") {
+			return anyApps(c, a, toComplete)
+		}
+		return byApp(c, a, toComplete)
+	}
 	cmd.Flags().StringVar(&hook, "hook", "", "run the hooks the manifest ties to this event instead of a command (postCreate, preUp, postUp, preDown, postDown, preRemove), for the apps named or all; a once-only hook runs again and is not marked")
 	_ = cmd.RegisterFlagCompletionFunc("hook", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		events := make([]string, len(domain.HookEvents))
@@ -275,6 +284,8 @@ func (r runner) commandIn(name, short string, inRunning bool, example string) *c
 		Short:   short,
 		Example: example,
 		Args:    cobra.MinimumNArgs(2),
+		// Past the app is the command for the container: nothing of this machine's.
+		ValidArgsFunction: r.completeUniverseThen(true, false),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
 				return s.Run(ctx, app.RunInput{
@@ -284,6 +295,7 @@ func (r runner) commandIn(name, short string, inRunning bool, example string) *c
 		},
 	}
 	cmd.Flags().StringVar(&service, "service", "", "service to run in (default: the app's defaultService, or its only service)")
+	_ = cmd.RegisterFlagCompletionFunc("service", r.completeServices)
 	return cmd
 }
 

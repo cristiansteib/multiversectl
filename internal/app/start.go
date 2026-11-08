@@ -474,6 +474,37 @@ func (s *Service) Run(ctx context.Context, in RunInput) error {
 	return s.Runtime.Run(ctx, req, service, in.Args)
 }
 
+// ServiceNames are the services of an app that exec and run can land in: the
+// ones the manifest names, and failing that what the compose files define. It
+// is for completion, so an app it cannot read gives none rather than an error.
+func (s *Service) ServiceNames(ctx context.Context, universe, appName string) []string {
+	st, err := s.Resolve(universe)
+	if err != nil {
+		return nil
+	}
+	s = s.forUniverseOrSelf(st.Name)
+	a, ok := s.Manifest.Apps[appName]
+	if !ok {
+		return nil
+	}
+	names := append([]string{}, a.Services...)
+	for _, group := range a.Optional {
+		names = append(names, group...)
+	}
+	if a.DefaultService != "" {
+		names = append(names, a.DefaultService)
+	}
+	if len(names) == 0 {
+		cfg, err := s.Runtime.Inspect(ctx, s.request(s.UniverseOf(st), st, appName, nil))
+		if err != nil {
+			return nil
+		}
+		names = cfg.Names()
+	}
+	sort.Strings(names)
+	return slices.Compact(names)
+}
+
 // forwardPorts gives every host that asked for portForward a host port and the
 // address that port is reached at. The port is chosen once, from a free one,
 // and kept in the universe's state: a phone given the address keeps working

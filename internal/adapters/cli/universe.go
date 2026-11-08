@@ -99,8 +99,11 @@ func (r runner) upCmd() *cobra.Command {
 		Short:      "Start a universe (all apps, or only those named)",
 		Example:    "  multiversectl universe up 3\n  multiversectl universe up fix/login api --with workers",
 		Args:       cobra.ArbitraryArgs,
+
+		ValidArgsFunction: r.completeUniverseThen(true, true),
 	}
 	cmd.Flags().StringSliceVar(&with, "with", nil, "optional service groups to include, comma separated")
+	_ = cmd.RegisterFlagCompletionFunc("with", r.completeGroups)
 	wait := waitFlags(cmd)
 	cmd.Flags().BoolVar(&rebind, "rebind-proxy", false, "publish the shared proxy the way this multiverse asks even though a port is published another way for universes of other multiverses that are served through it")
 	cmd.Flags().BoolVar(&failFast, "fail-fast", false, "stop at the first app that does not start (default: start the others, report the failures at the end, exit non-zero)")
@@ -123,6 +126,8 @@ func (r runner) downCmd() *cobra.Command {
 		Short:      "Stop a universe (all apps, or only those named); keeps data and checkouts",
 		Example:    "  multiversectl universe down 3\n  multiversectl universe down fix/login",
 		Args:       cobra.ArbitraryArgs,
+
+		ValidArgsFunction: r.completeUniverseThen(true, true),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
 				args, err := r.universeArgs(cmd, args, s)
@@ -175,9 +180,10 @@ func parseLsFormat(spec string) (lsFormat, error) {
 func (r runner) lsCmd() *cobra.Command {
 	var format string
 	cmd := &cobra.Command{
-		Use:        "ls [universe]",
-		SuggestFor: []string{"list", "status"},
-		Short:      "List universes, or show one",
+		Use:               "ls [universe]",
+		ValidArgsFunction: r.completeUniverse,
+		SuggestFor:        []string{"list", "status"},
+		Short:             "List universes, or show one",
 		Example: "  multiversectl universe ls\n" +
 			"  multiversectl universe ls -o wide        # every service, its state and its volumes\n" +
 			"  multiversectl universe ls -o list        # one line per universe: running or not, services up, since when\n" +
@@ -679,10 +685,11 @@ func runningStyle(n int) string {
 
 func (r runner) urlsCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:     "urls <universe>",
-		Short:   "Print a universe's URLs, one per line",
-		Example: "  multiversectl universe urls 3\n  multiversectl universe urls fix/login",
-		Args:    cobra.MaximumNArgs(1),
+		Use:               "urls <universe>",
+		ValidArgsFunction: r.completeUniverse,
+		Short:             "Print a universe's URLs, one per line",
+		Example:           "  multiversectl universe urls 3\n  multiversectl universe urls fix/login",
+		Args:              cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return r.withService(func(ctx context.Context, s *app.Service) error {
 				args, err := r.universeArgs(cmd, args, s)
@@ -801,8 +808,9 @@ func standing(u app.Summary) (state, style, up string) {
 func (r runner) syncCmd() *cobra.Command {
 	var all, merge bool
 	cmd := &cobra.Command{
-		Use:   "sync [universe]",
-		Short: "Bring a universe's code up to date with the branches it follows",
+		Use:               "sync [universe]",
+		ValidArgsFunction: r.completeUniverse,
+		Short:             "Bring a universe's code up to date with the branches it follows",
 		Long: "A universe's checkouts keep the commit they were made from, so a fix that reached\n" +
 			"main since is not in them. sync fetches and moves each checkout forward when that\n" +
 			"loses nothing: a checkout with uncommitted changes is never touched, and one with\n" +
@@ -860,9 +868,10 @@ func (r runner) aboutCmd() *cobra.Command {
 	var pr string
 	var clear, diff, yaml, files bool
 	cmd := &cobra.Command{
-		Use:        "about <universe> [text]",
-		SuggestFor: []string{"note", "config", "render", "hooks"},
-		Short:      "What a universe is for, its PR, the manifest it runs on and its hooks; and set what it is for",
+		Use:               "about <universe> [text]",
+		ValidArgsFunction: r.completeUniverse,
+		SuggestFor:        []string{"note", "config", "render", "hooks"},
+		Short:             "What a universe is for, its PR, the manifest it runs on and its hooks; and set what it is for",
 		Long: "With only the universe it says what it is for and its pull request, which manifest it\n" +
 			"uses (whether that loads, and whether it was edited since the universe started) and\n" +
 			"the hooks the manifest ties to its life. With text, or --pr, it sets what the universe\n" +
