@@ -23,7 +23,7 @@
               @if (a.command) { <mv-copy [text]="a.command" /> }
             </div>
             <div class="row act">
-              @if (a.link) { <a class="btn small ghost" [routerLink]="a.link.to" [queryParams]="a.link.query">{{ a.link.label }}</a> }
+              @if (a.link) { <a class="btn small" [routerLink]="a.link.to" [queryParams]="a.link.query">{{ a.link.label }}</a> }
               @if (a.action) { <button type="button" class="btn small" [disabled]="a.action.busy" (click)="a.action.run()">{{ a.action.label }}</button> }
             </div>
           </li>

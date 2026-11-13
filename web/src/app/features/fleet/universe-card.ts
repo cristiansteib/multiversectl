@@ -5,6 +5,7 @@ import { PulseUniverse, UniverseView } from '../../core/models';
 import { universeLink } from '../../core/util';
 import { bytes } from '../../shared/chart/chart-math';
 import { Sparkline } from '../../shared/chart/sparkline';
+import { AgoPipe } from '../../shared/ui/ago.pipe';
 import { Icon } from '../../shared/ui/icon';
 import { dirtyCheckouts, expectedOf, runState } from './universe-state';
 
@@ -15,18 +16,17 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
  */
 @Component({
   selector: 'mv-universe-card',
-  imports: [RouterLink, Sparkline, Icon],
+  imports: [RouterLink, Sparkline, Icon, AgoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="tile" [class.stopped]="state() === 'stopped'" [routerLink]="link()">
-      <span class="wtrow">
-        @if (edited()) {
-          <span class="wt dirty" [attr.title]="'uncommitted changes in ' + dirty().join(', ')">{{ dirty().length }} changed</span>
-        } @else {
-          <span class="wt">no changes</span>
-        }
-      </span>
-      <span class="num" [class.word]="!isNumber()" [attr.title]="isNumber() ? null : universe().name">{{ universe().name }}</span>
+      @if (edited() || universe().created) {
+        <span class="wtrow">
+          @if (universe().created) { <span class="wt" [attr.title]="'Created ' + universe().created">{{ universe().created | ago }}</span> }
+          @if (edited()) { <span class="wt dirty" [attr.title]="'uncommitted changes in ' + dirty().join(', ')">{{ dirty().length }} changed</span> }
+        </span>
+      }
+      <span class="num" [class.word]="!isNumber()" [attr.title]="isNumber() ? null : universe().name">@for (p of parts(); track $index) {{{ p }}<wbr />}</span>
       @if (where()) { <span class="where mono" [attr.title]="where()">{{ where() }}</span> }
       @if (universe().note) { <span class="note">{{ universe().note }}</span> }
       <span class="foot">
@@ -79,11 +79,11 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
     .run { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted) }
     .run.ok { color: var(--ok) } .run.warn { color: var(--warn) }
     .dot { width: 10px; height: 10px; flex: none }
-    .wtrow { display: flex; justify-content: flex-end; min-height: 1em }
+    .wtrow { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: -4px }
     .wt { font-size: var(--fs-2xs); font-weight: 500; color: var(--faint); white-space: nowrap }
     .wt.dirty { color: var(--warn) }
-    .num { min-width: 0; font: 300 var(--fs-hero)/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
-    .num.word { font: 600 var(--fs-xl)/1.2 var(--sans); letter-spacing: -.015em; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
+    .num { min-width: 0; font: 300 var(--fs-hero)/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: break-word }
+    .num.word { font: 600 var(--fs-xl)/1.2 var(--sans); letter-spacing: -.015em; min-height: 2.4em; display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden }
     .behind { margin-left: auto; display: inline-flex; align-items: center; gap: 3px; color: var(--warn);
       font: 600 var(--fs-2xs)/1 var(--sans); font-variant-numeric: tabular-nums }
     .behind mv-icon { font-size: 1.15em }
@@ -93,7 +93,7 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
     .line { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center }
     .cell { display: inline-flex; align-items: center; gap: 6px; min-width: 0 }
     .k { font: 500 var(--fs-3xs)/1 var(--sans); text-transform: uppercase; letter-spacing: .07em; color: var(--faint) }
-    .v { font: 500 var(--fs-2xs)/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--text) }
+    .v { white-space: nowrap; font: 500 var(--fs-2xs)/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--text) }
     .v.warn { color: var(--warn) }
     .v .u { color: var(--faint); font-weight: 400 }
     .load mv-sparkline { display: inline-block; width: 42px; height: 16px }
@@ -111,6 +111,8 @@ export class UniverseCard {
   protected cores(n: number): string { return n >= 10 ? n.toFixed(0) : n.toFixed(1); }
   protected ramWarn(m: PulseUniverse): boolean { return !!m.memCap && m.mem / m.memCap > 0.85; }
 
+  /** The name in pieces it may break between: after a slash or a dash, not in the middle of a word. */
+  protected readonly parts = computed(() => this.universe().name.split(/(?<=[/_-])/));
   protected readonly link = computed(() => universeLink(this.universe().multiverse, this.universe().name));
   protected readonly state = computed(() => runState(this.universe()));
   protected readonly tone = computed(() => ({ running: 'ok', partial: 'warn', stopped: '' })[this.state()]);
@@ -129,6 +131,8 @@ export class UniverseCard {
   /** The branch it is on: one name when every repository is on the same. */
   protected readonly where = computed(() => {
     const names = [...new Set(Object.values(this.universe().branches ?? {}).filter(Boolean))];
-    return names.length === 1 ? names[0] : names.length ? `${names.length} branches` : '';
+    // The name already says it when it is the branch: do not say it twice.
+    if (names.length === 1) return names[0] === this.universe().name ? '' : names[0];
+    return names.length ? `${names.length} branches` : '';
   });
 }

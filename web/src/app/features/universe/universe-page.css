@@ -3,7 +3,9 @@
 .who { min-width: 0; flex: 1 1 320px }
 /* The number is what a universe is called, and the one large thing on the page. */
 .numeral { font-size: clamp(2.2rem, 6vw, 3.4rem); font-weight: 500; letter-spacing: -.035em; line-height: 1.05; margin: 0 0 10px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums }
-.numeral.live { border-left: 4px solid var(--accent); padding-left: 14px; margin-left: -18px }
+.numeral.word { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 600; letter-spacing: -.02em; line-height: 1.15 }
+.numeral.live { border-left: 4px solid var(--accent); padding-left: 14px }
+@media (min-width: 900px) { .numeral.live { margin-left: -18px } }
 .state { gap: 8px; margin-bottom: 6px }
 .meta { margin: 6px 0 0; font-size: .9rem }
 .note { margin: 6px 0 0; max-width: 70ch }
@@ -36,11 +38,25 @@
   .summary { display: block; grid-column: 3; grid-row: 1; position: sticky; top: calc(var(--top) + 20px) }
   .peek-row { display: none }
 }
+/* The strip scrolls on a narrow screen: a fade, not a scrollbar, says there is more past an edge. */
+@property --fade-start { syntax: "<length>"; inherits: false; initial-value: 0px }
+@property --fade-end { syntax: "<length>"; inherits: false; initial-value: 0px }
+@keyframes reveal-fade-start { to { --fade-start: var(--fade-size) } }
+@keyframes hide-fade-end { from { --fade-end: var(--fade-size) } }
 @media (max-width: 860px) {
   .layout, .layout.collapsed { grid-template-columns: minmax(0, 1fr); gap: 16px }
   .side, .content { grid-column: 1; grid-row: auto }
-  .side { position: static; flex-direction: row; overflow-x: auto; border-bottom: 1px solid var(--line); padding-bottom: 6px }
+  .side { position: static; flex-direction: row; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line); padding-bottom: 6px }
   .collapse { display: none }
-  .side a, .collapsed .side a { white-space: nowrap; justify-content: flex-start; padding-inline: 12px }
+  .side {
+    --fade-size: 2.5rem; scroll-padding-inline: var(--fade-size);
+    mask: linear-gradient(black, black) no-clip subtract,
+      linear-gradient(to right, black, transparent) 0 0 / var(--fade-start) 100% no-repeat no-clip,
+      linear-gradient(to right, transparent, black) 100% 0 / var(--fade-end) 100% no-repeat no-clip;
+    animation: reveal-fade-start linear both, hide-fade-end linear both;
+    animation-timeline: scroll(self inline);
+    animation-range: 0 var(--fade-size), calc(100% - var(--fade-size)) 100%;
+  }
+  .side a, .collapsed .side a { flex: none; white-space: nowrap; justify-content: flex-start; padding-inline: 12px }
   .collapsed .label { position: static; width: auto; height: auto; clip-path: none }
 }

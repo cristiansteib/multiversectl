@@ -6,7 +6,7 @@
 @if (u(); as u) {
   <header class="head">
     <div class="who">
-      <h1 class="numeral" [class.live]="u.running">{{ u.name }}</h1>
+      <h1 class="numeral" [class.word]="!isNumber(u.name)" [class.live]="u.running">{{ u.name }}</h1>
       <div class="row state">
         <mv-badge [tone]="u.running ? 'ok' : 'mute'">
           @if (u.running) { <span class="dot ok"></span> {{ u.running }}@if (store.expected()) {/{{ store.expected() }}} running }
@@ -50,11 +50,11 @@
               [attr.aria-label]="navCollapsed() ? 'Expand the navigation' : 'Collapse the navigation'" [attr.title]="navCollapsed() ? 'Expand the navigation' : 'Collapse the navigation'">
         <mv-icon [name]="navCollapsed() ? 'chevron' : 'chevronLeft'" />
       </button>
-      <a [routerLink]="base()" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" title="Overview"><mv-icon name="overview" /> <span class="label">Overview</span></a>
-      <a [routerLink]="[...base(), 'containers']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Containers and logs"><mv-icon name="terminal" /> <span class="label">Containers and logs</span></a>
-      <a [routerLink]="[...base(), 'code']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Code"><mv-icon name="branch" /> <span class="label">Code</span></a>
-      <a [routerLink]="[...base(), 'config']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Configuration"><mv-icon name="doc" /> <span class="label">Configuration</span></a>
-      <a [routerLink]="[...base(), 'settings']" routerLinkActive="active" ariaCurrentWhenActive="page" title="Settings"><mv-icon name="system" /> <span class="label">Settings</span></a>
+      <a #a1 [routerLink]="base()" routerLinkActive="active" (isActiveChange)="reveal($event, a1)" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page" title="Overview"><mv-icon name="overview" /> <span class="label">Overview</span></a>
+      <a #a2 [routerLink]="[...base(), 'containers']" routerLinkActive="active" (isActiveChange)="reveal($event, a2)" ariaCurrentWhenActive="page" title="Containers and logs"><mv-icon name="terminal" /> <span class="label">Containers and logs</span></a>
+      <a #a3 [routerLink]="[...base(), 'code']" routerLinkActive="active" (isActiveChange)="reveal($event, a3)" ariaCurrentWhenActive="page" title="Code"><mv-icon name="branch" /> <span class="label">Code</span></a>
+      <a #a4 [routerLink]="[...base(), 'config']" routerLinkActive="active" (isActiveChange)="reveal($event, a4)" ariaCurrentWhenActive="page" title="Configuration"><mv-icon name="doc" /> <span class="label">Configuration</span></a>
+      <a #a5 [routerLink]="[...base(), 'settings']" routerLinkActive="active" (isActiveChange)="reveal($event, a5)" ariaCurrentWhenActive="page" title="Settings"><mv-icon name="system" /> <span class="label">Settings</span></a>
     </nav>
     <div class="content">
       <!-- Where the summary has no column of its own: a card with the least that is wanted, and the panel behind it. -->
