@@ -5,6 +5,7 @@ import { PulseUniverse, UniverseView } from '../../core/models';
 import { universeLink } from '../../core/util';
 import { bytes } from '../../shared/chart/chart-math';
 import { Sparkline } from '../../shared/chart/sparkline';
+import { AgoPipe } from '../../shared/ui/ago.pipe';
 import { Icon } from '../../shared/ui/icon';
 import { dirtyCheckouts, expectedOf, runState } from './universe-state';
 
@@ -15,12 +16,15 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
  */
 @Component({
   selector: 'mv-universe-card',
-  imports: [RouterLink, Sparkline, Icon],
+  imports: [RouterLink, Sparkline, Icon, AgoPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="tile" [class.stopped]="state() === 'stopped'" [routerLink]="link()">
-      @if (edited()) {
-        <span class="wtrow"><span class="wt dirty" [attr.title]="'uncommitted changes in ' + dirty().join(', ')">{{ dirty().length }} changed</span></span>
+      @if (edited() || universe().created) {
+        <span class="wtrow">
+          @if (universe().created) { <span class="wt" [attr.title]="'Created ' + universe().created">{{ universe().created | ago }}</span> }
+          @if (edited()) { <span class="wt dirty" [attr.title]="'uncommitted changes in ' + dirty().join(', ')">{{ dirty().length }} changed</span> }
+        </span>
       }
       <span class="num" [class.word]="!isNumber()" [attr.title]="isNumber() ? null : universe().name">{{ universe().name }}</span>
       @if (where()) { <span class="where mono" [attr.title]="where()">{{ where() }}</span> }
@@ -75,7 +79,7 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
     .run { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted) }
     .run.ok { color: var(--ok) } .run.warn { color: var(--warn) }
     .dot { width: 10px; height: 10px; flex: none }
-    .wtrow { display: flex; justify-content: flex-end; margin-bottom: -4px }
+    .wtrow { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: -4px }
     .wt { font-size: var(--fs-2xs); font-weight: 500; color: var(--faint); white-space: nowrap }
     .wt.dirty { color: var(--warn) }
     .num { min-width: 0; font: 300 var(--fs-hero)/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
