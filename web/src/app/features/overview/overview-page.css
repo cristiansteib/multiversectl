@@ -5,7 +5,7 @@
 .attention > li.bad { border-left-color: var(--bad) } .attention > li.info { border-left-color: var(--info) }
 .attention mv-icon { margin-top: 4px } .attention .warn mv-icon { color: var(--warn) } .attention .bad mv-icon { color: var(--bad) } .attention .info mv-icon { color: var(--info) }
 .what { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; align-items: flex-start }
-.act { margin-left: auto; flex: none }
+.act { margin-left: auto; flex: none; gap: 8px }
 .clear { display: flex; align-items: center; gap: 8px; color: var(--ok); margin: 0 0 8px } .next { margin: 8px 0 0 }
 .catalog { margin-top: 22px }
 .name { font-weight: 600; color: var(--text); text-decoration: none } .name:hover { color: var(--accent) }

@@ -19,13 +19,9 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="tile" [class.stopped]="state() === 'stopped'" [routerLink]="link()">
-      <span class="wtrow">
-        @if (edited()) {
-          <span class="wt dirty" [attr.title]="'uncommitted changes in ' + dirty().join(', ')">{{ dirty().length }} changed</span>
-        } @else {
-          <span class="wt">no changes</span>
-        }
-      </span>
+      @if (edited()) {
+        <span class="wtrow"><span class="wt dirty" [attr.title]="'uncommitted changes in ' + dirty().join(', ')">{{ dirty().length }} changed</span></span>
+      }
       <span class="num" [class.word]="!isNumber()" [attr.title]="isNumber() ? null : universe().name">{{ universe().name }}</span>
       @if (where()) { <span class="where mono" [attr.title]="where()">{{ where() }}</span> }
       @if (universe().note) { <span class="note">{{ universe().note }}</span> }
@@ -79,7 +75,7 @@ import { dirtyCheckouts, expectedOf, runState } from './universe-state';
     .run { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--muted) }
     .run.ok { color: var(--ok) } .run.warn { color: var(--warn) }
     .dot { width: 10px; height: 10px; flex: none }
-    .wtrow { display: flex; justify-content: flex-end; min-height: 1em }
+    .wtrow { display: flex; justify-content: flex-end; margin-bottom: -4px }
     .wt { font-size: var(--fs-2xs); font-weight: 500; color: var(--faint); white-space: nowrap }
     .wt.dirty { color: var(--warn) }
     .num { min-width: 0; font: 300 var(--fs-hero)/1 var(--sans); letter-spacing: -.045em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
@@ -129,6 +125,8 @@ export class UniverseCard {
   /** The branch it is on: one name when every repository is on the same. */
   protected readonly where = computed(() => {
     const names = [...new Set(Object.values(this.universe().branches ?? {}).filter(Boolean))];
-    return names.length === 1 ? names[0] : names.length ? `${names.length} branches` : '';
+    // The name already says it when it is the branch: do not say it twice.
+    if (names.length === 1) return names[0] === this.universe().name ? '' : names[0];
+    return names.length ? `${names.length} branches` : '';
   });
 }

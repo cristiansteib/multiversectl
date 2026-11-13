@@ -88,12 +88,13 @@ export class OverviewPage {
 
     for (const w of this.fleet()) {
       for (const u of w.universes) {
-        for (const reason of reasonsFor(u)) {
-          const behind = reason.includes('behind');
-          out.push({ id: `${w.name}/${u.name}/${reason}`, tone: 'warn', title: `Universe ${u.name} in ${w.name}`, detail: reason,
-            action: behind && !this.events.readOnly() ? { label: 'Update code', busy: this.ops.busy(w.name), run: () => void this.ops.runOrSay({ action: 'sync', multiverse: w.name, universe: u.name }) } : undefined,
-            link: { label: 'Open', to: ['/universe', w.name, u.name] } });
-        }
+        // One row per universe: its reasons are one thing to look at, not several.
+        const reasons = reasonsFor(u);
+        if (!reasons.length) continue;
+        const behind = reasons.some((r) => r.includes('behind'));
+        out.push({ id: `${w.name}/${u.name}`, tone: 'warn', title: `Universe ${u.name} in ${w.name}`, detail: reasons.join(' · '),
+          action: behind && !this.events.readOnly() ? { label: 'Update code', busy: this.ops.busy(w.name), run: () => void this.ops.runOrSay({ action: 'sync', multiverse: w.name, universe: u.name }) } : undefined,
+          link: { label: 'Open', to: ['/universe', w.name, u.name] } });
       }
     }
 

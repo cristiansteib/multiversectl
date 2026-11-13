@@ -31,6 +31,12 @@ export class UniversePage {
   protected readonly events = inject(Events);
   protected readonly ops = inject(Ops);
 
+  /** Every number is a numeral; a longer name is set as the word it is. */
+  protected isNumber(name: string): boolean { return /^\d{1,3}$/.test(name); }
+  /** On a narrow screen the strip scrolls: the section being shown must not wait out of sight. */
+  protected reveal(active: boolean, link: HTMLElement): void {
+    if (active) link.scrollIntoView({ block: 'nearest', inline: 'nearest', container: 'nearest' } as ScrollIntoViewOptions);
+  }
   protected readonly u = this.store.universe;
   protected readonly busy = computed(() => this.ops.busy(this.multiverse()));
   protected readonly busyHint = computed(() => (this.busy() ? `Another operation is running in ${this.multiverse()}` : null));
